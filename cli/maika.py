@@ -75,6 +75,11 @@ def main():
         action="store_true",
         help="Run non-interactively; requires --platform and --language",
     )
+    init_parser.add_argument(
+        "--ua-mcp-dir",
+        default=None,
+        help="Absolute path to the Understand-Anything-MCP clone (when understand-anything is selected)",
+    )
 
     # ─── status ───
     status_parser = subparsers.add_parser(
@@ -165,6 +170,7 @@ def main():
             selected_mcps=selected_mcps,
             language=args.language,
             assume_yes=args.yes,
+            ua_mcp_dir=args.ua_mcp_dir,
         )
     elif args.command == "update":
         from cli.commands.update import run_update

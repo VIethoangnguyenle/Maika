@@ -141,6 +141,26 @@ def gather_choices(manifest: dict) -> Tuple[str, List[str], str]:
     return resolve_init_choices(manifest)
 
 
+UA_MCP_KEY = "understand-anything"
+UA_MCP_PLACEHOLDER = "<PATH_TO_Understand-Anything-MCP>"
+
+
+def resolve_ua_mcp_dir(selected_mcps, ua_mcp_dir, assume_yes: bool) -> str:
+    """Resolve the Understand-Anything-MCP clone dir: flag > prompt > placeholder.
+    Returns '' when UA is not selected."""
+    if UA_MCP_KEY not in selected_mcps:
+        return ""
+    if ua_mcp_dir:
+        return ua_mcp_dir
+    if assume_yes:
+        return UA_MCP_PLACEHOLDER
+    raw = input(
+        "\nĐường dẫn tuyệt đối tới clone Understand-Anything-MCP "
+        "(Enter để chèn placeholder): "
+    ).strip()
+    return raw or UA_MCP_PLACEHOLDER
+
+
 def run_init(
     target_dir: str,
     maika_root: Optional[str] = None,
@@ -148,6 +168,7 @@ def run_init(
     selected_mcps: Optional[List[str]] = None,
     language: Optional[str] = None,
     assume_yes: bool = False,
+    ua_mcp_dir: Optional[str] = None,
 ) -> None:
     """Main init command — scaffold Maika into a target project."""
     target = Path(target_dir).resolve()
@@ -164,6 +185,7 @@ def run_init(
         language=language,
         assume_yes=assume_yes,
     )
+    ua_dir = resolve_ua_mcp_dir(selected_mcps, ua_mcp_dir, assume_yes)
     platform = get_platform(platform_key)
 
     print(f"\n{'─' * 50}")

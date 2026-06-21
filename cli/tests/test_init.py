@@ -7,6 +7,7 @@ from cli.commands.init import (
     prompt_multi_checkbox,
     prompt_single_checkbox,
     resolve_init_choices,
+    resolve_ua_mcp_dir,
     run_init,
 )
 from cli.scaffold import load_manifest
@@ -416,3 +417,18 @@ def test_cli_init_preserves_omitted_mcp_as_none(monkeypatch, tmp_path):
     maika.main()
 
     assert captured["selected_mcps"] is None
+
+
+UA_PLACEHOLDER = "<PATH_TO_Understand-Anything-MCP>"
+
+
+def test_resolve_ua_mcp_dir_uses_flag():
+    assert resolve_ua_mcp_dir(["understand-anything"], "/srv/ua", assume_yes=True) == "/srv/ua"
+
+
+def test_resolve_ua_mcp_dir_placeholder_when_yes_and_missing():
+    assert resolve_ua_mcp_dir(["understand-anything"], None, assume_yes=True) == UA_PLACEHOLDER
+
+
+def test_resolve_ua_mcp_dir_blank_when_ua_not_selected():
+    assert resolve_ua_mcp_dir(["socraticode"], None, assume_yes=True) == ""
