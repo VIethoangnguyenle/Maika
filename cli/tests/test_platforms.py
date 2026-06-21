@@ -167,6 +167,14 @@ def test_codebase_memory_resolves_in_render_context_claude():
     assert t["graph_stats"] == "mcp__codebase-memory-mcp__get_graph_schema"
 
 
+def test_codebase_memory_resolves_in_render_context_antigravity():
+    ctx = get_platform("antigravity").build_render_context(["codebase-memory-mcp"], "python")
+    t = ctx["tools"]
+    assert t["search_code"] == "mcp_codebase-memory-mcp_search_code"
+    assert t["semantic_search"] == "mcp_codebase-memory-mcp_semantic_query"
+    assert t["find_blast_radius"] == "mcp_codebase-memory-mcp_detect_changes"
+
+
 def test_dynamic_memory_resolves_in_render_context_claude():
     ctx = get_platform("claude-code").build_render_context(["agent-memory"], "python")
     assert ctx["tools"]["dynamic_memory_save"] == "mcp__agent-memory__memory_save"
