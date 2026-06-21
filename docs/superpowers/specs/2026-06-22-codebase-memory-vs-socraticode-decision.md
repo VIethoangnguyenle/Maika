@@ -59,6 +59,21 @@ Tức cb-mem có **hybrid search tương đương**, nhưng zero-config local.
 Nhưng với **vai trò hẹp "semantic backend sau UA"**, các điểm mạnh này **không cần thiết**:
 fallback semantic cho UA không yêu cầu shared-index đa-agent hay branch-aware.
 
+**Làm rõ "multi-agent shared index" — cb-mem làm được tới đâu:**
+- *Nhiều agent cùng ĐỌC 1 index* (đa số nhu cầu: semantic search, query): **cb-mem làm được** qua
+  **Team-Shared Graph Artifact** (`.codebase-memory/graph.db.zst` — SQLite nén, share trên đĩa
+  hoặc commit; concurrent reads an toàn; watcher giữ tươi; `merge=ours` tránh conflict).
+- *Nhiều agent cùng GHI/re-index real-time có coordination sống*: **SocratiCode mạnh hơn rõ**
+  (cross-process locking đa-writer). cb-mem điều phối qua artifact + 1 watcher (eventual/file-based).
+- Mô hình Maika (UA chính, cb-mem fallback, agent chủ yếu đọc) → rơi vào trường hợp 1 → cb-mem đủ.
+
+**Làm rõ "semantic search trả code" — cb-mem theo model 2 bước:**
+- SocratiCode `codebase_search` trả thẳng **code chunk** (1 call).
+- cb-mem `semantic_query` trả **kết quả có cấu trúc** (symbol + score + vị trí), rồi
+  `get_code_snippet(qualified_name)` (hoặc agent tự `Read`) lấy **source thật** (2 call).
+- Đánh đổi: tốn ít token/search hơn (chỉ trả pointer). Không phải blocker, nhưng skills quen
+  "search trả code luôn" cần 1 câu hướng dẫn bước fetch snippet.
+
 ## 5. Quyết định
 
 **Chọn `codebase-memory-mcp`, thay SocratiCode.**
@@ -111,6 +126,34 @@ cb-mem có thêm tool không nằm trong abstract set hiện tại: `list_projec
 - `doctor mcp` verify engine cb-mem (binary present + indexed) song song UA.
 - Test `cli/tests/test_platforms.py` vẫn pass (REQUIRED_TOOL_KEYS đầy đủ sau remap).
 
-## 7. Bước tiếp theo
+## 7. Quyết định tích hợp vào `init` (chốt 2026-06-22)
 
-Decision này → implementation plan riêng (qua writing-plans) cho việc swap binding + doctor + tests.
+Hệ thống dùng cb-mem → tích hợp lúc `maika init`, theo đúng khuôn UA / agent-memory
+(`cli/plugin-manifest.yaml` → `mcp_capabilities`), KHÔNG phát minh pattern mới.
+
+- **Số phận `socraticode`:** **thay hẳn (remove)** khỏi manifest + tool_mapping. Khớp quyết định
+  "chọn 1", đúng net-negative complexity.
+- **Runtime:** **uvx** (`uvx codebase-memory-mcp`) — đồng nhất toolchain Python/uv của Maika.
+- **Lợi thế setup so với UA:** cb-mem cài qua uvx zero-config → **KHÔNG cần prompt đường dẫn clone**
+  (`{ua_mcp_dir}`); setup block đơn giản hơn UA.
+
+**Phạm vi thay đổi:**
+1. **Manifest** — thêm key `codebase-memory-mcp` (`provides: code_exploration`) + `setup` block:
+   `engine_check` (package có mặt), `install_hint` (uvx), `server` (`command: uvx`,
+   `args: ["codebase-memory-mcp"]`). Gỡ key `socraticode`.
+2. **tool_mapping** (`claude_code.py` + `antigravity.py`) — remap 10 abstract op sang tool cb-mem
+   (bảng mục 6). Server name pin `codebase-memory-mcp` → `mcp__codebase-memory-mcp__<tool>`.
+3. **Thêm abstract op semantic** — `semantic_search` → `semantic_query`; tài liệu hoá flow 2 bước
+   (`semantic_query` → `get_code_snippet`/Read). Đây là cơ chế "vớt function UA miss".
+4. **doctor mcp** — verify cb-mem (package + index) song song UA.
+5. **Relabel prose** trong `.maika/**`: "Socraticode" → cb-mem (chỉ display; abstract op không đổi).
+6. **Tests** — `cli/tests/test_platforms.py` (REQUIRED_TOOL_KEYS sau remap), test_manifest_setup,
+   test_mcp_doctor vẫn pass.
+
+**Cần verify ở bước plan:** tên tool MCP thật khi chạy uvx dưới Claude Code; cb-mem có cần lệnh
+index đầu tiên (`index_repository` / "Index this project") nên ghi vào MCP_SETUP.md.
+
+## 8. Bước tiếp theo
+
+Decision này → implementation plan riêng (qua writing-plans) cho việc swap binding + manifest +
+semantic op + doctor + tests.
