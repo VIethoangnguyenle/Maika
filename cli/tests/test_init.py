@@ -459,3 +459,24 @@ def test_init_no_mcp_setup_when_ua_not_selected(tmp_path):
         language="python", assume_yes=True,
     )
     assert not (tmp_path / ".agents" / "MCP_SETUP.md").exists()
+
+
+def test_emit_mcp_setup_files_writes_then_removes_stale(tmp_path):
+    from cli.commands.init import emit_mcp_setup_files
+    from cli.platforms import get_platform
+    from cli.scaffold import load_manifest
+
+    platform = get_platform("codex")
+    manifest = load_manifest(MAIKA_ROOT)
+    (tmp_path / ".agents").mkdir()
+    setup_md = tmp_path / ".agents" / "MCP_SETUP.md"
+
+    wrote = emit_mcp_setup_files(
+        tmp_path, platform, "codex", ["understand-anything"], manifest, "/srv/ua",
+    )
+    assert wrote is True
+    assert setup_md.exists() and "/srv/ua" in setup_md.read_text(encoding="utf-8")
+
+    wrote2 = emit_mcp_setup_files(tmp_path, platform, "codex", [], manifest, "")
+    assert wrote2 is False
+    assert not setup_md.exists()

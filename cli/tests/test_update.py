@@ -45,3 +45,20 @@ def test_reconfigure_to_claude_writes_claude_root_and_warns_about_legacy_maika(
     assert (target / ".claude" / "skills" / "requirement-analyst" / "SKILL.md").exists()
     assert (target / ".maika").exists()
     assert "legacy .maika" in capsys.readouterr().out
+
+
+def test_reconfigure_reemits_mcp_setup_for_ua(tmp_path, maika_root, monkeypatch):
+    target = tmp_path / "proj"
+    run_init(
+        target_dir=str(target), maika_root=str(maika_root),
+        platform_key="codex", selected_mcps=[], language="python", assume_yes=True,
+    )
+    assert not (target / ".agents" / "MCP_SETUP.md").exists()
+
+    # reconfigure: platform codex(4), mcps understand-anything(4), language python(3), ua dir
+    _answers(monkeypatch, ["4", "4", "3", "/srv/ua-mcp"])
+    run_update(target_dir=str(target), maika_root=str(maika_root), reconfigure=True)
+
+    setup_md = target / ".agents" / "MCP_SETUP.md"
+    assert setup_md.exists()
+    assert "/srv/ua-mcp" in setup_md.read_text(encoding="utf-8")
