@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/maika-character.png" alt="Maika — Hệ điều hành làm việc cho AI coding agent" width="900">
+  <img src="docs/assets/maika-banner-new.png" alt="Maika — The OS for Your Coding Agent" width="900">
 </p>
 
 <div align="center">
