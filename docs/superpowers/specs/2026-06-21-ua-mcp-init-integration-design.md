@@ -12,7 +12,7 @@
 Người dùng dùng Understand-Anything (UA) làm knowledge-graph backend cho repo. Quy trình thực tế:
 
 1. **Cài engine** Understand-Anything (Egonex-AI) — plugin marketplace (claude-code) hoặc `install.sh <platform>` (codex/antigravity).
-2. **Gen graph**: chạy `/understand` → sinh `.understand-anything/knowledge-graph.json` trong repo.
+2. **Gen graph**: chạy `/understand` → `knowledge-graph.json` (code) **và** `/understand-domain` → `domain-graph.json` (domain), cùng trong `.understand-anything/`.
 3. **Wire MCP**: chạy Understand-Anything-MCP (server `uv run server.py`) trỏ `PROJECT_ROOTS` vào repo để agent trace graph.
 
 Hiện `maika init` mới có `understand-anything` như một **display string** chọn được (`plugin-manifest.yaml`); init **không** emit cấu hình MCP, **không** hướng dẫn, **không** verify graph/engine. Người dùng phải tự nhớ toàn bộ 3 bước trên mỗi dự án.
@@ -39,8 +39,8 @@ Mọi trigger dưới đây đã được kiểm trên nguồn thật, không gi
 
 | Cơ chế | Nguồn | Giá trị |
 |--------|-------|---------|
-| Graph artifact | README Understand-Anything | `.understand-anything/knowledge-graph.json` |
-| Gen command | README | `/understand` (multi-agent, agent-driven) |
+| Code graph | README UA + MCP (bảng Code/Domain Graph) | `/understand` → `.understand-anything/knowledge-graph.json` |
+| Domain graph | README MCP (bảng Code/Domain Graph) | `/understand-domain` → `.understand-anything/domain-graph.json` |
 | MCP server recipe | README Understand-Anything-MCP | `uv --directory <dir> run server.py`, env `PROJECT_ROOTS` |
 | Server name | README MCP (`mcpServers.understand-anything`) | khớp manifest key `understand-anything` (không lệch như tiền lệ agentmemory) |
 | Engine marker — codex | `install.sh` platforms_table | symlink `~/.agents/skills/understand` |
@@ -62,8 +62,9 @@ mcp_capabilities:
     provides: code_exploration
     display: "Understand Anything — Knowledge Graph (alternative to Socraticode)"
     setup:
-      graph_artifact: ".understand-anything/knowledge-graph.json"
-      generate_cmd: "/understand"
+      graph_artifacts:
+        - { name: code,   path: ".understand-anything/knowledge-graph.json", gen_cmd: "/understand" }
+        - { name: domain, path: ".understand-anything/domain-graph.json",   gen_cmd: "/understand-domain" }
       engine_check:
         claude-code: { kind: file_contains, path: "{home}/.claude/plugins/installed_plugins.json", needle: "understand-anything@" }
         codex:       { kind: path_exists,   path: "{home}/.agents/skills/understand" }
@@ -104,8 +105,9 @@ Khi `understand-anything ∈ selected_mcps`:
 ## 1. Cài engine (nếu chưa)
 <install_hint[platform]>
 
-## 2. Gen knowledge graph
-Chạy: /understand   → sinh .understand-anything/knowledge-graph.json
+## 2. Gen graph (cả hai)
+Chạy: /understand          → .understand-anything/knowledge-graph.json (code)
+Chạy: /understand-domain   → .understand-anything/domain-graph.json (domain)
 
 ## 3. Wire MCP server (paste vào MCP config của <platform>)
 ```json
@@ -126,13 +128,13 @@ maika doctor mcp --target <abs target>
 
 ### 4.5 — `doctor mcp`: verify 3 tầng
 
-`build_doctor_status` đã nhận `(target, home)`. Mở rộng: doctor đọc `mcps` từ resolved-config + load manifest (`setup.{engine_check, graph_artifact, install_hint}`) — cần thêm `maika_root` (auto-detect như init). Với mỗi selected mcp có `setup`:
+`build_doctor_status` đã nhận `(target, home)`. Mở rộng: doctor đọc `mcps` từ resolved-config + load manifest (`setup.{engine_check, graph_artifacts, install_hint}`) — cần thêm `maika_root` (auto-detect như init). Với mỗi selected mcp có `setup`:
 
 ```
 1. engine?  engine_check[platform]→default  → "✓ installed" | "✗ chưa cài — <install_hint>"
-2. graph?   <target>/.understand-anything/knowledge-graph.json
-              tồn tại → đếm "nodes=N edges=M" | "✗ chạy /understand"
-              parse lỗi → "present (unparseable)"
+2. graphs?  với MỖI artifact trong graph_artifacts:
+              <target>/<path> tồn tại → "<name>: nodes=N edges=M" | "<name>: ✗ chạy <gen_cmd>"
+              parse lỗi → "<name>: present (unparseable)"
 3. wired?   [LOGIC CŨ] server 'understand-anything' present trong mcp config | "✗ xem MCP_SETUP.md"
 ```
 
@@ -150,7 +152,7 @@ maika init (UA chọn)
   └ print Next steps (UA)
 maika doctor mcp
   ├ load resolved-config (platform, mcps)
-  ├ load manifest (setup.{engine_check, graph_artifact, install_hint})
+  ├ load manifest (setup.{engine_check, graph_artifacts, install_hint})
   ├ tầng1 engine_check  tầng2 graph_artifact  tầng3 server-present (cũ)
   └ render_report (+3 dòng)
 ```
@@ -160,8 +162,8 @@ maika doctor mcp
 | Tình huống | Hành vi |
 |-----------|---------|
 | `--yes` không có `ua_mcp_dir` | snippet dùng placeholder + WARN; init vẫn hoàn tất |
-| graph json thiếu | doctor báo "✗ chạy /understand"; không lỗi |
-| graph json hỏng | "present (unparseable)" |
+| graph json thiếu (code/domain) | doctor báo "<name>: ✗ chạy <gen_cmd>" cho từng graph; không lỗi |
+| graph json hỏng | "<name>: present (unparseable)" |
 | `installed_plugins.json` thiếu (claude-code) | engine_check = "✗ chưa cài" (file_contains trên file không tồn tại = false) |
 | platform không có trong `engine_check` | dùng `default` |
 | mcp chọn nhưng không có `setup` | bỏ qua 3-tầng cho mcp đó (giữ logic cũ) |
@@ -187,11 +189,12 @@ maika doctor mcp
 2. **Engine resolver**: `path_exists` (tmp symlink/dir) → true/false; `file_contains` (tmp file có/không `needle`) → true/false; platform thiếu → dùng `default`.
 3. **Snippet emitter**: thay đúng 3 placeholder (`ua_mcp_dir`, `project_root` abs, `platform` trong install_hint); `--yes` không dir → placeholder.
 4. **MCP_SETUP.md**: sinh khi UA chọn; KHÔNG sinh khi không chọn UA / không mcp nào có `setup`.
-5. **doctor 3 tầng**: graph tmpfile (nodes/edges) → "nodes=N"; thiếu → "✗"; engine marker giả per-platform → "✓"/"✗".
+5. **doctor 3 tầng**: với CẢ code + domain artifact — tmpfile (nodes/edges) → "code: nodes=N"/"domain: nodes=N"; một graph thiếu → "<name>: ✗ chạy <gen_cmd>" (graph kia vẫn báo OK); engine marker giả per-platform → "✓"/"✗".
 6. **Regression**: init không chọn UA → không `MCP_SETUP.md`, `resolved-config.yaml` schema y nguyên, doctor report y như cũ.
 
 ## 10. Ngoài phạm vi
 
 - Tự ghi MCP config agent (Non-goal §2).
 - Probe runtime MCP (giữ `bridge: not-probed`).
-- Domain graph artifact (`domain-graph.json`) — chỉ verify code graph; mở rộng sau nếu cần.
+- Domain↔code cross-reference verification (chỉ verify *tồn tại + nodes/edges* của cả 2 graph, không kiểm chất lượng bridge).
+- Tự chạy `/understand` / `/understand-domain` (agent-driven, không shell-out — giữ Non-goal §2).
