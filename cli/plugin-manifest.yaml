@@ -29,6 +29,22 @@ mcp_capabilities:
   understand-anything:
     provides: code_exploration
     display: "Understand Anything — Knowledge Graph (alternative to Socraticode)"
+    setup:
+      graph_artifacts:
+        - { name: code,   path: ".understand-anything/knowledge-graph.json", gen_cmd: "/understand" }
+        - { name: domain, path: ".understand-anything/domain-graph.json",   gen_cmd: "/understand-domain" }
+      engine_check:
+        claude-code: { kind: file_contains, path: "{home}/.claude/plugins/installed_plugins.json", needle: "understand-anything@" }
+        codex:       { kind: path_exists,   path: "{home}/.agents/skills/understand" }
+        antigravity: { kind: path_exists,   path: "{home}/.gemini/antigravity/skills/understand-anything" }
+        default:     { kind: path_exists,   path: "{home}/.understand-anything/repo" }
+      install_hint:
+        claude-code: "/plugin marketplace add Egonex-AI/Understand-Anything -> /plugin install understand-anything"
+        default:     "curl -fsSL https://raw.githubusercontent.com/Egonex-AI/Understand-Anything/main/install.sh | bash -s {platform}"
+      server:
+        command: "uv"
+        args: ["--directory", "{ua_mcp_dir}", "run", "server.py"]
+        env: { PROJECT_ROOTS: "{project_root}" }
 
   agent-memory:
     provides: memory
