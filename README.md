@@ -1,12 +1,6 @@
 <p align="center">
-  <img src="docs/assets/maika-character.png" alt="Maika" width="640">
+  <img src="docs/assets/maika-character.png" alt="Maika — Hệ điều hành làm việc cho AI coding agent" width="900">
 </p>
-
-<h1 align="center">Maika</h1>
-
-<h3 align="center">
-    Hệ điều hành làm việc cho AI coding agent
-</h3>
 
 <div align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-b0e8ff?style=flat-square&labelColor=0a0e14" alt="license"></a>
