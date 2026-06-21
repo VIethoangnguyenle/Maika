@@ -85,3 +85,21 @@ def render_mcp_setup_md(setup: dict, *, server_key: str, platform: str,
         f"```json\n{body}\n```\n\n"
         f"## 4. Verify\nmaika doctor mcp --target {project_root}\n"
     )
+
+
+def graph_status_lines(setup: dict, target: Path) -> list:
+    """One report line per graph artifact: nodes/edges, missing, or unparseable."""
+    lines = []
+    for art in setup.get("graph_artifacts", []):
+        path = target / art["path"]
+        if not path.exists():
+            lines.append(f"{art['name']}: ✗ run {art['gen_cmd']}")
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            nodes = len(data.get("nodes") or [])
+            edges = len(data.get("edges") or [])
+            lines.append(f"{art['name']}: nodes={nodes} edges={edges}")
+        except (json.JSONDecodeError, OSError):
+            lines.append(f"{art['name']}: present (unparseable)")
+    return lines

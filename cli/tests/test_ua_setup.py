@@ -1,3 +1,4 @@
+import json as _json
 from pathlib import Path
 from cli.mcp import ua_setup
 
@@ -100,3 +101,26 @@ def test_render_mcp_setup_md_claude_uses_platform_hint():
     )
     assert "/plugin install understand-anything" in md
     assert "<PATH_TO_Understand-Anything-MCP>" in md
+
+
+def test_graph_status_lines(tmp_path):
+    setup = {"graph_artifacts": [
+        {"name": "code", "path": ".understand-anything/knowledge-graph.json", "gen_cmd": "/understand"},
+        {"name": "domain", "path": ".understand-anything/domain-graph.json", "gen_cmd": "/understand-domain"},
+    ]}
+    ua = tmp_path / ".understand-anything"
+    ua.mkdir()
+    (ua / "knowledge-graph.json").write_text(_json.dumps({"nodes": [1, 2, 3], "edges": [1, 2]}))
+    lines = ua_setup.graph_status_lines(setup, tmp_path)
+    assert lines[0] == "code: nodes=3 edges=2"
+    assert lines[1] == "domain: ✗ run /understand-domain"
+
+
+def test_graph_status_lines_unparseable(tmp_path):
+    setup = {"graph_artifacts": [
+        {"name": "code", "path": ".understand-anything/knowledge-graph.json", "gen_cmd": "/understand"},
+    ]}
+    ua = tmp_path / ".understand-anything"
+    ua.mkdir()
+    (ua / "knowledge-graph.json").write_text("{not json")
+    assert ua_setup.graph_status_lines(setup, tmp_path) == ["code: present (unparseable)"]
