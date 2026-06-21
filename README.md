@@ -28,20 +28,20 @@ Memory + Workflow + Guardrails = Agent làm việc có kỷ luật
 
 ---
 
-## Bạn nhận được gì?
+## 🎁 Bạn nhận được gì?
 
-- **Persistent memory**: requirement, explore context, architecture snapshot, conventions, author DNA và archive được lưu thành file trong repo.
-- **Phase-gated workflow**: agent đi qua `Ideation -> Requirement -> Architecture -> Spec -> Apply`, không nhảy thẳng vào code.
-- **Knowledge-first reasoning**: quyết định kỹ thuật dựa trên code, DB, docs và knowledge graph thay vì trí nhớ ngắn hạn.
-- **Guardrails có cấu trúc**: rules về flow, tool permission, PII, cost budget, convention, teaching moments và human confirmation.
-- **Multi-platform runtime**: render vào root native cho Antigravity, Codex, Claude Code hoặc generic `AGENTS.md`.
-- **Update an toàn**: framework-owned files được re-render, còn project knowledge và persona của bạn được giữ lại.
+- 💾 **Persistent memory**: requirement, explore context, architecture snapshot, conventions, author DNA và archive được lưu thành file trong repo.
+- 🚦 **Phase-gated workflow**: agent đi qua `Ideation -> Requirement -> Architecture -> Spec -> Apply`, không nhảy thẳng vào code.
+- 🔍 **Knowledge-first reasoning**: quyết định kỹ thuật dựa trên code, DB, docs và knowledge graph thay vì trí nhớ ngắn hạn.
+- 🛡️ **Guardrails có cấu trúc**: rules về flow, tool permission, PII, cost budget, convention, teaching moments và human confirmation.
+- 🧩 **Multi-platform runtime**: render vào root native cho Antigravity, Codex, Claude Code hoặc generic `AGENTS.md`.
+- 🔄 **Update an toàn**: framework-owned files được re-render, còn project knowledge và persona của bạn được giữ lại.
 
 Maika không thay thế Claude, Codex, Cursor, Gemini hay bất kỳ AI coding agent nào. Nó là **hệ điều hành làm việc** để các agent đó đọc và tuân theo trong repo của bạn.
 
 ---
 
-## Quickstart
+## 🚀 Quickstart
 
 ### 1. Cài Maika vào một dự án
 
@@ -126,7 +126,7 @@ Agent sẽ tạo hoặc cập nhật các artifact trong `knowledge/active/`, lo
 
 ---
 
-## Vì sao Maika tồn tại?
+## 🤔 Vì sao Maika tồn tại?
 
 AI coding agent thường fail không phải vì không biết syntax. Nó fail vì thiếu state.
 
@@ -143,7 +143,7 @@ Thesis của Maika: **agent đáng tin hơn khi project knowledge sống trong r
 
 ---
 
-## Mental Model
+## 🧩 Mental Model
 
 Maika có 3 lớp chính.
 
@@ -178,7 +178,7 @@ Các công cụ hỗ trợ runtime:
 
 ---
 
-## Workflow chính
+## 🔄 Workflow chính
 
 Maika áp dụng một flow bắt buộc cho task thực tế:
 
@@ -204,7 +204,7 @@ Rule quan trọng: `/task apply` chỉ được đi tiếp khi spec đã có, ar
 
 ---
 
-## Kiến trúc thư mục
+## 📂 Kiến trúc thư mục
 
 Maika render runtime trực tiếp vào framework root của platform đã chọn:
 
@@ -249,7 +249,7 @@ project-root/
 
 ---
 
-## Skills
+## 🛠️ Skills
 
 Maika ship một bộ skill module hoá theo vai trò.
 
@@ -270,7 +270,7 @@ Maika ship một bộ skill module hoá theo vai trò.
 
 ---
 
-## Workflows
+## ⚡ Workflows
 
 | Command | Mục đích |
 |---|---|
@@ -291,7 +291,7 @@ Maika ship một bộ skill module hoá theo vai trò.
 
 ---
 
-## Rules và Guardrails
+## 🛡️ Rules và Guardrails
 
 Maika không chỉ là một bộ prompt. Nó là rule system có manifest và sub-files:
 
@@ -309,7 +309,7 @@ Các rule quan trọng được đánh dấu `[CRITICAL]`; rule nền hoặc tha
 
 ---
 
-## MCP Integration
+## 🔌 MCP Integration
 
 Maika resolve tool names tại scaffold time. Khi bạn chạy `maika init`, CLI render skill/workflow với tool name đúng cho platform và MCP bạn chọn.
 
@@ -344,7 +344,7 @@ Doctor không sửa config trừ khi bạn chạy:
 
 ---
 
-## Dashboard Control Tower
+## 📊 Dashboard Control Tower
 
 Maika có dashboard local để quan sát agent chính, micro-loop và subagent theo thời gian thực.
 Dashboard đọc các runtime artifact trong `knowledge/active/` và serve UI qua SSE, bind local
@@ -459,7 +459,7 @@ Message đầu tiên phải bắt đầu bằng `data: [` và chứa snapshot hi
 
 ---
 
-## Knowledge Lifecycle
+## ♻️ Knowledge Lifecycle
 
 ```txt
 Task active
@@ -494,7 +494,7 @@ Long-term stores:
 
 ---
 
-## Ví dụ Bootstrap Report
+## 📋 Ví dụ Bootstrap Report
 
 Khi agent bắt đầu một session trong repo có Maika, nó bootstrap context và báo trạng thái:
 
@@ -511,7 +511,7 @@ Ready for task
 
 ---
 
-## Thiết kế đúng ở đâu?
+## 🎯 Thiết kế đúng ở đâu?
 
 Maika cam kết 4 thuộc tính:
 
@@ -531,7 +531,7 @@ Nguyên tắc vận hành:
 
 ---
 
-## FAQ
+## ❓ FAQ
 
 ### Có dùng được cho repo private hoặc enterprise không?
 
@@ -567,7 +567,7 @@ Runtime hiện có tích hợp OpenSpec cho propose/apply/archive. Các workflow
 
 ---
 
-## Development
+## 🔧 Development
 
 Chạy test CLI:
 
@@ -585,7 +585,7 @@ Package metadata nằm trong [pyproject.toml](pyproject.toml). Manifest scaffold
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
 Đóng góp được chào đón:
 
@@ -598,12 +598,18 @@ Khi thay đổi runtime `.maika/`, ưu tiên giữ instruction ngắn, portable,
 
 ---
 
-## License
+## 📄 License
 
 MIT License. Xem [LICENSE](LICENSE).
 
 ---
 
-<p align="center">
-  <strong>Maika giúp agent không chỉ viết code, mà làm việc như một thành viên có trí nhớ của team.</strong>
-</p>
+<div align="center">
+
+### 🧠 _Maika giúp agent không chỉ viết code, mà làm việc như một thành viên có trí nhớ của team._
+
+<sub>Memory · Workflow · Guardrails · Audit trail</sub>
+
+⭐ Thấy hữu ích? Star repo để ủng hộ Maika!
+
+</div>
