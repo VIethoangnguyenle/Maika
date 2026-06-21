@@ -151,6 +151,11 @@ def test_dynamic_memory_ops_are_required_keys():
     assert DYNAMIC_MEMORY_OPS <= REQUIRED_TOOL_KEYS
 
 
+def test_semantic_search_is_required_key():
+    from cli.platforms.base import REQUIRED_TOOL_KEYS
+    assert "semantic_search" in REQUIRED_TOOL_KEYS
+
+
 def test_dynamic_memory_resolves_in_render_context_claude():
     ctx = get_platform("claude-code").build_render_context(["agent-memory"], "python")
     assert ctx["tools"]["dynamic_memory_save"] == "mcp__agent-memory__memory_save"

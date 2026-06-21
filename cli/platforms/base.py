@@ -17,6 +17,7 @@ REQUIRED_TOOL_KEYS = frozenset({
     "command_status",
     "send_input",
     "search_code",
+    "semantic_search",
     "index_code",
     "code_status",
     "get_dependencies",
