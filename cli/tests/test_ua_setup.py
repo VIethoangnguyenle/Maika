@@ -46,3 +46,19 @@ def test_engine_status_line(tmp_path):
     assert "bash -s codex" in ua_setup.engine_status_line(setup, "codex", tmp_path)
     (tmp_path / ".understand-anything" / "repo").mkdir(parents=True)
     assert ua_setup.engine_status_line(setup, "codex", tmp_path) == "engine: ✓ installed"
+
+
+def test_render_server_snippet_fills_placeholders():
+    setup = {"server": {
+        "command": "uv",
+        "args": ["--directory", "{ua_mcp_dir}", "run", "server.py"],
+        "env": {"PROJECT_ROOTS": "{project_root}"},
+    }}
+    snip = ua_setup.render_server_snippet(
+        setup, server_key="understand-anything",
+        ua_mcp_dir="/srv/ua-mcp", project_root="/proj",
+    )
+    server = snip["mcpServers"]["understand-anything"]
+    assert server["command"] == "uv"
+    assert server["args"] == ["--directory", "/srv/ua-mcp", "run", "server.py"]
+    assert server["env"] == {"PROJECT_ROOTS": "/proj"}

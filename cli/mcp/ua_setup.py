@@ -50,3 +50,15 @@ def engine_status_line(setup: dict, platform: str, home: Path) -> str:
     hint = setup.get("install_hint", {})
     install = expand(hint.get(platform) or hint.get("default", ""), platform=platform)
     return f"engine: ✗ not installed — {install}"
+
+
+def render_server_snippet(setup: dict, *, server_key: str, ua_mcp_dir: str,
+                          project_root: str) -> dict:
+    """Build the mcpServers dict for the capability's `server` recipe."""
+    server = setup["server"]
+    args = [expand(a, ua_mcp_dir=ua_mcp_dir, project_root=project_root) for a in server["args"]]
+    env = {
+        k: expand(v, ua_mcp_dir=ua_mcp_dir, project_root=project_root)
+        for k, v in (server.get("env") or {}).items()
+    }
+    return {"mcpServers": {server_key: {"command": server["command"], "args": args, "env": env}}}
