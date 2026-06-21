@@ -1,26 +1,20 @@
+<p align="center">
+  <img src="docs/assets/maika-character.png" alt="Maika" width="640">
+</p>
+
+<h1 align="center">Maika</h1>
+
+<h3 align="center">
+    Hệ điều hành làm việc cho AI coding agent
+</h3>
+
 <div align="center">
-
-<img src="docs/assets/maika-character.png" alt="Maika" width="100%" />
-
-# Maika
-
-### _Hệ điều hành làm việc cho AI coding agent — bộ nhớ · workflow · guardrails · audit trail_
-
-<p>
-  <img src="https://img.shields.io/badge/Maika-v3.0-6f42c1?style=for-the-badge&logo=protocolsdotio&logoColor=white" alt="Maika v3.0" />
-  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License" />
-  <img src="https://img.shields.io/badge/python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
-  <img src="https://img.shields.io/badge/PRs-welcome-ff69b4?style=for-the-badge" alt="PRs Welcome" />
-</p>
-
-<p>
-  <img src="https://img.shields.io/badge/Antigravity-000000?style=flat-square&logo=google&logoColor=white" alt="Antigravity" />
-  <img src="https://img.shields.io/badge/Codex_CLI-412991?style=flat-square&logo=openai&logoColor=white" alt="Codex CLI" />
-  <img src="https://img.shields.io/badge/Claude_Code-D97757?style=flat-square&logo=anthropic&logoColor=white" alt="Claude Code" />
-  <img src="https://img.shields.io/badge/Generic_AGENTS.md-555555?style=flat-square&logo=markdown&logoColor=white" alt="Generic" />
-</p>
-
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-b0e8ff?style=flat-square&labelColor=0a0e14" alt="license"></a>
+  <img src="https://img.shields.io/badge/python-3.10+-b0e8ff?style=flat-square&labelColor=0a0e14&logo=python&logoColor=white" alt="python">
+  <img src="https://img.shields.io/badge/PRs-welcome-b0e8ff?style=flat-square&labelColor=0a0e14" alt="PRs welcome">
+  <img src="https://img.shields.io/badge/platforms-Antigravity%20·%20Codex%20·%20Claude%20Code-9d7bff?style=flat-square&labelColor=0a0e14" alt="platforms">
 </div>
+<br>
 
 > **Maika v3.0** biến AI coding agent từ một cửa sổ chat biết viết code thành một worker có **bộ nhớ**, **workflow**, **guardrails**, và **audit trail**.
 
