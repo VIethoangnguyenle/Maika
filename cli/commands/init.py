@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from cli.mcp import ua_setup
 from cli.platforms import PLATFORMS, get_platform
 from cli.renderer import create_renderer
 from cli.scaffold import (
@@ -221,6 +222,19 @@ def run_init(
 
     generate_resolved_config(target, platform, selected_mcps, language)
 
+    mcp_caps = manifest.get("mcp_capabilities", {})
+    for mcp_key in selected_mcps:
+        capability = mcp_caps.get(mcp_key, {})
+        if not ua_setup.has_setup(capability):
+            continue
+        dir_value = ua_dir if mcp_key == UA_MCP_KEY else UA_MCP_PLACEHOLDER
+        setup_md = ua_setup.render_mcp_setup_md(
+            capability["setup"], server_key=mcp_key, platform=platform_key,
+            ua_mcp_dir=dir_value, project_root=str(target),
+        )
+        setup_path = target / platform.framework_root / "MCP_SETUP.md"
+        setup_path.write_text(setup_md, encoding="utf-8")
+
     total = stats["rendered"] + stats["copied"] + stats["dirs"]
     print(f"\n{'═' * 50}")
     print(f"  Done! Maika scaffolded for {platform.display_name}")
@@ -232,3 +246,5 @@ def run_init(
     print("  3. Start your first task: /task <ticket-or-idea>\n")
     if selected_mcps:
         print(f"  4. Run MCP diagnostics: maika doctor mcp --target {target}\n")
+    if UA_MCP_KEY in selected_mcps:
+        print(f"  5. Wire Understand-Anything: see {platform.framework_root}/MCP_SETUP.md\n")
