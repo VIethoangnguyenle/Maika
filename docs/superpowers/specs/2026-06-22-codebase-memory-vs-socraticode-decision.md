@@ -126,34 +126,64 @@ cb-mem có thêm tool không nằm trong abstract set hiện tại: `list_projec
 - `doctor mcp` verify engine cb-mem (binary present + indexed) song song UA.
 - Test `cli/tests/test_platforms.py` vẫn pass (REQUIRED_TOOL_KEYS đầy đủ sau remap).
 
-## 7. Quyết định tích hợp vào `init` (chốt 2026-06-22)
+## 7. Kiến trúc: ai gọi MCP? (làm rõ trước khi tích hợp)
 
-Hệ thống dùng cb-mem → tích hợp lúc `maika init`, theo đúng khuôn UA / agent-memory
-(`cli/plugin-manifest.yaml` → `mcp_capabilities`), KHÔNG phát minh pattern mới.
+Maika CLI **KHÔNG gọi MCP để search** — đây là thiết kế, không phải thiếu sót:
 
-- **Số phận `socraticode`:** **thay hẳn (remove)** khỏi manifest + tool_mapping. Khớp quyết định
-  "chọn 1", đúng net-negative complexity.
+- **Maika = scaffolder.** Nó (a) emit `MCP_SETUP.md` chứa snippet `mcpServers` để **dán vào config
+  agent** (`render_mcp_setup_md`: *"paste into the {platform} MCP config"*), và (b) render tên tool
+  vào skills/rules để chỉ dẫn agent.
+- **Agent runtime (Claude Code/Codex…) mới gọi MCP** qua stdio sau khi config có server entry.
+- **`maika doctor mcp` chỉ verify TĨNH**: `selected_server_matches` so khớp **tên server key**
+  trong config agent; `engine_check` = kiểm tra file tồn tại; `bridge_state` đang hardcode
+  `"not-probed"` (kể cả UA) → **không live-ping**.
+
+**MCP được biểu diễn ở CLI qua 4 chạm** (không chạm nào là "CLI gọi MCP để search"):
+
+| Chạm | Cơ chế | cb-mem |
+|---|---|---|
+| 1. Manifest entry | `mcp_capabilities[key]` — chọn lúc init | thêm `codebase-memory-mcp` |
+| 2. tool_mapping | per-platform → `mcp__<key>__<tool>` | remap `claude_code.py`+`antigravity.py` |
+| 3. Setup → `MCP_SETUP.md` | optional; hiện **chỉ UA** dùng | theo UA (uvx, bỏ graph_artifacts) |
+| 4. doctor (tĩnh) | key có trong config? + engine_check | tự chạy qua `_setup_reports` |
+
+**Ràng buộc consistency:** manifest key = server name trong config = tiền tố tool. Pin
+**`codebase-memory-mcp`** ở cả 3.
+
+## 8. Quyết định tích hợp vào `init` (chốt 2026-06-22)
+
+Hệ thống dùng cb-mem → tích hợp lúc `maika init`, theo đúng **pattern UA** (consumer của
+`cli/mcp/ua_setup.py`), KHÔNG phát minh pattern mới.
+
+- **Số phận `socraticode`:** **thay hẳn (remove)** khỏi manifest + tool_mapping. Khớp "chọn 1",
+  đúng net-negative complexity.
 - **Runtime:** **uvx** (`uvx codebase-memory-mcp`) — đồng nhất toolchain Python/uv của Maika.
-- **Lợi thế setup so với UA:** cb-mem cài qua uvx zero-config → **KHÔNG cần prompt đường dẫn clone**
-  (`{ua_mcp_dir}`); setup block đơn giản hơn UA.
+
+**cb-mem khác UA ở 3 chỗ** (phần còn lại giống hệt):
+- (a) `server`: `command: uvx`, `args: ["codebase-memory-mcp"]` thay `uv run server.py`;
+  **không cần `{ua_mcp_dir}`** (zero-config).
+- (b) **Bỏ `graph_artifacts`** — graph cb-mem là SQLite `.codebase-memory/graph.db.zst`, không phải
+  JSON `{nodes,edges}`; `graph_status_lines` lặp rỗng → doctor vẫn chạy đúng.
+- (c) Cần **1 bước index đầu** (`index_repository` / "Index this project" / `config set auto_index
+  true`). Vì bỏ graph_artifacts, mục "## 2. Generate graphs" trong `render_mcp_setup_md` sẽ rỗng →
+  **plan phải xử lý**: đưa lệnh index vào `install_hint`, hoặc tinh chỉnh nhỏ `render_mcp_setup_md`
+  để hiện bước index khi không có graph_artifacts.
 
 **Phạm vi thay đổi:**
-1. **Manifest** — thêm key `codebase-memory-mcp` (`provides: code_exploration`) + `setup` block:
-   `engine_check` (package có mặt), `install_hint` (uvx), `server` (`command: uvx`,
-   `args: ["codebase-memory-mcp"]`). Gỡ key `socraticode`.
+1. **Manifest** — thêm key `codebase-memory-mcp` (`provides: code_exploration`) + `setup`
+   (`engine_check`, `install_hint` uvx, `server` uvx; KHÔNG graph_artifacts). Gỡ key `socraticode`.
 2. **tool_mapping** (`claude_code.py` + `antigravity.py`) — remap 10 abstract op sang tool cb-mem
-   (bảng mục 6). Server name pin `codebase-memory-mcp` → `mcp__codebase-memory-mcp__<tool>`.
+   (bảng mục 6), prefix `mcp__codebase-memory-mcp__<tool>`.
 3. **Thêm abstract op semantic** — `semantic_search` → `semantic_query`; tài liệu hoá flow 2 bước
-   (`semantic_query` → `get_code_snippet`/Read). Đây là cơ chế "vớt function UA miss".
-4. **doctor mcp** — verify cb-mem (package + index) song song UA.
+   (`semantic_query` → `get_code_snippet`/Read). Cơ chế "vớt function UA miss".
+4. **render_mcp_setup_md** — xử lý bước index (xem (c)).
 5. **Relabel prose** trong `.maika/**`: "Socraticode" → cb-mem (chỉ display; abstract op không đổi).
-6. **Tests** — `cli/tests/test_platforms.py` (REQUIRED_TOOL_KEYS sau remap), test_manifest_setup,
-   test_mcp_doctor vẫn pass.
+6. **Tests** — `test_platforms.py` (REQUIRED_TOOL_KEYS sau remap), `test_manifest_setup`,
+   `test_mcp_doctor` vẫn pass.
 
-**Cần verify ở bước plan:** tên tool MCP thật khi chạy uvx dưới Claude Code; cb-mem có cần lệnh
-index đầu tiên (`index_repository` / "Index this project") nên ghi vào MCP_SETUP.md.
+**Cần verify ở bước plan:** tên tool MCP thật khi chạy uvx dưới Claude Code (`mcp__codebase-memory
+-mcp__<tool>`).
 
-## 8. Bước tiếp theo
+## 9. Bước tiếp theo
 
-Decision này → implementation plan riêng (qua writing-plans) cho việc swap binding + manifest +
-semantic op + doctor + tests.
+Decision này → implementation plan (qua writing-plans).
