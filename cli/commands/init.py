@@ -162,6 +162,29 @@ def resolve_ua_mcp_dir(selected_mcps, ua_mcp_dir, assume_yes: bool) -> str:
     return raw or UA_MCP_PLACEHOLDER
 
 
+def emit_mcp_setup_files(target, platform, platform_key, selected_mcps, manifest, ua_dir) -> bool:
+    """Write <framework_root>/MCP_SETUP.md for selected MCPs that declare a `setup`
+    block; remove a stale file when none apply. Returns True if a file was written.
+    Shared by init and update --reconfigure."""
+    mcp_caps = manifest.get("mcp_capabilities", {})
+    setup_path = target / platform.framework_root / "MCP_SETUP.md"
+    wrote = False
+    for mcp_key in selected_mcps:
+        capability = mcp_caps.get(mcp_key, {})
+        if not ua_setup.has_setup(capability):
+            continue
+        dir_value = ua_dir if mcp_key == UA_MCP_KEY else UA_MCP_PLACEHOLDER
+        setup_md = ua_setup.render_mcp_setup_md(
+            capability["setup"], server_key=mcp_key, platform=platform_key,
+            ua_mcp_dir=dir_value, project_root=str(target),
+        )
+        setup_path.write_text(setup_md, encoding="utf-8")
+        wrote = True
+    if not wrote and setup_path.exists():
+        setup_path.unlink()
+    return wrote
+
+
 def run_init(
     target_dir: str,
     maika_root: Optional[str] = None,
@@ -222,18 +245,7 @@ def run_init(
 
     generate_resolved_config(target, platform, selected_mcps, language)
 
-    mcp_caps = manifest.get("mcp_capabilities", {})
-    for mcp_key in selected_mcps:
-        capability = mcp_caps.get(mcp_key, {})
-        if not ua_setup.has_setup(capability):
-            continue
-        dir_value = ua_dir if mcp_key == UA_MCP_KEY else UA_MCP_PLACEHOLDER
-        setup_md = ua_setup.render_mcp_setup_md(
-            capability["setup"], server_key=mcp_key, platform=platform_key,
-            ua_mcp_dir=dir_value, project_root=str(target),
-        )
-        setup_path = target / platform.framework_root / "MCP_SETUP.md"
-        setup_path.write_text(setup_md, encoding="utf-8")
+    emit_mcp_setup_files(target, platform, platform_key, selected_mcps, manifest, ua_dir)
 
     total = stats["rendered"] + stats["copied"] + stats["dirs"]
     print(f"\n{'═' * 50}")

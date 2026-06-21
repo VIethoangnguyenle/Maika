@@ -78,6 +78,9 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
 
     if reconfigure:
         generate_resolved_config(target, platform, selected_mcps, language)
+        from cli.commands.init import resolve_ua_mcp_dir, emit_mcp_setup_files
+        ua_dir = resolve_ua_mcp_dir(selected_mcps, None, assume_yes=False)
+        emit_mcp_setup_files(target, platform, platform_key, selected_mcps, manifest, ua_dir)
         # Remove stale entry-point files left by the previous platform.
         current_entry = platform.config_entry_point
         for key in PLATFORMS:
