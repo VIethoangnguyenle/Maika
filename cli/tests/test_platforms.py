@@ -156,6 +156,17 @@ def test_semantic_search_is_required_key():
     assert "semantic_search" in REQUIRED_TOOL_KEYS
 
 
+def test_codebase_memory_resolves_in_render_context_claude():
+    ctx = get_platform("claude-code").build_render_context(["codebase-memory-mcp"], "python")
+    t = ctx["tools"]
+    assert t["search_code"] == "mcp__codebase-memory-mcp__search_code"
+    assert t["semantic_search"] == "mcp__codebase-memory-mcp__semantic_query"
+    assert t["find_blast_radius"] == "mcp__codebase-memory-mcp__detect_changes"
+    assert t["trace_flow"] == "mcp__codebase-memory-mcp__trace_path"
+    assert t["get_symbol"] == "mcp__codebase-memory-mcp__get_code_snippet"
+    assert t["graph_stats"] == "mcp__codebase-memory-mcp__get_graph_schema"
+
+
 def test_dynamic_memory_resolves_in_render_context_claude():
     ctx = get_platform("claude-code").build_render_context(["agent-memory"], "python")
     assert ctx["tools"]["dynamic_memory_save"] == "mcp__agent-memory__memory_save"
