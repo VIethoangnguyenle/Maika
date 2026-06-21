@@ -28,6 +28,7 @@ class GenericPlatform(BasePlatform):
         "command_status":    "command_status",
         "send_input":        "send_input",
         "search_code":       "search_code",
+        "semantic_search":   "semantic_search",
         "index_code":        "index_code",
         "code_status":       "code_status",
         "get_dependencies":  "get_dependencies",
