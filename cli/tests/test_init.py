@@ -1,5 +1,7 @@
 """Tests for maika init."""
 
+from pathlib import Path
+
 import pytest
 
 from cli.commands.init import (
@@ -7,6 +9,7 @@ from cli.commands.init import (
     prompt_multi_checkbox,
     prompt_single_checkbox,
     resolve_init_choices,
+    resolve_ua_mcp_dir,
     run_init,
 )
 from cli.scaffold import load_manifest
@@ -416,3 +419,43 @@ def test_cli_init_preserves_omitted_mcp_as_none(monkeypatch, tmp_path):
     maika.main()
 
     assert captured["selected_mcps"] is None
+
+
+UA_PLACEHOLDER = "<PATH_TO_Understand-Anything-MCP>"
+
+
+def test_resolve_ua_mcp_dir_uses_flag():
+    assert resolve_ua_mcp_dir(["understand-anything"], "/srv/ua", assume_yes=True) == "/srv/ua"
+
+
+def test_resolve_ua_mcp_dir_placeholder_when_yes_and_missing():
+    assert resolve_ua_mcp_dir(["understand-anything"], None, assume_yes=True) == UA_PLACEHOLDER
+
+
+def test_resolve_ua_mcp_dir_blank_when_ua_not_selected():
+    assert resolve_ua_mcp_dir(["socraticode"], None, assume_yes=True) == ""
+
+
+MAIKA_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def test_init_emits_mcp_setup_when_ua_selected(tmp_path):
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(MAIKA_ROOT),
+        platform_key="codex", selected_mcps=["understand-anything"],
+        language="python", assume_yes=True, ua_mcp_dir="/srv/ua-mcp",
+    )
+    setup_md = tmp_path / ".agents" / "MCP_SETUP.md"
+    assert setup_md.exists()
+    text = setup_md.read_text(encoding="utf-8")
+    assert "/srv/ua-mcp" in text
+    assert "/understand-domain" in text
+
+
+def test_init_no_mcp_setup_when_ua_not_selected(tmp_path):
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(MAIKA_ROOT),
+        platform_key="codex", selected_mcps=[],
+        language="python", assume_yes=True,
+    )
+    assert not (tmp_path / ".agents" / "MCP_SETUP.md").exists()

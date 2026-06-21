@@ -7,7 +7,8 @@ from pathlib import Path
 
 from cli.mcp.adapters import get_mcp_adapter
 from cli.mcp.config import load_mcp_config, redact_mapping, selected_server_matches
-from cli.scaffold import load_resolved_config
+from cli.mcp import ua_setup
+from cli.scaffold import load_resolved_config, load_manifest
 
 
 @dataclass(frozen=True)
@@ -22,9 +23,31 @@ class DoctorStatus:
     bridge_state: str
     recommendation: str
     redacted_servers: dict = field(default_factory=dict)
+    setup_reports: dict = field(default_factory=dict)
 
 
-def build_doctor_status(target: Path, home: Path) -> DoctorStatus:
+def _setup_reports(target: Path, home: Path, maika_root, platform: str,
+                   selected: list, matched: list) -> dict:
+    if maika_root is None:
+        return {}
+    manifest = load_manifest(Path(maika_root))
+    caps = manifest.get("mcp_capabilities", {})
+    reports = {}
+    for key in selected:
+        capability = caps.get(key, {})
+        if not ua_setup.has_setup(capability):
+            continue
+        setup = capability["setup"]
+        wired = "wired: ✓ configured" if key in matched else "wired: ✗ see MCP_SETUP.md"
+        reports[key] = (
+            [ua_setup.engine_status_line(setup, platform, home)]
+            + ua_setup.graph_status_lines(setup, target)
+            + [wired]
+        )
+    return reports
+
+
+def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStatus:
     resolved = load_resolved_config(target)
     if resolved is None:
         raise ValueError(f"No Maika resolved-config.yaml found under {target}")
@@ -51,6 +74,7 @@ def build_doctor_status(target: Path, home: Path) -> DoctorStatus:
             missing=selected,
             bridge_state="not-probed",
             recommendation="create or link a valid MCP config with maika doctor mcp --fix",
+            setup_reports=_setup_reports(target, home, maika_root, platform, selected, []),
         )
 
     matched, missing = selected_server_matches(best_config, selected)
@@ -74,6 +98,7 @@ def build_doctor_status(target: Path, home: Path) -> DoctorStatus:
         bridge_state=bridge_state,
         recommendation="run native MCP in the IDE/CLI and inspect tool availability",
         redacted_servers=redacted_servers,
+        setup_reports=_setup_reports(target, home, maika_root, platform, selected, matched),
     )
 
 
@@ -93,8 +118,19 @@ def render_report(status: DoctorStatus) -> str:
         f"- matched: {matched}\n"
         f"- missing: {missing}\n"
         f"- Recommendation: {status.recommendation}\n"
+        + _render_setup_reports(status.setup_reports)
         + _render_matched_config(status.redacted_servers)
     )
+
+
+def _render_setup_reports(setup_reports: dict) -> str:
+    if not setup_reports:
+        return ""
+    out = ["\n## Setup verification\n"]
+    for key, lines in setup_reports.items():
+        out.append(f"\n### {key}\n")
+        out.extend(f"- {line}\n" for line in lines)
+    return "".join(out)
 
 
 def _render_matched_config(redacted_servers: dict) -> str:

@@ -1,9 +1,13 @@
 import json
+from pathlib import Path
 
 import yaml
 
 from cli.commands.doctor import run_doctor_mcp
-from cli.mcp.doctor import build_doctor_status
+from cli.commands.init import run_init
+from cli.mcp.doctor import build_doctor_status, render_report
+
+MAIKA_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 def write_resolved(target, platform="antigravity", mcps=None):
@@ -135,3 +139,39 @@ def test_doctor_fix_backs_up_existing_non_empty_destination(tmp_path):
 
     assert (dest.parent / "mcp_config.json.bak").exists()
     assert "old" in (dest.parent / "mcp_config.json.bak").read_text(encoding="utf-8")
+
+
+def _init_ua(tmp_path, home):
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(MAIKA_ROOT),
+        platform_key="codex", selected_mcps=["understand-anything"],
+        language="python", assume_yes=True, ua_mcp_dir="/srv/ua-mcp",
+    )
+
+
+def test_doctor_reports_engine_and_graphs(tmp_path):
+    home = tmp_path / "home"
+    home.mkdir()
+    _init_ua(tmp_path, home)
+    (home / ".agents" / "skills").mkdir(parents=True)
+    (home / ".agents" / "skills" / "understand").write_text("x")
+    ua = tmp_path / ".understand-anything"
+    ua.mkdir()
+    (ua / "knowledge-graph.json").write_text(json.dumps({"nodes": [1, 2], "edges": [1]}))
+
+    status = build_doctor_status(tmp_path, home, maika_root=MAIKA_ROOT)
+    report = render_report(status)
+    assert "engine: ✓ installed" in report
+    assert "code: nodes=2 edges=1" in report
+    assert "domain: ✗ run /understand-domain" in report
+
+
+def test_doctor_regression_no_ua(tmp_path):
+    home = tmp_path / "home"
+    home.mkdir()
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(MAIKA_ROOT),
+        platform_key="codex", selected_mcps=[], language="python", assume_yes=True,
+    )
+    status = build_doctor_status(tmp_path, home, maika_root=MAIKA_ROOT)
+    assert status.setup_reports == {}
