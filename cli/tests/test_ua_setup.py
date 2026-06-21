@@ -62,3 +62,41 @@ def test_render_server_snippet_fills_placeholders():
     assert server["command"] == "uv"
     assert server["args"] == ["--directory", "/srv/ua-mcp", "run", "server.py"]
     assert server["env"] == {"PROJECT_ROOTS": "/proj"}
+
+
+def _full_setup():
+    return {
+        "graph_artifacts": [
+            {"name": "code", "path": ".understand-anything/knowledge-graph.json", "gen_cmd": "/understand"},
+            {"name": "domain", "path": ".understand-anything/domain-graph.json", "gen_cmd": "/understand-domain"},
+        ],
+        "install_hint": {
+            "claude-code": "/plugin install understand-anything",
+            "default": "curl ... bash -s {platform}",
+        },
+        "server": {
+            "command": "uv",
+            "args": ["--directory", "{ua_mcp_dir}", "run", "server.py"],
+            "env": {"PROJECT_ROOTS": "{project_root}"},
+        },
+    }
+
+
+def test_render_mcp_setup_md_codex():
+    md = ua_setup.render_mcp_setup_md(
+        _full_setup(), server_key="understand-anything", platform="codex",
+        ua_mcp_dir="/srv/ua-mcp", project_root="/proj",
+    )
+    assert "bash -s codex" in md
+    assert "/understand" in md and "/understand-domain" in md
+    assert '"PROJECT_ROOTS": "/proj"' in md
+    assert "/srv/ua-mcp" in md
+
+
+def test_render_mcp_setup_md_claude_uses_platform_hint():
+    md = ua_setup.render_mcp_setup_md(
+        _full_setup(), server_key="understand-anything", platform="claude-code",
+        ua_mcp_dir="<PATH_TO_Understand-Anything-MCP>", project_root="/proj",
+    )
+    assert "/plugin install understand-anything" in md
+    assert "<PATH_TO_Understand-Anything-MCP>" in md

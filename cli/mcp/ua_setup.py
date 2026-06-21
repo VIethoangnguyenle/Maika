@@ -62,3 +62,26 @@ def render_server_snippet(setup: dict, *, server_key: str, ua_mcp_dir: str,
         for k, v in (server.get("env") or {}).items()
     }
     return {"mcpServers": {server_key: {"command": server["command"], "args": args, "env": env}}}
+
+
+def render_mcp_setup_md(setup: dict, *, server_key: str, platform: str,
+                        ua_mcp_dir: str, project_root: str) -> str:
+    """Render the human-facing MCP_SETUP.md guide for one capability."""
+    hint = setup.get("install_hint", {})
+    install = expand(hint.get(platform) or hint.get("default", ""), platform=platform)
+    gen_lines = "\n".join(
+        f"Run: {a['gen_cmd']:<18} -> {a['path']} ({a['name']})"
+        for a in setup.get("graph_artifacts", [])
+    )
+    snippet = render_server_snippet(
+        setup, server_key=server_key, ua_mcp_dir=ua_mcp_dir, project_root=project_root,
+    )
+    body = json.dumps(snippet, indent=2, ensure_ascii=False)
+    return (
+        f"# MCP Setup — {server_key}\n\n"
+        f"## 1. Install engine (if missing)\n{install}\n\n"
+        f"## 2. Generate graphs\n{gen_lines}\n\n"
+        f"## 3. Wire MCP server (paste into the {platform} MCP config)\n"
+        f"```json\n{body}\n```\n\n"
+        f"## 4. Verify\nmaika doctor mcp --target {project_root}\n"
+    )
