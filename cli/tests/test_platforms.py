@@ -180,6 +180,8 @@ def test_dynamic_memory_resolves_in_render_context_claude():
     assert ctx["tools"]["dynamic_memory_save"] == "mcp__agent-memory__memory_save"
     assert ctx["tools"]["dynamic_memory_search"] == "mcp__agent-memory__memory_smart_search"
     assert ctx["tools"]["dynamic_memory_forget"] == "mcp__agent-memory__memory_governance_delete"
+    # agentmemory exposes memory_diagnose (no memory_health) for infra health checks
+    assert ctx["tools"]["dynamic_memory_health"] == "mcp__agent-memory__memory_diagnose"
 
 
 def test_dynamic_memory_resolves_even_when_agent_memory_not_selected():
