@@ -25,17 +25,23 @@ class ClaudeCodePlatform(BasePlatform):
         "command_status":    "Bash",
         "send_input":        "Bash",
 
-        # ── Code Exploration (Socraticode — if available) ──
-        "search_code":       "mcp__socraticode__codebase_search",
-        "index_code":        "mcp__socraticode__codebase_index",
-        "code_status":       "mcp__socraticode__codebase_status",
-        "get_dependencies":  "mcp__socraticode__codebase_graph_query",
-        "trace_flow":        "mcp__socraticode__codebase_flow",
-        "find_blast_radius": "mcp__socraticode__codebase_impact",
-        "get_symbol":        "mcp__socraticode__codebase_symbol",
-        "list_symbols":      "mcp__socraticode__codebase_symbols",
-        "graph_stats":       "mcp__socraticode__codebase_graph_stats",
-        "graph_build":       "mcp__socraticode__codebase_graph_build",
+        # ── Code Exploration (codebase-memory-mcp) ──
+        "search_code":       "mcp__codebase-memory-mcp__search_code",
+        "semantic_search":   "mcp__codebase-memory-mcp__semantic_query",
+        "index_code":        "mcp__codebase-memory-mcp__index_repository",
+        "code_status":       "mcp__codebase-memory-mcp__index_status",
+        "get_dependencies":  "mcp__codebase-memory-mcp__query_graph",
+        "trace_flow":        "mcp__codebase-memory-mcp__trace_path",
+        "find_blast_radius": "mcp__codebase-memory-mcp__detect_changes",
+        "get_symbol":        "mcp__codebase-memory-mcp__get_code_snippet",
+        "list_symbols":      "mcp__codebase-memory-mcp__search_graph",
+        "graph_stats":       "mcp__codebase-memory-mcp__get_graph_schema",
+        "graph_build":       "mcp__codebase-memory-mcp__index_repository",
+
+        # ── Domain / top-down (understand-anything MCP) ──
+        "domain_overview":      "mcp__understand-anything__get_domain_overview",
+        "domain_flow":          "mcp__understand-anything__get_domain_flow_detail",
+        "domain_relationships": "mcp__understand-anything__get_relationships",
 
         # ── Document Search (Confluence — if available) ──
         "search_docs":       "mcp__confluence__search",

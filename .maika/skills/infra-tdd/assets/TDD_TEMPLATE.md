@@ -277,7 +277,7 @@ sequenceDiagram
 
 **Evidence / Bằng chứng**:
 - {link benchmark, PoC, production evidence}
-- {source: UA Knowledge Graph node / Socraticode search / DB schema}
+- {source: UA Knowledge Graph node / Codebase Memory search / DB schema}
 
 ### Chi tiết — Quyết định D2: {tên}
 
@@ -414,7 +414,7 @@ Chạy trước khi đánh dấu TDD là "Ready for Review":
 - [ ] Trade-off **được đặt tên** (không chỉ "option A tốt hơn")
 - [ ] ADR files riêng biệt, bất biến, có lifecycle status
 - [ ] Mỗi ADR có **evidence/bằng chứng** (benchmark, production evidence, PoC)
-- [ ] **Knowledge tools đã được sử dụng** — claim nào đến từ UA/Socraticode/DB?
+- [ ] **Knowledge tools đã được sử dụng** — claim nào đến từ UA/Codebase Memory/DB?
 
 ### T4 — Vận hành
 - [ ] SLI/SLO có **con số cụ thể** (không chỉ "high availability")

@@ -50,8 +50,8 @@ def test_prompt_multi_checkbox_accepts_comma_numbers(monkeypatch):
 
 
 def test_parse_multi_values_accepts_repeated_and_comma_values():
-    assert parse_multi_values(["socraticode,confluence", "db-remote"]) == [
-        "socraticode",
+    assert parse_multi_values(["codebase-memory-mcp,confluence", "db-remote"]) == [
+        "codebase-memory-mcp",
         "confluence",
         "db-remote",
     ]
@@ -63,13 +63,13 @@ def test_resolve_init_choices_accepts_complete_non_interactive_options(maika_roo
     platform_key, selected_mcps, language = resolve_init_choices(
         manifest,
         platform_key="generic",
-        selected_mcps=["socraticode", "confluence"],
+        selected_mcps=["codebase-memory-mcp", "confluence"],
         language="python",
         assume_yes=True,
     )
 
     assert platform_key == "generic"
-    assert selected_mcps == ["socraticode", "confluence"]
+    assert selected_mcps == ["codebase-memory-mcp", "confluence"]
     assert language == "python"
 
 
@@ -334,7 +334,7 @@ def test_init_scaffolds_mcp_bridge_when_platform_supports_tools(tmp_path, maika_
         target_dir=str(target),
         maika_root=str(maika_root),
         platform_key="antigravity",
-        selected_mcps=["socraticode"],
+        selected_mcps=["codebase-memory-mcp"],
         language="python",
         assume_yes=True,
     )
@@ -348,7 +348,7 @@ def test_init_prints_mcp_doctor_hint_when_mcps_selected(tmp_path, maika_root, ca
         target_dir=str(target),
         maika_root=str(maika_root),
         platform_key="codex",
-        selected_mcps=["socraticode"],
+        selected_mcps=["codebase-memory-mcp"],
         language="python",
         assume_yes=True,
     )
@@ -376,7 +376,7 @@ def test_cli_init_forwards_non_interactive_options(monkeypatch, tmp_path):
             "--platform",
             "generic",
             "--mcp",
-            "socraticode,confluence",
+            "codebase-memory-mcp,confluence",
             "--language",
             "python",
             "--yes",
@@ -387,7 +387,7 @@ def test_cli_init_forwards_non_interactive_options(monkeypatch, tmp_path):
 
     assert captured["target_dir"] == str(tmp_path)
     assert captured["platform_key"] == "generic"
-    assert captured["selected_mcps"] == ["socraticode", "confluence"]
+    assert captured["selected_mcps"] == ["codebase-memory-mcp", "confluence"]
     assert captured["language"] == "python"
     assert captured["assume_yes"] is True
 
@@ -433,7 +433,7 @@ def test_resolve_ua_mcp_dir_placeholder_when_yes_and_missing():
 
 
 def test_resolve_ua_mcp_dir_blank_when_ua_not_selected():
-    assert resolve_ua_mcp_dir(["socraticode"], None, assume_yes=True) == ""
+    assert resolve_ua_mcp_dir(["codebase-memory-mcp"], None, assume_yes=True) == ""
 
 
 MAIKA_ROOT = Path(__file__).resolve().parent.parent.parent

@@ -76,7 +76,7 @@ project-root/
     ├── workflows/                           ← Orchestration logic
     │   ├── task.md                          ← Workflow chính (3 pha)
     │   ├── idea-to-task.md                  ← Ideation → Draft ticket
-    │   └── index-source.md                  ← Lập chỉ mục Socraticode
+    │   └── index-source.md                  ← Lập chỉ mục Codebase Memory
     ├── procedures/                          ← Bootstrap & context procedures
     │   ├── bootstrap.md                     ← Procedure tự động nhận diện & nạp context
     │   ├── context-loader.md                ← Logic định vị file theo priority
@@ -122,7 +122,7 @@ LOAD: Tất cả skill metadata (name, description, trigger conditions)
 ```txt
 READ: {{ platform.framework_root }}/workflows/task.md
 READ: {{ platform.framework_root }}/workflows/idea-to-task.md
-READ: {{ platform.framework_root }}/workflows/index-source.md (nếu cần Socraticode)
+READ: {{ platform.framework_root }}/workflows/index-source.md (nếu cần Codebase Memory)
 READ: {{ platform.framework_root }}/procedures/token-tracking.md
 ```
 
@@ -232,8 +232,8 @@ Có **3 nhóm command** phân biệt — agent cần nhận diện đúng nhóm 
 
 | Command | Mô tả |
 |---------|-------|
-| `/index-source` | Lập chỉ mục Socraticode |
-| `/convention-scan` | Scan conventions qua UA + Socraticode |
+| `/index-source` | Lập chỉ mục Codebase Memory |
+| `/convention-scan` | Scan conventions qua UA + Codebase Memory |
 | `/approve-conventions` | Promote conventions.draft.yaml → conventions.yaml |
 | `/dna-scan` | Scan coding philosophy → author-dna.draft.yaml |
 | `/approve-dna` | Promote author-dna.draft.yaml → author-dna.yaml |

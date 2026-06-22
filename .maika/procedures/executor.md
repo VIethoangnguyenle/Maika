@@ -13,7 +13,7 @@
    - Integration node: apply queued `INTEGRATION_REQUEST` entries to shared wiring files.
    - Test node: add or update tests described by the handoff.
 4. Obey hard boundaries:
-   - Do not call UA/KG, DB, agent-memory, or Socraticode tools directly.
+   - Do not call UA/KG, DB, agent-memory, or Codebase Memory tools directly.
    - Do not edit files outside `allowed_files`.
    - Do not edit frozen contract/base files from a leaf node.
    - Do not edit shared wiring files from a leaf node.

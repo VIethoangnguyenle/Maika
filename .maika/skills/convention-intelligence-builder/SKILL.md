@@ -2,7 +2,7 @@
 name: convention-intelligence-builder
 version: '1.0'
 description: >
-  Scan codebase qua UA + Socraticode để extract naming conventions, class suffix patterns,
+  Scan codebase qua UA + Codebase Memory để extract naming conventions, class suffix patterns,
   và layer-specific design principles. Sinh conventions.draft.yaml để user review trước khi approve.
   Dùng khi onboard project mới hoặc sau refactor lớn cần cập nhật conventions.
   KHÔNG dùng cho: viết convention thủ công (→ edit trực tiếp conventions.yaml),

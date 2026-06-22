@@ -70,11 +70,11 @@ QUERY UA: {{ tools.search_code }}(type="class", filter="implements *Factory OR *
     ANALYZE: Method create/execute có if/else không?
       → Nếu KHÔNG có if/else nhưng xử lý nhiều case: đây là substitution evidence
 
-QUERY Socraticode: {{ tools.search_code }}("switch", limit=50)
+QUERY Codebase Memory: {{ tools.search_code }}("switch", limit=50)
   → Tìm tất cả switch statement
   → Nếu count rất thấp so với số case xử lý: strong evidence dùng pattern thay switch
 
-QUERY Socraticode: {{ tools.search_code }}("instanceof", limit=50)
+QUERY Codebase Memory: {{ tools.search_code }}("instanceof", limit=50)
   → instanceof nhiều = ad-hoc type checking = KHÔNG phải style này
   → instanceof ít = polymorphism được dùng đúng
 
@@ -109,7 +109,7 @@ FOR EACH layer pair (A calls B):
 ### 1E. Code Duplication vs Abstraction Tendency
 
 ```
-QUERY Socraticode: codebase_context_search("common logic abstraction helper util")
+QUERY Codebase Memory: {{ tools.semantic_search }}("common logic abstraction helper util")
   → Xem tác giả có xu hướng extract common logic không
 
 QUERY UA: {{ tools.search_code }}(type="class", filter="name contains 'Helper' OR 'Util' OR 'Common'")

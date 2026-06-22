@@ -9,15 +9,15 @@ from cli.commands.init import run_init
 
 PLATFORM_OPTIONS = {
     "antigravity": {
-        "mcps": ["socraticode", "confluence", "db-remote"],
+        "mcps": ["codebase-memory-mcp", "confluence", "db-remote"],
         "language": "python",
     },
     "codex": {
-        "mcps": ["socraticode", "confluence", "db-remote"],
+        "mcps": ["codebase-memory-mcp", "confluence", "db-remote"],
         "language": "python",
     },
     "claude-code": {
-        "mcps": ["socraticode", "confluence", "db-remote"],
+        "mcps": ["codebase-memory-mcp", "confluence", "db-remote"],
         "language": "python",
     },
     "generic": {

@@ -25,17 +25,23 @@ class AntigravityPlatform(BasePlatform):
         "command_status":    "command_status",
         "send_input":        "send_command_input",
 
-        # ── Code Exploration (Socraticode) ──
-        "search_code":       "mcp_socraticode_codebase_search",
-        "index_code":        "mcp_socraticode_codebase_index",
-        "code_status":       "mcp_socraticode_codebase_status",
-        "get_dependencies":  "mcp_socraticode_codebase_graph_query",
-        "trace_flow":        "mcp_socraticode_codebase_flow",
-        "find_blast_radius": "mcp_socraticode_codebase_impact",
-        "get_symbol":        "mcp_socraticode_codebase_symbol",
-        "list_symbols":      "mcp_socraticode_codebase_symbols",
-        "graph_stats":       "mcp_socraticode_codebase_graph_stats",
-        "graph_build":       "mcp_socraticode_codebase_graph_build",
+        # ── Code Exploration (codebase-memory-mcp) ──
+        "search_code":       "mcp_codebase-memory-mcp_search_code",
+        "semantic_search":   "mcp_codebase-memory-mcp_semantic_query",
+        "index_code":        "mcp_codebase-memory-mcp_index_repository",
+        "code_status":       "mcp_codebase-memory-mcp_index_status",
+        "get_dependencies":  "mcp_codebase-memory-mcp_query_graph",
+        "trace_flow":        "mcp_codebase-memory-mcp_trace_path",
+        "find_blast_radius": "mcp_codebase-memory-mcp_detect_changes",
+        "get_symbol":        "mcp_codebase-memory-mcp_get_code_snippet",
+        "list_symbols":      "mcp_codebase-memory-mcp_search_graph",
+        "graph_stats":       "mcp_codebase-memory-mcp_get_graph_schema",
+        "graph_build":       "mcp_codebase-memory-mcp_index_repository",
+
+        # ── Domain / top-down (understand-anything MCP) ──
+        "domain_overview":      "mcp_understand-anything_get_domain_overview",
+        "domain_flow":          "mcp_understand-anything_get_domain_flow_detail",
+        "domain_relationships": "mcp_understand-anything_get_relationships",
 
         # ── Document Search (Confluence) ──
         "search_docs":       "mcp_confluence-servicehub_confluence_search",

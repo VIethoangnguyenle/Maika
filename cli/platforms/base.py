@@ -17,6 +17,7 @@ REQUIRED_TOOL_KEYS = frozenset({
     "command_status",
     "send_input",
     "search_code",
+    "semantic_search",
     "index_code",
     "code_status",
     "get_dependencies",
@@ -46,6 +47,10 @@ REQUIRED_TOOL_KEYS = frozenset({
 OPTIONAL_TOOL_KEYS = frozenset({
     "browser_agent",
     "generate_image",
+    # ── Understand-Anything MCP — domain/top-down (runtime-optional) ──
+    "domain_overview",
+    "domain_flow",
+    "domain_relationships",
 })
 
 

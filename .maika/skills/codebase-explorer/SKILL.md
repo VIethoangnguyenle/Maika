@@ -2,7 +2,7 @@
 name: codebase-explorer
 version: '1.0'
 description: >
-  Khám phá codebase bằng Socraticode + Understand-Anything để map REQUIREMENT → module/service/file liên quan.
+  Khám phá codebase bằng Codebase Memory + Understand-Anything để map REQUIREMENT → module/service/file liên quan.
   Dùng khi cần tìm module, file, dependency liên quan đến requirement hiện tại.
   KHÔNG dùng cho: khám phá DB schema (→ db-explorer),
   review kiến trúc/rủi ro (→ architecture-reviewer), sinh spec (→ openspec-propose).
@@ -39,18 +39,59 @@ Dùng `codebase-explorer` khi:
   - `architecture-reviewer`
   - OpenSpec `/opsx:propose`
 
-### Structured-first cases
+### Định tuyến theo độ cao (Altitude Routing)
 
-Nếu truy vấn thuộc một trong các nhóm sau, agent **phải dùng provider có cấu trúc (priority cao) trước** rồi mới dùng fallback:
+UA và Codebase Memory **bổ trợ nhau, không thay thế** — mỗi tool mạnh ở một độ cao:
 
-- Hỏi về flow nghiệp vụ end-to-end → `{{ tools.trace_flow }}`, `{{ tools.get_symbol }}`
-- Hỏi về cross-module hoặc cross-service interaction → `{{ tools.get_dependencies }}`
-- Hỏi về dependency chain hoặc high-level execution flow → `{{ tools.trace_flow }}`, `{{ tools.find_blast_radius }}`
+- **Độ cao domain / business flow / entry point / ranh giới async (Kafka/gRPC)** → **UA** là chính (top-down map): `{{ tools.domain_overview }}`, `{{ tools.domain_flow }}`, `{{ tools.domain_relationships }}`.
+- **Độ cao symbol / đọc code / static call-chain / blast radius theo file** → **Codebase Memory** là chính (bottom-up lens): `{{ tools.search_code }}`, `{{ tools.get_symbol }}`, `{{ tools.read_file }}`, `{{ tools.trace_flow }}`, `{{ tools.find_blast_radius }}`.
 
-Trong các trường hợp này, **provider có structured query là nguồn chính** để hiểu flow và dependency.
-Provider có priority thấp hơn chỉ là bước follow-up để xác nhận chi tiết implementation.
+Quy tắc tinh chỉnh "structured-first": static call-chain vẫn dùng `{{ tools.trace_flow }}` (Codebase) làm chính; **nhưng** khi luồng đứt ở ranh giới async → leo thang sang `{{ tools.domain_flow }}` (UA). Agent không bỏ qua provider có cấu trúc chỉ vì grep cho cảm giác nhanh hơn.
 
-Agent không được tự ý bỏ qua structured provider chỉ vì grep/search cho cảm giác nhanh hơn.
+### Cổng độ phức tạp (Adaptive)
+
+Chạy **full Golden Path 5 bước** khi task chạm BẤT KỲ điều kiện nào: flow nghiệp vụ end-to-end chưa rõ; cross-module / cross-service; nghi async/event-driven (Kafka/gRPC/queue); requirement mơ hồ / chưa biết vị trí code.
+
+Ngược lại (task localized, đã biết file/symbol, sửa 1 hàm) → bỏ qua UA top-down, dùng Codebase trực tiếp (`{{ tools.search_code }}` → `{{ tools.get_symbol }}`).
+
+Ghi nhánh đã chọn + lý do (1 dòng) vào `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`.
+
+> Trước khi chạy Golden Path, kiểm tra trạng thái công cụ (xem **Bước 3** / `{{ tools.code_status }}` + tính khả dụng của UA) để quyết định degrade theo **Degradation**.
+
+### Golden Path (5 bước handoff — mỗi bước seed cho bước sau)
+
+1. **Định vị bối cảnh** — `{{ tools.domain_overview }}` (UA): từ tên feature/requirement → ra **tên domain**.
+2. **Tìm diện rộng** — `{{ tools.search_code }}` / `{{ tools.list_symbols }}` (Codebase): từ domain+keyword → **danh sách class/method + file** ứng viên.
+3. **Chiết xuất luồng** — `{{ tools.domain_flow }}` (UA): từ domain + class names → **entry point** (REST/gRPC/Kafka) + các step.
+4. **Đọc mã** — `{{ tools.get_symbol }}` / `{{ tools.read_file }}` (Codebase): đọc logic chi tiết (lib, error-handling, threading).
+5. **Verify liên kết** — `{{ tools.trace_flow }}` (Codebase) + `{{ tools.domain_relationships }}` (UA): bịt lỗ hổng interface→nhiều impl, điểm đứt async.
+
+Liên kết chặt nằm ở B2↔B3 (Codebase tìm *cái gì tồn tại*, UA giải thích *nối nhau ra sao qua async*) và B5 (hai tool cross-check).
+
+### Bản đồ năng lực (theo ý định — minh họa, KHÔNG whitelist)
+
+| Ý định | UA (top-down) | Codebase Memory (bottom-up) |
+|---|---|---|
+| Map domain / business flow | `{{ tools.domain_overview }}`, `{{ tools.domain_flow }}` | — |
+| Quan hệ / impact logic | `{{ tools.domain_relationships }}` | — |
+| Tìm symbol (rộng) | — | `{{ tools.search_code }}`, `{{ tools.list_symbols }}` |
+| Truy vấn cấu trúc tùy ý | — | `{{ tools.get_dependencies }}` + `{{ tools.graph_stats }}` |
+| Đọc code | — | `{{ tools.get_symbol }}`, `{{ tools.read_file }}` |
+| Trace / impact file | — | `{{ tools.trace_flow }}`, `{{ tools.find_blast_radius }}` |
+
+> Golden Path là **sàn, không phải trần**. Bảng trên minh họa, KHÔNG đầy đủ — cả hai MCP tự expose danh sách tool đầy đủ lúc runtime. Ngoài Golden Path, chọn tool theo **ý định**; truy vấn lạ thì dùng `{{ tools.graph_stats }}` học schema rồi viết Cypher qua `{{ tools.get_dependencies }}`.
+
+### Degradation (degrade mềm + ghi confidence)
+
+- **UA vắng** (plugin chưa cài / `domain-graph.json` thiếu / UA MCP không chạy / op `domain_*` không resolve): bỏ bước 1, 3 (top-down), chạy Codebase-only (2, 4, 5 một phần). Ghi: "Thiếu domain map — rủi ro sót liên kết async, confidence ↓".
+- **Graph Codebase stale/thiếu**: gợi ý `/understand` rebuild; tạm dùng UA + grep/read. Ghi confidence ↓.
+- **Thiếu cả hai**: fallback grep/read; confidence THẤP; khuyến nghị index trước.
+
+Luôn chạy được — không block. Không bịa kết quả cho tool không khả dụng.
+
+### Source attribution
+
+Ghi vào `AGENT_TRANSPARENCY.md` một dòng định tính (không ép số %): nguồn nào đóng góp gì — ví dụ *"Domain & flow async: từ UA; class/method, code logic, static trace: từ Codebase"*.
 
 ---
 
@@ -70,7 +111,7 @@ Agent không được tự ý bỏ qua structured provider chỉ vì grep/search
 - (Tuỳ chọn) `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`
 - `{{ platform.framework_root }}/knowledge/long-term/knowledge-snapshot.md` (nếu có)
 - Trạng thái tool:
-  - Socraticode có khả dụng không
+  - Codebase Memory có khả dụng không
   - Repo có sử dụng Understand-Anything không
   - Graph UA đã được build trước đó chưa và còn tin cậy không
 
@@ -177,7 +218,7 @@ Không mặc định yêu cầu rebuild graph/index cho mọi task.
 
 ### Bước 4 — Khảo sát codebase
 
-Nếu truy vấn thuộc nhóm `Structured-first`, bước này là **bắt buộc**.
+Nếu truy vấn ở độ cao symbol / đọc code / static-trace (xem **Định tuyến theo độ cao** ở §2), bước này là **bắt buộc** — Codebase Memory là nguồn chính.
 
 Dùng abstract operations để:
 
@@ -198,8 +239,8 @@ Dùng provider bổ sung để:
 - Làm rõ phần implementation
 - Tìm impact area chi tiết hơn
 
-Nếu truy vấn không thuộc nhóm `Structured-first`, provider bổ sung có thể là điểm bắt đầu.
-Nếu thuộc nhóm `Structured-first`, chỉ dùng làm follow-up.
+Nếu truy vấn ở độ cao domain / business flow (top-down — xem **Định tuyến theo độ cao**), provider UA có thể là điểm bắt đầu (Golden Path B1/B3).
+Nếu ở độ cao symbol/structured (Codebase là chính), UA chỉ dùng làm follow-up — leo thang khi luồng đứt ở ranh giới async.
 
 ### Bước 6 — Cross-check: Code thủ công + DB cross-reference
 
@@ -241,7 +282,7 @@ Không kết luận gap chỉ từ code nếu gap đó có thể được verify
 
 Cập nhật section `Kiến trúc code hiện tại (codebase-explorer)` theo format chuẩn.
 
-Nếu có khác biệt giữa KG và Socraticode:
+Nếu có khác biệt giữa KG và Codebase Memory:
 
 - Ghi rõ điểm chưa nhất quán
 - Đánh dấu cần kiểm tra sâu hơn

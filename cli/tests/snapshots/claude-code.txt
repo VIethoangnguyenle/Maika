@@ -1,4 +1,5 @@
 .claude/
+.claude/MCP_SETUP.md
 .claude/hooks/
 .claude/hooks/write-gate/
 .claude/hooks/write-gate/README.md

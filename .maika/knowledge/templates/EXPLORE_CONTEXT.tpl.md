@@ -1,7 +1,7 @@
 # EXPLORE_CONTEXT — Template
 > Ticket: <!-- ticket-id -->
 > Ngày khảo sát: <!-- date -->
-> Nguồn: <!-- Socraticode / Understand-Anything / DB Explorer / ... -->
+> Nguồn: <!-- Codebase Memory / Understand-Anything / DB Explorer / ... -->
 
 <!-- TODO: fill in — file này là template skeleton, không phải context thực -->
 

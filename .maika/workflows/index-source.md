@@ -1,8 +1,8 @@
 ---
-description: Lập chỉ mục mã nguồn dự án trên Socraticode MCP để có khả năng tìm kiếm ngữ nghĩa và đồ thị phụ thuộc
+description: Lập chỉ mục mã nguồn dự án trên Codebase Memory MCP để có khả năng tìm kiếm ngữ nghĩa và đồ thị phụ thuộc
 ---
 
-Lập chỉ mục mã nguồn dự án trên Socraticode MCP. Đây là workflow độc lập, cũng được gọi tự động trong Phase 4 của `/setup-knowledge`.
+Lập chỉ mục mã nguồn dự án trên Codebase Memory MCP. Đây là workflow độc lập, cũng được gọi tự động trong Phase 4 của `/setup-knowledge`.
 
 **Đầu vào**: Không cần tham số. Sử dụng thư mục dự án hiện tại.
 
@@ -19,9 +19,9 @@ Nếu KHÔNG tìm thấy → **DỪNG**:
 
 ---
 
-## Bước 2 — Kiểm tra Trạng thái Socraticode Hiện tại
+## Bước 2 — Kiểm tra Trạng thái Codebase Memory Hiện tại
 
-Gọi `{{ tools.code_status }}(projectPath)` qua Socraticode MCP.
+Gọi `{{ tools.code_status }}(projectPath)` qua Codebase Memory MCP.
 
 ### Nếu đã lập chỉ mục (chunks > 0, không có indexing đang chạy):
 
@@ -45,7 +45,7 @@ Hiển thị trạng thái hiện tại:
 
 ### Nếu chưa lập chỉ mục (0 chunks hoặc không có collection):
 
-> "Source chưa được index trên Socraticode. Đang bắt đầu indexing..."
+> "Source chưa được index trên Codebase Memory. Đang bắt đầu indexing..."
 
 Tiến tới Bước 3.
 
@@ -58,7 +58,7 @@ Nhảy tới Bước 4 (polling).
 ### Nếu MCP không khả dụng:
 
 → **DỪNG**:
-> "⚠️ Socraticode MCP không khả dụng. Kiểm tra cấu hình MCP trong mcp_config.json"
+> "⚠️ Codebase Memory MCP không khả dụng. Kiểm tra cấu hình MCP trong mcp_config.json"
 
 ---
 
@@ -93,17 +93,17 @@ Báo cáo tiến độ mỗi lần poll:
 | Thời gian | <thời-gian> |
 | Trạng thái | ✅ Sẵn sàng |
 
-Source giờ có thể tìm kiếm qua công cụ Socraticode MCP:
+Source giờ có thể tìm kiếm qua công cụ Codebase Memory MCP:
 - `{{ tools.search_code }}` — tìm kiếm code ngữ nghĩa
 - `{{ tools.get_dependencies }}` — truy vấn đồ thị phụ thuộc
-- `codebase_context_search` — khám phá pattern và quy ước
+- `{{ tools.semantic_search }}` — khám phá pattern và quy ước
 ```
 
 ---
 
 ## Rào chắn
 
-- Local index PHẢI tồn tại trước khi lập chỉ mục Socraticode (tiên quyết setupAiIntegration)
+- Local index PHẢI tồn tại trước khi lập chỉ mục Codebase Memory (tiên quyết setupAiIntegration)
 - Luôn hỏi trước khi lập chỉ mục lại source đã được index
 - Không được gián đoạn thao tác indexing đang tiến hành
 - Workflow này là chỉ đọc — không sửa đổi mã nguồn hoặc file kiến thức

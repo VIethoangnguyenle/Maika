@@ -89,7 +89,7 @@ Chỉ hiển thị component quan trọng. Ghi design pattern trong [brackets].
 | Mũi tên không annotation | Luôn ghi protocol + payload |
 | Chỉ happy path | Thêm `alt` cho error cases |
 | Sơ đồ không có prose | Thêm 1-2 đoạn mô tả |
-| Sơ đồ không match code | Verify qua UA/Socraticode trước |
+| Sơ đồ không match code | Verify qua UA/Codebase Memory trước |
 | Color không nhất quán | Dùng color scheme cố định |
 
 ## Color Scheme
@@ -112,4 +112,4 @@ Chỉ hiển thị component quan trọng. Ghi design pattern trong [brackets].
 - [ ] Failure modes liệt kê
 - [ ] Có sequence diagram cho luồng chính
 - [ ] Color scheme nhất quán
-- [ ] Verify qua UA/Socraticode
+- [ ] Verify qua UA/Codebase Memory

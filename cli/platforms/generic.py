@@ -28,6 +28,7 @@ class GenericPlatform(BasePlatform):
         "command_status":    "command_status",
         "send_input":        "send_input",
         "search_code":       "search_code",
+        "semantic_search":   "semantic_search",
         "index_code":        "index_code",
         "code_status":       "code_status",
         "get_dependencies":  "get_dependencies",
@@ -37,6 +38,12 @@ class GenericPlatform(BasePlatform):
         "list_symbols":      "list_symbols",
         "graph_stats":       "graph_stats",
         "graph_build":       "graph_build",
+
+        # ── Domain / top-down (understand-anything MCP) ──
+        "domain_overview":      "get_domain_overview",
+        "domain_flow":          "get_domain_flow_detail",
+        "domain_relationships": "get_relationships",
+
         "search_docs":       "search_docs",
         "get_page":          "get_page",
         "list_spaces":       "list_spaces",

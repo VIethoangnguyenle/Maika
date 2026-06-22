@@ -50,7 +50,7 @@ Installer sẽ:
 
 1. Tạo virtualenv riêng tại `.venv/`.
 2. Hỏi platform: Antigravity, Claude Code, Codex CLI hoặc Generic.
-3. Hỏi MCP servers: Socraticode, Confluence, DB Remote nếu bạn có.
+3. Hỏi MCP servers: Codebase Memory, Confluence, DB Remote nếu bạn có.
 4. Hỏi ngôn ngữ chính: Java, TypeScript, Python, Go, C# hoặc other.
 5. Render Maika runtime vào framework root phù hợp với platform.
 
@@ -309,8 +309,8 @@ Maika resolve tool names tại scaffold time. Khi bạn chạy `maika init`, CLI
 
 | MCP server | Capability | Khi nào cần |
 |---|---|---|
-| Socraticode | Semantic code search, dependency graph, symbol analysis | Hầu hết dự án có codebase lớn |
-| Understand Anything | Knowledge graph/code exploration alternative | Khi dùng UA thay Socraticode |
+| Codebase Memory | Knowledge graph + semantic search, dependency graph, symbol analysis (single binary, MIT) | Hầu hết dự án có codebase lớn |
+| Understand Anything | Knowledge graph code-exploration — **bổ trợ** Codebase Memory (semantic) | Dùng cùng Codebase Memory để hiểu codebase sâu hơn |
 | Confluence | Wiki/document search | Dự án có docs trên Confluence |
 | DB Remote | Database schema exploration read-only | Dự án có DB cần khám phá |
 
@@ -496,7 +496,7 @@ Khi agent bắt đầu một session trong repo có Maika, nó bootstrap context
 Core: AGENTS.md v3.0 + RULES (manifest + flow/tool/exec/knowledge/guard)
 Skills: requirement-analyst | spec-extract | db-explorer | codebase-explorer | ...
 Workflows: /task | /idea-to-task | /index-source | /convention-scan | /dna-scan
-Platform: codex | MCPs: socraticode, db-remote
+Platform: codex | MCPs: codebase-memory-mcp, db-remote
 Active context: REQUIREMENT empty | EXPLORE_CONTEXT empty
 Author DNA: approved
 Archive: 3 tickets

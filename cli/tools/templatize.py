@@ -20,7 +20,7 @@ from typing import Dict, List, Tuple
 # ─── Abstract operation → Jinja2 variable mapping ───
 # Two patterns to replace:
 #   1. SP3-style: code_exploration.search_code → {{ tools.search_code }}
-#   2. Hardcoded: codebase_search → {{ tools.search_code }}
+#   2. Hardcoded: semantic_query → {{ tools.semantic_search }}
 
 ABSTRACT_TO_JINJA = {
     # SP3 abstract refs → Jinja2
@@ -33,17 +33,17 @@ ABSTRACT_TO_JINJA = {
     "code_exploration.find_blast_radius": "{{ tools.find_blast_radius }}",
 }
 
-HARDCODED_SOCRATICODE = {
-    # Socraticode hardcoded refs → Jinja2
-    "codebase_search": "{{ tools.search_code }}",
-    "codebase_graph_query": "{{ tools.get_dependencies }}",
-    "codebase_impact": "{{ tools.find_blast_radius }}",
-    "codebase_symbol": "{{ tools.get_symbol }}",
-    "codebase_flow": "{{ tools.trace_flow }}",
-    "codebase_graph_stats": "{{ tools.graph_stats }}",
-    "codebase_graph_build": "{{ tools.graph_build }}",
-    "codebase_status": "{{ tools.code_status }}",
-    "codebase_index": "{{ tools.index_code }}",
+HARDCODED_CODEBASE_MEMORY = {
+    # codebase-memory-mcp raw tool names → Jinja2 abstract ops
+    "semantic_query": "{{ tools.semantic_search }}",
+    "query_graph": "{{ tools.get_dependencies }}",
+    "detect_changes": "{{ tools.find_blast_radius }}",
+    "get_code_snippet": "{{ tools.get_symbol }}",
+    "trace_path": "{{ tools.trace_flow }}",
+    "search_graph": "{{ tools.list_symbols }}",
+    "get_graph_schema": "{{ tools.graph_stats }}",
+    "index_repository": "{{ tools.index_code }}",
+    "index_status": "{{ tools.code_status }}",
 }
 
 HARDCODED_UA = {
@@ -105,7 +105,7 @@ def scan_file(filepath: Path) -> List[Tuple[int, str, str, str]]:
 
     all_mappings = [
         (ABSTRACT_TO_JINJA, "SP3 abstract"),
-        (HARDCODED_SOCRATICODE, "Socraticode hardcoded"),
+        (HARDCODED_CODEBASE_MEMORY, "codebase-memory-mcp hardcoded"),
         (HARDCODED_UA, "UA hardcoded"),
         (HARDCODED_CONFLUENCE, "Confluence hardcoded"),
     ]
@@ -135,7 +135,7 @@ def apply_replacements(filepath: Path) -> Tuple[str, int]:
 
     all_mappings = [
         ABSTRACT_TO_JINJA,
-        HARDCODED_SOCRATICODE,
+        HARDCODED_CODEBASE_MEMORY,
         HARDCODED_UA,
         HARDCODED_CONFLUENCE,
     ]

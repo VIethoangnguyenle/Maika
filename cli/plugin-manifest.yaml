@@ -14,9 +14,18 @@ version: "3.0"
 # MCP Capabilities — which MCP server provides what
 # ═══════════════════════════════════════════════════════════
 mcp_capabilities:
-  socraticode:
+  codebase-memory-mcp:
     provides: code_exploration
-    display: "Socraticode — Semantic code search + dependency graph"
+    display: "Codebase Memory — Knowledge graph + semantic search (single binary)"
+    setup:
+      engine_check:
+        default: { kind: path_exists, path: "{home}/.local/bin/codebase-memory-mcp" }
+      install_hint:
+        default: "curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash -s -- --skip-config   # installs the binary to ~/.local/bin; --skip-config so it does not overwrite Maika's scaffolded skills/hooks. Then wire the server below."
+      index_hint: "Ask the agent: 'Index this project' (runs index_repository). To auto-index on connect: `codebase-memory-mcp config set auto_index true`."
+      server:
+        command: "codebase-memory-mcp"
+        args: []
 
   confluence:
     provides: document_search
@@ -28,7 +37,7 @@ mcp_capabilities:
 
   understand-anything:
     provides: code_exploration
-    display: "Understand Anything — Knowledge Graph (alternative to Socraticode)"
+    display: "Understand Anything — Knowledge Graph (complements Codebase Memory's semantic search)"
     setup:
       graph_artifacts:
         - { name: code,   path: ".understand-anything/knowledge-graph.json", gen_cmd: "/understand" }

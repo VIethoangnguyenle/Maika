@@ -26,7 +26,7 @@ def test_native_root_platforms_do_not_need_skill_mirror():
 
 
 def test_render_context_includes_framework_root():
-    ctx = get_platform("antigravity").build_render_context(["socraticode"], "python")
+    ctx = get_platform("antigravity").build_render_context(["codebase-memory-mcp"], "python")
     assert ctx["platform"]["framework_root"] == ".agents"
 
 
@@ -151,6 +151,30 @@ def test_dynamic_memory_ops_are_required_keys():
     assert DYNAMIC_MEMORY_OPS <= REQUIRED_TOOL_KEYS
 
 
+def test_semantic_search_is_required_key():
+    from cli.platforms.base import REQUIRED_TOOL_KEYS
+    assert "semantic_search" in REQUIRED_TOOL_KEYS
+
+
+def test_codebase_memory_resolves_in_render_context_claude():
+    ctx = get_platform("claude-code").build_render_context(["codebase-memory-mcp"], "python")
+    t = ctx["tools"]
+    assert t["search_code"] == "mcp__codebase-memory-mcp__search_code"
+    assert t["semantic_search"] == "mcp__codebase-memory-mcp__semantic_query"
+    assert t["find_blast_radius"] == "mcp__codebase-memory-mcp__detect_changes"
+    assert t["trace_flow"] == "mcp__codebase-memory-mcp__trace_path"
+    assert t["get_symbol"] == "mcp__codebase-memory-mcp__get_code_snippet"
+    assert t["graph_stats"] == "mcp__codebase-memory-mcp__get_graph_schema"
+
+
+def test_codebase_memory_resolves_in_render_context_antigravity():
+    ctx = get_platform("antigravity").build_render_context(["codebase-memory-mcp"], "python")
+    t = ctx["tools"]
+    assert t["search_code"] == "mcp_codebase-memory-mcp_search_code"
+    assert t["semantic_search"] == "mcp_codebase-memory-mcp_semantic_query"
+    assert t["find_blast_radius"] == "mcp_codebase-memory-mcp_detect_changes"
+
+
 def test_dynamic_memory_resolves_in_render_context_claude():
     ctx = get_platform("claude-code").build_render_context(["agent-memory"], "python")
     assert ctx["tools"]["dynamic_memory_save"] == "mcp__agent-memory__memory_save"
@@ -163,3 +187,33 @@ def test_dynamic_memory_resolves_even_when_agent_memory_not_selected():
     # (R-Tool-6 / M7) handles the provider being absent, NOT template rendering.
     ctx = get_platform("generic").build_render_context([], "other")
     assert ctx["tools"]["dynamic_memory_save"] == "memory_save"
+
+
+UA_DOMAIN_OPS = ("domain_overview", "domain_flow", "domain_relationships")
+
+
+def test_ua_domain_ops_are_optional_keys():
+    from cli.platforms.base import OPTIONAL_TOOL_KEYS
+    for op in UA_DOMAIN_OPS:
+        assert op in OPTIONAL_TOOL_KEYS, f"{op} must be an OPTIONAL tool key"
+
+
+def test_every_platform_resolves_ua_domain_ops():
+    for key, cls in PLATFORMS.items():
+        platform = cls()
+        for op in UA_DOMAIN_OPS:
+            resolved = platform.get_tool(op)
+            assert resolved, f"{key} did not resolve {op}"
+
+
+def test_ua_domain_ops_use_understand_anything_server_where_prefixed():
+    # claude-code uses mcp__<server>__<tool>; antigravity uses mcp_<server>_<tool>
+    assert get_platform("claude-code").get_tool("domain_overview") == (
+        "mcp__understand-anything__get_domain_overview"
+    )
+    assert get_platform("antigravity").get_tool("domain_flow") == (
+        "mcp_understand-anything_get_domain_flow_detail"
+    )
+    # codex + generic use bare tool names
+    assert get_platform("codex").get_tool("domain_relationships") == "get_relationships"
+    assert get_platform("generic").get_tool("domain_overview") == "get_domain_overview"

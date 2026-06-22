@@ -39,9 +39,9 @@ Khi UA Knowledge Graph khả dụng, dùng các tool sau để drive deep-dive:
 5. Đặt câu hỏi từ 5 buckets (xem bên dưới) dựa trên evidence thu được
 6. Viết ADR với evidence từ UA
 
-### Chế độ B — Socraticode MCP (Ưu tiên cao)
+### Chế độ B — Codebase Memory MCP (Ưu tiên cao)
 
-Khi Socraticode index khả dụng:
+Khi Codebase Memory index khả dụng:
 
 | Tool | Mục đích |
 |------|----------|
@@ -78,7 +78,7 @@ Khi không có MCP tools, chạy deep-dive bằng câu hỏi trực tiếp từ 
 | A4 | Data model đang giả định schema ổn định — nếu business thay đổi yêu cầu? |
 | A5 | Team đang giả định có skill gì? Nếu key person nghỉ? |
 
-**Với UA/Socraticode**: Dùng `{{ tools.find_blast_radius }}` / `{{ tools.find_blast_radius }}` để verify A2, A3 bằng blast radius thực tế.
+**Với UA/Codebase Memory**: Dùng `{{ tools.find_blast_radius }}` / `{{ tools.find_blast_radius }}` để verify A2, A3 bằng blast radius thực tế.
 
 ### Bucket 2 — Alternatives (Lựa chọn)
 
@@ -132,7 +132,7 @@ Khi không có MCP tools, chạy deep-dive bằng câu hỏi trực tiếp từ 
 | E4 | Module này có thể tách ra thành microservice riêng không? |
 | E5 | API contract có backward-compatible không khi thêm field mới? |
 
-**Với Socraticode**: Dùng `{{ tools.find_blast_radius }}` để answer E1 bằng con số thực (bao nhiêu files thay đổi).
+**Với Codebase Memory**: Dùng `{{ tools.find_blast_radius }}` để answer E1 bằng con số thực (bao nhiêu files thay đổi).
 
 ---
 
@@ -141,7 +141,7 @@ Khi không có MCP tools, chạy deep-dive bằng câu hỏi trực tiếp từ 
 ```
 1. Xác định quyết định cần tra vấn
    ↓
-2. Chọn chế độ (A: UA, B: Socraticode, C: Câu hỏi)
+2. Chọn chế độ (A: UA, B: Codebase Memory, C: Câu hỏi)
    ↓
 3. Thu thập evidence từ tools (Mode A/B)
    hoặc đặt câu hỏi (Mode C)
@@ -166,7 +166,7 @@ Khi không có MCP tools, chạy deep-dive bằng câu hỏi trực tiếp từ 
 | **Confirmation bias** | Chỉ tìm evidence ủng hộ choice đã chọn | Hỏi bucket B (alternatives) trước |
 | **Analysis paralysis** | Deep-dive 2 tiếng cho 1 quyết định nhỏ | Time-box: 15 phút cho quyết định nhỏ, 30 phút cho lớn |
 | **No evidence** | Kết luận dựa trên opinion | Ghi rõ "⚠️ Thiếu evidence — cần benchmark/PoC" |
-| **Tool unavailable** | UA/Socraticode không chạy | Degrade sang Mode C (câu hỏi), ghi rõ gaps |
+| **Tool unavailable** | UA/Codebase Memory không chạy | Degrade sang Mode C (câu hỏi), ghi rõ gaps |
 
 ---
 

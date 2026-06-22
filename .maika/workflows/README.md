@@ -12,7 +12,7 @@
 | `/task spec <ticket>` | `{{ platform.framework_root }}/workflows/task.md` | Pha 2: Sinh spec kỹ thuật |
 | `/task apply <ticket>` | `{{ platform.framework_root }}/workflows/task.md` | Pha 3: Apply spec vào code |
 | `/idea-to-task` | `{{ platform.framework_root }}/workflows/idea-to-task.md` | Chuyển ideation → draft ticket |
-| `/index-source` | `{{ platform.framework_root }}/workflows/index-source.md` | Lập chỉ mục Socraticode |
+| `/index-source` | `{{ platform.framework_root }}/workflows/index-source.md` | Lập chỉ mục Codebase Memory |
 
 ---
 

@@ -124,3 +124,32 @@ def test_graph_status_lines_unparseable(tmp_path):
     ua.mkdir()
     (ua / "knowledge-graph.json").write_text("{not json")
     assert ua_setup.graph_status_lines(setup, tmp_path) == ["code: present (unparseable)"]
+
+
+def test_render_mcp_setup_md_index_step_when_no_graph_artifacts():
+    setup = {
+        "install_hint": {"default": "install uv"},
+        "index_hint": "Ask the agent: 'Index this project'.",
+        "server": {"command": "uvx", "args": ["codebase-memory-mcp"]},
+    }
+    md = ua_setup.render_mcp_setup_md(
+        setup, server_key="codebase-memory-mcp", platform="claude-code",
+        ua_mcp_dir="", project_root="/proj",
+    )
+    assert "## 2. Index the codebase" in md
+    assert "Ask the agent: 'Index this project'." in md
+    assert "Generate graphs" not in md
+
+
+def test_render_mcp_setup_md_keeps_generate_graphs_when_artifacts_present():
+    setup = {
+        "install_hint": {"default": "install"},
+        "graph_artifacts": [{"name": "code", "path": ".x/g.json", "gen_cmd": "/understand"}],
+        "server": {"command": "uv", "args": ["run", "server.py"]},
+    }
+    md = ua_setup.render_mcp_setup_md(
+        setup, server_key="understand-anything", platform="claude-code",
+        ua_mcp_dir="/srv", project_root="/proj",
+    )
+    assert "## 2. Generate graphs" in md
+    assert "Index the codebase" not in md

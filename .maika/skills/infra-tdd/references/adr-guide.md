@@ -77,7 +77,7 @@ Mỗi claim trong ADR nên có nguồn. Evidence bao gồm:
 | Benchmark/PoC | "PoC cho thấy P99 = 45ms với 10K TPS" | Rất cao |
 | Production data | "Production outage report: Redis crash gây 30 phút downtime" | Rất cao |
 | UA Knowledge Graph | "Node X có 15 incoming dependencies → blast radius cao" | Cao |
-| Socraticode search | "Pattern Y xuất hiện trong 23 files → convention mạnh" | Cao |
+| Codebase Memory search | "Pattern Y xuất hiện trong 23 files → convention mạnh" | Cao |
 | DB schema analysis | "Table Z có 12M rows, no partition → query chậm" | Cao |
 | Vendor documentation | "MongoDB docs: WiredTiger supports compression" | Trung bình |
 | Blog/conference talk | "Netflix dùng approach tương tự cho service X" | Thấp |
