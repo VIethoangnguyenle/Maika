@@ -195,7 +195,7 @@ Sơ đồ không có 3 annotation này là trang trí, không phải documentati
 2. **Tiêu chí đánh giá có trọng số** (không phải cảm tính)
 3. **Trade-off đã chấp nhận** (mọi lựa chọn đều mất thứ gì đó — đặt tên nó)
 
-**Ưu tiên**: Dùng **Understand-Anything** và **Socraticode** MCPs để drive deep-dive — xem section "Knowledge-First Protocol". Nếu MCPs không khả dụng, chạy cùng protocol bằng câu hỏi trong `references/socratic-deep-dive.md`.
+**Ưu tiên**: Dùng **Understand-Anything** và **Codebase Memory** MCPs để drive deep-dive — xem section "Knowledge-First Protocol". Nếu MCPs không khả dụng, chạy cùng protocol bằng câu hỏi trong `references/socratic-deep-dive.md`.
 
 ### Bước 5 — Viết ADR
 

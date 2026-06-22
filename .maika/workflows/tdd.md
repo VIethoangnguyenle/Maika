@@ -9,7 +9,7 @@ Standalone workflow — không qua `/task` flow. Kích hoạt skill `infra-tdd` 
 
 ## Yêu cầu
 - Skill `infra-tdd` phải đã load
-- Knowledge tools (UA, Socraticode, db-explorer) nên khả dụng
+- Knowledge tools (UA, Codebase Memory, db-explorer) nên khả dụng
 
 ## Các bước
 

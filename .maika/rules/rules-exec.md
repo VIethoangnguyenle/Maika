@@ -61,7 +61,7 @@
 
 Budget được điều chỉnh theo complexity tier — xác định ở đầu mỗi pha dựa trên scope:
 
-| Tier | Điều kiện | Pha 1 KG/UA/Socraticode | Pha 2 opsx | Pha 3 apply |
+| Tier | Điều kiện | Pha 1 KG/UA/Codebase Memory | Pha 2 opsx | Pha 3 apply |
 |------|-----------|------------------------|------------|-------------|
 | **simple** | scope ≤ 1 module, không chạm DB schema | 10 / 3 / 5 | 3 | 5 |
 | **standard** | scope 1-2 modules HOẶC có DB read | 20 / 5 / 10 | 5 | 10 |

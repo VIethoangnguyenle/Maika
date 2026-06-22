@@ -69,7 +69,7 @@ CALL: {{ tools.get_symbol }}(mỗi base class/interface quan trọng)
 ## 2E. Test & Config Conventions
 
 ```
-QUERY Socraticode: {{ tools.search_code }}("@Test class", limit=50)
+QUERY Codebase Memory: {{ tools.search_code }}("@Test class", limit=50)
   → Detect: test class suffix (*Test, *Spec, *IT)
   → Detect: test method naming (should_*, when_*_then_*, given_*)
 

@@ -2,7 +2,7 @@
 name: codebase-explorer
 version: '1.0'
 description: >
-  Khám phá codebase bằng Socraticode + Understand-Anything để map REQUIREMENT → module/service/file liên quan.
+  Khám phá codebase bằng Codebase Memory + Understand-Anything để map REQUIREMENT → module/service/file liên quan.
   Dùng khi cần tìm module, file, dependency liên quan đến requirement hiện tại.
   KHÔNG dùng cho: khám phá DB schema (→ db-explorer),
   review kiến trúc/rủi ro (→ architecture-reviewer), sinh spec (→ openspec-propose).
@@ -70,7 +70,7 @@ Agent không được tự ý bỏ qua structured provider chỉ vì grep/search
 - (Tuỳ chọn) `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`
 - `{{ platform.framework_root }}/knowledge/long-term/knowledge-snapshot.md` (nếu có)
 - Trạng thái tool:
-  - Socraticode có khả dụng không
+  - Codebase Memory có khả dụng không
   - Repo có sử dụng Understand-Anything không
   - Graph UA đã được build trước đó chưa và còn tin cậy không
 
@@ -241,7 +241,7 @@ Không kết luận gap chỉ từ code nếu gap đó có thể được verify
 
 Cập nhật section `Kiến trúc code hiện tại (codebase-explorer)` theo format chuẩn.
 
-Nếu có khác biệt giữa KG và Socraticode:
+Nếu có khác biệt giữa KG và Codebase Memory:
 
 - Ghi rõ điểm chưa nhất quán
 - Đánh dấu cần kiểm tra sâu hơn

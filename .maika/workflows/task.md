@@ -120,9 +120,9 @@ Sau khi nhận diện:
        - `{{ tools.get_symbol }}` → business flow nếu cần.
      - Nếu **chưa có graph hoặc quá cũ**:
        - Gợi ý user chạy `/understand` để rebuild graph.
-       - Trong lúc chờ, dùng Socraticode/search/grep với Độ tin cậy thấp hơn.
+       - Trong lúc chờ, dùng Codebase Memory/search/grep với Độ tin cậy thấp hơn.
    - Nếu cần câu hỏi open-ended → dùng `/understand-chat` (secondary).
-   - Bổ sung bằng Socraticode cho semantic search khi KG fuzzy search chưa đủ.
+   - Bổ sung bằng Codebase Memory cho semantic search khi KG fuzzy search chưa đủ.
    - Cập nhật section "Kiến trúc code hiện tại (codebase-explorer)" trong `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`.
    - **Ghi kèm node_id** cho mỗi component quan trọng → cho phép architecture-reviewer dùng `{{ tools.read_file }}(id)` sau.
 4. Gọi `architecture-reviewer`:
@@ -179,7 +179,7 @@ Sau khi nhận diện:
        - `[ ] {{ tools.get_symbol }}`
        - `[ ] {{ tools.find_blast_radius }} / find_entry_points`
      - UA skills (nếu có).
-     - Socraticode (nếu có).
+     - Codebase Memory (nếu có).
    - Cảnh báo:
      - Thiếu KG graph / thiếu quyền DB / thiếu codebase-access.
    - Độ tin cậy tổng quan sau Pha 1.

@@ -16,7 +16,7 @@
 
 ### [CRITICAL] R-Tool-2: codebase access an toàn
 
-- `codebase-explorer` và Socraticode chỉ được:
+- `codebase-explorer` và Codebase Memory chỉ được:
   - Đọc file, tìm symbol, call graph.
 - Mọi thao tác **ghi** vào code phải đi qua:
   - Spec đã được chấp thuận.
@@ -144,7 +144,7 @@ artifact-type của node) và pass:
 `python3 {{ platform.framework_root }}/tools/gate-check/cli.py handoff-slice <file>`
 
 - Slice nhúng INLINE vào prompt subagent. Coding subagent KHÔNG tự đọc knowledge files,
-  cũng KHÔNG gọi trực tiếp: UA/KG tools, db-explorer/DB, agent-memory, Socraticode search
+  cũng KHÔNG gọi trực tiếp: UA/KG tools, db-explorer/DB, agent-memory, Codebase Memory search
   như nguồn khám phá chính.
 - Output subagent kèm node-checkpoint ghi rule-id đã áp dụng; linter cơ học (giai đoạn
   enforcement sau) gác cửa cuối cho rule `mechanically_checkable`.

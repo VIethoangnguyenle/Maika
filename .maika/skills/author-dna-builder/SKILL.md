@@ -54,7 +54,7 @@ Agent chỉ được kết luận sau khi tác giả xác nhận. Mọi inferenc
 
 ### GIAI ĐOẠN 1: Code Evidence Scan
 
-Thu thập evidence từ codebase qua UA + Socraticode. Bao gồm 5 dimension:
+Thu thập evidence từ codebase qua UA + Codebase Memory. Bao gồm 5 dimension:
 - **1A** Complexity Profile (nesting depth, early return frequency)
 - **1B** Design Pattern Detection (CoR, Strategy, Factory, Spec, Builder...)
 - **1C** If/Else vs Pattern Substitution (switch/instanceof count)

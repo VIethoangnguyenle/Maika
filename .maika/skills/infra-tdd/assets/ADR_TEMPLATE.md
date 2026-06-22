@@ -16,7 +16,7 @@
 > - **Trigger** — chuyện gì xảy ra khiến phải quyết định ngay bây giờ?
 >
 > Viết bối cảnh như thể người đọc chưa biết gì về hệ thống.
-> Tham chiếu evidence từ: UA Knowledge Graph, Socraticode search, DB schema, production evidence.
+> Tham chiếu evidence từ: UA Knowledge Graph, Codebase Memory search, DB schema, production evidence.
 
 ## Quyết định
 
@@ -80,7 +80,7 @@
 > - Benchmark/PoC kết quả
 > - Production data / operational history
 > - UA Knowledge Graph references (node IDs, relationships)
-> - Socraticode search results
+> - Codebase Memory search results
 > - DB schema constraints
 > - Tài liệu/paper/blog kỹ thuật
 
