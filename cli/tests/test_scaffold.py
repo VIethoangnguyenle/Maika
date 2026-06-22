@@ -31,7 +31,7 @@ def test_load_manifest_has_plugins(maika_root):
 def test_has_capability(maika_root):
     manifest = load_manifest(maika_root)
     caps = manifest["mcp_capabilities"]
-    assert has_capability(["socraticode"], caps, "code_exploration") is True
+    assert has_capability(["codebase-memory-mcp"], caps, "code_exploration") is True
     assert has_capability([], caps, "code_exploration") is False
 
 
@@ -232,7 +232,7 @@ def test_generate_resolved_config_uses_platform_framework_root(tmp_path):
     from cli.platforms import get_platform
 
     platform = get_platform("antigravity")
-    generate_resolved_config(tmp_path, platform, ["socraticode"], "python")
+    generate_resolved_config(tmp_path, platform, ["codebase-memory-mcp"], "python")
 
     config = tmp_path / ".agents" / "resolved-config.yaml"
     assert config.exists()
@@ -249,7 +249,7 @@ def test_load_resolved_config_reads_agents_config(tmp_path):
         "resolved:\n"
         "  platform: antigravity\n"
         "  framework_root: .agents\n"
-        "  mcps: [socraticode]\n"
+        "  mcps: [codebase-memory-mcp]\n"
         "  language: python\n",
         encoding="utf-8",
     )
@@ -505,7 +505,7 @@ def test_generate_resolved_config_sweeps_stale_maika_config(tmp_path):
     bystander.parent.mkdir(parents=True)
     bystander.write_text("other: value\n", encoding="utf-8")
 
-    generate_resolved_config(tmp_path, get_platform("antigravity"), ["socraticode"], "python")
+    generate_resolved_config(tmp_path, get_platform("antigravity"), ["codebase-memory-mcp"], "python")
 
     assert (tmp_path / ".agents" / "resolved-config.yaml").exists()   # active written
     assert not stale.exists()                                         # stale swept
@@ -520,7 +520,7 @@ def test_generate_resolved_config_sweep_survives_directory_at_candidate(tmp_path
     bogus = tmp_path / ".maika" / "resolved-config.yaml"
     bogus.mkdir(parents=True)
 
-    generate_resolved_config(tmp_path, get_platform("antigravity"), ["socraticode"], "python")
+    generate_resolved_config(tmp_path, get_platform("antigravity"), ["codebase-memory-mcp"], "python")
 
     assert (tmp_path / ".agents" / "resolved-config.yaml").exists()  # active written
     assert bogus.is_dir()  # bogus directory left untouched

@@ -26,7 +26,7 @@ def test_native_root_platforms_do_not_need_skill_mirror():
 
 
 def test_render_context_includes_framework_root():
-    ctx = get_platform("antigravity").build_render_context(["socraticode"], "python")
+    ctx = get_platform("antigravity").build_render_context(["codebase-memory-mcp"], "python")
     assert ctx["platform"]["framework_root"] == ".agents"
 
 
