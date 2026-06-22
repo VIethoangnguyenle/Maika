@@ -18,7 +18,7 @@ QUERY UA: {{ tools.search_code }}(type="class", limit=200)
   → COUNT occurrence per suffix
   → FILTER: chỉ giữ suffix có count >= 3 (đủ để thành convention)
 
-QUERY Socraticode: codebase_context_search("naming convention class suffix")
+QUERY Codebase Memory: {{ tools.semantic_search }}("naming convention class suffix")
   → Bổ sung các pattern UA có thể bỏ sót
 ```
 

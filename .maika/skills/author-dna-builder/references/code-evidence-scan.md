@@ -109,7 +109,7 @@ FOR EACH layer pair (A calls B):
 ### 1E. Code Duplication vs Abstraction Tendency
 
 ```
-QUERY Socraticode: codebase_context_search("common logic abstraction helper util")
+QUERY Codebase Memory: {{ tools.semantic_search }}("common logic abstraction helper util")
   → Xem tác giả có xu hướng extract common logic không
 
 QUERY UA: {{ tools.search_code }}(type="class", filter="name contains 'Helper' OR 'Util' OR 'Common'")

@@ -96,7 +96,7 @@ Báo cáo tiến độ mỗi lần poll:
 Source giờ có thể tìm kiếm qua công cụ Socraticode MCP:
 - `{{ tools.search_code }}` — tìm kiếm code ngữ nghĩa
 - `{{ tools.get_dependencies }}` — truy vấn đồ thị phụ thuộc
-- `codebase_context_search` — khám phá pattern và quy ước
+- `{{ tools.semantic_search }}` — khám phá pattern và quy ước
 ```
 
 ---
