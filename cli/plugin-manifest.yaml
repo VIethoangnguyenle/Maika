@@ -37,7 +37,7 @@ mcp_capabilities:
 
   understand-anything:
     provides: code_exploration
-    display: "Understand Anything — Knowledge Graph (alternative to Codebase Memory)"
+    display: "Understand Anything — Knowledge Graph (complements Codebase Memory's semantic search)"
     setup:
       graph_artifacts:
         - { name: code,   path: ".understand-anything/knowledge-graph.json", gen_cmd: "/understand" }
