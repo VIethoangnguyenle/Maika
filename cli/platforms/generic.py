@@ -59,7 +59,7 @@ class GenericPlatform(BasePlatform):
         "dynamic_memory_recall":   "memory_recall",
         "dynamic_memory_sessions": "memory_sessions",
         "dynamic_memory_audit":    "memory_audit",
-        "dynamic_memory_health":   "memory_health",
+        "dynamic_memory_health":   "memory_diagnose",
         "dynamic_memory_save":     "memory_save",
         "dynamic_memory_forget":   "memory_governance_delete",
     }

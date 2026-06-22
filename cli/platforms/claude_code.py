@@ -61,7 +61,7 @@ class ClaudeCodePlatform(BasePlatform):
         "dynamic_memory_recall":   "mcp__agent-memory__memory_recall",
         "dynamic_memory_sessions": "mcp__agent-memory__memory_sessions",
         "dynamic_memory_audit":    "mcp__agent-memory__memory_audit",
-        "dynamic_memory_health":   "mcp__agent-memory__memory_health",
+        "dynamic_memory_health":   "mcp__agent-memory__memory_diagnose",
         "dynamic_memory_save":     "mcp__agent-memory__memory_save",
         "dynamic_memory_forget":   "mcp__agent-memory__memory_governance_delete",
     }

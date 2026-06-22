@@ -33,17 +33,19 @@ Nếu bất kỳ điều kiện nào KHÔNG đạt → bỏ qua memory push, ghi
 ### Tầng 2 — Dedup (đã có record cùng topic chưa?)
 
 ```
-CALL: {{ tools.dynamic_memory_search }}(topic_summary, project_id=<project>, limit=3)
+CALL: {{ tools.dynamic_memory_search }}(query="<project> <topic_summary>", limit=3)
 
 NẾU kết quả trả về có record cùng topic (similarity cao):
-  → Đây là CẬP NHẬT, không phải thêm mới
-  → Dùng ticket_id của record CŨ để upsert đè lên
-  → Ghi rõ trong content: "Thay thế {old_ticket_id}: {lý do cập nhật}"
+  → Kiến thức KHÔNG đổi → BỎ QUA, không lưu trùng.
+  → Kiến thức CÓ cập nhật → lưu bản mới, ghi rõ đầu `content`:
+     "Cập nhật kiến thức trước: {lý do}".
 
 NẾU không có record tương tự:
-  → Tiếp tục với ticket_id hiện tại
+  → Lưu bản mới.
 ```
 
+> `{{ tools.dynamic_memory_search }}` (agentmemory) **không có tham số lọc project** → đưa tên project vào
+> đầu `query` để ưu tiên đúng phạm vi (xem Recall guidance ở `rules-tool`).
 > Lưu ý: Bước search này KHÔNG tính vào memory budget Pha 3 (nó là một phần của curator hook, không phải reasoning).
 
 ### Tầng 3 — Quota
@@ -55,15 +57,19 @@ NẾU không có record tương tự:
 
 ```
 {{ tools.dynamic_memory_save }}(
-  ticket_id   = "<ticket-id>",
-  project_id  = "<project identifier from REQUIREMENT.md>",
-  author      = "<from persona.yaml user_info.name hoặc git config user.name>",
-  kind        = "<chọn từ kind selection guide bên dưới>",
-  topic       = "<1-line summary of key learning — ngắn gọn, searchable>",
-  content     = "<concise knowledge distilled from task — verified facts only>",
-  confidence  = "<high|medium|low>"
+  content  = "<topic 1-dòng> — <kiến thức cô đọng, chỉ fact đã verified>. "
+             "[ticket:<ticket-id> · author:<persona.yaml user_info.name|git user.name> · confidence:<high|medium|low>]",
+  type     = "<chọn từ kind selection guide bên dưới>",
+  project  = "<project identifier from REQUIREMENT.md>",
+  concepts = "<keywords phẩy-phân-cách: module/table/service/topic — searchable>",
+  files    = "<đường dẫn file liên quan, phẩy-phân-cách — optional>"
 )
 ```
+
+> **Map contract cũ → agentmemory:** `kind`→`type`, `project_id`→`project`;
+> `topic`/`author`/`confidence`/`ticket_id` gộp vào `content`+`concepts`.
+> `{{ tools.dynamic_memory_save }}` (agentmemory) chỉ nhận `content*, type, concepts, files, project` —
+> field lạ bị **drop** (whitelist), nên KHÔNG truyền `ticket_id`/`author`/`confidence` như param rời.
 
 ## Hướng dẫn chọn kind
 
@@ -79,11 +85,11 @@ NẾU không có record tương tự:
 | `deployment` | Bài học vận hành/deploy đã xác nhận |
 | `other` | Bất kỳ kiến thức nào đáng nhớ không thuộc các loại trên |
 
-## Tính lũy đẳng (Idempotency)
+## Chống trùng (dedup-by-search, KHÔNG upsert)
 
-- `ticket_id` sinh UUID5 xác định → Qdrant point ID.
-- Gọi `{{ tools.dynamic_memory_save }}` 2 lần cùng `ticket_id` → **cập nhật**, không tạo bản trùng.
-- Không cần tìm kiếm trước để kiểm tra trùng lặp.
+- `{{ tools.dynamic_memory_save }}` (agentmemory) **append-only** — không có khóa idempotency; mỗi call tạo bản ghi mới.
+- Vì vậy **Tầng 2 (search-before-save) là bắt buộc** — đây là cơ chế chống trùng duy nhất.
+- `ticket_id` chỉ là metadata truy vết nhồi trong `content`/`concepts`, KHÔNG phải primary key.
 
 ## Triển khai theo giai đoạn (R-Tool-6)
 
@@ -115,10 +121,10 @@ Sau khi push (hoặc bỏ qua), ghi vào AGENT_TRANSPARENCY.md:
 
 ```
 [M7-MEMORY] Đẩy Agent Memory:
-  - Hành động: <đã_đẩy | bỏ_qua | cập_nhật_bản_cũ>
+  - Hành động: <đã_đẩy | bỏ_qua | lưu_mới_kèm_note_cập_nhật>
   - ticket_id: <ticket-id>
-  - kind: <kind>
+  - type: <kind>
   - topic: <topic>
   - Kiểm tra chất lượng: <ĐẠT | BỎ_QUA lý_do>
-  - Kiểm tra trùng lặp: <không_trùng | thay_thế {old_ticket_id}>
+  - Kiểm tra trùng lặp: <không_trùng | bỏ_qua_trùng | lưu_mới_kèm_note>
 ```

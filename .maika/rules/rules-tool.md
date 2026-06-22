@@ -84,6 +84,10 @@ Khi mâu thuẫn với kiến thức chính (`knowledge-snapshot.md`, db-explore
 - **Trước spec (Pre-spec)**: `{{ tools.dynamic_memory_recall }}` để tra cứu quyết định kiến trúc trước đó.
 - **Sau task (Pha 3)**: `{{ tools.dynamic_memory_save }}` chỉ qua `knowledge-curator` post-task hook.
 
+> **Phạm vi project khi recall:** `{{ tools.dynamic_memory_search }}` / `{{ tools.dynamic_memory_recall }}`
+> (agentmemory) KHÔNG có tham số lọc project → luôn prefix tên project (từ `REQUIREMENT.md`)
+> vào đầu `query` để tránh kéo nhầm kinh nghiệm repo khác (cross-project overlap).
+
 #### Xử lý xung đột
 
 Nếu kết quả từ agent-memory mâu thuẫn với `knowledge-snapshot.md`,
