@@ -38,6 +38,11 @@ class ClaudeCodePlatform(BasePlatform):
         "graph_stats":       "mcp__codebase-memory-mcp__get_graph_schema",
         "graph_build":       "mcp__codebase-memory-mcp__index_repository",
 
+        # ── Domain / top-down (understand-anything MCP) ──
+        "domain_overview":      "mcp__understand-anything__get_domain_overview",
+        "domain_flow":          "mcp__understand-anything__get_domain_flow_detail",
+        "domain_relationships": "mcp__understand-anything__get_relationships",
+
         # ── Document Search (Confluence — if available) ──
         "search_docs":       "mcp__confluence__search",
         "get_page":          "mcp__confluence__get_page",

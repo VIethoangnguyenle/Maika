@@ -35,6 +35,12 @@ class CodexPlatform(BasePlatform):
         "list_symbols":      "list_symbols",
         "graph_stats":       "graph_stats",
         "graph_build":       "graph_build",
+
+        # ── Domain / top-down (understand-anything MCP) ──
+        "domain_overview":      "get_domain_overview",
+        "domain_flow":          "get_domain_flow_detail",
+        "domain_relationships": "get_relationships",
+
         "search_docs":       "search_docs",
         "get_page":          "get_page",
         "list_spaces":       "list_spaces",

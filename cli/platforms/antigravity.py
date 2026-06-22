@@ -38,6 +38,11 @@ class AntigravityPlatform(BasePlatform):
         "graph_stats":       "mcp_codebase-memory-mcp_get_graph_schema",
         "graph_build":       "mcp_codebase-memory-mcp_index_repository",
 
+        # ── Domain / top-down (understand-anything MCP) ──
+        "domain_overview":      "mcp_understand-anything_get_domain_overview",
+        "domain_flow":          "mcp_understand-anything_get_domain_flow_detail",
+        "domain_relationships": "mcp_understand-anything_get_relationships",
+
         # ── Document Search (Confluence) ──
         "search_docs":       "mcp_confluence-servicehub_confluence_search",
         "get_page":          "mcp_confluence-servicehub_confluence_get_page",
