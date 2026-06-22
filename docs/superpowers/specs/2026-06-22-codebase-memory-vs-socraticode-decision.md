@@ -1,7 +1,7 @@
 # Decision: codebase-memory-mcp vs SocratiCode (semantic backend sau UA)
 
 **Date:** 2026-06-22
-**Status:** Decided — adopt `codebase-memory-mcp`, replace SocratiCode
+**Status:** Implemented — see docs/superpowers/plans/2026-06-22-codebase-memory-init-integration.md
 **Branch:** `feat/codebase-memory-backend`
 **Type:** Tooling decision (chọn 1 trong 2 engine code-intelligence)
 
