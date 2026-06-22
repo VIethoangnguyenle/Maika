@@ -35,3 +35,23 @@ def test_skill_has_protocol_sections():
         "Source attribution",
     ):
         assert marker in text, f"missing section: {marker}"
+
+
+TASK_WF = REPO_ROOT / ".maika" / "workflows" / "task.md"
+
+
+def test_taskmd_phase1_points_to_altitude_protocol():
+    text = TASK_WF.read_text(encoding="utf-8")
+    assert "altitude" in text.lower() or "độ cao" in text.lower(), (
+        "task.md Pha 1 chưa trỏ tới altitude-routing protocol"
+    )
+
+
+def test_taskmd_transparency_lists_ua_domain_ops():
+    text = TASK_WF.read_text(encoding="utf-8")
+    for op in ("domain_overview", "domain_flow", "domain_relationships"):
+        assert "{{ tools.%s }}" % op in text, f"checklist thiếu {{{{ tools.{op} }}}}"
+
+
+def test_taskmd_has_no_raw_ua_tool_names():
+    assert RAW_UA.search(TASK_WF.read_text(encoding="utf-8")) is None

@@ -110,6 +110,7 @@ Sau khi nhận diện:
      - Khám phá tầng database liên quan (schema, constraint, trigger/procedure…).
      - Cập nhật section "Tầng Database (db-explorer)" trong `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`.
 3. Gọi `codebase-explorer`:
+   - Theo **altitude routing** (xem `codebase-explorer` SKILL): UA top-down (`{{ tools.domain_overview }}`/`{{ tools.domain_flow }}`) cho domain/async; Codebase bottom-up cho symbol/đọc code. Adaptive theo độ phức tạp — task nhỏ dùng Codebase trực tiếp.
    - Đọc `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`, map yêu cầu → module/service/file.
    - **[GATE] Kiểm tra trạng thái KG graph trước bất kỳ tool nào khác** (theo R-Tool-5):
      - Gọi `{{ tools.graph_stats }}` (KG MCP Server) để xem graph có tồn tại và đủ mới không.
@@ -178,7 +179,10 @@ Sau khi nhận diện:
        - `[ ] {{ tools.get_dependencies }} / {{ tools.trace_flow }}`
        - `[ ] {{ tools.get_symbol }}`
        - `[ ] {{ tools.find_blast_radius }} / find_entry_points`
-     - UA skills (nếu có).
+     - UA domain tools (nếu có):
+       - `[ ] {{ tools.domain_overview }}`
+       - `[ ] {{ tools.domain_flow }}`
+       - `[ ] {{ tools.domain_relationships }}`
      - Codebase Memory (nếu có).
    - Cảnh báo:
      - Thiếu KG graph / thiếu quyền DB / thiếu codebase-access.
