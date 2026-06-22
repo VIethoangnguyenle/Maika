@@ -56,6 +56,8 @@ Ngược lại (task localized, đã biết file/symbol, sửa 1 hàm) → bỏ 
 
 Ghi nhánh đã chọn + lý do (1 dòng) vào `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`.
 
+> Trước khi chạy Golden Path, kiểm tra trạng thái công cụ (xem **Bước 3** / `{{ tools.code_status }}` + tính khả dụng của UA) để quyết định degrade theo **Degradation**.
+
 ### Golden Path (5 bước handoff — mỗi bước seed cho bước sau)
 
 1. **Định vị bối cảnh** — `{{ tools.domain_overview }}` (UA): từ tên feature/requirement → ra **tên domain**.
@@ -216,7 +218,7 @@ Không mặc định yêu cầu rebuild graph/index cho mọi task.
 
 ### Bước 4 — Khảo sát codebase
 
-Nếu truy vấn thuộc nhóm `Structured-first`, bước này là **bắt buộc**.
+Nếu truy vấn ở độ cao symbol / đọc code / static-trace (xem **Định tuyến theo độ cao** ở §2), bước này là **bắt buộc** — Codebase Memory là nguồn chính.
 
 Dùng abstract operations để:
 
@@ -237,8 +239,8 @@ Dùng provider bổ sung để:
 - Làm rõ phần implementation
 - Tìm impact area chi tiết hơn
 
-Nếu truy vấn không thuộc nhóm `Structured-first`, provider bổ sung có thể là điểm bắt đầu.
-Nếu thuộc nhóm `Structured-first`, chỉ dùng làm follow-up.
+Nếu truy vấn ở độ cao domain / business flow (top-down — xem **Định tuyến theo độ cao**), provider UA có thể là điểm bắt đầu (Golden Path B1/B3).
+Nếu ở độ cao symbol/structured (Codebase là chính), UA chỉ dùng làm follow-up — leo thang khi luồng đứt ở ranh giới async.
 
 ### Bước 6 — Cross-check: Code thủ công + DB cross-reference
 
