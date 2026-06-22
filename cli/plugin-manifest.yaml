@@ -16,16 +16,16 @@ version: "3.0"
 mcp_capabilities:
   codebase-memory-mcp:
     provides: code_exploration
-    display: "Codebase Memory — Knowledge graph + semantic search (uvx, zero-config)"
+    display: "Codebase Memory — Knowledge graph + semantic search (single binary)"
     setup:
       engine_check:
-        default: { kind: path_exists, path: "{home}/.local/bin/uv" }
+        default: { kind: path_exists, path: "{home}/.local/bin/codebase-memory-mcp" }
       install_hint:
-        default: "Install uv (https://astral.sh/uv); the MCP runs via `uvx codebase-memory-mcp` — no separate install needed."
+        default: "curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash -s -- --skip-config   # installs the binary to ~/.local/bin; --skip-config so it does not overwrite Maika's scaffolded skills/hooks. Then wire the server below."
       index_hint: "Ask the agent: 'Index this project' (runs index_repository). To auto-index on connect: `codebase-memory-mcp config set auto_index true`."
       server:
-        command: "uvx"
-        args: ["codebase-memory-mcp"]
+        command: "codebase-memory-mcp"
+        args: []
 
   confluence:
     provides: document_search

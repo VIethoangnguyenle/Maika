@@ -157,11 +157,15 @@ Hệ thống dùng cb-mem → tích hợp lúc `maika init`, theo đúng **patte
 
 - **Số phận `socraticode`:** **thay hẳn (remove)** khỏi manifest + tool_mapping. Khớp "chọn 1",
   đúng net-negative complexity.
-- **Runtime:** **uvx** (`uvx codebase-memory-mcp`) — đồng nhất toolchain Python/uv của Maika.
+- **Runtime/install:** **turnkey installer** (UA-style). `install_hint` =
+  `curl -fsSL .../install.sh | bash -s -- --skip-config` — cài binary vào `~/.local/bin`;
+  `--skip-config` để installer KHÔNG ghi đè skills/hook mà Maika đã scaffold (Maika tự wire qua
+  snippet, đúng như UA: installer lo engine, Maika lo wiring). (Cập nhật 2026-06-22 sau khi ship:
+  ban đầu chọn uvx zero-config, đổi sang binary installer để guide "install luôn" sát UA hơn.)
 
 **cb-mem khác UA ở 3 chỗ** (phần còn lại giống hệt):
-- (a) `server`: `command: uvx`, `args: ["codebase-memory-mcp"]` thay `uv run server.py`;
-  **không cần `{ua_mcp_dir}`** (zero-config).
+- (a) `server`: `command: codebase-memory-mcp`, `args: []` (binary trên PATH) thay `uv run
+  server.py`; **không cần `{ua_mcp_dir}`**. `engine_check` = binary `{home}/.local/bin/codebase-memory-mcp`.
 - (b) **Bỏ `graph_artifacts`** — graph cb-mem là SQLite `.codebase-memory/graph.db.zst`, không phải
   JSON `{nodes,edges}`; `graph_status_lines` lặp rỗng → doctor vẫn chạy đúng.
 - (c) Cần **1 bước index đầu** (`index_repository` / "Index this project" / `config set auto_index

@@ -52,10 +52,10 @@ def test_cbm_capability_present():
     assert cap["provides"] == "code_exploration"
 
 
-def test_cbm_setup_server_is_uvx_no_clone_dir():
+def test_cbm_setup_server_is_binary_no_clone_dir():
     setup = _cbm_setup()
-    assert setup["server"]["command"] == "uvx"
-    assert setup["server"]["args"] == ["codebase-memory-mcp"]
+    assert setup["server"]["command"] == "codebase-memory-mcp"
+    assert setup["server"]["args"] == []
     assert "{ua_mcp_dir}" not in str(setup["server"])
 
 
@@ -67,6 +67,10 @@ def test_cbm_setup_has_no_graph_artifacts_but_has_index_hint():
 
 def test_cbm_setup_engine_check_and_install_hint():
     setup = _cbm_setup()
+    # engine_check points at the installed cb-mem binary
     assert setup["engine_check"]["default"]["kind"] == "path_exists"
+    assert setup["engine_check"]["default"]["path"].endswith("/codebase-memory-mcp")
     assert "{home}" in setup["engine_check"]["default"]["path"]
-    assert "default" in setup["install_hint"]
+    # install_hint is the turnkey one-line installer (UA-style), binary-only
+    assert "install.sh" in setup["install_hint"]["default"]
+    assert "--skip-config" in setup["install_hint"]["default"]
