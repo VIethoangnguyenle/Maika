@@ -24,6 +24,7 @@ _DYNAMIC = re.compile(r"[\$`*?]")
 _REDIRECT_RE = re.compile(r"(?<!>)>>?\|?\s*([^\s|&;<>()]+)")
 _SEGMENT_RE = re.compile(r"[\n;]|\|\||&&|(?<!>)\|")
 _DEVNULL = {"/dev/null", "/dev/stdout", "/dev/stderr"}
+_DOC_SUFFIXES = {".md", ".markdown", ".txt", ".rst"}
 _SHELL_TOOLS = {"bash", "shell", "local_shell", "run_command", "run_terminal_cmd"}
 
 
@@ -206,6 +207,13 @@ def _is_framework_artifact(path: Path, framework_root: str) -> bool:
     )
 
 
+def _is_documentation(path: Path) -> bool:
+    """Documentation/understanding artifacts are not application code, so they
+    are exempt from the knowledge-before-code gate (a .md file can never be a
+    runnable code write that the gate exists to order)."""
+    return path.suffix.lower() in _DOC_SUFFIXES
+
+
 def _load_all_rule_ids(index_path: Path):
     if not index_path.exists():
         return None, True
@@ -218,6 +226,8 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
     if not target_path.as_posix():
         return Decision(False, "Unable to identify target path for write-gate payload")
     if _is_framework_artifact(target_path, framework_root):
+        return Decision(True)
+    if _is_documentation(target_path):
         return Decision(True)
 
     checkpoint = project_root / framework_root / "knowledge" / "active" / "KNOWLEDGE_CHECKPOINT.md"
