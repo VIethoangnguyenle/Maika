@@ -36,8 +36,12 @@
 - Khi cần codebase-facts: bằng chứng trong KNOWLEDGE_CHECKPOINT (node_id + blast-radius)
   tự khắc buộc dùng KG tools (`query_nodes`/`get_node_source`/`trace_call_chain`/`find_impact`);
   KG không có → dòng degrade "KG unavailable — grep fallback, MEDIUM" + hạ confidence kiến trúc.
+- **Đường evidence song song theo loại fact** (để gate không kéo ngược habit UA-first, xem `codebase-explorer` / `architecture-reviewer`):
+  - **architecture-facts** (domain ownership, entry point, ranh giới async/cross-service): bằng chứng hợp lệ = **UA identifier** (tên domain / flow / entry-point) + 1 dòng flow summary — *không* bắt buộc `node_id`.
+  - **code-facts** (symbol, static call-chain nội-service): giữ nguyên — `node_id` + blast-radius qua KG tools.
+  - Khi hai nguồn mâu thuẫn ở một code-fact: surface conflict vào `AGENT_TRANSPARENCY`, knowledge chính thắng (R-KL-3), **không** suppress.
 - `get_node_source` tuân thủ R-Data-1 (không log raw PII vào context files).
-- Khi ghi `EXPLORE_CONTEXT.md`, luôn kèm `node_id` cho component quan trọng (cho phép downstream `get_node_source(node_id)` trực tiếp).
+- Khi ghi `EXPLORE_CONTEXT.md`, luôn kèm identifier cho component quan trọng — `node_id` cho code-facts, hoặc UA identifier (domain/flow/entry-point) cho architecture-facts (`node_id` không bắt buộc với nguồn UA); cho phép downstream `get_node_source(node_id)` hoặc đọc theo identifier UA.
 - KHÔNG bịa kết quả cho tool không khả dụng.
 - (Infra: thiếu mcp_config.json theo runtime là việc của `maika doctor`, ngoài rule này.)
 

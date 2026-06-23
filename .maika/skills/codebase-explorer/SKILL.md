@@ -46,7 +46,18 @@ UA và Codebase Memory **bổ trợ nhau, không thay thế** — mỗi tool m�
 - **Độ cao domain / business flow / entry point / ranh giới async (Kafka/gRPC)** → **UA** là chính (top-down map): `{{ tools.domain_overview }}`, `{{ tools.domain_flow }}`, `{{ tools.domain_relationships }}`.
 - **Độ cao symbol / đọc code / static call-chain / blast radius theo file** → **Codebase Memory** là chính (bottom-up lens): `{{ tools.search_code }}`, `{{ tools.get_symbol }}`, `{{ tools.read_file }}`, `{{ tools.trace_flow }}`, `{{ tools.find_blast_radius }}`.
 
-Quy tắc tinh chỉnh "structured-first": static call-chain vẫn dùng `{{ tools.trace_flow }}` (Codebase) làm chính; **nhưng** khi luồng đứt ở ranh giới async → leo thang sang `{{ tools.domain_flow }}` (UA). Agent không bỏ qua provider có cấu trúc chỉ vì grep cho cảm giác nhanh hơn.
+#### Cue Cards (phản xạ theo triệu chứng — CUE → ROUTINE → REWARD)
+
+Thói quen được kích bằng triệu chứng gặp *trong lúc làm*, không bằng nguyên tắc trừu tượng:
+
+| CUE (agent nhận ra) | ROUTINE (phản xạ) | REWARD |
+|---|---|---|
+| Sắp `{{ tools.trace_flow }}`/`{{ tools.get_dependencies }}` vào **base/abstract class nhiều impl** (BaseHandler…) | DỪNG codebase → `{{ tools.domain_flow }}` (UA) | Flow human-readable, bỏ qua hàng chục lớp con nhiễu |
+| Call-chain vừa chạm `@KafkaListener`/gRPC stub rồi **đứt lạnh** | Leo thang `{{ tools.domain_flow }}` / `{{ tools.domain_relationships }}` (UA) | Thấy service nói chuyện với nhau ra sao |
+| **Chưa biết entry point** (REST? gRPC? Kafka?) | `{{ tools.domain_overview }}` → `{{ tools.domain_flow }}` (UA) **trước** mọi grep | Định vị entry đúng, không suy luận từ Controller |
+| Đã có **file/symbol cụ thể, localized, sửa 1 hàm** | Codebase thẳng (`{{ tools.search_code }}` → `{{ tools.get_symbol }}` → `{{ tools.read_file }}`) | Không tốn UA overhead |
+
+Codebase là chính cho static-trace **nội-service**. Nhưng khoảnh khắc câu hỏi trở thành *"flow này bắt đầu ở đâu / service nói chuyện ra sao"* thì đó là độ-cao UA — nhận ra bằng **Cue Cards** ở trên, đừng để phí vài call rồi mới leo thang. Codebase **không** dùng để định hình/kết luận kiến trúc; UA luôn ưu tiên cho câu hỏi kiến trúc.
 
 ### Cổng độ phức tạp (Adaptive)
 
@@ -144,8 +155,8 @@ Cập nhật `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`
 ```
 
 > [!IMPORTANT]
-> Luôn ghi kèm `identifier` (node_id hoặc file path) cho mỗi component quan trọng.
-> Điều này cho phép `architecture-reviewer` và OpenSpec dùng `{{ tools.read_file }}(identifier)` để đọc code thực tế mà không cần search lại.
+> Ghi kèm `identifier` cho mỗi component quan trọng. **identifier kiểu UA** (tên domain / flow / entry-point) đứng **ngang hàng** `node_id` — mục *Entry points* và *Integration / event / job* ghi nguồn từ UA là hợp lệ và được khuyến khích.
+> Với component cần đọc code chi tiết downstream, vẫn nên kèm `node_id`/file-path để `architecture-reviewer` và OpenSpec gọi `{{ tools.read_file }}(identifier)` trực tiếp.
 
 Chỉ ghi những gì cần để skill khác hiểu bối cảnh. Không dump toàn bộ call graph hoặc copy nguyên nội dung file.
 
@@ -315,7 +326,7 @@ Trong `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
 
 - Giữ nội dung generic, không encode domain cụ thể.
 - Không tự động chạy re-index hoặc thao tác nặng trên repo; chỉ gợi ý user khi cần.
-- Với truy vấn flow/cross-module, không được bỏ qua structured provider chỉ vì grep/search cho cảm giác nhanh hơn.
+- Với truy vấn flow/cross-service, không bỏ qua UA (provider top-down, đúng độ-cao cho flow/ranh giới async) chỉ vì grep cho cảm giác nhanh hơn; với truy vấn symbol/static-trace, không bỏ qua Codebase Memory. Không thay structured provider bằng grep chỉ vì nhanh.
 - Ưu tiên `{{ tools.read_file }}` để đọc code thay vì mở file thủ công — giúp giữ context gọn và có identifier tracking.
 - Skill này chỉ khám phá và ghi nhận codebase cho requirement hiện tại.
 - Mọi đề xuất thay đổi kiến trúc hay implement chi tiết thuộc về `architecture-reviewer` và OpenSpec.
