@@ -36,6 +36,10 @@
 - Khi cần codebase-facts: bằng chứng trong KNOWLEDGE_CHECKPOINT (node_id + blast-radius)
   tự khắc buộc dùng KG tools (`query_nodes`/`get_node_source`/`trace_call_chain`/`find_impact`);
   KG không có → dòng degrade "KG unavailable — grep fallback, MEDIUM" + hạ confidence kiến trúc.
+- **Đường evidence song song theo loại fact** (để gate không kéo ngược habit UA-first, xem `codebase-explorer` / `architecture-reviewer`):
+  - **architecture-facts** (domain ownership, entry point, ranh giới async/cross-service): bằng chứng hợp lệ = **UA identifier** (tên domain / flow / entry-point) + 1 dòng flow summary — *không* bắt buộc `node_id`.
+  - **code-facts** (symbol, static call-chain nội-service): giữ nguyên — `node_id` + blast-radius qua KG tools.
+  - Khi hai nguồn mâu thuẫn ở một code-fact: surface conflict vào `AGENT_TRANSPARENCY`, knowledge chính thắng (R-KL-3), **không** suppress.
 - `get_node_source` tuân thủ R-Data-1 (không log raw PII vào context files).
 - Khi ghi `EXPLORE_CONTEXT.md`, luôn kèm `node_id` cho component quan trọng (cho phép downstream `get_node_source(node_id)` trực tiếp).
 - KHÔNG bịa kết quả cho tool không khả dụng.
