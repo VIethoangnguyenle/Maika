@@ -74,6 +74,29 @@ def test_blocks_app_write_without_checkpoint(tmp_path):
     assert "KNOWLEDGE_CHECKPOINT" in result.reason
 
 
+def test_allows_documentation_write_without_checkpoint(tmp_path):
+    for doc in ("docs/ARCHITECTURE.md", "ANALYSIS.md", "notes/x.markdown", "a.txt", "b.rst"):
+        assert wg.evaluate_write(tmp_path, Path(doc)).ok is True, doc
+
+
+def test_documentation_exemption_is_case_insensitive(tmp_path):
+    assert wg.evaluate_write(tmp_path, Path("README.MD")).ok is True
+
+
+def test_main_allows_documentation_write(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    payload = {"tool_name": "Write", "tool_input": {"file_path": "docs/ARCHITECTURE.md"}}
+    code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
+    assert code == 0
+
+
+def test_bash_write_to_documentation_allowed(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    payload = {"tool_name": "Bash", "tool_input": {"command": "echo x > docs/ARCHITECTURE.md"}}
+    code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
+    assert code == 0
+
+
 def test_allows_app_write_with_valid_checkpoint(tmp_path):
     framework = tmp_path / ".maika"
     checkpoint = framework / "knowledge" / "active" / "KNOWLEDGE_CHECKPOINT.md"
