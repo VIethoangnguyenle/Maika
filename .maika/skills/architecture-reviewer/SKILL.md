@@ -115,7 +115,7 @@ Kết quả không phải là spec chi tiết, mà là **bản nhận định ki
 
 ## 5. Nguyên tắc Độ tin cậy
 
-Dựa vào `AGENT_TRANSPARENCY` + thực tế tool:
+Dựa vào `AGENT_TRANSPARENCY` + thực tế tool. **UA là nguồn probe chủ động cho câu hỏi boundary/topology** (Bước 4 & 6), không phải chỉ biến đo confidence — khi UA khả dụng mà Bước 4/6 không gọi nó cho câu hỏi cross-service, đó là **thiếu sót**, không phải lựa chọn. Logic confidence dưới đây giữ nguyên:
 
 - **UA + db-explorer + codebase-explorer đều chạy ổn**:
   - Có thể đặt Độ tin cậy **CAO** nếu phân tích dựa trên:
@@ -196,13 +196,16 @@ Dựa vào `AGENT_TRANSPARENCY` + thực tế tool:
 
 ### Bước 4 — Kiểm tra boundary, ownership, topology, coupling
 
-1. Boundary & ownership:
-   - Yêu cầu có đẩy thêm trách nhiệm vào một module vốn không sở hữu domain đó không?
-   - Có risk “trộn domain” vào cùng 1 module/service không?
-   - Nếu có identifiers: `{{ tools.get_dependencies }}(identifier, direction='in')` → xem ai gọi vào module này.
-2. Execution Context & Deployment Topology:
-   - Yêu cầu này xử lý theo luồng Synchronous (API, Controller) hay Asynchronous (Kafka Consumer, Background Job, Scheduler)?
-   - Cảnh báo BLOCKER nếu luồng Asynchronous (như Kafka Consumer) bị đặt nhầm vào các service thuần API, mà nên hướng về các service xử lý nền (ví dụ: `worker-service` hoặc module background tương đương).
+> **Doctrine (đọc trước):** câu hỏi xuyên-service hoặc async là **UA-altitude** — kết luận topology/boundary **luôn lấy từ UA**. `{{ tools.find_blast_radius }}`/`{{ tools.get_dependencies }}` chỉ thấy method-call nội-service, **KHÔNG** thấy Kafka/gRPC và **KHÔNG** được dùng để định hình kiến trúc. Khi codebase mâu thuẫn một code-fact UA claim (vd không thấy gRPC stub) → ghi vào `AGENT_TRANSPARENCY` (“UA có thể stale ở X”), không tự override.
+
+| Câu hỏi | UA định hình kết luận | Codebase chỉ xác nhận code-fact nội-service (tùy chọn) |
+|---|---|---|
+| Module **sở hữu** domain gì? Có trộn domain? | `{{ tools.domain_relationships }}` → ai sở hữu/đụng domain | `{{ tools.get_dependencies }}(identifier, direction='in')` check caller nội-service có thật |
+| Luồng **Sync hay Async**? Kafka consumer đặt nhầm service? | `{{ tools.domain_flow }}` → entry Kafka/gRPC/REST | `{{ tools.trace_flow }}` xác nhận một logic nội-service |
+| Coupling mới **xuyên service**? | `{{ tools.domain_relationships }}` → cạnh cross-service | `{{ tools.find_blast_radius }}` cho blast nội-service |
+
+1. Boundary & ownership: dùng `{{ tools.domain_relationships }}` xác định ai sở hữu domain; cảnh báo nếu requirement đẩy trách nhiệm vào module không sở hữu domain đó (risk “trộn domain”).
+2. Execution Context & Deployment Topology: dùng `{{ tools.domain_flow }}` xác định luồng Synchronous (API/Controller) hay Asynchronous (Kafka Consumer/Job/Scheduler). Cảnh báo BLOCKER nếu luồng Asynchronous bị đặt nhầm vào service thuần API, mà nên hướng về service xử lý nền (ví dụ: `worker-service`).
 3. Layering & Convention Enforcement:
    - Đối chiếu với `conventions.yaml` và `knowledge-snapshot.md`. Bất kể dự án đang dùng kiến trúc gì (CQRS, MVC, Hexagonal), phải enforce chặt chẽ các constraint của kiến trúc đó.
    - Ví dụ (giả định, không phải mặc định): nếu `conventions.yaml` quy định API phải kế thừa một base class nhất định và mọi lệnh phải đi qua một message/command bus, thì phải bắt lỗi ngay khi Requirement/Spec định đi tắt (vd gọi thẳng tầng dưới, bỏ qua bus). Skill này **không** hardcode bất kỳ pattern nào (CQRS/MVC/Hexagonal…) — luôn đọc constraint từ `conventions.yaml` rồi enforce.
@@ -238,7 +241,7 @@ Nếu dữ liệu là trọng tâm mà không có `db-explorer` → phải flag 
 
 1. Hiệu năng:
    - Yêu cầu thêm call, join, IO hay tính toán trên đường nóng?
-   - Có move công việc sang luồng async/background phù hợp không?
+   - Có move công việc sang luồng async/background phù hợp không? Dùng `{{ tools.domain_flow }}` (UA) xác nhận điểm async thật sự nằm ở đâu **trước khi** nhận định hot-path — đừng đoán từ code nội-service.
 2. Độ tin cậy / sẵn sàng:
    - Yêu cầu thêm dependency mới (service, DB, external system) trên đường critical?
    - Có single point of failure mới không?
