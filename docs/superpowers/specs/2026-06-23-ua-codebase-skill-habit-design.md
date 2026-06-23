@@ -26,9 +26,11 @@ Hai skill tiêu thụ tri thức UA + Codebase **lệch theo hai kiểu khác nh
 **Tối ưu nội dung skill, không thêm rule.** Tạo cho agent **thói quen** dùng đúng tool, theo vòng lặp **CUE → ROUTINE → REWARD** — neo việc chọn tool vào triệu chứng agent thực sự gặp giữa task, vì agent fail ở những khoảnh khắc nhận diện được.
 
 Nguyên tắc xuyên suốt cả hai skill:
-> **Codebase = lens nội-service** (symbol / static-trace / đọc code).
-> **UA = lens xuyên-service & async** (domain / flow / entry-point / boundary).
+> **Codebase = lens nội-service** (symbol / static-trace / đọc code). **KHÔNG dùng để định hình hay kết luận kiến trúc.**
+> **UA = lens xuyên-service & async** (domain / flow / entry-point / boundary). **UA luôn ưu tiên cho mọi câu hỏi kiến trúc.**
 > **Habit neo vào cue, không vào rule.**
+
+Hệ quả: ở câu hỏi kiến trúc (boundary/topology/ownership/coupling), kết luận **luôn lấy từ UA**. Codebase chỉ được dùng để xác nhận một **code-fact nội-service cụ thể** (ví dụ: call X→Y có thật sự tồn tại không) — không bao giờ để định hình topology, và không được override nhận định kiến trúc của UA.
 
 ---
 
@@ -64,16 +66,18 @@ Trong section output `Kiến trúc code hiện tại`:
 
 Sửa **đúng Bước 4 & 6** + đổi vai UA ở Bước 1 / Nguyên tắc Độ tin cậy. Không đụng phần còn lại.
 
-### 5.1 Bước 4 (boundary / ownership / topology / coupling): ghép cặp UA-trước, Codebase-verify
+### 5.1 Bước 4 (boundary / ownership / topology / coupling): UA định hình, Codebase chỉ xác nhận code-fact
 
-| Câu hỏi Bước 4 | UA (hỏi trước — đúng altitude) | Codebase (verify sau — nội-service) |
+Kết luận kiến trúc **luôn lấy từ UA**. Codebase **không** "verify ngang hàng" — nó là cấp dưới, chỉ kiểm chứng một code-fact nội-service cụ thể khi cần, và **không được dùng để định hình hay override** topology/boundary.
+
+| Câu hỏi Bước 4 | UA (định hình kết luận — đúng altitude) | Codebase (chỉ xác nhận code-fact nội-service, KHÔNG định hình) |
 |---|---|---|
-| Module **sở hữu** domain gì? Có trộn domain? | `domain_relationships` → ai sở hữu/đụng domain | `get_dependencies(dir=in)` xác nhận caller nội-service |
-| Luồng **Sync hay Async**? Kafka consumer đặt nhầm service? | `domain_flow` → thấy entry Kafka/gRPC/REST | `trace_flow` xác nhận logic nội-service |
-| Coupling mới **xuyên service**? | `domain_relationships` → cạnh cross-service | `find_blast_radius` cho blast nội-service |
+| Module **sở hữu** domain gì? Có trộn domain? | `domain_relationships` → ai sở hữu/đụng domain | (tùy chọn) `get_dependencies(dir=in)` chỉ để check caller nội-service có thật |
+| Luồng **Sync hay Async**? Kafka consumer đặt nhầm service? | `domain_flow` → thấy entry Kafka/gRPC/REST | (tùy chọn) `trace_flow` chỉ xác nhận một logic nội-service cụ thể |
+| Coupling mới **xuyên service**? | `domain_relationships` → cạnh cross-service | (tùy chọn) `find_blast_radius` chỉ cho blast nội-service |
 
 Cue nhúng vào Bước 4:
-> Câu hỏi xuyên-service hoặc async ⇒ đó là UA-altitude. `find_blast_radius`/`get_dependencies` chỉ thấy method-call nội-service — chúng **KHÔNG** thấy Kafka/gRPC. Đừng kết luận topology chỉ từ chúng.
+> Câu hỏi xuyên-service hoặc async ⇒ đó là UA-altitude, kết luận lấy từ UA. `find_blast_radius`/`get_dependencies` chỉ thấy method-call nội-service — chúng **KHÔNG** thấy Kafka/gRPC và **KHÔNG** được dùng để định hình/kết luận topology. Đừng kết luận kiến trúc từ codebase.
 
 ### 5.2 Bước 6 (non-functional / hot-path async)
 
