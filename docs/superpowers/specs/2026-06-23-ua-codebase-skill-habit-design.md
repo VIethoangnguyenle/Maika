@@ -1,8 +1,8 @@
 # Định hình lại cách dùng UA MCP & Codebase MCP — qua thói quen trong skill
 
 **Ngày:** 2026-06-23
-**Phạm vi:** `.maika/skills/codebase-explorer/SKILL.md`, `.maika/skills/architecture-reviewer/SKILL.md`
-**Không đụng tới:** rules (`rules-tool.md`, `rules-knowledge.md`), gates, schema artifact của arch-reviewer, db-explorer, các skill/phase khác.
+**Phạm vi:** `.maika/skills/codebase-explorer/SKILL.md`, `.maika/skills/architecture-reviewer/SKILL.md`, **+ một sửa đổi tối thiểu `R-Tool-5`** (rules-tool.md) — thêm đường evidence song song cho UA (xem §5.5), để gate không mâu thuẫn với habit mới.
+**Không đụng tới:** phần còn lại của rules, gates, schema artifact của arch-reviewer, db-explorer, các skill/phase khác.
 
 ---
 
@@ -23,14 +23,20 @@ Hai skill tiêu thụ tri thức UA + Codebase **lệch theo hai kiểu khác nh
 
 ## 3. Hướng giải quyết
 
-**Tối ưu nội dung skill, không thêm rule.** Tạo cho agent **thói quen** dùng đúng tool, theo vòng lặp **CUE → ROUTINE → REWARD** — neo việc chọn tool vào triệu chứng agent thực sự gặp giữa task, vì agent fail ở những khoảnh khắc nhận diện được.
+**Trọng tâm là tối ưu nội dung skill — không đẻ rule/gate mới.** Tạo cho agent **thói quen** dùng đúng tool, theo vòng lặp **CUE → ROUTINE → REWARD** — neo việc chọn tool vào triệu chứng agent thực sự gặp giữa task, vì agent fail ở những khoảnh khắc nhận diện được.
+
+Ngoại lệ duy nhất: một **mệnh đề tối thiểu** thêm vào `R-Tool-5` (§5.5) để gate hiện hữu không kéo ngược habit. Đây không phải rule mới — là gỡ mâu thuẫn ở rule sẵn có (root cause cấu trúc nêu ở §2).
 
 Nguyên tắc xuyên suốt cả hai skill:
 > **Codebase = lens nội-service** (symbol / static-trace / đọc code). **KHÔNG dùng để định hình hay kết luận kiến trúc.**
 > **UA = lens xuyên-service & async** (domain / flow / entry-point / boundary). **UA luôn ưu tiên cho mọi câu hỏi kiến trúc.**
 > **Habit neo vào cue, không vào rule.**
 
-Hệ quả: ở câu hỏi kiến trúc (boundary/topology/ownership/coupling), kết luận **luôn lấy từ UA**. Codebase chỉ được dùng để xác nhận một **code-fact nội-service cụ thể** (ví dụ: call X→Y có thật sự tồn tại không) — không bao giờ để định hình topology, và không được override nhận định kiến trúc của UA.
+Hệ quả: ở câu hỏi kiến trúc (boundary/topology/ownership/coupling), kết luận **luôn lấy từ UA**. Codebase chỉ được dùng để xác nhận một **code-fact nội-service cụ thể** (ví dụ: call X→Y có thật sự tồn tại không) — không bao giờ để **định hình** topology.
+
+Phân biệt hai việc (để UA không thành bất-khả-phản-bác — UA có thể sai khi graph stale/mis-config):
+- **Định hình kiến trúc** = UA độc quyền. Codebase không được tự vẽ lại topology.
+- **Phản bác một code-fact cụ thể** = codebase được phép. Khi codebase mâu thuẫn một claim code-fact của UA (vd UA bảo "A gọi B qua gRPC" mà không thấy stub) → **PHẢI surface vào `AGENT_TRANSPARENCY`** ("UA có thể stale ở điểm X"), **không suppress, không tự override** — để user/skill sau quyết. Khớp pattern R-Tool-6 (knowledge chính thắng, nhưng conflict luôn phải lộ ra).
 
 ---
 
@@ -93,17 +99,34 @@ Giữ nguyên logic confidence (UA tắt → max TRUNG BÌNH). Bỏ ngụ ý "UA
 
 Bước 5 (DB → db-explorer), M5/M6, Gotchas, output schema arch-reviewer.
 
+### 5.5 Sửa tối thiểu `R-Tool-5` — đường evidence song song cho UA
+
+**Vì sao bắt buộc:** root cause ở §2 là *cấu trúc*. `R-Tool-5` hiện viết *"khi cần codebase-facts: bằng chứng = `node_id` + blast-radius → tự khắc buộc dùng KG tools"* — chỉ chấp nhận evidence kiểu codebase. Nếu để nguyên, kết luận UA-first của arch-reviewer vẫn bị gate coi là "thiếu bằng chứng" → habit bị kéo ngược. Cue cards không thắng được trọng lực của gate.
+
+**Sửa (tối thiểu, không lật gate):** thêm một mệnh đề công nhận **architecture-facts có đường evidence riêng**:
+- Với **architecture-facts** (domain ownership, entry point, ranh giới async/cross-service): bằng chứng hợp lệ = **UA identifier** (tên domain / flow / entry-point) + 1 dòng flow summary — *không* bắt buộc `node_id`.
+- Với **code-facts** (symbol, static call-chain nội-service): giữ nguyên — `node_id` + blast-radius, dùng KG tools.
+- Khi hai nguồn mâu thuẫn ở một code-fact: theo §3 — surface conflict, knowledge chính thắng, không suppress.
+
+Đây là thay đổi **net-additive một mệnh đề**, không thêm gate/tool mới, không lật thứ tự ưu tiên hiện có.
+
 ---
 
 ## 6. Tiêu chí thành công (verify)
 
 1. **`codebase-explorer`**: có khối Cue Cards; câu hedge "structured-first" cũ đã được thay; output schema chấp nhận identifier kiểu UA. Skill-lint `PASS`.
 2. **`architecture-reviewer`**: Bước 4 có bảng ghép cặp UA-trước/Codebase-verify + cue async; Bước 6 gọi `domain_flow`; mục Độ tin cậy mô tả UA là probe chủ động. Skill-lint `PASS`.
-3. **Net-negative complexity**: không thêm rule/gate mới; thay đổi ròng nghiêng về *thay thế* prose mâu thuẫn bằng cue cụ thể.
-4. **Degradation giữ nguyên**: khi UA vắng, cả hai skill vẫn chạy được codebase-only + hạ confidence (không bịa).
+3. **`R-Tool-5`**: có mệnh đề đường evidence song song cho architecture-facts (§5.5); code-facts giữ nguyên `node_id` + blast-radius. Không thêm gate/tool mới.
+4. **Net-negative complexity**: thay đổi ròng nghiêng về *thay thế* prose mâu thuẫn bằng cue cụ thể; phần thêm vào R-Tool-5 là một mệnh đề.
+5. **Degradation giữ nguyên**: khi UA vắng, cả hai skill vẫn chạy được codebase-only + hạ confidence (không bịa).
+6. **[Behavioral — bắt buộc] Acceptance scenario before/after**: lấy đúng luồng "Hủy/Duyệt lệnh" trong `compare.md`, chạy `codebase-explorer`, kiểm hai điều:
+   - (a) Agent gọi UA (`domain_overview`/`domain_flow`) **trước** khi trace static, KHÔNG bổ nhào vào `trace_flow` ngay.
+   - (b) Agent **tránh** rabbit-hole base-class (vd `BaseInitTransReqActionHandler`) — không liệt kê hàng chục lớp con làm nhiễu context.
+   Đây là test *hành vi*, không phải static check — không có nó thì không biết habit có giữ, cũng không bắt được regression.
+7. **[Multi-platform] UA ops resolve trên cả 3 nền**: verify `{{ tools.domain_overview/domain_flow/domain_relationships }}` resolve thật trên snapshot Antigravity + Codex + Claude Code. Liên quan rủi ro đã biết (`dce808a`: agy chỉ thấy 1/5 MCP). Nếu một nền không resolve → cue card phải trỏ về nhánh degrade, **không** trỏ vào tool null.
 
 ## 7. Ngoài phạm vi (có thể làm sau)
 
-- Đụng tới `R-Tool-5` evidence gate / schema `EXPLORE_CONTEXT` ở mức rule.
+- Thay đổi sâu hơn `R-Tool-5` / schema `EXPLORE_CONTEXT` (ngoài mệnh đề tối thiểu ở §5.5).
 - Propagate doctrine sang các skill/phase khác (openspec-propose, task workflow, subagent dispatch).
 - Cập nhật `compare.md` thành tài liệu chính thức trong `.maika/`.
