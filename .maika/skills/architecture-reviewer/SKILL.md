@@ -280,7 +280,7 @@ Trong `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
   - `[x] architecture-reviewer`
 - Ghi rõ:
   - Provider `code_exploration` đã dùng:
-    - Operations đã gọi: `check_availability`, `find_blast_radius`, `get_source`, `get_dependencies`.
+    - Operations đã gọi: `check_availability`, `find_blast_radius`, `get_source`, `get_dependencies`, `domain_relationships`, `domain_flow` (ghi rõ đã gọi UA cho câu hỏi boundary/topology hay chưa — không gọi = thiếu sót).
   - Trạng thái `db-explorer` và `codebase-explorer`.
 - Ghi **Độ tin cậy kiến trúc tổng thể**:
   - CAO / TRUNG BÌNH / THẤP.

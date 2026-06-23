@@ -326,7 +326,7 @@ Trong `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
 
 - Giữ nội dung generic, không encode domain cụ thể.
 - Không tự động chạy re-index hoặc thao tác nặng trên repo; chỉ gợi ý user khi cần.
-- Với truy vấn flow/cross-module, không được bỏ qua structured provider chỉ vì grep/search cho cảm giác nhanh hơn.
+- Với truy vấn flow/cross-service, không bỏ qua UA (provider top-down, đúng độ-cao cho flow/ranh giới async) chỉ vì grep cho cảm giác nhanh hơn; với truy vấn symbol/static-trace, không bỏ qua Codebase Memory. Không thay structured provider bằng grep chỉ vì nhanh.
 - Ưu tiên `{{ tools.read_file }}` để đọc code thay vì mở file thủ công — giúp giữ context gọn và có identifier tracking.
 - Skill này chỉ khám phá và ghi nhận codebase cho requirement hiện tại.
 - Mọi đề xuất thay đổi kiến trúc hay implement chi tiết thuộc về `architecture-reviewer` và OpenSpec.
