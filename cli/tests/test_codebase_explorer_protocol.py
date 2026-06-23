@@ -55,3 +55,24 @@ def test_taskmd_transparency_lists_ua_domain_ops():
 
 def test_taskmd_has_no_raw_ua_tool_names():
     assert RAW_UA.search(TASK_WF.read_text(encoding="utf-8")) is None
+
+
+def test_skill_has_cue_cards_block():
+    text = _text()
+    assert "Cue Cards" in text, "missing Cue Cards habit block"
+    # cue table must bind a base-class rabbit-hole symptom to a UA routine
+    assert "base/abstract class" in text or "BaseHandler" in text
+    assert "{{ tools.domain_flow }}" in text
+
+
+def test_skill_dropped_structured_first_hedge():
+    text = _text()
+    assert 'Quy tắc tinh chỉnh "structured-first"' not in text, (
+        "old structured-first hedge still present — it pulls agent back to codebase"
+    )
+
+
+def test_output_schema_allows_ua_identifier():
+    text = _text()
+    # entry-point / integration components may be sourced from UA, not only node_id
+    assert "identifier kiểu UA" in text or "UA identifier" in text
