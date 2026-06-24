@@ -21,6 +21,7 @@ from validate_skills import (
     validate_skill,
     validate_all,
 )
+from validate_skills import check_s1_reflex_upfront
 
 
 # ─── Frontmatter Parser ──────────────────────────────────────────────
@@ -263,6 +264,34 @@ class TestBodySections:
         body = "## Quy trình thực hiện\nSteps."
         passed, _ = check_body_section(body, "B4")
         assert passed is True
+
+
+# ─── S1: Reflex Upfront (opt-in SP3) ──────────────────────────────────
+
+class TestS1ReflexUpfront:
+    def test_sp3_with_reflex_upfront_passes(self):
+        fm = {"standard": "SP3"}
+        body = "## Quy tắc cốt lõi (reflex)\n\n> UA-first...\n\n## Mục tiêu\n"
+        passed, _ = check_s1_reflex_upfront(fm, body)
+        assert passed is True
+
+    def test_sp3_without_reflex_fails(self):
+        fm = {"standard": "SP3"}
+        body = "## Mục tiêu\n\nNội dung dài...\n" + "x\n" * 50
+        passed, _ = check_s1_reflex_upfront(fm, body)
+        assert passed is False
+
+    def test_sp3_reflex_too_deep_fails(self):
+        fm = {"standard": "SP3"}
+        body = "filler\n" * 40 + "## Quy tắc cốt lõi (reflex)\n"
+        passed, _ = check_s1_reflex_upfront(fm, body)
+        assert passed is False
+
+    def test_non_sp3_skipped(self):
+        fm = {"standard": None}
+        body = "## Mục tiêu\n"
+        passed, _ = check_s1_reflex_upfront(fm, body)
+        assert passed is None
 
 
 # ─── Integration: validate_skill ──────────────────────────────────────

@@ -163,6 +163,24 @@ def check_f5_outputs(fm: dict) -> tuple[bool | None, str]:
     return True, ""
 
 
+SP3_DOCTRINE_HEADING = re.compile(
+    r"^\s*##\s+(Quy tắc cốt lõi|Core [Rr]ule|Reflex)", re.MULTILINE
+)
+SP3_REFLEX_MAX_LINE = 30  # heading reflex phải nằm trong N dòng đầu body
+
+
+def check_s1_reflex_upfront(fm: dict, body: str) -> tuple[bool | None, str]:
+    """[S1] SP3: heading 'Quy tắc cốt lõi/Reflex' nằm trong N dòng đầu body."""
+    if fm.get("standard") != "SP3":
+        return None, ""  # opt-in — chỉ áp SP3
+    head = "\n".join(body.splitlines()[:SP3_REFLEX_MAX_LINE])
+    if not SP3_DOCTRINE_HEADING.search(head):
+        return False, (
+            f"SP3 thiếu '## Quy tắc cốt lõi' trong {SP3_REFLEX_MAX_LINE} dòng đầu body"
+        )
+    return True, ""
+
+
 def check_body_section(body: str, section_id: str) -> tuple[bool, str]:
     """Kiểm tra heading bắt buộc tồn tại trong body."""
     section = REQUIRED_SECTIONS[section_id]
@@ -183,7 +201,7 @@ def validate_skill(skill_path: Path) -> dict:
 
     if fm is None:
         # Không parse được frontmatter → fail toàn bộ F*
-        for check_id in ["F1", "F2", "F3", "F4", "F5"]:
+        for check_id in ["F1", "F2", "F3", "F4", "F5", "S1"]:
             results[check_id] = (False, "không parse được frontmatter YAML")
     else:
         results["F1"] = check_f1_name(fm)
@@ -191,6 +209,7 @@ def validate_skill(skill_path: Path) -> dict:
         results["F3"] = check_f3_version(fm)
         results["F4"] = check_f4_pre_conditions(fm)
         results["F5"] = check_f5_outputs(fm)
+        results["S1"] = check_s1_reflex_upfront(fm, body)
 
     for section_id in REQUIRED_SECTIONS:
         results[section_id] = check_body_section(body, section_id)
@@ -233,7 +252,7 @@ def validate_all(skills_dir: Path) -> dict[str, dict]:
 
 # ─── Report Formatter ─────────────────────────────────────────────────
 
-CHECK_IDS = ["F1", "F2", "F3", "F4", "F5", "B1", "B2", "B3", "B4", "B5"]
+CHECK_IDS = ["F1", "F2", "F3", "F4", "F5", "S1", "B1", "B2", "B3", "B4", "B5"]
 
 
 def format_status(result: tuple[bool | None, str]) -> str:
