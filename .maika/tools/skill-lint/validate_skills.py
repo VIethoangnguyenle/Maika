@@ -181,6 +181,18 @@ def check_s1_reflex_upfront(fm: dict, body: str) -> tuple[bool | None, str]:
     return True, ""
 
 
+SP3_FLOWCHART = re.compile(r"```(dot|mermaid)\b")
+
+
+def check_s2_flowchart(fm: dict, body: str) -> tuple[bool | None, str]:
+    """[S2] SP3: phải có ít nhất 1 sơ đồ ```dot hoặc ```mermaid (cho process-skill)."""
+    if fm.get("standard") != "SP3":
+        return None, ""
+    if not SP3_FLOWCHART.search(body):
+        return False, "SP3 thiếu flowchart (```dot hoặc ```mermaid)"
+    return True, ""
+
+
 def check_body_section(body: str, section_id: str) -> tuple[bool, str]:
     """Kiểm tra heading bắt buộc tồn tại trong body."""
     section = REQUIRED_SECTIONS[section_id]
@@ -201,7 +213,7 @@ def validate_skill(skill_path: Path) -> dict:
 
     if fm is None:
         # Không parse được frontmatter → fail toàn bộ F*
-        for check_id in ["F1", "F2", "F3", "F4", "F5", "S1"]:
+        for check_id in ["F1", "F2", "F3", "F4", "F5", "S1", "S2"]:
             results[check_id] = (False, "không parse được frontmatter YAML")
     else:
         results["F1"] = check_f1_name(fm)
@@ -210,6 +222,7 @@ def validate_skill(skill_path: Path) -> dict:
         results["F4"] = check_f4_pre_conditions(fm)
         results["F5"] = check_f5_outputs(fm)
         results["S1"] = check_s1_reflex_upfront(fm, body)
+        results["S2"] = check_s2_flowchart(fm, body)
 
     for section_id in REQUIRED_SECTIONS:
         results[section_id] = check_body_section(body, section_id)
@@ -252,7 +265,7 @@ def validate_all(skills_dir: Path) -> dict[str, dict]:
 
 # ─── Report Formatter ─────────────────────────────────────────────────
 
-CHECK_IDS = ["F1", "F2", "F3", "F4", "F5", "S1", "B1", "B2", "B3", "B4", "B5"]
+CHECK_IDS = ["F1", "F2", "F3", "F4", "F5", "S1", "S2", "B1", "B2", "B3", "B4", "B5"]
 
 
 def format_status(result: tuple[bool | None, str]) -> str:

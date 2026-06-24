@@ -22,6 +22,7 @@ from validate_skills import (
     validate_all,
 )
 from validate_skills import check_s1_reflex_upfront
+from validate_skills import check_s2_flowchart
 
 
 # ─── Frontmatter Parser ──────────────────────────────────────────────
@@ -292,6 +293,28 @@ class TestS1ReflexUpfront:
         body = "## Mục tiêu\n"
         passed, _ = check_s1_reflex_upfront(fm, body)
         assert passed is None
+
+
+# ─── S2: Flowchart Required (opt-in SP3) ──────────────────────────────
+
+class TestS2Flowchart:
+    def test_sp3_with_dot_passes(self):
+        fm = {"standard": "SP3"}
+        body = "## Quy trình\n\n```dot\ndigraph{a->b}\n```\n"
+        assert check_s2_flowchart(fm, body)[0] is True
+
+    def test_sp3_with_mermaid_passes(self):
+        fm = {"standard": "SP3"}
+        body = "## Quy trình\n\n```mermaid\nflowchart TD\n```\n"
+        assert check_s2_flowchart(fm, body)[0] is True
+
+    def test_sp3_no_flowchart_fails(self):
+        fm = {"standard": "SP3"}
+        body = "## Quy trình\n\nBước 1...\n"
+        assert check_s2_flowchart(fm, body)[0] is False
+
+    def test_non_sp3_skipped(self):
+        assert check_s2_flowchart({}, "## Quy trình\n")[0] is None
 
 
 # ─── Integration: validate_skill ──────────────────────────────────────
