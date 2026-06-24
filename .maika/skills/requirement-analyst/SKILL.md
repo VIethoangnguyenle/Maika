@@ -1,6 +1,7 @@
 ---
 name: requirement-analyst
 version: '1.1'
+standard: SP3
 description: >
   Phân tích ticket/tài liệu thành REQUIREMENT.md chuẩn hoá, rõ scope và Acceptance Criteria.
   Dùng khi có ticket link hoặc tài liệu PRD rõ ràng cần chuẩn hoá.
@@ -11,12 +12,18 @@ pre_conditions:
   - file: "{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md"
     condition: exists
     on_fail: "ABORT — bootstrap chưa chạy, gọi `/task` trước"
-  - input: ticket_id_or_doc_url
-    condition: not_empty
-    on_fail: "ABORT — thiếu ticket ID hoặc URL tài liệu"
 ---
 
 # Requirement Analyst — Chuẩn hoá REQUIREMENT từ ticket + tài liệu
+
+## Quy tắc cốt lõi (reflex)
+
+> **UA-first khi trace code.** Thứ tự nguồn BẮT BUỘC:
+> 1. **UA + kinh nghiệm** (agent-memory, knowledge-snapshot) — LUÔN trước. UA là bản đồ node (class/func/domain/flow/quan hệ/entry-point), KHÔNG chứa logic → dùng để trace/định vị.
+> 2. **Codebase Memory** — hỗ trợ, vào SAU: extract logic trong thân hàm tại node UA đã định vị.
+> 3. **grep** — fallback cuối.
+>
+> Trước khi hỏi user: câu hỏi code-trả-lời-được → tự giải bằng UA-first probe (Bước "Đối chiếu codebase"); chỉ unknown nghiệp vụ thật mới hỏi.
 
 ## 1. Mục tiêu
 
@@ -112,6 +119,33 @@ Cấu trúc tối thiểu:
 
 ## 5. Quy trình chi tiết
 
+```dot
+digraph requirement_analyst_flow {
+    rankdir=TB;
+    "Thu thập nguồn" [shape=box];
+    "Xác định loại task" [shape=box];
+    "Business Context" [shape=box];
+    "Đối chiếu codebase\n(UA-first probe)" [shape=box];
+    "As-is / To-be" [shape=box];
+    "Scope (in/out)" [shape=box];
+    "Acceptance Criteria" [shape=box];
+    "Technical Design Contract" [shape=box];
+    "Lọc Open Question\n(code-trả-lời-được vs unknown nghiệp vụ)" [shape=diamond];
+    "Finalise REQUIREMENT.md" [shape=box];
+
+    "Thu thập nguồn" -> "Xác định loại task";
+    "Xác định loại task" -> "Business Context";
+    "Business Context" -> "Đối chiếu codebase\n(UA-first probe)";
+    "Đối chiếu codebase\n(UA-first probe)" -> "As-is / To-be";
+    "As-is / To-be" -> "Scope (in/out)";
+    "Scope (in/out)" -> "Acceptance Criteria";
+    "Acceptance Criteria" -> "Technical Design Contract";
+    "Technical Design Contract" -> "Lọc Open Question\n(code-trả-lời-được vs unknown nghiệp vụ)";
+    "Lọc Open Question\n(code-trả-lời-được vs unknown nghiệp vụ)" -> "Finalise REQUIREMENT.md" [label="unknown nghiệp vụ thật → hỏi user"];
+    "Lọc Open Question\n(code-trả-lời-được vs unknown nghiệp vụ)" -> "Đối chiếu codebase\n(UA-first probe)" [label="code-trả-lời-được → tự giải qua probe"];
+}
+```
+
 ### Bước 1 — Thu thập nguồn
 
 1. Đọc toàn bộ nội dung ticket:
@@ -119,7 +153,8 @@ Cấu trúc tối thiểu:
 2. Mở tất cả link tài liệu chính (wiki/spec…) xuất hiện trong ticket.
 3. Nếu có tài liệu lớn/chung mà chưa được tóm tắt:
    - Kích hoạt skill `spec-extract` để trích ra phần liên quan và dùng kết quả đó làm nền cho REQUIREMENT.
-4. Ghi lại trong `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md` là đã đọc những nguồn nào.
+4. **Codebase** (qua UA-first probe, Bước 4): nguồn bổ sung — đối chiếu flow/use-case với hệ thống thực tế trước khi viết As-is hoặc ghi Open Question.
+5. Ghi lại trong `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md` là đã đọc những nguồn nào.
 
 ---
 
@@ -160,7 +195,23 @@ Ngôn ngữ:
 
 ---
 
-### Bước 4 — As-is / To-be
+### Bước 4 — Đối chiếu codebase (UA-first reconnaissance probe)
+
+Trước khi viết As-is và trước khi ghi BẤT KỲ Open Question nào, chạy **probe nhẹ** (KHÔNG
+gọi full `codebase-explorer` — tránh phụ thuộc vòng với pre_condition REQUIREMENT.md):
+
+1. `{{ tools.domain_overview }}` → luồng/use-case này có domain tương ứng trong hệ thống không?
+2. `{{ tools.domain_flow }}` → nếu có, entry point (REST/gRPC/Kafka) + các step hiện tại.
+
+Kết quả nuôi As-is/To-be:
+- **Có trong code** → As-is = flow thực đã implement (kèm UA identifier); To-be = delta.
+- **Chưa có** → ghi rõ "luồng chưa tồn tại trong codebase → feature mới".
+
+Probe vắng UA → ghi hạn chế vào AGENT_TRANSPARENCY, hạ Độ tin cậy As-is; không bịa.
+
+---
+
+### Bước 5 — As-is / To-be
 
 1. **As-is**:
    - Mô tả hành vi/flow hiện tại của hệ thống hoặc quy trình.
@@ -181,7 +232,7 @@ Nguyên tắc:
 
 ---
 
-### Bước 5 — Phạm vi (Scope)
+### Bước 6 — Phạm vi (Scope)
 
 1. **In-scope**:
    - Liệt kê:
@@ -200,7 +251,7 @@ Vai trò:
 
 ---
 
-### Bước 6 — Acceptance Criteria (AC)
+### Bước 7 — Acceptance Criteria (AC)
 
 1. Thu thập AC từ:
 
@@ -225,7 +276,7 @@ Vai trò:
 
 ---
 
-### Bước 7 — Technical Design Contract (Đầu ra cho Client)
+### Bước 8 — Technical Design Contract (Đầu ra cho Client)
 
 1. Thiết kế rõ ràng hợp đồng giao tiếp (interface contract) mà client sẽ sử dụng:
    - **Giao thức**: Chọn REST, gRPC, hoặc Kafka tuỳ theo kiến trúc.
@@ -240,7 +291,7 @@ Vai trò:
 
 ---
 
-### Bước 8 — Giả định & Vấn đề yêu cầu
+### Bước 9 — Giả định & Vấn đề yêu cầu
 
 1. **Giả định (Assumptions)**:
 
@@ -250,6 +301,13 @@ Vai trò:
      - “Volume dữ liệu ở mức vừa, không cần tối ưu đặc biệt cho hiệu năng.”
 
 2. **Vấn đề yêu cầu (Requirement Issues / Open Questions)**:
+
+   > [!IMPORTANT]
+   > **Bộ lọc trước khi hỏi user.** Phân loại mỗi câu:
+   > - **Code-trả-lời-được** (entry point? race/lock xử lý ra sao? flow đã tồn tại? approve/reject
+   >   hiện làm gì?) → PHẢI giải qua UA-first probe (Bước 4), KHÔNG đưa vào Open Question. Câu trả
+   >   lời đi vào As-is / Technical Design Contract.
+   > - **Unknown nghiệp vụ thật** (SLA? business rule? ai duyệt? ưu tiên?) → mới ghi Open Question cho user.
 
    - Mơ hồ (ví dụ: “nhanh hơn” nhưng không có SLA).
    - Xung đột (ví dụ: 2 tài liệu mô tả behaviour khác nhau).
@@ -262,7 +320,7 @@ Vai trò:
 
 ---
 
-### Bước 9 — Finalise REQUIREMENT.md
+### Bước 10 — Finalise REQUIREMENT.md
 
 1. Đảm bảo `REQUIREMENT.md` đầy đủ các section tối thiểu:
    - Metadata.
