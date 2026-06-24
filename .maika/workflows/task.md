@@ -110,22 +110,14 @@ Sau khi nhận diện:
      - Khám phá tầng database liên quan (schema, constraint, trigger/procedure…).
      - Cập nhật section "Tầng Database (db-explorer)" trong `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`.
 3. Gọi `codebase-explorer`:
-   - Theo **altitude routing** (xem `codebase-explorer` SKILL): UA top-down (`{{ tools.domain_overview }}`/`{{ tools.domain_flow }}`) cho domain/async; Codebase bottom-up cho symbol/đọc code. Adaptive theo độ phức tạp — task nhỏ dùng Codebase trực tiếp.
-   - Đọc `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`, map yêu cầu → module/service/file.
-   - **[GATE] Kiểm tra trạng thái KG graph trước bất kỳ tool nào khác** (theo R-Tool-5):
-     - Gọi `{{ tools.graph_stats }}` (KG MCP Server) để xem graph có tồn tại và đủ mới không.
-     - Nếu **graph OK** → dùng KG tools làm nguồn chính:
-       - `{{ tools.search_code }}` → tìm nodes liên quan đến REQUIREMENT.
-       - `{{ tools.read_file }}` → đọc code thực tế.
-       - `{{ tools.get_dependencies }}`, `{{ tools.trace_flow }}` → hiểu dependency và flow.
-       - `{{ tools.get_symbol }}` → business flow nếu cần.
-     - Nếu **chưa có graph hoặc quá cũ**:
-       - Gợi ý user chạy `/understand` để rebuild graph.
-       - Trong lúc chờ, dùng Codebase Memory/search/grep với Độ tin cậy thấp hơn.
-   - Nếu cần câu hỏi open-ended → dùng `/understand-chat` (secondary).
-   - Bổ sung bằng Codebase Memory cho semantic search khi KG fuzzy search chưa đủ.
-   - Cập nhật section "Kiến trúc code hiện tại (codebase-explorer)" trong `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`.
-   - **Ghi kèm node_id** cho mỗi component quan trọng → cho phép architecture-reviewer dùng `{{ tools.read_file }}(id)` sau.
+   - **UA-first** (xem `codebase-explorer` SKILL §Quy tắc cốt lõi): `{{ tools.domain_overview }}` →
+     `{{ tools.domain_flow }}` để map domain/flow/entry-point/ranh giới async TRƯỚC.
+   - Đọc `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`, map yêu cầu → domain/module/service.
+   - **Codebase Memory hỗ trợ SAU**: `{{ tools.search_code }}` định vị symbol, `{{ tools.read_file }}`
+     extract logic trong hàm tại node UA đã chỉ. Lỗi Codebase MCP ≠ UA chết — vẫn dùng UA.
+   - KG/UA vắng → gợi ý `/understand` rebuild; tạm grep với Độ tin cậy thấp hơn (không bịa).
+   - Cập nhật section "Kiến trúc code hiện tại (codebase-explorer)" trong EXPLORE_CONTEXT.
+   - **Ghi kèm identifier** (UA domain/flow/entry-point hoặc node_id) cho mỗi component quan trọng.
 4. Gọi `architecture-reviewer`:
    - Đối chiếu `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md` + `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md` + `{{ platform.framework_root }}/knowledge/long-term/knowledge-snapshot.md`.
    - Nếu EXPLORE_CONTEXT có node IDs → dùng KG tools (`{{ tools.find_blast_radius }}`, `{{ tools.read_file }}`, `{{ tools.get_dependencies }}`) để verify.

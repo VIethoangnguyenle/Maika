@@ -1,6 +1,7 @@
 ---
 name: spec-extract
 version: '1.0'
+standard: SP3
 description: >
   Trích xuất spec có cấu trúc từ tài liệu (wiki/Confluence/PRD) vào REQUIREMENT.md, kèm đánh giá độ tin cậy.
   Dùng khi đầu vào là tài liệu dài, wiki nhiều trang, hoặc PRD cần parse.
@@ -10,12 +11,18 @@ pre_conditions:
   - file: "{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md"
     condition: exists
     on_fail: "ABORT — bootstrap chưa chạy, gọi `/task` trước"
-  - input: doc_url_or_text
-    condition: not_empty
-    on_fail: "ABORT — thiếu tài liệu nguồn để extract"
 ---
 
 # Spec Extract — Tài liệu → REQUIREMENT
+
+## Quy tắc cốt lõi (reflex)
+
+> **UA-first khi trace code.** Thứ tự nguồn BẮT BUỘC:
+> 1. **UA + kinh nghiệm** (agent-memory, knowledge-snapshot) — LUÔN trước. UA là bản đồ node (class/func/domain/flow/quan hệ/entry-point), KHÔNG chứa logic → dùng để trace/định vị.
+> 2. **Codebase Memory** — hỗ trợ, vào SAU: extract logic trong thân hàm tại node UA đã định vị.
+> 3. **grep** — fallback cuối.
+>
+> Khi tài liệu mô tả luồng đã/đang tồn tại: UA-first probe verify trong code TRƯỚC khi ghi gap hoặc hỏi user.
 
 ## 1. Mục tiêu
 
@@ -114,6 +121,32 @@ Cập nhật `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`:
 ---
 
 ## 4. Quy trình chi tiết
+
+```dot
+digraph spec_extract_flow {
+    rankdir=TB;
+    "Thu thập nguồn" [shape=box];
+    "Lấy nội dung tài liệu" [shape=box];
+    "Nhận diện cấu trúc" [shape=box];
+    "Trích Actor/Use Case/Flow/Rule/AC" [shape=box];
+    "Merge vào REQUIREMENT.md" [shape=box];
+    "Đánh giá Độ tin cậy" [shape=box];
+    "Phát hiện gap/câu hỏi" [shape=diamond];
+    "UA-first probe\n(domain_overview / domain_flow)" [shape=box];
+    "Ghi vào nội dung extract\n(không phải câu hỏi)" [shape=box];
+    "Ghi lỗ hổng & câu hỏi cho user" [shape=box];
+
+    "Thu thập nguồn" -> "Lấy nội dung tài liệu";
+    "Lấy nội dung tài liệu" -> "Nhận diện cấu trúc";
+    "Nhận diện cấu trúc" -> "Trích Actor/Use Case/Flow/Rule/AC";
+    "Trích Actor/Use Case/Flow/Rule/AC" -> "Merge vào REQUIREMENT.md";
+    "Merge vào REQUIREMENT.md" -> "Đánh giá Độ tin cậy";
+    "Đánh giá Độ tin cậy" -> "Phát hiện gap/câu hỏi";
+    "Phát hiện gap/câu hỏi" -> "UA-first probe\n(domain_overview / domain_flow)" [label="luồng có thể đã tồn tại trong code"];
+    "UA-first probe\n(domain_overview / domain_flow)" -> "Ghi vào nội dung extract\n(không phải câu hỏi)" [label="code đã trả lời"];
+    "UA-first probe\n(domain_overview / domain_flow)" -> "Ghi lỗ hổng & câu hỏi cho user" [label="code chưa trả lời"];
+}
+```
 
 ### Bước 1 — Xác định & thu thập nguồn
 
@@ -326,7 +359,14 @@ Nếu THẤP:
    - Phần nào **mơ hồ** (ví dụ: “nhanh hơn”, “tốt hơn” không có định lượng).
    - Bất kỳ mâu thuẫn nào giữa các phần trong tài liệu hoặc với ticket.
 
-2. Ghi vào REQUIREMENT:
+2. **Trước khi ghi bất kỳ gap/câu hỏi nào** (UA-first probe — đối chiếu code):
+   - Nếu gap có dạng "tài liệu không nói rõ luồng X hoạt động thế nào" hoặc "không chắc entry point ở đâu":
+     - Chạy probe nhẹ: `{{ tools.domain_overview }}` → domain tương ứng đã tồn tại trong hệ thống chưa?
+     - Nếu có: `{{ tools.domain_flow }}` → entry point + step hiện tại.
+   - **Code đã trả lời** (luồng tồn tại, entry point rõ) → ghi thẳng vào nội dung extract tương ứng (Luồng chính/Luồng lỗi/Actor & Use Case ở các Bước 4–5), **KHÔNG** đưa vào "Lỗ hổng & câu hỏi mở".
+   - **Code chưa trả lời** (không tìm thấy domain/flow tương ứng, hoặc câu hỏi thuộc về ý định nghiệp vụ chứ không phải hiện trạng code) → giữ lại như gap/câu hỏi thật cho user.
+
+3. Ghi vào REQUIREMENT:
 
    ```md
    #### Lỗ hổng & câu hỏi mở

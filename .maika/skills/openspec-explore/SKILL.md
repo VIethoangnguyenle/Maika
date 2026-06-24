@@ -1,6 +1,7 @@
 ---
 name: openspec-explore
 version: '1.0'
+standard: SP3
 description: >
   Enter explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements.
   Use when the user wants to think through something before or during a change. No code writing.
@@ -19,6 +20,17 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 **IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and create a change proposal. You MAY create OpenSpec artifacts (proposals, designs, specs) if the user asks—that's capturing thinking, not implementing.
 
 **This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
+
+---
+
+## Quy tắc cốt lõi (reflex)
+
+> **UA-first khi trace code.** Thứ tự nguồn BẮT BUỘC:
+> 1. **UA + kinh nghiệm** (agent-memory, knowledge-snapshot) — LUÔN trước. UA là bản đồ node (class/func/domain/flow/quan hệ/entry-point), KHÔNG chứa logic → dùng để trace/định vị.
+> 2. **Codebase Memory** — hỗ trợ, vào SAU: extract logic trong thân hàm tại node UA đã định vị.
+> 3. **grep** — fallback cuối.
+>
+> Khi brainstorm chạm code: UA-first probe (`{{ tools.domain_overview }}`/`{{ tools.domain_flow }}`) để tự-trả-lời TRƯỚC khi hỏi user — đừng đẩy câu hỏi code-trả-lời-được sang user.
 
 ---
 
@@ -53,7 +65,21 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 - **Visual** - Use ASCII diagrams liberally when they'd help clarify thinking
 - **Adaptive** - Follow interesting threads, pivot when new information emerges
 - **Patient** - Don't rush to conclusions, let the shape of the problem emerge
-- **Grounded** - Explore the actual codebase when relevant, don't just theorize
+- **Grounded** - UA-first probe trước khi hỏi user; code-trả-lời-được → tự giải, đừng theorize hoặc đẩy câu hỏi đó sang user
+
+```dot
+digraph grounded_stance {
+    rankdir=TB;
+    "Câu hỏi nảy sinh khi brainstorm" [shape=box];
+    "Code trả lời được?" [shape=diamond];
+    "UA-first probe\n(domain_overview / domain_flow)" [shape=box];
+    "Hỏi user" [shape=box];
+
+    "Câu hỏi nảy sinh khi brainstorm" -> "Code trả lời được?";
+    "Code trả lời được?" -> "UA-first probe\n(domain_overview / domain_flow)" [label="có"];
+    "Code trả lời được?" -> "Hỏi user" [label="không"];
+}
+```
 
 ---
 

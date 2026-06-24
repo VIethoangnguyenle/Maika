@@ -10,9 +10,6 @@ pre_conditions:
   - file: "{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md"
     condition: not_skeleton
     on_fail: "ABORT — chạy requirement-analyst trước"
-  - tool: "{{ tools.db_query }}"
-    condition: exists
-    on_fail: "WARN — không có DB access, ghi vào AGENT_TRANSPARENCY và hạ Độ tin cậy xuống THẤP"
 ---
 
 # DB Explorer — Database → EXPLORE_CONTEXT

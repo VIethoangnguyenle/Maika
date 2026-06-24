@@ -36,10 +36,17 @@
 - Khi cần codebase-facts: bằng chứng trong KNOWLEDGE_CHECKPOINT (node_id + blast-radius)
   tự khắc buộc dùng KG tools (`query_nodes`/`get_node_source`/`trace_call_chain`/`find_impact`);
   KG không có → dòng degrade "KG unavailable — grep fallback, MEDIUM" + hạ confidence kiến trúc.
-- **Đường evidence song song theo loại fact** (để gate không kéo ngược habit UA-first, xem `codebase-explorer` / `architecture-reviewer`):
-  - **architecture-facts** (domain ownership, entry point, ranh giới async/cross-service): bằng chứng hợp lệ = **UA identifier** (tên domain / flow / entry-point) + 1 dòng flow summary — *không* bắt buộc `node_id`.
-  - **code-facts** (symbol, static call-chain nội-service): giữ nguyên — `node_id` + blast-radius qua KG tools.
-  - Khi hai nguồn mâu thuẫn ở một code-fact: surface conflict vào `AGENT_TRANSPARENCY`, knowledge chính thắng (R-KL-3), **không** suppress.
+- **Thứ tự nguồn khi trace code (UA-first):**
+  1. **UA + kinh nghiệm** (`agent-memory` R-Tool-6, `knowledge-snapshot`) — LUÔN trước.
+     UA là bản đồ node (class/func/domain/flow/quan hệ/entry-point), **không chứa logic** →
+     dùng để trace/định vị/map. Blast-radius độ cao kiến trúc: UA (`find_impact`/`domain_relationships`) trước.
+  2. **Codebase Memory** — hỗ trợ UA, vào SAU: extract **logic trong thân hàm**
+     (`get_node_source`) tại node UA đã định vị.
+  3. **grep** — fallback cuối; KG/UA vắng → dòng degrade + hạ confidence.
+  - Lỗi Codebase Memory MCP ≠ UA không khả dụng → vẫn thử UA độc lập, không fallback grep cả hai.
+  - *Identifier trong EXPLORE_CONTEXT* vẫn phân theo fact-type: architecture-facts → UA identifier
+    (domain/flow/entry-point); code-facts → `node_id`. (Đây là phân loại *nhãn lưu*, không phải *thứ tự dùng*.)
+  - Mâu thuẫn ở code-fact: surface vào `AGENT_TRANSPARENCY`, knowledge chính thắng (R-KL-3), không suppress.
 - `get_node_source` tuân thủ R-Data-1 (không log raw PII vào context files).
 - Khi ghi `EXPLORE_CONTEXT.md`, luôn kèm identifier cho component quan trọng — `node_id` cho code-facts, hoặc UA identifier (domain/flow/entry-point) cho architecture-facts (`node_id` không bắt buộc với nguồn UA); cho phép downstream `get_node_source(node_id)` hoặc đọc theo identifier UA.
 - KHÔNG bịa kết quả cho tool không khả dụng.
