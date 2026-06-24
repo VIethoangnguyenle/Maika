@@ -204,6 +204,7 @@ gọi full `codebase-explorer` — tránh phụ thuộc vòng với pre_conditio
 2. `{{ tools.domain_flow }}` → nếu có, entry point (REST/gRPC/Kafka) + các step hiện tại.
 
 Kết quả nuôi As-is/To-be:
+
 - **Có trong code** → As-is = flow thực đã implement (kèm UA identifier); To-be = delta.
 - **Chưa có** → ghi rõ "luồng chưa tồn tại trong codebase → feature mới".
 
@@ -216,6 +217,7 @@ Probe vắng UA → ghi hạn chế vào AGENT_TRANSPARENCY, hạ Độ tin cậ
 1. **As-is**:
    - Mô tả hành vi/flow hiện tại của hệ thống hoặc quy trình.
    - Dựa trên:
+     - Kết quả probe codebase (Bước 4) — flow thực tế đã implement (kèm UA identifier), nếu có.
      - Ticket (mô tả bug, flow hiện tại).
      - Tài liệu hiện trạng (nếu có).
    - Nên dùng ví dụ cụ thể: input → hệ thống làm gì → output / state.
