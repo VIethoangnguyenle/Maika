@@ -193,6 +193,19 @@ def check_s2_flowchart(fm: dict, body: str) -> tuple[bool | None, str]:
     return True, ""
 
 
+SP3_CORE_MAX_LINES = 200
+
+
+def check_s3_core_budget(fm: dict, body: str) -> tuple[str, str]:
+    """[S3] SP3: core SKILL.md ≤ ngưỡng dòng (progressive disclosure). WARN, không FAIL."""
+    if fm.get("standard") != "SP3":
+        return "SKIP", ""
+    n = len(body.splitlines())
+    if n > SP3_CORE_MAX_LINES:
+        return "WARN", f"SP3 core {n} dòng > {SP3_CORE_MAX_LINES} — đẩy chi tiết sang references/"
+    return "PASS", ""
+
+
 def check_body_section(body: str, section_id: str) -> tuple[bool, str]:
     """Kiểm tra heading bắt buộc tồn tại trong body."""
     section = REQUIRED_SECTIONS[section_id]
@@ -215,6 +228,7 @@ def validate_skill(skill_path: Path) -> dict:
         # Không parse được frontmatter → fail toàn bộ F*
         for check_id in ["F1", "F2", "F3", "F4", "F5", "S1", "S2"]:
             results[check_id] = (False, "không parse được frontmatter YAML")
+        results["S3"] = ("SKIP", "")
     else:
         results["F1"] = check_f1_name(fm)
         results["F2"] = check_f2_description(fm)
@@ -223,6 +237,7 @@ def validate_skill(skill_path: Path) -> dict:
         results["F5"] = check_f5_outputs(fm)
         results["S1"] = check_s1_reflex_upfront(fm, body)
         results["S2"] = check_s2_flowchart(fm, body)
+        results["S3"] = check_s3_core_budget(fm, body)
 
     for section_id in REQUIRED_SECTIONS:
         results[section_id] = check_body_section(body, section_id)
@@ -311,6 +326,10 @@ def print_report(all_results: dict[str, dict]) -> int:
             details.extend(fail_msgs)
         else:
             row += "  PASS"
+
+        s3 = results.get("S3", ("SKIP", ""))
+        if s3[0] == "WARN":
+            details.append(f"\n  {skill_name}: [S3 WARN] {s3[1]}")
 
         print(row)
 

@@ -23,6 +23,7 @@ from validate_skills import (
 )
 from validate_skills import check_s1_reflex_upfront
 from validate_skills import check_s2_flowchart
+from validate_skills import check_s3_core_budget, SP3_CORE_MAX_LINES
 
 
 # ─── Frontmatter Parser ──────────────────────────────────────────────
@@ -315,6 +316,24 @@ class TestS2Flowchart:
 
     def test_non_sp3_skipped(self):
         assert check_s2_flowchart({}, "## Quy trình\n")[0] is None
+
+
+# ─── S3: Core Budget (opt-in SP3, WARN không FAIL) ────────────────────
+
+class TestS3CoreBudget:
+    def test_sp3_within_budget_pass(self):
+        fm = {"standard": "SP3"}
+        body = "x\n" * (SP3_CORE_MAX_LINES - 1)
+        assert check_s3_core_budget(fm, body)[0] == "PASS"
+
+    def test_sp3_over_budget_warn(self):
+        fm = {"standard": "SP3"}
+        body = "x\n" * (SP3_CORE_MAX_LINES + 5)
+        assert check_s3_core_budget(fm, body)[0] == "WARN"
+
+    def test_non_sp3_skip(self):
+        body = "x\n" * (SP3_CORE_MAX_LINES + 5)
+        assert check_s3_core_budget({}, body)[0] == "SKIP"
 
 
 # ─── Integration: validate_skill ──────────────────────────────────────
