@@ -4,14 +4,33 @@ from cli.commands.init import run_init
 from cli.commands.update import run_update
 
 
-def _answers(monkeypatch, seq):
-    it = iter(seq)
-    monkeypatch.setattr("builtins.input", lambda *a, **k: next(it))
+def _interactive(
+    monkeypatch,
+    platform_key,
+    mcps=("codebase-memory-mcp", "confluence", "db-remote"),
+    language="python",
+    inputs=("y",),
+):
+    """Drive the interactive init/update prompts: the questionary wrappers return
+    canned selections, and the remaining input() calls (UA dir, scaffold confirm)
+    come from `inputs` (reconfigure has no confirm, so pass inputs=()). Default
+    mcps include codebase-memory-mcp so the codebase-explorer skill is scaffolded."""
+    from cli.platforms import get_platform
+
+    singles = iter([get_platform(platform_key).display_name, language])
+    monkeypatch.setattr(
+        "cli.commands.init.prompt_single_checkbox", lambda *a, **k: next(singles)
+    )
+    monkeypatch.setattr(
+        "cli.commands.init.prompt_multi_checkbox", lambda *a, **k: list(mcps)
+    )
+    in_it = iter(inputs)
+    monkeypatch.setattr("builtins.input", lambda *a, **k: next(in_it))
 
 
 def test_update_uses_resolved_framework_root(tmp_path, maika_root, monkeypatch):
     target = tmp_path / "proj"
-    _answers(monkeypatch, ["1", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "antigravity")
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
     skill = target / ".agents" / "skills" / "codebase-explorer" / "SKILL.md"
@@ -34,11 +53,11 @@ def test_reconfigure_to_claude_writes_claude_root_and_warns_about_legacy_maika(
     tmp_path, maika_root, monkeypatch, capsys,
 ):
     target = tmp_path / "proj"
-    _answers(monkeypatch, ["3", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "generic")
     run_init(target_dir=str(target), maika_root=str(maika_root))
     assert (target / ".maika").exists()
 
-    _answers(monkeypatch, ["2", "1,2,3", "3"])
+    _interactive(monkeypatch, "claude-code", inputs=())
     run_update(target_dir=str(target), maika_root=str(maika_root), reconfigure=True)
 
     assert (target / ".claude" / "resolved-config.yaml").exists()
@@ -55,8 +74,10 @@ def test_reconfigure_reemits_mcp_setup_for_ua(tmp_path, maika_root, monkeypatch)
     )
     assert not (target / ".agents" / "MCP_SETUP.md").exists()
 
-    # reconfigure: platform codex(4), mcps understand-anything(4), language python(3), ua dir
-    _answers(monkeypatch, ["4", "4", "3", "/srv/ua-mcp"])
+    # reconfigure: platform codex, mcps understand-anything (triggers UA dir prompt)
+    _interactive(
+        monkeypatch, "codex", mcps=["understand-anything"], inputs=("/srv/ua-mcp",)
+    )
     run_update(target_dir=str(target), maika_root=str(maika_root), reconfigure=True)
 
     setup_md = target / ".agents" / "MCP_SETUP.md"

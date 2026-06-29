@@ -18,47 +18,52 @@ from cli.scaffold import (
 )
 
 
+def _ask_or_abort(question):
+    """Run a questionary prompt and abort init cleanly on cancel.
+
+    questionary swallows Ctrl-C internally and returns None; a closed / non-TTY
+    stdin (e.g. CI running `maika init` without --yes) raises EOFError. Treat
+    both as a clean cancel with a message instead of an uncaught traceback.
+    """
+    try:
+        answer = question.ask()
+    except EOFError:
+        answer = None
+    if answer is None:
+        raise SystemExit("\n❌ Đã huỷ init.")
+    return answer
+
+
 def prompt_single_checkbox(
     message: str, choices: List[str], default: Optional[int] = 0
 ) -> str:
-    """Interactive single-select prompt displayed as checkbox-style choices."""
-    print(f"\n{message}")
-    for i, choice in enumerate(choices):
-        marker = "x" if default is not None and i == default else " "
-        print(f"  [{marker}] [{i + 1}] {choice}")
+    """Interactive single-select prompt: arrow keys to move, Enter to pick."""
+    # Lazy import so the module loads (and tests run) without questionary; only
+    # the interactive `maika init` path needs it.
+    import questionary
 
-    prompt_suffix = f" [{default + 1}]" if default is not None else ""
-    while True:
-        raw = input(f"\nChọn một mục (1-{len(choices)}){prompt_suffix}: ").strip()
-        if not raw and default is not None:
-            return choices[default]
-        try:
-            idx = int(raw) - 1
-            if 0 <= idx < len(choices):
-                return choices[idx]
-        except ValueError:
-            pass
-        print(f"  ⚠️  Chọn số từ 1 đến {len(choices)}")
+    return _ask_or_abort(
+        questionary.select(
+            message,
+            choices=choices,
+            default=choices[default] if default is not None else None,
+        )
+    )
 
 
 def prompt_multi_checkbox(message: str, choices: List[dict]) -> List[str]:
-    """Interactive multi-select prompt displayed as checkbox-style choices."""
-    print(f"\n{message}")
-    for i, choice in enumerate(choices):
-        print(f"  [ ] [{i + 1}] {choice['display']}")
-    print("\nNhập số thứ tự, cách bởi dấu phẩy (vd: 1,2) hoặc Enter để bỏ qua:")
-    raw = input("> ").strip()
-    if not raw:
-        return []
-    selected = []
-    for part in raw.split(","):
-        try:
-            idx = int(part.strip()) - 1
-            if 0 <= idx < len(choices):
-                selected.append(choices[idx]["key"])
-        except ValueError:
-            pass
-    return selected
+    """Interactive multi-select prompt: Space to tick, Enter to confirm."""
+    import questionary
+
+    return _ask_or_abort(
+        questionary.checkbox(
+            message,
+            choices=[
+                questionary.Choice(title=choice["display"], value=choice["key"])
+                for choice in choices
+            ],
+        )
+    )
 
 
 def parse_multi_values(values: Optional[List[str]]) -> List[str]:
