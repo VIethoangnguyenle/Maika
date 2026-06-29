@@ -21,44 +21,35 @@ from cli.scaffold import (
 def prompt_single_checkbox(
     message: str, choices: List[str], default: Optional[int] = 0
 ) -> str:
-    """Interactive single-select prompt displayed as checkbox-style choices."""
-    print(f"\n{message}")
-    for i, choice in enumerate(choices):
-        marker = "x" if default is not None and i == default else " "
-        print(f"  [{marker}] [{i + 1}] {choice}")
+    """Interactive single-select prompt: arrow keys to move, Enter to pick."""
+    # Lazy import so the module loads (and tests run) without questionary; only
+    # the interactive `maika init` path needs it.
+    import questionary
 
-    prompt_suffix = f" [{default + 1}]" if default is not None else ""
-    while True:
-        raw = input(f"\nChọn một mục (1-{len(choices)}){prompt_suffix}: ").strip()
-        if not raw and default is not None:
-            return choices[default]
-        try:
-            idx = int(raw) - 1
-            if 0 <= idx < len(choices):
-                return choices[idx]
-        except ValueError:
-            pass
-        print(f"  ⚠️  Chọn số từ 1 đến {len(choices)}")
+    answer = questionary.select(
+        message,
+        choices=choices,
+        default=choices[default] if default is not None else None,
+    ).ask()
+    if answer is None:  # Ctrl-C / EOF
+        raise SystemExit("Đã huỷ init.")
+    return answer
 
 
 def prompt_multi_checkbox(message: str, choices: List[dict]) -> List[str]:
-    """Interactive multi-select prompt displayed as checkbox-style choices."""
-    print(f"\n{message}")
-    for i, choice in enumerate(choices):
-        print(f"  [ ] [{i + 1}] {choice['display']}")
-    print("\nNhập số thứ tự, cách bởi dấu phẩy (vd: 1,2) hoặc Enter để bỏ qua:")
-    raw = input("> ").strip()
-    if not raw:
-        return []
-    selected = []
-    for part in raw.split(","):
-        try:
-            idx = int(part.strip()) - 1
-            if 0 <= idx < len(choices):
-                selected.append(choices[idx]["key"])
-        except ValueError:
-            pass
-    return selected
+    """Interactive multi-select prompt: Space to tick, Enter to confirm."""
+    import questionary
+
+    answer = questionary.checkbox(
+        message,
+        choices=[
+            questionary.Choice(title=choice["display"], value=choice["key"])
+            for choice in choices
+        ],
+    ).ask()
+    if answer is None:  # Ctrl-C / EOF
+        raise SystemExit("Đã huỷ init.")
+    return answer
 
 
 def parse_multi_values(values: Optional[List[str]]) -> List[str]:

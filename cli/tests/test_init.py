@@ -1,5 +1,7 @@
 """Tests for maika init."""
 
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -15,38 +17,72 @@ from cli.commands.init import (
 from cli.scaffold import load_manifest
 
 
-def _answers(monkeypatch, seq):
-    it = iter(seq)
-    monkeypatch.setattr("builtins.input", lambda *a, **k: next(it))
+def _interactive(
+    monkeypatch,
+    platform_key,
+    mcps=("codebase-memory-mcp", "confluence", "db-remote"),
+    language="python",
+    inputs=("y",),
+):
+    """Drive the interactive init/update prompts: the questionary wrappers return
+    canned selections, and the remaining input() calls (UA dir, scaffold confirm)
+    come from `inputs`. Default mcps include codebase-memory-mcp so the
+    code_exploration capability (and the codebase-explorer skill) is scaffolded."""
+    from cli.platforms import get_platform
+
+    singles = iter([get_platform(platform_key).display_name, language])
+    monkeypatch.setattr(
+        "cli.commands.init.prompt_single_checkbox", lambda *a, **k: next(singles)
+    )
+    monkeypatch.setattr(
+        "cli.commands.init.prompt_multi_checkbox", lambda *a, **k: list(mcps)
+    )
+    in_it = iter(inputs)
+    monkeypatch.setattr("builtins.input", lambda *a, **k: next(in_it))
 
 
-def test_prompt_single_checkbox_returns_default_on_enter(monkeypatch):
-    monkeypatch.setattr("builtins.input", lambda *a, **k: "")
+def _fake_questionary(monkeypatch, ask_return):
+    """Inject a fake `questionary` module so the prompt wrappers can be unit-tested
+    without the real dependency installed in the test environment."""
+    fake = types.ModuleType("questionary")
+
+    class _Prompt:
+        def ask(self):
+            return ask_return
+
+    fake.select = lambda *a, **k: _Prompt()
+    fake.checkbox = lambda *a, **k: _Prompt()
+    fake.Choice = lambda title=None, value=None: value
+    monkeypatch.setitem(sys.modules, "questionary", fake)
+
+
+def test_prompt_single_checkbox_returns_questionary_answer(monkeypatch):
+    _fake_questionary(monkeypatch, "B")
     assert prompt_single_checkbox("Choose", ["A", "B"], default=1) == "B"
 
 
-def test_prompt_single_checkbox_accepts_number(monkeypatch):
-    monkeypatch.setattr("builtins.input", lambda *a, **k: "1")
-    assert prompt_single_checkbox("Choose", ["A", "B"], default=1) == "A"
+def test_prompt_single_checkbox_aborts_on_cancel(monkeypatch):
+    _fake_questionary(monkeypatch, None)
+    with pytest.raises(SystemExit):
+        prompt_single_checkbox("Choose", ["A", "B"], default=0)
 
 
-def test_prompt_single_checkbox_requires_choice_when_default_is_none(monkeypatch):
-    answers = iter(["", "2"])
-    monkeypatch.setattr("builtins.input", lambda *a, **k: next(answers))
-
-    assert prompt_single_checkbox("Choose", ["A", "B"], default=None) == "B"
-
-
-def test_prompt_multi_checkbox_returns_empty_on_enter(monkeypatch):
+def test_prompt_multi_checkbox_returns_questionary_answer(monkeypatch):
     choices = [{"key": "a", "display": "A"}, {"key": "b", "display": "B"}]
-    monkeypatch.setattr("builtins.input", lambda *a, **k: "")
+    _fake_questionary(monkeypatch, ["a", "b"])
+    assert prompt_multi_checkbox("MCPs", choices) == ["a", "b"]
+
+
+def test_prompt_multi_checkbox_empty_selection(monkeypatch):
+    choices = [{"key": "a", "display": "A"}]
+    _fake_questionary(monkeypatch, [])
     assert prompt_multi_checkbox("MCPs", choices) == []
 
 
-def test_prompt_multi_checkbox_accepts_comma_numbers(monkeypatch):
-    choices = [{"key": "a", "display": "A"}, {"key": "b", "display": "B"}]
-    monkeypatch.setattr("builtins.input", lambda *a, **k: "1,2")
-    assert prompt_multi_checkbox("MCPs", choices) == ["a", "b"]
+def test_prompt_multi_checkbox_aborts_on_cancel(monkeypatch):
+    _fake_questionary(monkeypatch, None)
+    with pytest.raises(SystemExit):
+        prompt_multi_checkbox("MCPs", [{"key": "a", "display": "A"}])
 
 
 def test_parse_multi_values_accepts_repeated_and_comma_values():
@@ -175,7 +211,7 @@ def test_run_init_non_interactive_generic(tmp_path, maika_root):
 
 def test_init_antigravity_uses_agents_as_only_framework_root(tmp_path, maika_root, monkeypatch):
     target = tmp_path / "proj"
-    _answers(monkeypatch, ["1", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "antigravity")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
@@ -189,7 +225,7 @@ def test_init_antigravity_uses_agents_as_only_framework_root(tmp_path, maika_roo
 
 def test_init_codex_uses_agents_as_only_framework_root(tmp_path, maika_root, monkeypatch):
     target = tmp_path / "proj"
-    _answers(monkeypatch, ["4", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "codex")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
@@ -200,7 +236,7 @@ def test_init_codex_uses_agents_as_only_framework_root(tmp_path, maika_root, mon
 
 def test_init_claude_uses_claude_as_only_framework_root(tmp_path, maika_root, monkeypatch):
     target = tmp_path / "proj"
-    _answers(monkeypatch, ["2", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "claude-code")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
@@ -213,7 +249,7 @@ def test_init_claude_uses_claude_as_only_framework_root(tmp_path, maika_root, mo
 
 def test_init_generic_keeps_maika_framework_root(tmp_path, maika_root, monkeypatch):
     target = tmp_path / "proj"
-    _answers(monkeypatch, ["3", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "generic")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
@@ -231,7 +267,7 @@ def test_init_aborts_on_unresolved_marker(tmp_path, maika_root, monkeypatch):
         return {"rendered": 0, "copied": 1, "dirs": 0, "skipped": 0}
 
     monkeypatch.setattr("cli.commands.init.scaffold_plugins", fake_scaffold)
-    _answers(monkeypatch, ["2", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "claude-code")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
@@ -242,7 +278,7 @@ def test_init_aborts_on_unresolved_marker(tmp_path, maika_root, monkeypatch):
 
 def test_init_templatizes_entry_point_references(tmp_path, maika_root, monkeypatch):
     target = tmp_path / "proj"
-    _answers(monkeypatch, ["2", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "claude-code")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
@@ -261,7 +297,7 @@ def test_antigravity_rendered_framework_files_do_not_reference_active_maika_path
     tmp_path, maika_root, monkeypatch,
 ):
     target = tmp_path / "proj"
-    _answers(monkeypatch, ["1", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "antigravity")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
@@ -281,7 +317,7 @@ def test_codex_rendered_framework_files_do_not_reference_active_maika_paths(
     tmp_path, maika_root, monkeypatch,
 ):
     target = tmp_path / "proj"
-    _answers(monkeypatch, ["4", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "codex")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
@@ -301,7 +337,7 @@ def test_claude_code_rendered_framework_files_do_not_reference_active_maika_path
     tmp_path, maika_root, monkeypatch,
 ):
     target = tmp_path / "proj"
-    _answers(monkeypatch, ["2", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "claude-code")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
@@ -319,7 +355,7 @@ def test_claude_code_rendered_framework_files_do_not_reference_active_maika_path
 
 def test_init_next_steps_use_platform_framework_root(tmp_path, maika_root, monkeypatch, capsys):
     target = tmp_path / "proj"
-    _answers(monkeypatch, ["1", "1,2,3", "3", "y"])
+    _interactive(monkeypatch, "antigravity")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
