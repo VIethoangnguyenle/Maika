@@ -62,6 +62,8 @@
 .agents/skills/author-dna-builder/references/dna-usage-guide.md
 .agents/skills/codebase-explorer/
 .agents/skills/codebase-explorer/SKILL.md
+.agents/skills/codebase-explorer/references/
+.agents/skills/codebase-explorer/references/altitude-routing.md
 .agents/skills/convention-intelligence-builder/
 .agents/skills/convention-intelligence-builder/SKILL.md
 .agents/skills/convention-intelligence-builder/references/
@@ -180,16 +182,13 @@
 .agents/tools/rule-projector/tests/test_sync_check.py
 .agents/tools/skill-lint/
 .agents/tools/skill-lint/tests/
+.agents/tools/skill-lint/tests/test_sp3_doctrine_litmus.py
 .agents/tools/skill-lint/tests/test_validate_skills.py
 .agents/tools/skill-lint/validate_skills.py
 .agents/workflows/
 .agents/workflows/approve-conventions.md
 .agents/workflows/idea-to-task.md
 .agents/workflows/index-source.md
-.agents/workflows/opsx-apply.md
-.agents/workflows/opsx-archive.md
-.agents/workflows/opsx-explore.md
-.agents/workflows/opsx-propose.md
 .agents/workflows/task.md
 .agents/workflows/tdd.md
 .codex/

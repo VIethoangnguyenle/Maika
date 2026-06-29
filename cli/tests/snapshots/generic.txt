@@ -169,15 +169,12 @@
 .maika/tools/rule-projector/tests/test_sync_check.py
 .maika/tools/skill-lint/
 .maika/tools/skill-lint/tests/
+.maika/tools/skill-lint/tests/test_sp3_doctrine_litmus.py
 .maika/tools/skill-lint/tests/test_validate_skills.py
 .maika/tools/skill-lint/validate_skills.py
 .maika/workflows/
 .maika/workflows/approve-conventions.md
 .maika/workflows/idea-to-task.md
-.maika/workflows/opsx-apply.md
-.maika/workflows/opsx-archive.md
-.maika/workflows/opsx-explore.md
-.maika/workflows/opsx-propose.md
 .maika/workflows/task.md
 .maika/workflows/tdd.md
 AGENTS.md

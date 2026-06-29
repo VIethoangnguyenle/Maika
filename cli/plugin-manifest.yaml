@@ -240,30 +240,6 @@ plugins:
     output: "{{ platform.framework_root }}/workflows/index-source.md"
     requires_capability: code_exploration
 
-  - name: workflow-opsx-explore
-    type: workflow
-    source: workflows/opsx-explore.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/opsx-explore.md"
-
-  - name: workflow-opsx-propose
-    type: workflow
-    source: workflows/opsx-propose.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/opsx-propose.md"
-
-  - name: workflow-opsx-apply
-    type: workflow
-    source: workflows/opsx-apply.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/opsx-apply.md"
-
-  - name: workflow-opsx-archive
-    type: workflow
-    source: workflows/opsx-archive.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/opsx-archive.md"
-
   - name: workflow-approve-conventions
     type: workflow
     source: workflows/approve-conventions.md
