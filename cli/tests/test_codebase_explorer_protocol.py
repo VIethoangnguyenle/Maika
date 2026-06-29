@@ -5,13 +5,21 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL = REPO_ROOT / ".maika" / "skills" / "codebase-explorer" / "SKILL.md"
+# Protocol detail legitimately spans the skill core + its altitude-routing
+# reference: the SP3 core-budget refactor moved the capability map, full Cue
+# Cards table, and UA-identifier output note into references/altitude-routing.md
+# (SKILL.md links to it). The guard checks the protocol exists in the skill as a
+# whole, so it reads both files.
+ALTITUDE_REF = (
+    REPO_ROOT / ".maika" / "skills" / "codebase-explorer" / "references" / "altitude-routing.md"
+)
 
 # Raw provider tool names must NOT appear in operational skill prose.
 RAW_UA = re.compile(r"mcp__understand-anything__|mcp_understand-anything_")
 
 
 def _text():
-    return SKILL.read_text(encoding="utf-8")
+    return SKILL.read_text(encoding="utf-8") + "\n" + ALTITUDE_REF.read_text(encoding="utf-8")
 
 
 def test_skill_references_ua_domain_ops_via_template():
@@ -27,7 +35,7 @@ def test_skill_has_no_raw_ua_tool_names():
 def test_skill_has_protocol_sections():
     text = _text()
     for marker in (
-        "Định tuyến theo độ cao",
+        "Định tuyến UA-first",
         "Cổng độ phức tạp",
         "Golden Path",
         "Bản đồ năng lực",
@@ -41,9 +49,11 @@ TASK_WF = REPO_ROOT / ".maika" / "workflows" / "task.md"
 
 
 def test_taskmd_phase1_points_to_altitude_protocol():
-    text = TASK_WF.read_text(encoding="utf-8")
-    assert "altitude" in text.lower() or "độ cao" in text.lower(), (
-        "task.md Pha 1 chưa trỏ tới altitude-routing protocol"
+    text = TASK_WF.read_text(encoding="utf-8").lower()
+    # The UA-first doctrine renamed the routing vocabulary from "altitude
+    # routing / độ cao" to "UA-first"; any of these signals the Pha 1 pointer.
+    assert "altitude" in text or "độ cao" in text or "ua-first" in text, (
+        "task.md Pha 1 chưa trỏ tới UA-first / altitude-routing protocol"
     )
 
 
