@@ -18,6 +18,22 @@ from cli.scaffold import (
 )
 
 
+def _ask_or_abort(question):
+    """Run a questionary prompt and abort init cleanly on cancel.
+
+    questionary swallows Ctrl-C internally and returns None; a closed / non-TTY
+    stdin (e.g. CI running `maika init` without --yes) raises EOFError. Treat
+    both as a clean cancel with a message instead of an uncaught traceback.
+    """
+    try:
+        answer = question.ask()
+    except EOFError:
+        answer = None
+    if answer is None:
+        raise SystemExit("\n❌ Đã huỷ init.")
+    return answer
+
+
 def prompt_single_checkbox(
     message: str, choices: List[str], default: Optional[int] = 0
 ) -> str:
@@ -26,30 +42,28 @@ def prompt_single_checkbox(
     # the interactive `maika init` path needs it.
     import questionary
 
-    answer = questionary.select(
-        message,
-        choices=choices,
-        default=choices[default] if default is not None else None,
-    ).ask()
-    if answer is None:  # Ctrl-C / EOF
-        raise SystemExit("Đã huỷ init.")
-    return answer
+    return _ask_or_abort(
+        questionary.select(
+            message,
+            choices=choices,
+            default=choices[default] if default is not None else None,
+        )
+    )
 
 
 def prompt_multi_checkbox(message: str, choices: List[dict]) -> List[str]:
     """Interactive multi-select prompt: Space to tick, Enter to confirm."""
     import questionary
 
-    answer = questionary.checkbox(
-        message,
-        choices=[
-            questionary.Choice(title=choice["display"], value=choice["key"])
-            for choice in choices
-        ],
-    ).ask()
-    if answer is None:  # Ctrl-C / EOF
-        raise SystemExit("Đã huỷ init.")
-    return answer
+    return _ask_or_abort(
+        questionary.checkbox(
+            message,
+            choices=[
+                questionary.Choice(title=choice["display"], value=choice["key"])
+                for choice in choices
+            ],
+        )
+    )
 
 
 def parse_multi_values(values: Optional[List[str]]) -> List[str]:

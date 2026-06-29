@@ -41,13 +41,21 @@ def _interactive(
     monkeypatch.setattr("builtins.input", lambda *a, **k: next(in_it))
 
 
-def _fake_questionary(monkeypatch, ask_return):
+def _fake_questionary(monkeypatch, ask_return=None, ask_raises=None):
     """Inject a fake `questionary` module so the prompt wrappers can be unit-tested
-    without the real dependency installed in the test environment."""
+    without the real dependency installed in the test runner.
+
+    NOTE: this fake accepts any call args, so it verifies wrapper *behavior*
+    (passthrough, cancel/EOF -> SystemExit) but NOT that init.py calls questionary
+    with a valid signature. That call shape is locked separately by
+    test_questionary_call_shapes_match_init_usage (skipped when questionary is
+    absent)."""
     fake = types.ModuleType("questionary")
 
     class _Prompt:
         def ask(self):
+            if ask_raises is not None:
+                raise ask_raises
             return ask_return
 
     fake.select = lambda *a, **k: _Prompt()
@@ -83,6 +91,22 @@ def test_prompt_multi_checkbox_aborts_on_cancel(monkeypatch):
     _fake_questionary(monkeypatch, None)
     with pytest.raises(SystemExit):
         prompt_multi_checkbox("MCPs", [{"key": "a", "display": "A"}])
+
+
+def test_prompt_aborts_on_eof(monkeypatch):
+    # Closed / non-TTY stdin makes questionary raise EOFError; must abort cleanly.
+    _fake_questionary(monkeypatch, ask_raises=EOFError())
+    with pytest.raises(SystemExit):
+        prompt_single_checkbox("Choose", ["A", "B"], default=0)
+
+
+def test_questionary_call_shapes_match_init_usage():
+    """Real-signature guard, skipped when questionary is absent (e.g. the CI
+    runner): mirror init.py's exact questionary calls so a dependency major bump
+    that changes the signature is caught on developer machines."""
+    questionary = pytest.importorskip("questionary")
+    questionary.select("platform", choices=["A", "B"], default="A")
+    questionary.checkbox("mcps", choices=[questionary.Choice(title="A", value="a")])
 
 
 def test_parse_multi_values_accepts_repeated_and_comma_values():
