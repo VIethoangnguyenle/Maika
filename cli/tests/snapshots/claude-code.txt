@@ -63,6 +63,8 @@
 .claude/skills/author-dna-builder/references/dna-usage-guide.md
 .claude/skills/codebase-explorer/
 .claude/skills/codebase-explorer/SKILL.md
+.claude/skills/codebase-explorer/references/
+.claude/skills/codebase-explorer/references/altitude-routing.md
 .claude/skills/convention-intelligence-builder/
 .claude/skills/convention-intelligence-builder/SKILL.md
 .claude/skills/convention-intelligence-builder/references/
@@ -181,16 +183,13 @@
 .claude/tools/rule-projector/tests/test_sync_check.py
 .claude/tools/skill-lint/
 .claude/tools/skill-lint/tests/
+.claude/tools/skill-lint/tests/test_sp3_doctrine_litmus.py
 .claude/tools/skill-lint/tests/test_validate_skills.py
 .claude/tools/skill-lint/validate_skills.py
 .claude/workflows/
 .claude/workflows/approve-conventions.md
 .claude/workflows/idea-to-task.md
 .claude/workflows/index-source.md
-.claude/workflows/opsx-apply.md
-.claude/workflows/opsx-archive.md
-.claude/workflows/opsx-explore.md
-.claude/workflows/opsx-propose.md
 .claude/workflows/task.md
 .claude/workflows/tdd.md
 CLAUDE.md
