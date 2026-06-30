@@ -382,3 +382,42 @@ def sync_tree(src: Path, dst: Path) -> int:
         shutil.copy2(item, target)
         count += 1
     return count
+
+
+def prune_orphans(staging: Path, target: Path, framework_root: str) -> List[Path]:
+    """Delete framework files removed from the manifest but still in target.
+
+    sync_tree only adds/overwrites; a plugin dropped from the manifest leaves
+    its stale output behind downstream (e.g. deleted opsx-* workflows). The
+    staging tree is the authoritative set of framework files for this update,
+    so any file in a staged directory that is absent from staging is an orphan.
+
+    Scope is restricted to directories staging actually wrote into, EXCLUDING
+    the target root and the framework root itself — those two mix framework
+    output (AGENTS.md, hooks.json) with files staging never produces (the
+    user's own project files at root; resolved-config.yaml / MCP_SETUP.md
+    generated separately under framework_root). Pruning them would delete
+    user/generated files. Purely framework-owned subtrees (workflows/, rules/,
+    skills/, tools/, hooks/, procedures/, knowledge/templates/) are safe.
+
+    Returns the list of target-relative paths removed.
+    """
+    staged_rel = {f.relative_to(staging) for f in staging.rglob("*") if f.is_file()}
+    managed_dirs = {r.parent for r in staged_rel}
+    excluded = {Path("."), Path(framework_root)}
+
+    removed = []
+    for managed in managed_dirs:
+        if managed in excluded:
+            continue
+        target_dir = target / managed
+        if not target_dir.is_dir():
+            continue
+        for item in target_dir.iterdir():
+            if not item.is_file():
+                continue
+            rel = item.relative_to(target)
+            if rel not in staged_rel:
+                item.unlink()
+                removed.append(rel)
+    return removed
