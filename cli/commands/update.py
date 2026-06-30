@@ -19,6 +19,7 @@ from cli.scaffold import (
     scaffold_native_skill_exports,
     verify_no_unresolved,
     sync_tree,
+    prune_orphans,
     generate_resolved_config,
 )
 
@@ -73,8 +74,14 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
             print("  Target was NOT modified.")
             return
         count = sync_tree(staging, target)
+        pruned = prune_orphans(staging, target, framework_root)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
+
+    if pruned:
+        print(f"  🗑️  Pruned {len(pruned)} orphaned framework file(s):")
+        for p in pruned:
+            print(f"     • {p}")
 
     if reconfigure:
         generate_resolved_config(target, platform, selected_mcps, language)
