@@ -1,7 +1,6 @@
 """Hook command strings must render OS-correctly and keep Linux byte-identical."""
 
 import json
-from pathlib import Path
 
 import pytest
 

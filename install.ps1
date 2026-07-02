@@ -66,8 +66,8 @@ Write-Host "-> Installed 'maika' shim -> $Shim"
 
 $UserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if ($UserPath -notlike "*$BinDir*") {
-        $NewPath = if ([string]::IsNullOrEmpty($UserPath)) { $BinDir } else { "$UserPath;$BinDir" }
-        [Environment]::SetEnvironmentVariable('Path', $NewPath, 'User')
+    $NewPath = if ([string]::IsNullOrEmpty($UserPath)) { $BinDir } else { "$UserPath;$BinDir" }
+    [Environment]::SetEnvironmentVariable('Path', $NewPath, 'User')
     Write-Host "-> Added $BinDir to your user PATH. Open a new terminal to use 'maika'."
 }
 
