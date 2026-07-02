@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Set
+import platform as _platform
 
 from cli import FRAMEWORK_VERSION
 
@@ -195,4 +196,5 @@ class BasePlatform(ABC):
             "mcps": mcps,
             "language": language,
             "framework_version": FRAMEWORK_VERSION,
+            "is_windows": _platform.system() == "Windows",
         }
