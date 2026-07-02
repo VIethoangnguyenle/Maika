@@ -37,3 +37,8 @@ def test_checks_all_resolved_config_roots(ps1_text):
 def test_installs_dependency_floors(ps1_text):
     assert "jinja2>=3.1" in ps1_text
     assert "pyyaml>=6.0" in ps1_text
+
+
+def test_checks_scaffold_exit_code(ps1_text):
+    # A failing cli.maika init/update must not exit 0 (silent success).
+    assert "LASTEXITCODE" in ps1_text

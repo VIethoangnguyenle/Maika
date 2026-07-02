@@ -17,8 +17,7 @@ $MaikaRoot = $PSScriptRoot
 $Venv = Join-Path $MaikaRoot '.venv'
 
 if (-not (Test-Path -LiteralPath $Target -PathType Container)) {
-    Write-Error "Target directory does not exist: $Target"
-    exit 1
+    throw "Target directory does not exist: $Target"
 }
 $Target = (Resolve-Path -LiteralPath $Target).Path
 
@@ -37,8 +36,7 @@ function Resolve-Python {
 
 $Py = Resolve-Python
 if ($null -eq $Py) {
-    Write-Error "Python 3.8+ not found. Install Python and ensure 'python' or 'py' is on PATH."
-    exit 1
+    throw "Python 3.8+ not found. Install Python and ensure 'python' or 'py' is on PATH."
 }
 
 $VenvPy  = Join-Path $Venv 'Scripts\python.exe'
@@ -87,9 +85,11 @@ try {
     if ($Existing) {
         Write-Host "-> Existing Maika install detected — updating."
         & $VenvPy -m cli.maika update --target $Target
+        if ($LASTEXITCODE -ne 0) { throw "cli.maika update failed (exit $LASTEXITCODE)." }
     } else {
         Write-Host "-> Fresh install."
         & $VenvPy -m cli.maika init --target $Target
+        if ($LASTEXITCODE -ne 0) { throw "cli.maika init failed (exit $LASTEXITCODE)." }
     }
 } finally {
     Pop-Location
