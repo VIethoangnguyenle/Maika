@@ -61,3 +61,12 @@ def test_both_branches_valid_json(jinja_env, maika_root, template_rel, platform_
         text = (maika_root / template_rel).read_text(encoding="utf-8")
         rendered = render_string(jinja_env, text, _context(platform_key, is_win))
         json.loads(rendered)  # raises if invalid
+
+
+@pytest.mark.parametrize("template_rel,platform_key,runtime,root", HOOKS)
+def test_windows_command_honors_hook_python(jinja_env, maika_root, template_rel, platform_key, runtime, root):
+    ctx = get_platform(platform_key).build_render_context([], "python", hook_python="py -3")
+    ctx["is_windows"] = True
+    text = (maika_root / template_rel).read_text(encoding="utf-8")
+    cmd = json.loads(render_string(jinja_env, text, ctx))["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+    assert cmd == f"py -3 {root}/hooks/write-gate/write_gate.py --framework-root {root} --runtime {runtime}"

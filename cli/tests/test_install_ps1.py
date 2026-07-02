@@ -40,5 +40,15 @@ def test_installs_dependency_floors(ps1_text):
 
 
 def test_checks_scaffold_exit_code(ps1_text):
-    # A failing cli.maika init/update must not exit 0 (silent success).
-    assert "LASTEXITCODE" in ps1_text
+    # LASTEXITCODE must be checked right AFTER each scaffold invocation, not just elsewhere.
+    for verb in ("init", "update"):
+        marker = f"cli.maika {verb}"
+        assert marker in ps1_text
+        pos = ps1_text.index(marker)
+        assert "LASTEXITCODE" in ps1_text[pos:pos + 200], f"No LASTEXITCODE check near {marker}"
+
+
+def test_passes_hook_python_launcher(ps1_text):
+    # The resolved launcher must flow into scaffolding so the Windows hook uses it.
+    assert "--hook-python" in ps1_text
+    assert "$HookPython" in ps1_text

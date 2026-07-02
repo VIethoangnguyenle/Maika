@@ -7,7 +7,7 @@
           {
             "type": "command",
 {% if is_windows %}
-            "command": "python {{ platform.framework_root }}/hooks/write-gate/write_gate.py --framework-root {{ platform.framework_root }} --runtime codex",
+            "command": "{{ hook_python }} {{ platform.framework_root }}/hooks/write-gate/write_gate.py --framework-root {{ platform.framework_root }} --runtime codex",
 {% else %}
             "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/{{ platform.framework_root }}/hooks/write-gate/write_gate.py\" --framework-root {{ platform.framework_root }} --runtime codex",
 {% endif %}

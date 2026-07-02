@@ -80,6 +80,11 @@ def main():
         default=None,
         help="Absolute path to the Understand-Anything-MCP clone (when understand-anything is selected)",
     )
+    init_parser.add_argument(
+        "--hook-python",
+        default=None,
+        help="Python invocation the write-gate hook uses on Windows (e.g. 'python' or 'py -3'). Default: python.",
+    )
 
     # ─── status ───
     status_parser = subparsers.add_parser(
@@ -108,6 +113,11 @@ def main():
     update_parser.add_argument(
         "--reconfigure", action="store_true",
         help="Re-prompt platform/MCP/language before re-rendering",
+    )
+    update_parser.add_argument(
+        "--hook-python",
+        default=None,
+        help="Python invocation the write-gate hook uses on Windows (e.g. 'python' or 'py -3'). Default: python.",
     )
 
     # ─── dashboard ───
@@ -171,10 +181,11 @@ def main():
             language=args.language,
             assume_yes=args.yes,
             ua_mcp_dir=args.ua_mcp_dir,
+            hook_python=args.hook_python,
         )
     elif args.command == "update":
         from cli.commands.update import run_update
-        run_update(target_dir=args.target, maika_root=args.source, reconfigure=args.reconfigure)
+        run_update(target_dir=args.target, maika_root=args.source, reconfigure=args.reconfigure, hook_python=args.hook_python)
     elif args.command == "status":
         from cli.commands.status import run_status
         run_status(target_dir=args.target)

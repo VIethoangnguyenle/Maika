@@ -39,6 +39,10 @@ if ($null -eq $Py) {
     throw "Python 3.8+ not found. Install Python and ensure 'python' or 'py' is on PATH."
 }
 
+# The write-gate hook invokes Python by name at runtime; pass the launcher we resolved
+# so a `py`-only box doesn't get a bare `python` command that can't launch.
+$HookPython = if ($Py.Args.Count -gt 0) { "$($Py.Exe) $($Py.Args -join ' ')" } else { $Py.Exe }
+
 $VenvPy  = Join-Path $Venv 'Scripts\python.exe'
 $VenvPip = Join-Path $Venv 'Scripts\pip.exe'
 
@@ -62,7 +66,8 @@ Write-Host "-> Installed 'maika' shim -> $Shim"
 
 $UserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if ($UserPath -notlike "*$BinDir*") {
-    [Environment]::SetEnvironmentVariable('Path', "$UserPath;$BinDir", 'User')
+        $NewPath = if ([string]::IsNullOrEmpty($UserPath)) { $BinDir } else { "$UserPath;$BinDir" }
+        [Environment]::SetEnvironmentVariable('Path', $NewPath, 'User')
     Write-Host "-> Added $BinDir to your user PATH. Open a new terminal to use 'maika'."
 }
 
@@ -84,11 +89,11 @@ Push-Location $MaikaRoot
 try {
     if ($Existing) {
         Write-Host "-> Existing Maika install detected — updating."
-        & $VenvPy -m cli.maika update --target $Target
+        & $VenvPy -m cli.maika update --target $Target --hook-python $HookPython
         if ($LASTEXITCODE -ne 0) { throw "cli.maika update failed (exit $LASTEXITCODE)." }
     } else {
         Write-Host "-> Fresh install."
-        & $VenvPy -m cli.maika init --target $Target
+        & $VenvPy -m cli.maika init --target $Target --hook-python $HookPython
         if ($LASTEXITCODE -ne 0) { throw "cli.maika init failed (exit $LASTEXITCODE)." }
     }
 } finally {
