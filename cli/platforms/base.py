@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Set
+import platform as _platform
 
 from cli import FRAMEWORK_VERSION
 
@@ -180,7 +181,7 @@ class BasePlatform(ABC):
                 f"{', '.join(sorted(extra_unsupported))}"
             )
 
-    def build_render_context(self, mcps: List[str], language: str) -> dict:
+    def build_render_context(self, mcps: List[str], language: str, hook_python: Optional[str] = None) -> dict:
         """Build the full Jinja2 render context for this platform."""
         self.validate_tool_mapping()
         return {
@@ -195,4 +196,6 @@ class BasePlatform(ABC):
             "mcps": mcps,
             "language": language,
             "framework_version": FRAMEWORK_VERSION,
+            "is_windows": _platform.system() == "Windows",
+            "hook_python": hook_python or "python",
         }

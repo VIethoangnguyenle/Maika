@@ -30,7 +30,7 @@ def warn_legacy_maika(target: Path, platform) -> None:
         print(f"  ⚠️  legacy .maika remains at {legacy}; not removed automatically.")
 
 
-def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: bool = False) -> None:
+def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: bool = False, hook_python: Optional[str] = None) -> None:
     """Re-render framework files into an existing Maika project."""
     target = Path(target_dir).resolve()
     maika = Path(maika_root).resolve() if maika_root else Path(__file__).resolve().parent.parent.parent
@@ -54,7 +54,7 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
 
     platform = get_platform(platform_key)
     framework_root = resolved.get("framework_root", platform.framework_root)
-    context = platform.build_render_context(selected_mcps, language)
+    context = platform.build_render_context(selected_mcps, language, hook_python=hook_python)
     jinja_env = create_renderer(str(maika))
 
     print(f"\n  Updating Maika ({platform.display_name})...\n")

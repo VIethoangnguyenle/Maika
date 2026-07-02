@@ -219,3 +219,24 @@ def test_ua_domain_ops_use_understand_anything_server_where_prefixed():
     # codex + generic use bare tool names
     assert get_platform("codex").get_tool("domain_relationships") == "get_relationships"
     assert get_platform("generic").get_tool("domain_overview") == "get_domain_overview"
+
+
+def test_build_render_context_includes_is_windows_flag():
+    import platform as _platform
+    ctx = get_platform("claude-code").build_render_context([], "python")
+    assert "is_windows" in ctx
+    assert ctx["is_windows"] == (_platform.system() == "Windows")
+    assert isinstance(ctx["is_windows"], bool)
+
+
+def test_is_windows_flag_present_for_every_platform():
+    from cli.platforms import PLATFORMS
+    for key in PLATFORMS:
+        ctx = get_platform(key).build_render_context([], "python")
+        assert "is_windows" in ctx, f"{key} missing is_windows"
+
+
+def test_build_render_context_hook_python_default_and_override():
+    p = get_platform("claude-code")
+    assert p.build_render_context([], "python")["hook_python"] == "python"
+    assert p.build_render_context([], "python", hook_python="py -3")["hook_python"] == "py -3"

@@ -198,6 +198,7 @@ def run_init(
     language: Optional[str] = None,
     assume_yes: bool = False,
     ua_mcp_dir: Optional[str] = None,
+    hook_python: Optional[str] = None,
 ) -> None:
     """Main init command — scaffold Maika into a target project."""
     target = Path(target_dir).resolve()
@@ -226,7 +227,7 @@ def run_init(
         print("\n❌ Đã huỷ.")
         return
 
-    context = platform.build_render_context(selected_mcps, language)
+    context = platform.build_render_context(selected_mcps, language, hook_python=hook_python)
     jinja_env = create_renderer(str(maika))
     print("\nScaffolding Maika framework...\n")
 

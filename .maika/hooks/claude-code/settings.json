@@ -6,7 +6,11 @@
         "hooks": [
           {
             "type": "command",
+{% if is_windows %}
+            "command": "{{ hook_python }} {{ platform.framework_root }}/hooks/write-gate/write_gate.py --framework-root {{ platform.framework_root }} --runtime claude"
+{% else %}
             "command": "python3 \"$CLAUDE_PROJECT_DIR\"/{{ platform.framework_root }}/hooks/write-gate/write_gate.py --framework-root {{ platform.framework_root }} --runtime claude"
+{% endif %}
           }
         ]
       }
