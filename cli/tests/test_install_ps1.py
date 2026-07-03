@@ -86,3 +86,12 @@ def test_pyyaml_auto_remediation(ps1_text):
     assert "pip install --user --quiet pyyaml" in ps1_text
     # Re-check after the attempted install (two import probes total).
     assert ps1_text.count('-c "import yaml"') >= 2
+
+
+def test_path_write_is_registry_safe(ps1_text):
+    # SetEnvironmentVariable flattens REG_EXPAND_SZ -> REG_SZ and writes back
+    # the EXPANDED value, hardcoding other tools' %VAR% PATH entries.
+    assert "SetEnvironmentVariable" not in ps1_text
+    assert "GetEnvironmentVariable" not in ps1_text
+    assert "DoNotExpandEnvironmentNames" in ps1_text
+    assert "GetValueKind" in ps1_text

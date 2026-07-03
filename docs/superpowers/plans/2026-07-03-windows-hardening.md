@@ -520,7 +520,7 @@ git commit -m "feat(install): auto-install pyyaml into the hook interpreter, war
 - Consumes: `$BinDir` đã có.
 - Produces: PATH ghi qua `Microsoft.Win32.Registry` giữ nguyên value-kind; dedup theo segment.
 
-- [ ] **Step 1: Viết failing static tests**
+- [x] **Step 1: Viết failing static tests**
 
 ```python
 def test_path_write_is_registry_safe(ps1_text):
@@ -532,11 +532,11 @@ def test_path_write_is_registry_safe(ps1_text):
     assert "GetValueKind" in ps1_text
 ```
 
-- [ ] **Step 2: Chạy để xác nhận fail**
+- [x] **Step 2: Chạy để xác nhận fail**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py::test_path_write_is_registry_safe -v` → FAIL.
 
-- [ ] **Step 3: Sửa `install.ps1`**
+- [x] **Step 3: Sửa `install.ps1`**
 
 Thay khối:
 
@@ -569,11 +569,11 @@ try {
 }
 ```
 
-- [ ] **Step 4: Chạy lại toàn file test**
+- [x] **Step 4: Chạy lại toàn file test**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py -v` → PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add install.ps1 cli/tests/test_install_ps1.py

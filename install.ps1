@@ -78,11 +78,20 @@ $Shim = Join-Path $BinDir 'maika.cmd'
 Set-Content -LiteralPath $Shim -Value "@echo off`r`n`"$MaikaExe`" %*" -Encoding ASCII
 Write-Host "-> Installed 'maika' shim -> $Shim"
 
-$UserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-if ($UserPath -notlike "*$BinDir*") {
-    $NewPath = if ([string]::IsNullOrEmpty($UserPath)) { $BinDir } else { "$UserPath;$BinDir" }
-    [Environment]::SetEnvironmentVariable('Path', $NewPath, 'User')
-    Write-Host "-> Added $BinDir to your user PATH. Open a new terminal to use 'maika'."
+# Append to user PATH via the registry API: read RAW (unexpanded) value and
+# preserve the value kind, so REG_EXPAND_SZ entries like %JAVA_HOME%\bin survive.
+$EnvKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+try {
+    $RawPath = [string]$EnvKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+    $Kind = if ($EnvKey.GetValueNames() -contains 'Path') { $EnvKey.GetValueKind('Path') } else { [Microsoft.Win32.RegistryValueKind]::ExpandString }
+    $Segments = $RawPath -split ';' | Where-Object { $_ -ne '' }
+    if ($Segments -notcontains $BinDir) {
+        $NewPath = if ([string]::IsNullOrEmpty($RawPath)) { $BinDir } else { "$RawPath;$BinDir" }
+        $EnvKey.SetValue('Path', $NewPath, $Kind)
+        Write-Host "-> Added $BinDir to your user PATH. Open a new terminal to use 'maika'."
+    }
+} finally {
+    $EnvKey.Close()
 }
 
 # The write-gate hook runs OUTSIDE the venv via the resolved launcher; a clean
