@@ -455,7 +455,7 @@ git commit -m "fix(install): align Python floor to 3.9 with pyproject; correct p
 - Consumes: `Assert-NativeExit` KHÔNG dùng ở đây (fail được phép — degrade thành warning); `$HookPython` từ Task 4.
 - Produces: hook interpreter có pyyaml trên clean box; Task 10 (CI E2E) đi qua path này thật.
 
-- [ ] **Step 1: Viết failing static tests**
+- [x] **Step 1: Viết failing static tests**
 
 ```python
 def test_pyyaml_auto_remediation(ps1_text):
@@ -465,11 +465,11 @@ def test_pyyaml_auto_remediation(ps1_text):
     assert ps1_text.count('-c "import yaml"') >= 2
 ```
 
-- [ ] **Step 2: Chạy để xác nhận fail**
+- [x] **Step 2: Chạy để xác nhận fail**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py::test_pyyaml_auto_remediation -v` → FAIL.
 
-- [ ] **Step 3: Sửa `install.ps1`**
+- [x] **Step 3: Sửa `install.ps1`**
 
 Thay khối:
 
@@ -497,11 +497,11 @@ if ($LASTEXITCODE -ne 0) {
 }
 ```
 
-- [ ] **Step 4: Chạy lại toàn file test**
+- [x] **Step 4: Chạy lại toàn file test**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py -v` → PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add install.ps1 cli/tests/test_install_ps1.py

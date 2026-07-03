@@ -85,10 +85,16 @@ if ($UserPath -notlike "*$BinDir*") {
     Write-Host "-> Added $BinDir to your user PATH. Open a new terminal to use 'maika'."
 }
 
-# The write-gate hook runs OUTSIDE the venv via system `python`; warn if it lacks pyyaml.
+# The write-gate hook runs OUTSIDE the venv via the resolved launcher; a clean
+# Windows Python has no pyyaml, which would silently kill the gate at runtime.
 & $Py.Exe @($Py.Args) -c "import yaml" 2>$null
 if ($LASTEXITCODE -ne 0) {
-    Write-Warning "System Python lacks 'pyyaml'; the write-gate hook needs it. Run: $HookPython -m pip install pyyaml"
+    Write-Host "-> Hook interpreter ($HookPython) lacks 'pyyaml' - installing (pip --user)."
+    & $Py.Exe @($Py.Args) -m pip install --user --quiet pyyaml
+    & $Py.Exe @($Py.Args) -c "import yaml" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Could not install 'pyyaml' for $HookPython. The write-gate hook WILL FAIL. Run: $HookPython -m pip install --user pyyaml"
+    }
 }
 
 # Route to update if Maika already installed, else init.

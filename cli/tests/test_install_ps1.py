@@ -79,3 +79,10 @@ def test_python_floor_matches_pyproject(ps1_text):
 def test_pyyaml_hint_uses_resolved_launcher(ps1_text):
     # `py -3` boxes must not be told to run bare `py -m pip ...`.
     assert "Run: $HookPython -m pip" in ps1_text
+
+
+def test_pyyaml_auto_remediation(ps1_text):
+    # Clean boxes get pyyaml installed (announced, --user); warn only on failure.
+    assert "pip install --user --quiet pyyaml" in ps1_text
+    # Re-check after the attempted install (two import probes total).
+    assert ps1_text.count('-c "import yaml"') >= 2
