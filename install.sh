@@ -17,6 +17,8 @@ if [ ! -d "$TARGET" ]; then
   exit 1
 fi
 TARGET="$(cd "$TARGET" && pwd)"
+shift || true
+EXTRA_INIT_ARGS=("$@")   # forwarded verbatim to `cli.maika init`
 
 # Require python3 >= 3.9 (matches pyproject.toml requires-python).
 if ! command -v python3 >/dev/null 2>&1; then
@@ -55,5 +57,5 @@ if [ -f "$TARGET/.agents/resolved-config.yaml" ] || \
   ( cd "$Maika_ROOT" && "$PY" -m cli.maika update --target "$TARGET" )
 else
   echo "→ Fresh install."
-  ( cd "$Maika_ROOT" && "$PY" -m cli.maika init --target "$TARGET" )
+  ( cd "$Maika_ROOT" && "$PY" -m cli.maika init --target "$TARGET" ${EXTRA_INIT_ARGS[@]+"${EXTRA_INIT_ARGS[@]}"} )
 fi

@@ -8,7 +8,11 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [string]$Target
+    [string]$Target,
+    [switch]$Yes,
+    [string]$Platform,
+    [string]$Language,
+    [string[]]$Mcp = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -128,6 +132,12 @@ $Configs = @(
 )
 $Existing = $Configs | Where-Object { Test-Path -LiteralPath $_ }
 
+$ScaffoldArgs = @('--target', $Target, '--hook-python', $HookPython)
+if ($Yes) { $ScaffoldArgs += '--yes' }
+if ($Platform) { $ScaffoldArgs += @('--platform', $Platform) }
+if ($Language) { $ScaffoldArgs += @('--language', $Language) }
+foreach ($m in $Mcp) { $ScaffoldArgs += @('--mcp', $m) }
+
 Push-Location $MaikaRoot
 try {
     if ($Existing) {
@@ -136,7 +146,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "cli.maika update failed (exit $LASTEXITCODE)." }
     } else {
         Write-Host "-> Fresh install."
-        & $VenvPy -m cli.maika init --target $Target --hook-python $HookPython
+        & $VenvPy -m cli.maika init @ScaffoldArgs
         if ($LASTEXITCODE -ne 0) { throw "cli.maika init failed (exit $LASTEXITCODE)." }
     }
 } finally {

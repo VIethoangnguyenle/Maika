@@ -102,3 +102,12 @@ def test_shim_handles_non_ascii_paths(ps1_text):
     # must fall back to the 8.3 short path (pure ASCII by construction).
     assert "ShortPath" in ps1_text
     assert "[^\\x00-\\x7F]" in ps1_text
+
+
+def test_supports_non_interactive_install(ps1_text):
+    # CI and scripted provisioning need a promptless fresh install.
+    assert "[switch]$Yes" in ps1_text
+    assert "'--yes'" in ps1_text
+    assert "'--platform'" in ps1_text
+    assert "'--language'" in ps1_text
+    assert "'--mcp'" in ps1_text

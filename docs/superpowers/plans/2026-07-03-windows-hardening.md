@@ -658,7 +658,7 @@ git commit -m "fix(install): 8.3 short-path fallback so maika.cmd survives non-A
 - Consumes: CLI flags có sẵn của `maika init`: `--yes` (đòi `--platform` + `--language`), `--platform`, `--language`, `--mcp` (repeatable) — `cli/maika.py:47-87`.
 - Produces: `.\install.ps1 <target> -Yes -Platform claude-code -Language python` chạy headless. Task 10 (CI) gọi đúng dạng này.
 
-- [ ] **Step 1: Viết failing static tests**
+- [x] **Step 1: Viết failing static tests**
 
 ```python
 def test_supports_non_interactive_install(ps1_text):
@@ -670,11 +670,11 @@ def test_supports_non_interactive_install(ps1_text):
     assert "'--mcp'" in ps1_text
 ```
 
-- [ ] **Step 2: Chạy để xác nhận fail**
+- [x] **Step 2: Chạy để xác nhận fail**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py::test_supports_non_interactive_install -v` → FAIL.
 
-- [ ] **Step 3: Sửa `install.ps1`**
+- [x] **Step 3: Sửa `install.ps1`**
 
 Param block:
 
@@ -714,7 +714,7 @@ Và 2 scaffold call thành (update không nhận --yes/--platform/--language nê
     }
 ```
 
-- [ ] **Step 4: Sửa `install.sh`**
+- [x] **Step 4: Sửa `install.sh`**
 
 Sau `TARGET="${1:-}"` + validation, thêm forward mọi arg còn lại (chỉ áp cho init — update vốn non-interactive):
 
@@ -731,12 +731,12 @@ Và init call (dòng 53) thành:
 
 (Dạng `${arr[@]+...}` an toàn với `set -u` khi mảng rỗng.)
 
-- [ ] **Step 5: Chạy lại + syntax check**
+- [x] **Step 5: Chạy lại + syntax check**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py -v` → PASS.
 Run: `bash -n install.sh` → exit 0.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add install.ps1 install.sh cli/tests/test_install_ps1.py
