@@ -18,9 +18,14 @@ if [ ! -d "$TARGET" ]; then
 fi
 TARGET="$(cd "$TARGET" && pwd)"
 
-# Require python3 >= 3.8.
+# Require python3 >= 3.9 (matches pyproject.toml requires-python).
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "❌ python3 not found. Please install Python 3.8 or newer."
+  echo "❌ python3 not found. Please install Python 3.9 or newer."
+  exit 1
+fi
+PY_VER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+if [ "$(printf '%s\n' "3.9" "$PY_VER" | sort -V | head -1)" != "3.9" ]; then
+  echo "❌ Python >= 3.9 required (found $PY_VER)."
   exit 1
 fi
 

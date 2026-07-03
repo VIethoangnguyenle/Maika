@@ -1,5 +1,6 @@
 """Static guards for the Windows bootstrap script (install.ps1)."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -64,3 +65,17 @@ def test_native_calls_are_exit_checked(ps1_text):
 def test_failed_venv_bootstrap_is_cleaned_up(ps1_text):
     # A half-built venv must not survive to poison the next run.
     assert "Remove-Item -Recurse -Force -LiteralPath $Venv" in ps1_text
+
+
+def test_python_floor_matches_pyproject(ps1_text):
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    floor = re.search(r'requires-python\s*=\s*">=(\d+\.\d+)"', pyproject).group(1)
+    assert f"[version]'{floor}'" in ps1_text, f"install.ps1 floor must be {floor}"
+    assert "[version]'3.8'" not in ps1_text
+    sh_text = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
+    assert floor in sh_text, f"install.sh must enforce Python >= {floor}"
+
+
+def test_pyyaml_hint_uses_resolved_launcher(ps1_text):
+    # `py -3` boxes must not be told to run bare `py -m pip ...`.
+    assert "Run: $HookPython -m pip" in ps1_text

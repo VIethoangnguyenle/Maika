@@ -384,7 +384,7 @@ git commit -m "fix(install): abort install.ps1 on native command failure; clean 
 - Consumes: `pyproject.toml:11` `requires-python = ">=3.9"` (nguồn chân lý).
 - Produces: `$HookPython` được dùng trong message (Task 5 tái dùng pattern này).
 
-- [ ] **Step 1: Viết failing drift-proof test**
+- [x] **Step 1: Viết failing drift-proof test**
 
 Thêm vào cuối `cli/tests/test_install_ps1.py` (file đã import `Path`, thêm `import re` đầu file):
 
@@ -403,18 +403,18 @@ def test_pyyaml_hint_uses_resolved_launcher(ps1_text):
     assert "Run: $HookPython -m pip" in ps1_text
 ```
 
-- [ ] **Step 2: Chạy để xác nhận fail**
+- [x] **Step 2: Chạy để xác nhận fail**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py -v`
 Expected: 2 test mới FAIL.
 
-- [ ] **Step 3: Sửa `install.ps1`**
+- [x] **Step 3: Sửa `install.ps1`**
 
 - Cả 2 dòng trong `Resolve-Python`: `[version]'3.8'` → `[version]'3.9'`.
 - Message throw: `"Python 3.8+ not found..."` → `"Python 3.9+ not found. Install Python and ensure 'python' or 'py' is on PATH."`
 - Dòng warning pyyaml (dòng 77): thay `Run: $($Py.Exe) -m pip install pyyaml` → `Run: $HookPython -m pip install pyyaml`.
 
-- [ ] **Step 4: Sửa `install.sh`**
+- [x] **Step 4: Sửa `install.sh`**
 
 Thay khối check python3 (dòng 21-25):
 
@@ -431,12 +431,12 @@ if [ "$(printf '%s\n' "3.9" "$PY_VER" | sort -V | head -1)" != "3.9" ]; then
 fi
 ```
 
-- [ ] **Step 5: Chạy lại + smoke install.sh cục bộ**
+- [x] **Step 5: Chạy lại + smoke install.sh cục bộ**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py -v` → PASS.
 Run: `bash -n install.sh` → exit 0 (syntax OK).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add install.ps1 install.sh cli/tests/test_install_ps1.py

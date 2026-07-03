@@ -25,22 +25,22 @@ if (-not (Test-Path -LiteralPath $Target -PathType Container)) {
 }
 $Target = (Resolve-Path -LiteralPath $Target).Path
 
-# Resolve a Python launcher (`python`, then `py -3`); require >= 3.8.
+# Resolve a Python launcher (`python`, then `py -3`); require >= 3.9.
 function Resolve-Python {
     if (Get-Command python -ErrorAction SilentlyContinue) {
         $v = & python -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>$null
-        if ($LASTEXITCODE -eq 0 -and [version]$v -ge [version]'3.8') { return @{ Exe = 'python'; Args = @() } }
+        if ($LASTEXITCODE -eq 0 -and [version]$v -ge [version]'3.9') { return @{ Exe = 'python'; Args = @() } }
     }
     if (Get-Command py -ErrorAction SilentlyContinue) {
         $v = & py -3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>$null
-        if ($LASTEXITCODE -eq 0 -and [version]$v -ge [version]'3.8') { return @{ Exe = 'py'; Args = @('-3') } }
+        if ($LASTEXITCODE -eq 0 -and [version]$v -ge [version]'3.9') { return @{ Exe = 'py'; Args = @('-3') } }
     }
     return $null
 }
 
 $Py = Resolve-Python
 if ($null -eq $Py) {
-    throw "Python 3.8+ not found. Install Python and ensure 'python' or 'py' is on PATH."
+    throw "Python 3.9+ not found. Install Python and ensure 'python' or 'py' is on PATH."
 }
 
 # The write-gate hook invokes Python by name at runtime; pass the launcher we resolved
@@ -88,7 +88,7 @@ if ($UserPath -notlike "*$BinDir*") {
 # The write-gate hook runs OUTSIDE the venv via system `python`; warn if it lacks pyyaml.
 & $Py.Exe @($Py.Args) -c "import yaml" 2>$null
 if ($LASTEXITCODE -ne 0) {
-    Write-Warning "System Python lacks 'pyyaml'; the write-gate hook needs it. Run: $($Py.Exe) -m pip install pyyaml"
+    Write-Warning "System Python lacks 'pyyaml'; the write-gate hook needs it. Run: $HookPython -m pip install pyyaml"
 }
 
 # Route to update if Maika already installed, else init.
