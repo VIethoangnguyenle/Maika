@@ -22,6 +22,7 @@
 .maika/knowledge/templates/KNOWLEDGE_PACK.tpl.md
 .maika/knowledge/templates/NODE_CHECKPOINT.tpl.md
 .maika/knowledge/templates/REQUIREMENT.tpl.md
+.maika/knowledge/templates/SESSION_OVERRIDE.tpl.md
 .maika/knowledge/templates/TASK_HANDOFF.tpl.md
 .maika/knowledge/templates/TOKEN_LOG.tpl.md
 .maika/knowledge/templates/changerequest.tpl.md
@@ -126,6 +127,7 @@
 .maika/tools/microloop-orchestrator/tests/fixtures/sample-extraction-input.md
 .maika/tools/microloop-orchestrator/tests/test_contract.py
 .maika/tools/microloop-orchestrator/tests/test_degradation.py
+.maika/tools/microloop-orchestrator/tests/test_dispatch_worker.py
 .maika/tools/microloop-orchestrator/tests/test_extraction.py
 .maika/tools/microloop-orchestrator/tests/test_handoff.py
 .maika/tools/microloop-orchestrator/tests/test_hybrid_contract_dag.py
