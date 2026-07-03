@@ -55,6 +55,25 @@ def _path_from_value(value):
     return None
 
 
+def _project_root_from_cwd(cwd: Path) -> Path:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (FileNotFoundError, OSError, subprocess.CalledProcessError):
+        return cwd
+    root = result.stdout.strip()
+    return Path(root) if root else cwd
+
+
+def _runtime_target(cwd: Path, target_path: Path) -> Path:
+    return target_path if target_path.is_absolute() else (cwd / target_path).resolve()
+
+
 def _policy_path(project_root: Path, target_path: Path) -> Path:
     if not target_path.is_absolute():
         return target_path
@@ -271,6 +290,24 @@ def _implementation_context_candidates(project_root: Path, framework_root: str):
     direct = active / "IMPLEMENTATION_CONTEXT.md"
     if direct.exists():
         candidates.append(direct)
+    queue = active / "microloop" / "TASK_QUEUE.md"
+    if queue.exists():
+        data = yaml.safe_load(queue.read_text(encoding="utf-8")) or {}
+        for task in data.get("tasks") or []:
+            if task.get("status") != "in_progress":
+                continue
+            handoff = task.get("handoff_path")
+            if handoff:
+                path = Path(handoff)
+                if not path.is_absolute():
+                    path = project_root / path
+            elif task.get("id"):
+                path = active / f"TASK_HANDOFF.{task['id']}.md"
+            else:
+                continue
+            if path.exists():
+                candidates.append(path)
+        return candidates
     candidates.extend(sorted(active.glob("TASK_HANDOFF.*.md")))
     return candidates
 
@@ -372,11 +409,13 @@ def main(argv=None, stdin_text=None):
     args = parser.parse_args(argv)
     raw = stdin_text if stdin_text is not None else sys.stdin.read()
     payload = json.loads(raw or "{}")
-    root = Path.cwd()
+    cwd = Path.cwd()
+    root = _project_root_from_cwd(cwd)
 
     if _is_shell_tool(_tool_name(payload)):
         targets, unresolved = parse_shell_writes(_command_text(payload))
-        targets = [t for t in targets if not _git_ignored(root, t)]
+        targets = [_runtime_target(cwd, t) for t in targets]
+        targets = [t for t in targets if not _git_ignored(root, _policy_path(root, t))]
         if not targets:
             if unresolved:
                 _warn("write-gate: shell write with unresolved path — allowed (heuristic).")
@@ -392,6 +431,7 @@ def main(argv=None, stdin_text=None):
         if not targets:
             decision = Decision(False, "Unable to identify target path for write-gate payload")
         else:
+            targets = [_runtime_target(cwd, t) for t in targets]
             decisions = [
                 evaluate_write(root, target, framework_root=args.framework_root)
                 for target in targets
