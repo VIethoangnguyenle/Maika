@@ -886,7 +886,7 @@ git commit -m "ci: pytest matrix (ubuntu+windows) + install.ps1 fresh-install E2
 - Consumes: quyết định C1-B, C4-A của review; TODOS W1/W2.
 - Produces: giới hạn được ghi ở nơi user sẽ tìm.
 
-- [ ] **Step 1: Thêm section residual vào design doc**
+- [x] **Step 1: Thêm section residual vào design doc**
 
 Cuối `docs/superpowers/specs/2026-07-02-windows-native-support-design.md` (sau §8), thêm:
 
@@ -900,7 +900,7 @@ Cuối `docs/superpowers/specs/2026-07-02-windows-native-support-design.md` (sau
 | **Codex/Antigravity Windows: đường dẫn hook vẫn cwd-relative** — chỉ nhánh Claude được anchor `%CLAUDE_PROJECT_DIR%` (2B); hai runtime kia chưa validate hành vi hook trên Windows. | Chấp nhận — mở rộng anchor sau khi validate runtime. |
 ```
 
-- [ ] **Step 2: Thêm Windows vào README Quickstart**
+- [x] **Step 2: Thêm Windows vào README Quickstart**
 
 Trong `README.md`, sau khối cài đặt Linux (quanh dòng 46 `./install.sh /path/to/your-project`), thêm:
 
@@ -915,12 +915,12 @@ Trong `README.md`, sau khối cài đặt Linux (quanh dòng 46 `./install.sh /p
 > ⚠️ **Giới hạn mixed-OS:** file hook được render theo OS của máy chạy `maika init/update` gần nhất. Team dùng chung repo trên cả Windows lẫn Linux sẽ thấy hook command đổi qua lại trong git — mỗi máy cần chạy lại `maika update` sau khi checkout từ OS khác. Xem TODOS W2.
 ```
 
-- [ ] **Step 3: Kiểm tra render markdown không vỡ**
+- [x] **Step 3: Kiểm tra render markdown không vỡ**
 
 Run: `.venv/bin/python -m pytest cli/tests/ -q` (đảm bảo không test nào snapshot README/design doc)
 Expected: 0 failed.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/superpowers/specs/2026-07-02-windows-native-support-design.md README.md
