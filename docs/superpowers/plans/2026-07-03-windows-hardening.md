@@ -303,7 +303,7 @@ Trên máy Windows thật, sau khi scaffold: mở Claude Code trong project, `cd
 - Consumes: nội dung `install.ps1` hiện tại (throw đã dùng cho scaffold calls, `bec0fc1`).
 - Produces: helper PowerShell `Assert-NativeExit` mà Task 4/5/6/7/8 tái dùng khi thêm lệnh native mới.
 
-- [ ] **Step 1: Viết failing static tests**
+- [x] **Step 1: Viết failing static tests**
 
 Thêm vào cuối `cli/tests/test_install_ps1.py`:
 
@@ -320,12 +320,12 @@ def test_failed_venv_bootstrap_is_cleaned_up(ps1_text):
     assert "Remove-Item -Recurse -Force -LiteralPath $Venv" in ps1_text
 ```
 
-- [ ] **Step 2: Chạy để xác nhận fail**
+- [x] **Step 2: Chạy để xác nhận fail**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py -v`
 Expected: 2 test mới FAIL.
 
-- [ ] **Step 3: Sửa `install.ps1`**
+- [x] **Step 3: Sửa `install.ps1`**
 
 Thêm helper ngay sau `$ErrorActionPreference = 'Stop'`:
 
@@ -359,12 +359,12 @@ if (-not (Test-Path -LiteralPath $Venv)) {
 Assert-NativeExit "maika editable install"
 ```
 
-- [ ] **Step 4: Chạy lại**
+- [x] **Step 4: Chạy lại**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py -v`
 Expected: PASS toàn bộ.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add install.ps1 cli/tests/test_install_ps1.py

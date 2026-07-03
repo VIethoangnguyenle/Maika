@@ -52,3 +52,15 @@ def test_passes_hook_python_launcher(ps1_text):
     # The resolved launcher must flow into scaffolding so the Windows hook uses it.
     assert "--hook-python" in ps1_text
     assert "$HookPython" in ps1_text
+
+
+def test_native_calls_are_exit_checked(ps1_text):
+    # PS 5.1: $ErrorActionPreference='Stop' does NOT cover native exit codes.
+    assert "function Assert-NativeExit" in ps1_text
+    # venv creation + pip upgrade + pip floors + pip -e = 4 guarded call sites.
+    assert ps1_text.count("Assert-NativeExit") >= 5
+
+
+def test_failed_venv_bootstrap_is_cleaned_up(ps1_text):
+    # A half-built venv must not survive to poison the next run.
+    assert "Remove-Item -Recurse -Force -LiteralPath $Venv" in ps1_text

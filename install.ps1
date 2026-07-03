@@ -13,6 +13,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Assert-NativeExit([string]$What) {
+    if ($LASTEXITCODE -ne 0) { throw "$What failed (exit $LASTEXITCODE)." }
+}
+
 $MaikaRoot = $PSScriptRoot
 $Venv = Join-Path $MaikaRoot '.venv'
 
@@ -48,13 +52,23 @@ $VenvPip = Join-Path $Venv 'Scripts\pip.exe'
 
 if (-not (Test-Path -LiteralPath $Venv)) {
     Write-Host "-> Creating virtualenv at $Venv"
-    & $Py.Exe @($Py.Args) -m venv $Venv
-    & $VenvPip install --quiet --upgrade pip
-    & $VenvPip install --quiet "jinja2>=3.1" "pyyaml>=6.0"
+    try {
+        & $Py.Exe @($Py.Args) -m venv $Venv
+        Assert-NativeExit "venv creation"
+        & $VenvPip install --quiet --upgrade pip
+        Assert-NativeExit "pip upgrade"
+        & $VenvPip install --quiet "jinja2>=3.1" "pyyaml>=6.0"
+        Assert-NativeExit "dependency install"
+    } catch {
+        # A half-built venv makes every future run skip dependency install.
+        if (Test-Path -LiteralPath $Venv) { Remove-Item -Recurse -Force -LiteralPath $Venv }
+        throw
+    }
 }
 
 # Install the maika CLI as an editable package (creates .venv\Scripts\maika.exe).
 & $VenvPip install --quiet -e $MaikaRoot
+Assert-NativeExit "maika editable install"
 
 # Expose `maika` on PATH via a shim (Windows symlinks need admin/dev-mode).
 $BinDir = Join-Path $env:LOCALAPPDATA 'Maika\bin'
