@@ -7,6 +7,7 @@ Command-hook contract:
 - Antigravity: stdout JSON with decision allow|deny.
 """
 import argparse
+import fnmatch
 import importlib.util
 import json
 import re
@@ -231,6 +232,74 @@ def _load_all_rule_ids(index_path: Path):
     return {entry["id"] for entry in entries if entry.get("id")}, len(entries) == 0
 
 
+_SECTION_RE = r"##\s+{name}[ \t]*\n(.*?)(?=\n##\s|\Z)"
+
+
+def _section_text(text: str, name: str) -> str:
+    pattern = re.compile(_SECTION_RE.format(name=re.escape(name)), re.DOTALL | re.IGNORECASE)
+    match = pattern.search(text)
+    return match.group(1).strip() if match else ""
+
+
+def _allowed_file_patterns(context_text: str) -> list[str]:
+    allowed = _section_text(context_text, "Allowed Files")
+    patterns = []
+    for line in allowed.splitlines():
+        item = line.strip()
+        if not item:
+            continue
+        if item.startswith("-"):
+            item = item[1:].strip()
+        item = item.strip("`'\"")
+        if item:
+            patterns.append(item)
+    return patterns
+
+
+def _context_allows_target(context_text: str, policy_path: Path) -> bool:
+    target = policy_path.as_posix()
+    for pattern in _allowed_file_patterns(context_text):
+        normalized = Path(pattern).as_posix()
+        if normalized == target or fnmatch.fnmatch(target, normalized):
+            return True
+    return False
+
+
+def _implementation_context_candidates(project_root: Path, framework_root: str):
+    active = project_root / framework_root / "knowledge" / "active"
+    candidates = []
+    direct = active / "IMPLEMENTATION_CONTEXT.md"
+    if direct.exists():
+        candidates.append(direct)
+    candidates.extend(sorted(active.glob("TASK_HANDOFF.*.md")))
+    return candidates
+
+
+def _validate_implementation_context(project_root: Path, policy_path: Path, framework_root: str, gates) -> Decision:
+    candidates = _implementation_context_candidates(project_root, framework_root)
+    if not candidates:
+        return Decision(False, f"Missing valid implementation context before code write: {policy_path}")
+    invalid_reasons = []
+    target_mismatches = []
+    for candidate in candidates:
+        rel = candidate.relative_to(project_root)
+        text = candidate.read_text(encoding="utf-8")
+        result = gates.validate_implementation_context(text)
+        if not result.ok:
+            invalid_reasons.append(f"{rel}: {result.reason}")
+            continue
+        if _context_allows_target(text, policy_path):
+            return Decision(True)
+        target_mismatches.append(rel.as_posix())
+    if target_mismatches:
+        return Decision(
+            False,
+            "Implementation context does not allow code write target "
+            f"{policy_path}; checked: {', '.join(target_mismatches)}",
+        )
+    return Decision(False, "Invalid implementation context before code write: " + "; ".join(invalid_reasons))
+
+
 def evaluate_write(project_root: Path, target_path: Path, framework_root: str = ".maika") -> Decision:
     if not target_path.as_posix():
         return Decision(False, "Unable to identify target path for write-gate payload")
@@ -261,6 +330,9 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
     apply_result = gates.validate_apply_gate(transparency.read_text(encoding="utf-8"))
     if not apply_result.ok:
         return Decision(False, f"{apply_result.reason} before code write: {target_path}")
+    context_result = _validate_implementation_context(project_root, policy_path, framework_root, gates)
+    if not context_result.ok:
+        return context_result
     return Decision(True)
 
 

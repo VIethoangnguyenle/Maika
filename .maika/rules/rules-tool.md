@@ -158,6 +158,16 @@ artifact-type của node) và pass:
 
 `python3 {{ platform.framework_root }}/tools/gate-check/cli.py handoff-slice <file>`
 
+Trước khi executor/subagent được phép ghi code, cùng handoff đó cũng PHẢI pass
+implementation preflight:
+
+`python3 {{ platform.framework_root }}/tools/gate-check/cli.py implementation-context <file>`
+
+Implementation context phải có `## Evidence` với UA evidence (`domain_overview`,
+`domain_flow`, `domain_relationships`) hoặc explicit UA degrade/override, và
+`## Allowed Files` liệt kê target repo-relative files/globs. `write-gate` sẽ
+block code write nếu target file không match `Allowed Files`.
+
 - Slice nhúng INLINE vào prompt subagent. Coding subagent KHÔNG tự đọc knowledge files,
   cũng KHÔNG gọi trực tiếp: UA/KG tools, db-explorer/DB, agent-memory, Codebase Memory search
   như nguồn khám phá chính.

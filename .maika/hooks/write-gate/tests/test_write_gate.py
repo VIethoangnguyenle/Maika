@@ -117,9 +117,33 @@ def test_allows_app_write_with_valid_checkpoint(tmp_path):
     (framework / "knowledge" / "active" / "AGENT_TRANSPARENCY.md").write_text(
         "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
     )
+    _write_valid_implementation_context(framework / "knowledge" / "active", "src/App.java")
 
     result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
     assert result.ok is True
+
+
+def test_blocks_app_write_without_implementation_context(tmp_path):
+    active = tmp_path / ".maika" / "knowledge" / "active"
+    _write_valid_checkpoint(active)
+    (active / "AGENT_TRANSPARENCY.md").write_text(
+        "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
+    )
+    result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
+    assert result.ok is False
+    assert "implementation context" in result.reason
+
+
+def test_blocks_app_write_when_implementation_context_targets_other_file(tmp_path):
+    active = tmp_path / ".maika" / "knowledge" / "active"
+    _write_valid_checkpoint(active)
+    (active / "AGENT_TRANSPARENCY.md").write_text(
+        "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
+    )
+    _write_valid_implementation_context(active, "src/Other.java")
+    result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
+    assert result.ok is False
+    assert "src/App.java" in result.reason
 
 
 def test_blocks_app_write_when_checkpoint_ruleid_not_in_index(tmp_path):
@@ -347,6 +371,9 @@ def test_bash_write_to_code_allows_with_valid_checkpoint(tmp_path, monkeypatch):
     (tmp_path / ".maika" / "knowledge" / "active" / "AGENT_TRANSPARENCY.md").write_text(
         "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
     )
+    _write_valid_implementation_context(
+        tmp_path / ".maika" / "knowledge" / "active", "src/App.java"
+    )
     payload = {"tool_name": "Bash", "tool_input": {"command": "tee src/App.java"}}
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
     assert code == 0
@@ -402,6 +429,21 @@ def _write_valid_checkpoint(active_dir):
     )
 
 
+def _write_valid_implementation_context(active_dir, allowed_file):
+    active_dir.mkdir(parents=True, exist_ok=True)
+    (active_dir / "TASK_HANDOFF.node-1.md").write_text(
+        "# TASK_HANDOFF.node-1\n"
+        "## Task Objective\nImplement the assigned node.\n"
+        "## Applicable DNA/Conventions\n- SP-6: staircase\n"
+        "## Evidence\n"
+        "- UA evidence: domain_overview=User, domain_flow=UpdateUser\n"
+        "## Allowed Files\n"
+        f"- {allowed_file}\n"
+        "## Verification\n- pytest\n",
+        encoding="utf-8",
+    )
+
+
 def test_blocks_app_write_when_transparency_missing(tmp_path):
     _write_valid_checkpoint(tmp_path / ".maika" / "knowledge" / "active")
     result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
@@ -434,5 +476,6 @@ def test_allows_app_write_with_checkpoint_and_apply_evidence(tmp_path):
     (active / "AGENT_TRANSPARENCY.md").write_text(
         "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
     )
+    _write_valid_implementation_context(active, "src/App.java")
     result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
     assert result.ok is True

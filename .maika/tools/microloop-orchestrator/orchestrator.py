@@ -4,6 +4,7 @@ All functions are pure logic. run_loop() takes dispatch_fn and gate_fn via
 dependency injection so the whole protocol is unit-testable with stubs —
 no Java, no real subagent.
 """
+import importlib.util
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +35,14 @@ def _activity_log_path(active_dir):
 
 def _parent_brain_path(active_dir):
     return Path(active_dir) / "PARENT_BRAIN.md"
+
+
+def _load_gate_check():
+    mod = Path(__file__).resolve().parents[1] / "gate-check" / "gates.py"
+    spec = importlib.util.spec_from_file_location("gates", mod)
+    gates = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gates)
+    return gates
 
 
 def _project_rel(framework_root, *parts):
@@ -151,6 +160,9 @@ def save_runtime_queue(active_dir, queue):
 
 def write_task_handoff(active_dir, task_id, prompt, label=None):
     """Write TASK_HANDOFF.<task_id>.md and emit subagent_spawned."""
+    result = _load_gate_check().validate_implementation_context(prompt)
+    if not result.ok:
+        raise ValueError(f"invalid implementation context for TASK_HANDOFF.{task_id}: {result.reason}")
     path = Path(active_dir) / f"TASK_HANDOFF.{task_id}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(prompt, encoding="utf-8")
