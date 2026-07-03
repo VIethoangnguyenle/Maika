@@ -57,6 +57,26 @@
 
 ---
 
+## Integrations & Field Mapping
+
+<!-- Một block cho mỗi integration mới (third-party API hệ thống cần gọi/nhận). -->
+<!-- Nếu task không có integration mới: ghi "Không phát hiện integration mới". -->
+
+### Integration: <!-- tên -->
+
+- Hướng: <!-- outbound (hệ thống gọi third-party) / inbound (third-party gọi hệ thống) -->
+- Protocol & Auth: <!-- REST/gRPC/SOAP/… + cơ chế auth -->
+- Endpoint/Operation liên quan: <!-- ... -->
+- Tài liệu nguồn: <!-- link doc / API spec -->
+
+| Field third-party | Field canonical (hệ thống) | Transform / Serialize (ý định) | Nguồn |
+|---|---|---|---|
+| <!-- mobileNo --> | <!-- phoneNumber --> | <!-- rename khi (de)serialize --> | <!-- doc §x + UA: DTO --> |
+
+- Field chưa map được: <!-- field — lý do; mirror vào "Vấn đề yêu cầu" -->
+
+---
+
 ## Giả định (Assumptions)
 
 - <!-- assumption 1 -->
