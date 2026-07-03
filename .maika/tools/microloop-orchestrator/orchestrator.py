@@ -6,6 +6,8 @@ no Java, no real subagent.
 """
 import importlib.util
 import json
+import shlex
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -337,6 +339,53 @@ def make_gate_fn(runner, parse_fn=None):
         violations = parse_fn(output) if parse_fn else []
         return {"status": status, "violations": violations}
     return gate_fn
+
+
+def make_worker_runner(worker_command, timeout=900):
+    """Tạo runner spawn MỘT worker CLI dùng-một-lần (fresh-session tier).
+
+    worker_command: template có placeholder {prompt} (vd 'agy -p {prompt}');
+    prompt được shell-quote trước khi thay. Trả về (exit_code, output).
+    Timeout → exit_code 124 (convention của timeout(1))."""
+    def runner(prompt):
+        command = worker_command.replace("{prompt}", shlex.quote(prompt))
+        try:
+            proc = subprocess.run(
+                command, shell=True, capture_output=True, text=True, timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            return 124, f"worker timeout sau {timeout}s"
+        return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+    return runner
+
+
+def dispatch_worker(prompt, runner, *, retries=2, active_dir=None, task_id=None):
+    """Chạy một worker context mới cho prompt; retry khi fail; log activity event.
+
+    runner: (prompt) -> (exit_code, output) — inject được (make_worker_runner cho
+    subprocess thật, stub cho unit test; cùng pattern với make_gate_fn).
+    Khi truyền active_dir: tự emit subagent_started (mỗi attempt) và subagent_blocked
+    (fail cuối). KHÔNG emit subagent_done — write_task_result của worker đã emit,
+    tránh double-emission."""
+    attempt = 0
+    while True:
+        if active_dir is not None:
+            append_activity_event(
+                active_dir, "subagent_started",
+                actor="subagent", task_id=task_id, attempt=attempt,
+            )
+        exit_code, output = runner(prompt)
+        if exit_code == 0:
+            return {"status": "done", "attempts": attempt + 1, "output": output}
+        attempt += 1
+        if attempt > retries:
+            if active_dir is not None:
+                append_activity_event(
+                    active_dir, "subagent_blocked",
+                    actor="subagent", task_id=task_id, reason=str(output)[:500],
+                )
+            return {"status": "blocked", "attempts": attempt, "output": output}
 
 
 def run_loop(queue, dispatch_fn, gate_fn, max_retries=2):
