@@ -1,44 +1,44 @@
-# Task-Run Quality: Integration Inventory + Thin Orchestrator Design
+# Thiết kế: Chất lượng Task-Run — Integration Inventory + Thin Orchestrator
 
-> Date: 2026-07-03
-> Status: draft-for-review
-> Scope: Maika upstream (`.maika/`, `cli/`). Driven by one observed downstream task run (Jira ticket + Confluence docs, Antigravity runtime).
+> Ngày: 2026-07-03
+> Trạng thái: draft-for-review
+> Phạm vi: Maika upstream (`.maika/`, `cli/`). Xuất phát từ một lần chạy task thực tế ở downstream (ticket Jira + tài liệu Confluence, runtime Antigravity).
 
-## Problem
+## Vấn đề
 
-A real downstream task run exposed two framework-level failures.
+Một lần chạy task thực tế ở downstream bộc lộ hai lỗi ở tầng framework.
 
-1. **Missing integration inventory.** `spec-extract` recognizes "API / Interface / Contract" sections during structure detection (Bước 3) but no step extracts them. `REQUIREMENT.md` ends up without: the list of new third-party integrations the system must call, the third-party → canonical field mapping (e.g. `mobileNo` → `phoneNumber`), and the transform/serialization intent. Generated code then lacks proper DTO mapping (e.g. `@JsonProperty` in a Java codebase). The same gap exists in `requirement-analyst` (ticket path).
+1. **Thiếu inventory tích hợp.** `spec-extract` có nhận diện section "API / Interface / Contract" khi phân tích cấu trúc tài liệu (Bước 3) nhưng không có bước nào trích xuất nó. `REQUIREMENT.md` vì vậy thiếu: danh sách integration third-party mới mà hệ thống cần kết nối, bảng chuẩn hóa field third-party → field canonical (vd `mobileNo` → `phoneNumber`), và ý định transform/serialize. Code sinh ra sau đó thiếu mapping DTO đúng (vd `@JsonProperty` trong codebase Java). Lỗ hổng tương tự tồn tại ở `requirement-analyst` (đường ticket).
 
-2. **Context overflow destroys process compliance.** After a long Pha-1 explore (Confluence + Q&A), the session context overflowed/compacted. The agent lost the workflow instructions, `conventions.yaml`, and `author-dna.yaml` it had read at bootstrap, and coded entirely by feel — complying only when the user manually reminded it. The user rolled back the code, kept the context files, re-implemented from the same spec in a fresh session, and got good results. Repeating this pattern (fresh session per phase and per part) consistently produced better understanding and compliance.
+2. **Tràn context phá vỡ tuân thủ quy trình.** Sau pha explore dài (Confluence + hỏi–đáp), context của session bị tràn/compact; agent mất toàn bộ workflow instructions, `conventions.yaml` và `author-dna.yaml` đã đọc lúc bootstrap, rồi code hoàn toàn cảm tính — chỉ tuân thủ khi user nhắc tay. User rollback code, giữ lại file context, mở session mới implement từ chính spec đó → kết quả tốt. Lặp lại pattern này (session mới cho mỗi pha và mỗi phần) cho thấy agent hiểu đúng hơn và tuân thủ quy trình hơn một cách nhất quán.
 
-   Existing defenses did not hold:
-   - `[SESSION-BOUNDARY]` in `workflows/task.md` is warn-only.
-   - `write-gate` validates artifact **form** (checkpoint, handoff sections, allowed files), not context freshness — a diluted agent can satisfy it mechanically while coding by feel.
-   - `profiles/execution-mode.yaml` already names the correct tier for Antigravity (`fresh-session → new session per task`) but it is entirely manual.
+   Các lớp phòng thủ hiện có không giữ được:
+   - `[SESSION-BOUNDARY]` trong `workflows/task.md` chỉ cảnh báo, không chặn.
+   - `write-gate` chỉ validate **hình thức** artifact (checkpoint, section của handoff, allowed files), không validate độ tươi của context — agent đã loãng vẫn thỏa gate một cách máy móc trong khi code cảm tính.
+   - `profiles/execution-mode.yaml` đã đặt tên đúng tier cho Antigravity (`fresh-session → new session per task`) nhưng hoàn toàn thủ công.
 
-   The user's actual ask: **get fresh-session quality without manually opening sessions.**
+   Câu hỏi cốt lõi của user: **làm sao có được chất lượng của session mới mà không phải mở session thủ công.**
 
-## Goals
+## Mục tiêu
 
-- `REQUIREMENT.md` carries a structured *Integrations & Field Mapping* section, and the mapping survives end-to-end: Pha 2 must emit mapper/adapter tasks; Pha 3 handoffs embed the mapping table so generated code implements it.
-- Automate the `fresh-session` execution tier: heavy Pha-1 reads and every Pha-3 code node run in disposable worker contexts; the parent chat session holds only state, summaries, and file paths, and survives the whole task without overflowing.
-- Mechanical safety net: inline code writes in a session that already ran Pha 1/2 are blocked with an actionable remediation message.
-- Stay language-neutral: transform intent in Pha 1; concrete serialization syntax resolved by the executor from conventions/author-dna slices.
-- No regression on runtimes where session identity is unavailable (degrade to today's behavior).
+- `REQUIREMENT.md` có section *Integrations & Field Mapping* có cấu trúc, và bảng mapping sống xuyên suốt pipeline: Pha 2 bắt buộc sinh task mapper/adapter; Pha 3 nhúng bảng mapping vào handoff để code sinh ra hiện thực đúng mapping.
+- Tự động hóa tier `fresh-session`: các bước đọc nặng ở Pha 1 và từng node code ở Pha 3 chạy trong worker context dùng-một-lần; session cha (parent) chỉ giữ state, tóm tắt và đường dẫn file, sống qua cả task mà không tràn.
+- Lưới an toàn cơ học: code write inline trong session đã chạy Pha 1/2 bị chặn kèm message hướng dẫn hành động cụ thể.
+- Giữ ngôn ngữ trung lập: Pha 1 chỉ ghi ý định transform; cú pháp serialize cụ thể do executor resolve từ slice conventions/author-dna.
+- Không tệ hơn hiện trạng trên runtime không expose session identity (degrade về hành vi hiện tại).
 
-## Non-Goals
+## Ngoài phạm vi (Non-Goals)
 
-- No fully headless pipeline (`maika run-task <ticket>`). Pha-1 Q&A stays interactive in the parent session.
-- No new standalone skill for integrations (net-negative complexity; this extends existing skills).
-- No changes to handoff-freshness mechanics delivered in PR #15/#16.
-- Not preventing runtime compaction of the parent session; the design makes compaction irrelevant by keeping the parent thin.
+- Không làm pipeline headless hoàn toàn (`maika run-task <ticket>`). Hỏi–đáp Pha 1 vẫn tương tác trong session cha.
+- Không tạo skill riêng cho integrations (net-negative complexity; thiết kế này mở rộng skill có sẵn).
+- Không thay đổi cơ chế handoff-freshness đã giao ở PR #15/#16.
+- Không cố ngăn runtime compact session cha; thiết kế làm cho việc compact trở nên vô hại bằng cách giữ parent mỏng.
 
-## Part A — Integrations & Field Mapping
+## Phần A — Integrations & Field Mapping
 
-### A1. Template layer — `knowledge/templates/REQUIREMENT.tpl.md`
+### A1. Tầng template — `knowledge/templates/REQUIREMENT.tpl.md`
 
-New section placed after "Technical Design Contract":
+Section mới đặt sau "Technical Design Contract":
 
 ```markdown
 ## Integrations & Field Mapping
@@ -59,93 +59,93 @@ New section placed after "Technical Design Contract":
 - Field chưa map được: <field> — lý do (tự động trở thành Open Question)
 ```
 
-The "Transform / Serialize" column records **intent** (rename, date format, split/merge, enum translation) — never language syntax.
+Cột "Transform / Serialize" ghi **ý định** (rename, format date, split/merge, dịch enum) — không bao giờ ghi cú pháp ngôn ngữ cụ thể.
 
-### A2. Pha 1 extraction
+### A2. Trích xuất ở Pha 1
 
-- `skills/spec-extract/SKILL.md`: new **Bước 5b** (after Bước 5, before Business Rules): scan sources for third-party API contracts (API spec sections, endpoint tables, sample payloads, OpenAPI attachments already collected in Bước 2). For each: capture direction, protocol, auth, endpoints, and field list. Resolve canonical fields **UA-first** (existing domain model/DTO nodes); unresolved fields go to "Field chưa map được" and are mirrored into "Lỗ hổng & câu hỏi mở" (Bước 10). Update the output skeleton in §3 with the new section.
-- `skills/requirement-analyst/SKILL.md`: extend **Bước 8 (Technical Design Contract)** with the same extraction + table for the ticket path, sharing the template format.
+- `skills/spec-extract/SKILL.md`: thêm **Bước 5b** mới (sau Bước 5, trước Business Rules): quét nguồn tìm contract API third-party (section API spec, bảng endpoint, sample payload, attachment OpenAPI đã thu ở Bước 2). Với mỗi integration: ghi hướng, protocol, auth, endpoint, và danh sách field. Xác định field canonical theo **UA-first** (node domain model/DTO hiện có); field không resolve được → "Field chưa map được" và mirror vào "Lỗ hổng & câu hỏi mở" (Bước 10). Cập nhật skeleton output ở §3 với section mới.
+- `skills/requirement-analyst/SKILL.md`: mở rộng **Bước 8 (Technical Design Contract)** với cùng logic trích xuất + bảng cho đường ticket, dùng chung format template.
 
-### A3. Pha 2 — spec generation
+### A3. Pha 2 — sinh spec
 
-- `workflows/task.md` §2: add instruction — every integration in REQUIREMENT must map to at least one mapper/adapter task in OpenSpec `tasks.md`; DTO + mapping belong to a **contract node** in `CONTRACT_DAG.md` (per SP1d node taxonomy).
-- `skills/spec-validator/SKILL.md`: new check `check_integration_coverage(spec_path, requirement_path)` — integration present in REQUIREMENT with no corresponding task → **warning** listing the uncovered integrations and asking the user whether to continue (same severity model as `check_ac_coverage`).
+- `workflows/task.md` §2: thêm instruction — mỗi integration trong REQUIREMENT phải có ít nhất một task mapper/adapter tương ứng trong `tasks.md` của OpenSpec; DTO + mapping thuộc **contract node** trong `CONTRACT_DAG.md` (theo phân loại node của SP1d).
+- `skills/spec-validator/SKILL.md`: check mới `check_integration_coverage(spec_path, requirement_path)` — integration có trong REQUIREMENT nhưng không có task tương ứng → **cảnh báo** liệt kê integration chưa cover và hỏi user có tiếp tục không (cùng mức nghiêm trọng với `check_ac_coverage`).
 
 ### A4. Pha 3 — handoff
 
-- `workflows/task.md` §3.5a: `KNOWLEDGE_PACK.md` sources add the Integrations section of REQUIREMENT.
-- Handoffs for mapper/adapter nodes embed the **full mapping table** for that integration in `## Evidence` / `## Constraints`. The executor resolves concrete serialization syntax from the `dna_slice` / convention slice in the same handoff.
+- `workflows/task.md` §3.5a: nguồn build `KNOWLEDGE_PACK.md` thêm section Integrations của REQUIREMENT.
+- Handoff của node mapper/adapter nhúng **nguyên bảng mapping** của integration đó vào `## Evidence` / `## Constraints`. Executor resolve cú pháp serialize cụ thể từ `dna_slice` / convention slice trong cùng handoff.
 
-### A5. Error handling
+### A5. Xử lý lỗi
 
-- No integrations found → section reads "Không phát hiện integration mới"; validator skips the coverage check.
-- Ambiguous/incomplete API docs → reflected in Độ tin cậy + Open Questions. Never invent fields or endpoints.
+- Không tìm thấy integration → section ghi "Không phát hiện integration mới"; validator bỏ qua check coverage.
+- Tài liệu API mơ hồ/thiếu → phản ánh vào Độ tin cậy + Open Questions. Không bao giờ bịa field hay endpoint.
 
-## Part B — Thin Orchestrator + Automated Fresh-Session Dispatch
+## Phần B — Thin Orchestrator + Tự động dispatch Fresh-Session
 
-### B1. Principle — rules layer
+### B1. Nguyên tắc — tầng rules
 
-New rule in `rules/rules-flow.md`:
+Rule mới trong `rules/rules-flow.md`:
 
-- **Thin orchestrator**: the parent (orchestrator) context holds only phase state, short summaries, and file paths. Raw bulk content — document pages, wide code sweeps, long logs — must be consumed inside worker contexts that persist results to knowledge files; the parent reads back only the resulting files.
-- **Routing reflex**: a freeform request to "write spec/code" after Pha 1/2 has run must be routed to `/task spec` / `/task apply` (which dispatch workers); never code inline from conversational memory.
+- **Orchestrator mỏng**: context của agent cha (orchestrator) chỉ giữ phase state, tóm tắt ngắn, và đường dẫn file. Nội dung thô khối lượng lớn — trang tài liệu, quét code diện rộng, log dài — phải được tiêu thụ trong worker context và persist kết quả ra file knowledge; parent chỉ đọc lại file kết quả.
+- **Reflex routing**: yêu cầu freeform "viết spec/code" sau khi Pha 1/2 đã chạy phải được route về `/task spec` / `/task apply` (nơi dispatch worker); không bao giờ code inline từ trí nhớ hội thoại.
 
-### B2. Execution profile — `profiles/execution-mode.yaml`
+### B2. Profile thực thi — `profiles/execution-mode.yaml`
 
-Add a per-platform worker command template:
+Thêm template lệnh worker theo platform:
 
 ```yaml
 execution_mode: fresh-session        # subagent | fresh-session | inline-reload
-worker_command: 'agy -p "{prompt}"'  # used by fresh-session; ignored by subagent tier
+worker_command: 'agy -p "{prompt}"'  # dùng cho fresh-session; tier subagent bỏ qua
 max_retries: 2
 worker_timeout_seconds: 900
 ```
 
-Scaffold defaults per platform (`cli/platforms/*`): Antigravity → `fresh-session` + `agy -p`; Codex → `fresh-session` + `codex exec`; Claude Code → `subagent` (Agent tool; `worker_command` unused). `inline-reload` remains the LCD fallback and keeps current behavior.
+Giá trị scaffold mặc định theo platform (`cli/platforms/*`): Antigravity → `fresh-session` + `agy -p`; Codex → `fresh-session` + `codex exec`; Claude Code → `subagent` (Agent tool; không dùng `worker_command`). `inline-reload` vẫn là fallback LCD, giữ nguyên hành vi hiện tại.
 
-### B3. Dispatch helper — `tools/microloop-orchestrator/orchestrator.py`
+### B3. Helper dispatch — `tools/microloop-orchestrator/orchestrator.py`
 
-New function `dispatch_worker(prompt, *, timeout, retries)`:
+Hàm mới `dispatch_worker(prompt, *, timeout, retries)`:
 
-- Renders `worker_command` with the prompt, runs it as a subprocess, captures exit code and output.
-- Honors `max_retries` and `worker_timeout_seconds`.
-- Appends existing ACTIVITY_LOG events (`subagent_spawned` / `subagent_started` / `subagent_done` / `subagent_blocked`) so the dashboard contract is unchanged.
+- Render `worker_command` với prompt, chạy subprocess, bắt exit code và output.
+- Tôn trọng `max_retries` và `worker_timeout_seconds`.
+- Append các event ACTIVITY_LOG có sẵn (`subagent_spawned` / `subagent_started` / `subagent_done` / `subagent_blocked`) — contract với dashboard không đổi.
 
-### B4. Pha 1 dispatch — `workflows/task.md` §1
+### B4. Dispatch Pha 1 — `workflows/task.md` §1
 
-When `execution_mode != inline-reload`, the heavy skills run in workers instead of inline:
+Khi `execution_mode != inline-reload`, các skill nặng chạy trong worker thay vì inline:
 
-- `spec-extract`, `codebase-explorer`, `db-explorer` are dispatched with prompts of the form: *"Read `{{ platform.framework_root }}/skills/<skill>/SKILL.md`, execute it with input `<URL/ticket>`, write output to the knowledge file the skill specifies."*
-- The parent reads back only `REQUIREMENT.md` / `EXPLORE_CONTEXT.md` (+ confidence notes in AGENT_TRANSPARENCY) — bounded, compact artifacts.
-- Q&A with the user stays in the parent, grounded on the written REQUIREMENT.
+- `spec-extract`, `codebase-explorer`, `db-explorer` được dispatch với prompt dạng: *"Đọc `{{ platform.framework_root }}/skills/<skill>/SKILL.md`, thực thi với input `<URL/ticket>`, ghi output vào file knowledge mà skill chỉ định."*
+- Parent chỉ đọc lại `REQUIREMENT.md` / `EXPLORE_CONTEXT.md` (+ ghi chú độ tin cậy trong AGENT_TRANSPARENCY) — artifact gọn, có giới hạn.
+- Hỏi–đáp với user vẫn ở parent, dựa trên REQUIREMENT đã ghi.
 
-### B5. Pha 3 dispatch — `workflows/task.md` §3.5c/d
+### B5. Dispatch Pha 3 — `workflows/task.md` §3.5c/d
 
-Executor dispatch for the `fresh-session` tier becomes a `dispatch_worker` call with prompt: *"Read `{{ platform.framework_root }}/procedures/executor.md` and execute `TASK_HANDOFF.<node-id>.md`."* Every node gets a brand-new worker context; `TASK_QUEUE` / `TASK_RESULT` / ACTIVITY_LOG lifecycle is unchanged. The manual "open a new session per task" instruction is replaced by the automated path.
+Dispatch executor cho tier `fresh-session` trở thành lời gọi `dispatch_worker` với prompt: *"Đọc `{{ platform.framework_root }}/procedures/executor.md` và thực thi `TASK_HANDOFF.<node-id>.md`."* Mỗi node nhận một worker context mới tinh; vòng đời `TASK_QUEUE` / `TASK_RESULT` / ACTIVITY_LOG không đổi. Lời nhắc thủ công "mở session mới cho mỗi task" được thay bằng đường tự động.
 
-### B6. Session gate safety net — `hooks/write-gate/write_gate.py`
+### B6. Lưới an toàn session gate — `hooks/write-gate/write_gate.py`
 
-- **Session identity** resolution order: (1) hook payload session/conversation id; (2) POSIX fallback — ancestor agent process identity (pid + process start time from `/proc`), which is stable across compaction but changes on session restart; (3) unavailable → degrade.
-- **State**: sidecar `knowledge/active/.session_state.json`, written by the hook itself. On each invocation the hook already reads `AGENT_TRANSPARENCY.md`; when it first observes `phase_state` ∈ {`phase-1-done`, `phase-2-done`} it records `{phase, session_identity, timestamp}`.
-- **Blocking rule**: on a code write (existing classification: not framework artifact, not documentation), if the current session identity equals the identity recorded for `phase-1-done` or `phase-2-done` → **BLOCK**:
+- **Nhận diện session** theo thứ tự: (1) session/conversation id từ hook payload; (2) fallback POSIX — định danh process tổ tiên của agent (pid + start time đọc từ `/proc`), ổn định qua compact nhưng đổi khi restart session; (3) không có → degrade.
+- **State**: sidecar `knowledge/active/.session_state.json`, do chính hook ghi. Hook vốn đã đọc `AGENT_TRANSPARENCY.md` mỗi lần fire; khi lần đầu quan sát thấy `phase_state` ∈ {`phase-1-done`, `phase-2-done`} thì ghi `{phase, session_identity, timestamp}`.
+- **Luật chặn**: với code write (phân loại có sẵn: không phải framework artifact, không phải documentation), nếu session identity hiện tại trùng identity đã ghi cho `phase-1-done` hoặc `phase-2-done` → **CHẶN**:
 
   > `[SESSION-GATE] Pha 1/2 đã chạy trong session này — context có nguy cơ đã tràn/compact. Dispatch node qua worker (procedures/executor.md + TASK_HANDOFF) hoặc mở session mới rồi chạy /task apply <ticket>. User có thể override tường minh: ghi {{ platform.framework_root }}/knowledge/active/SESSION_OVERRIDE.md (sẽ được log vào Violation Log).`
 
-- **Override**: `SESSION_OVERRIDE.md` (small template) containing ticket-id + reason + user-approval line. Gate allows when present and ticket matches the active task, and logs a violation entry to AGENT_TRANSPARENCY. `knowledge-curator` archives it with the task.
-- **Degrade**: identity unavailable → allow + stderr warning (status quo behavior, explicitly documented residual risk).
-- **Lifecycle**: `.session_state.json` lives in `knowledge/active/` and is therefore cleared by `knowledge-curator.reset_active_context()` at task archive — stale state from a previous task can never block the next one.
+- **Override**: `SESSION_OVERRIDE.md` (template nhỏ) chứa ticket-id + lý do + dòng xác nhận của user. Gate cho qua khi file tồn tại và ticket khớp task đang active, đồng thời ghi một dòng violation vào AGENT_TRANSPARENCY. `knowledge-curator` archive file này cùng task.
+- **Degrade**: không có session identity → cho qua + cảnh báo stderr (hành vi hiện trạng, ghi nhận là residual risk).
+- **Vòng đời**: `.session_state.json` nằm trong `knowledge/active/` nên được `knowledge-curator.reset_active_context()` dọn khi archive task — state cũ của task trước không bao giờ chặn nhầm task sau.
 
-### B7. Messaging — `workflows/task.md` + TOKEN_LOG escalation
+### B7. Messaging — `workflows/task.md` + escalation theo TOKEN_LOG
 
-- The three `[SESSION-BOUNDARY]` blocks are rewritten: the primary path is automated worker dispatch; manually opening a new session is the fallback. The warn-and-continue branch now also names the session gate ("inline code writes will be blocked").
-- If the phase token estimate in `TOKEN_LOG.md` exceeds the existing 50k threshold, the boundary message escalates from recommendation to mandatory wording, citing overflow/compaction risk.
+- Viết lại ba block `[SESSION-BOUNDARY]`: đường chính là dispatch worker tự động; mở session mới thủ công là fallback. Nhánh warn-and-continue giờ nêu rõ session gate ("code write inline sẽ bị chặn").
+- Nếu estimate token của pha trong `TOKEN_LOG.md` vượt ngưỡng 50k có sẵn → message boundary chuyển từ khuyến nghị sang **bắt buộc**, nêu rõ rủi ro tràn/compact.
 
-## Data Flow
+## Luồng dữ liệu
 
 ```dot
 digraph thin_orchestrator {
     rankdir=LR;
-    Parent [shape=box, label="Parent session\n(state + summaries + paths)"];
+    Parent [shape=box, label="Session cha\n(state + tóm tắt + path)"];
     W1 [shape=ellipse, label="Worker: spec-extract"];
     W2 [shape=ellipse, label="Worker: codebase-explorer"];
     W3 [shape=ellipse, label="Worker: executor node N"];
@@ -153,37 +153,37 @@ digraph thin_orchestrator {
 
     Parent -> W1 [label="dispatch (agy -p)"];
     Parent -> W2 [label="dispatch"];
-    Parent -> W3 [label="dispatch per DAG node"];
+    Parent -> W3 [label="dispatch mỗi node DAG"];
     W1 -> K [label="REQUIREMENT.md"];
     W2 -> K [label="EXPLORE_CONTEXT.md"];
     W3 -> K [label="code + TASK_RESULT"];
-    K -> Parent [label="read back (compact)"];
+    K -> Parent [label="đọc lại (gọn)"];
 }
 ```
 
-## Testing
+## Kiểm thử
 
-- **write-gate unit tests** (`hooks/write-gate/tests/test_write_gate.py`):
-  1. code write, same session identity as `phase-1-done`/`phase-2-done` → block;
-  2. valid `SESSION_OVERRIDE.md` bound to active ticket → allow + violation logged;
-  3. different session identity → allow (other gates still apply);
-  4. identity unavailable → allow + warning;
-  5. `.session_state.json` recorded on first observation of each phase marker.
-- **dispatch helper tests**: command rendering from `worker_command`, retry on non-zero exit, timeout, ACTIVITY_LOG events emitted (subprocess mocked).
-- **spec-validator test**: integration in REQUIREMENT without a matching task in `tasks.md` → coverage warning listing it; no integrations → check skipped.
-- **Manual E2E on Antigravity** (downstream repo, one real ticket): (a) REQUIREMENT contains the Integrations section with a mapping table; (b) Pha 1 heavy reads run via `agy -p` workers and the parent stays compact; (c) Pha 3 nodes are dispatched per worker; (d) an inline code write in the parent after Pha 2 is blocked with the remediation message.
+- **Unit test write-gate** (`hooks/write-gate/tests/test_write_gate.py`):
+  1. code write, cùng session identity với `phase-1-done`/`phase-2-done` → chặn;
+  2. `SESSION_OVERRIDE.md` hợp lệ, khớp ticket active → cho qua + đã log violation;
+  3. session identity khác → cho qua (các gate khác vẫn áp dụng);
+  4. không có identity → cho qua + cảnh báo;
+  5. `.session_state.json` được ghi ở lần đầu quan sát mỗi phase marker.
+- **Test helper dispatch**: render lệnh từ `worker_command`, retry khi exit khác 0, timeout, event ACTIVITY_LOG được ghi (mock subprocess).
+- **Test spec-validator**: integration trong REQUIREMENT không có task khớp trong `tasks.md` → cảnh báo coverage liệt kê đúng; không có integration → bỏ qua check.
+- **E2E thủ công trên Antigravity** (repo downstream, một ticket thật): (a) REQUIREMENT có section Integrations với bảng mapping; (b) các bước đọc nặng Pha 1 chạy qua worker `agy -p` và parent giữ gọn; (c) node Pha 3 được dispatch từng worker; (d) code write inline ở parent sau Pha 2 bị chặn với đúng message.
 
-## Implementation Verification Points
+## Điểm cần xác minh khi implement
 
-Resolve during implementation; each has a defined fallback:
+Giải quyết trong lúc implement; mỗi điểm có fallback xác định:
 
-1. `agy -p` non-interactive file-write permissions and required flags (user runs this pattern daily; confirm exact flags). Fallback: document required agy config in scaffold README.
-2. Whether the Antigravity hook payload carries a session/conversation id. Fallback: POSIX process-identity.
-3. Exact Codex headless invocation (`codex exec` flags for auto-approval). Fallback: `inline-reload` on Codex until verified.
-4. Windows: `/proc` fallback unavailable → session gate degrades to warn (consistent with documented Windows residual risks).
+1. `agy -p` chạy non-interactive với quyền ghi file và flag cần thiết (user dùng pattern này hằng ngày; xác nhận flag chính xác). Fallback: ghi rõ config agy bắt buộc vào README scaffold.
+2. Hook payload của Antigravity có mang session/conversation id không. Fallback: định danh process POSIX.
+3. Dạng gọi headless chính xác của Codex (`codex exec` + flag auto-approve). Fallback: Codex dùng `inline-reload` cho tới khi xác minh xong.
+4. Windows: không có `/proc` → session gate degrade về cảnh báo (nhất quán với residual risk Windows đã ghi nhận).
 
-## Rollout
+## Triển khai (Rollout)
 
-1. Land upstream in Maika; run pytest matrix.
-2. Update the failing downstream repo via `maika update`; run the manual E2E above on a real ticket.
-3. If session identity proves unavailable on Antigravity, the gate ships in degrade mode there and the dispatch automation (B3–B5) carries the fix — the two parts are independently useful.
+1. Land upstream vào Maika; chạy pytest matrix.
+2. Cập nhật repo downstream đã gặp lỗi qua `maika update`; chạy E2E thủ công ở trên với một ticket thật.
+3. Nếu Antigravity thực sự không expose session identity, gate ship ở chế độ degrade trên platform đó và phần tự động dispatch (B3–B5) gánh vai trò fix chính — hai phần độc lập, mỗi phần tự nó đã có giá trị.
