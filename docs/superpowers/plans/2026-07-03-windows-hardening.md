@@ -592,7 +592,7 @@ git commit -m "fix(install): preserve REG_EXPAND_SZ user PATH via registry API; 
 - Consumes: `$MaikaExe` tồn tại thật (Task 3 đã guard pip install).
 - Produces: shim luôn pure-ASCII khi 8.3 khả dụng; warning rõ khi không.
 
-- [ ] **Step 1: Viết failing static tests**
+- [x] **Step 1: Viết failing static tests**
 
 ```python
 def test_shim_handles_non_ascii_paths(ps1_text):
@@ -602,11 +602,11 @@ def test_shim_handles_non_ascii_paths(ps1_text):
     assert "[^\\x00-\\x7F]" in ps1_text
 ```
 
-- [ ] **Step 2: Chạy để xác nhận fail**
+- [x] **Step 2: Chạy để xác nhận fail**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py::test_shim_handles_non_ascii_paths -v` → FAIL.
 
-- [ ] **Step 3: Sửa `install.ps1`**
+- [x] **Step 3: Sửa `install.ps1`**
 
 Thay dòng:
 
@@ -634,11 +634,11 @@ if ($ShimTarget -match '[^\x00-\x7F]') {
 Set-Content -LiteralPath $Shim -Value "@echo off`r`n`"$ShimTarget`" %*" -Encoding ASCII
 ```
 
-- [ ] **Step 4: Chạy lại toàn file test**
+- [x] **Step 4: Chạy lại toàn file test**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_install_ps1.py -v` → PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add install.ps1 cli/tests/test_install_ps1.py

@@ -95,3 +95,10 @@ def test_path_write_is_registry_safe(ps1_text):
     assert "GetEnvironmentVariable" not in ps1_text
     assert "DoNotExpandEnvironmentNames" in ps1_text
     assert "GetValueKind" in ps1_text
+
+
+def test_shim_handles_non_ascii_paths(ps1_text):
+    # -Encoding ASCII mangles paths like C:\Users\Viet\ into '?' - the shim
+    # must fall back to the 8.3 short path (pure ASCII by construction).
+    assert "ShortPath" in ps1_text
+    assert "[^\\x00-\\x7F]" in ps1_text

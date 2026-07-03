@@ -75,7 +75,21 @@ $BinDir = Join-Path $env:LOCALAPPDATA 'Maika\bin'
 New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
 $MaikaExe = Join-Path $Venv 'Scripts\maika.exe'
 $Shim = Join-Path $BinDir 'maika.cmd'
-Set-Content -LiteralPath $Shim -Value "@echo off`r`n`"$MaikaExe`" %*" -Encoding ASCII
+# ASCII shim + non-ASCII clone path can corrupt the target. Fall back to the
+# DOS 8.3 short path, which is pure ASCII by construction.
+$ShimTarget = $MaikaExe
+if ($ShimTarget -match '[^\x00-\x7F]') {
+    try {
+        $Fso = New-Object -ComObject Scripting.FileSystemObject
+        $ShimTarget = $Fso.GetFile($MaikaExe).ShortPath
+    } catch {
+        Write-Warning "Could not resolve an 8.3 short path for $MaikaExe."
+    }
+    if ($ShimTarget -match '[^\x00-\x7F]') {
+        Write-Warning "Install path contains non-ASCII characters and 8.3 names are unavailable; the 'maika' shim may not work. Clone Maika under an ASCII-only path to fix."
+    }
+}
+Set-Content -LiteralPath $Shim -Value "@echo off`r`n`"$ShimTarget`" %*" -Encoding ASCII
 Write-Host "-> Installed 'maika' shim -> $Shim"
 
 # Append to user PATH via the registry API: read RAW (unexpanded) value and
