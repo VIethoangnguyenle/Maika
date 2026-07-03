@@ -52,6 +52,23 @@
     chuyển trạng thái task sang **PENDING-BACKFILL** trong AGENT_TRANSPARENCY.
 - Sau hardstop, không tiếp tục scan cùng một dữ liệu/cấu hình trong phiên hiện tại.
 
+### [CRITICAL] R-Flow-5: Orchestrator mỏng — việc nặng chạy trong worker
+
+- Context của agent cha (orchestrator) CHỈ giữ: phase state, tóm tắt ngắn, đường dẫn file.
+- Nội dung thô khối lượng lớn — trang tài liệu (Confluence/wiki/PRD), quét code diện rộng,
+  log dài — phải được tiêu thụ trong worker context (subagent / worker_command theo
+  `{{ platform.framework_root }}/profiles/execution-mode.yaml`) và persist kết quả ra file knowledge.
+- Parent chỉ đọc lại file kết quả (REQUIREMENT, EXPLORE_CONTEXT, TASK_RESULT…), không đọc nguồn thô.
+- Lý do: context tràn/compact làm mất rules/DNA đã đọc lúc bootstrap → agent code cảm tính
+  (observed failure 2026-07-03, downstream Antigravity).
+
+### [CRITICAL] R-Flow-6: Freeform "viết spec/code" phải route về /task
+
+- Sau khi Pha 1/2 đã chạy, mọi yêu cầu freeform kiểu "viết spec đi", "code đi", "implement đi"
+  PHẢI được route về `/task spec` / `/task apply` (nơi dispatch worker theo execution-mode).
+- KHÔNG code inline từ trí nhớ hội thoại — write-gate SESSION-GATE chặn code write inline
+  trong session đã hoàn thành Pha 1/2 (override tường minh: `SESSION_OVERRIDE.md`, có log violation).
+
 
 ---
 
