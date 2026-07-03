@@ -250,6 +250,9 @@ Mục tiêu: dùng OpenSpec để sinh **spec kỹ thuật** dựa trên REQUIRE
      hoặc bất kỳ file nào ra ngoài `openspec/changes/<change-id>/`) — kể cả khi agent
      runtime có planning mode nằm ngoài workflow này (vd Cursor, Antigravity, v.v.).
    - Chờ spec được sinh ra (file spec riêng, ví dụ trong thư mục `spec/`).
+   - **Integration coverage**: nếu REQUIREMENT có section "Integrations & Field Mapping" với
+     integration mới → `tasks.md` sinh ra PHẢI có task mapper/adapter tương ứng cho từng
+     integration (DTO + mapping thuộc contract node trong CONTRACT_DAG ở Pha 3).
    - Xác nhận output path là `openspec/changes/<change-id>/` trước khi báo cáo hoàn thành.
    - **[H5 — State Invalidation]** Sau khi `/opsx:propose` thành công:
      - Ghi `OPENSPEC_STATE: propose_done` vào AGENT_TRANSPARENCY.md (section Cảnh báo / Hạn chế).
@@ -318,6 +321,8 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
      - Nếu **PASS**: tiếp tục.
    - Gọi `spec-validator.check_ac_coverage(spec_path, requirement_path)`:
      - Nếu có AC chưa cover: hiển thị danh sách, hỏi user có muốn tiếp không.
+   - Gọi `spec-validator.check_integration_coverage(spec_path, requirement_path)`:
+     - Nếu có integration chưa có task mapper/adapter: hiển thị danh sách, hỏi user có muốn tiếp không.
 
 4. Hỏi **xác nhận cuối cùng**:
    - Nêu rõ đây là bước sẽ đề nghị thay đổi code theo spec.
