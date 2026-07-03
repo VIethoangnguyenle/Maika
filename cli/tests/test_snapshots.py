@@ -29,13 +29,31 @@ PLATFORM_OPTIONS = {
 
 def _snapshot_tree(root: Path) -> str:
     entries = []
-    for path in sorted(root.rglob("*")):
+    for path in sorted(root.rglob("*"), key=lambda p: p.relative_to(root).parts):
         rel = path.relative_to(root).as_posix()
         if "__pycache__" in rel:
             continue
         suffix = "/" if path.is_dir() else ""
         entries.append(f"{rel}{suffix}")
     return "\n".join(entries) + "\n"
+
+
+def test_snapshot_tree_sort_is_case_sensitive_and_posix(tmp_path):
+    root = tmp_path / "proj"
+    (root / ".agents" / "knowledge" / "templates").mkdir(parents=True)
+    (root / ".agents" / "hooks").mkdir()
+    (root / ".agents" / "MCP_SETUP.md").write_text("", encoding="utf-8")
+    (root / ".agents" / "hooks.json").write_text("", encoding="utf-8")
+    (root / ".agents" / "knowledge" / "templates" / "AGENT.tpl.md").write_text("", encoding="utf-8")
+    (root / ".agents" / "knowledge" / "templates" / "feature.tpl.md").write_text("", encoding="utf-8")
+
+    lines = _snapshot_tree(root).splitlines()
+
+    assert lines.index(".agents/MCP_SETUP.md") < lines.index(".agents/knowledge/")
+    assert lines.index(".agents/hooks/") < lines.index(".agents/hooks.json")
+    assert lines.index(".agents/knowledge/templates/AGENT.tpl.md") < lines.index(
+        ".agents/knowledge/templates/feature.tpl.md"
+    )
 
 
 @pytest.mark.parametrize("platform_key", sorted(PLATFORM_OPTIONS))

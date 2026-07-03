@@ -16,6 +16,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$env:PYTHONIOENCODING = 'utf-8'
 
 function Assert-NativeExit([string]$What) {
     if ($LASTEXITCODE -ne 0) { throw "$What failed (exit $LASTEXITCODE)." }

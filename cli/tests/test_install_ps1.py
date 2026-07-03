@@ -75,6 +75,11 @@ def test_venv_pip_runs_via_python_module(ps1_text):
     assert "& $VenvPip install" not in ps1_text
 
 
+def test_forces_utf8_python_output_for_windows_ci(ps1_text):
+    # GitHub Actions PowerShell can expose cp1252 stdout; CLI status glyphs need UTF-8.
+    assert "$env:PYTHONIOENCODING = 'utf-8'" in ps1_text
+
+
 def test_python_floor_matches_pyproject(ps1_text):
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     floor = re.search(r'requires-python\s*=\s*">=(\d+\.\d+)"', pyproject).group(1)

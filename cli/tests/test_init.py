@@ -105,8 +105,13 @@ def test_questionary_call_shapes_match_init_usage():
     runner): mirror init.py's exact questionary calls so a dependency major bump
     that changes the signature is caught on developer machines."""
     questionary = pytest.importorskip("questionary")
-    questionary.select("platform", choices=["A", "B"], default="A")
-    questionary.checkbox("mcps", choices=[questionary.Choice(title="A", value="a")])
+    try:
+        questionary.select("platform", choices=["A", "B"], default="A")
+        questionary.checkbox("mcps", choices=[questionary.Choice(title="A", value="a")])
+    except Exception as exc:
+        if exc.__class__.__name__ == "NoConsoleScreenBufferError":
+            pytest.skip("questionary cannot create prompts on Windows CI without a console")
+        raise
 
 
 def test_parse_multi_values_accepts_repeated_and_comma_values():
