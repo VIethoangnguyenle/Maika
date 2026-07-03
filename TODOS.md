@@ -40,7 +40,7 @@
 
 ## Enforcement hardening (audit 2026-06-20)
 
-> Track riêng, ngoài roadmap P/UP. Nguồn: audit RULES/SKILLS/WORKFLOWS 2026-06-20 — phát hiện enforcement 2 tầng, phần lớn `[CRITICAL]` rule chỉ "trên giấy" (chỉ `knowledge-checkpoint` được hook chặn cơ học). 6 gap xếp theo đòn bẩy. Chi tiết handoff: [docs/superpowers/handoffs/2026-06-20-enforcement-followups-codex-handoff.md](docs/superpowers/handoffs/2026-06-20-enforcement-followups-codex-handoff.md).
+> Track riêng, ngoài roadmap P/UP. Nguồn: audit RULES/SKILLS/WORKFLOWS 2026-06-20 — phát hiện enforcement 2 tầng, phần lớn `[CRITICAL]` rule chỉ "trên giấy" (chỉ `knowledge-checkpoint` được hook chặn cơ học). 6 gap xếp theo đòn bẩy. Handoff tạm thời của audit đã được dọn khỏi source; specs/plans tương ứng là nguồn tham chiếu lâu dài.
 
 - **#1 — Bash-write bypass** ✅ **DONE** (C-22b, PR #12, branch `bash-write-gate`). Hook chỉ match `Edit|Write|MultiEdit`; ghi code qua Bash né gate. `parse_shell_writes` heuristic + matcher 3 runtime. Spec/plan: `2026-06-20-bash-write-gate-*`.
 - **#2 — `/opsx:apply` cửa sau** ✅ **DONE** (C-23, PR #13, branch `apply-gate`, stacked trên #12).
