@@ -54,6 +54,15 @@ def _path_from_value(value):
     return None
 
 
+def _policy_path(project_root: Path, target_path: Path) -> Path:
+    if not target_path.is_absolute():
+        return target_path
+    try:
+        return target_path.resolve().relative_to(project_root.resolve())
+    except (OSError, ValueError):
+        return target_path
+
+
 def _paths_from_patch_command(command: str):
     return [Path(match.strip()) for match in _PATCH_FILE_RE.findall(command or "")]
 
@@ -225,9 +234,10 @@ def _load_all_rule_ids(index_path: Path):
 def evaluate_write(project_root: Path, target_path: Path, framework_root: str = ".maika") -> Decision:
     if not target_path.as_posix():
         return Decision(False, "Unable to identify target path for write-gate payload")
-    if _is_framework_artifact(target_path, framework_root):
+    policy_path = _policy_path(project_root, target_path)
+    if _is_framework_artifact(policy_path, framework_root):
         return Decision(True)
-    if _is_documentation(target_path):
+    if _is_documentation(policy_path):
         return Decision(True)
 
     checkpoint = project_root / framework_root / "knowledge" / "active" / "KNOWLEDGE_CHECKPOINT.md"

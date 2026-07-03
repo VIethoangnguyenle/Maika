@@ -90,6 +90,14 @@ def test_main_allows_documentation_write(tmp_path, monkeypatch):
     assert code == 0
 
 
+def test_main_allows_absolute_framework_knowledge_write_without_checkpoint(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / ".maika" / "knowledge" / "long-term" / "author-dna.yaml"
+    payload = {"tool_name": "Write", "tool_input": {"file_path": str(target)}}
+    code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
+    assert code == 0
+
+
 def test_bash_write_to_documentation_allowed(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     payload = {"tool_name": "Bash", "tool_input": {"command": "echo x > docs/ARCHITECTURE.md"}}
