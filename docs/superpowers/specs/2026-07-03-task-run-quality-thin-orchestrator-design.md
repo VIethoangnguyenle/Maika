@@ -129,10 +129,11 @@ Executor dispatch for the `fresh-session` tier becomes a `dispatch_worker` call 
 - **State**: sidecar `knowledge/active/.session_state.json`, written by the hook itself. On each invocation the hook already reads `AGENT_TRANSPARENCY.md`; when it first observes `phase_state` ∈ {`phase-1-done`, `phase-2-done`} it records `{phase, session_identity, timestamp}`.
 - **Blocking rule**: on a code write (existing classification: not framework artifact, not documentation), if the current session identity equals the identity recorded for `phase-1-done` or `phase-2-done` → **BLOCK**:
 
-  > `[SESSION-GATE] Pha 1/2 đã chạy trong session này — context có nguy cơ đã tràn/compact. Dispatch node qua worker (procedures/executor.md + TASK_HANDOFF) hoặc mở session mới rồi chạy /task apply <ticket>. User có thể override tường minh: ghi {{ framework_root }}/knowledge/active/SESSION_OVERRIDE.md (sẽ được log vào Violation Log).`
+  > `[SESSION-GATE] Pha 1/2 đã chạy trong session này — context có nguy cơ đã tràn/compact. Dispatch node qua worker (procedures/executor.md + TASK_HANDOFF) hoặc mở session mới rồi chạy /task apply <ticket>. User có thể override tường minh: ghi {{ platform.framework_root }}/knowledge/active/SESSION_OVERRIDE.md (sẽ được log vào Violation Log).`
 
 - **Override**: `SESSION_OVERRIDE.md` (small template) containing ticket-id + reason + user-approval line. Gate allows when present and ticket matches the active task, and logs a violation entry to AGENT_TRANSPARENCY. `knowledge-curator` archives it with the task.
 - **Degrade**: identity unavailable → allow + stderr warning (status quo behavior, explicitly documented residual risk).
+- **Lifecycle**: `.session_state.json` lives in `knowledge/active/` and is therefore cleared by `knowledge-curator.reset_active_context()` at task archive — stale state from a previous task can never block the next one.
 
 ### B7. Messaging — `workflows/task.md` + TOKEN_LOG escalation
 
