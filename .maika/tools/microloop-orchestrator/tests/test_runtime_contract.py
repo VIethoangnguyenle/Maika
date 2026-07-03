@@ -8,6 +8,16 @@ sys.path.insert(0, str(ROOT))
 import orchestrator  # noqa: E402
 
 
+VALID_HANDOFF = (
+    "# TASK_HANDOFF.napas-human\n"
+    "## Task Objective\nCreate human SRS\n"
+    "## Applicable DNA/Conventions\n- SP-6: staircase\n"
+    "## Evidence\n- UA evidence: domain_overview=Payment, domain_flow=Transfer\n"
+    "## Allowed Files\n- src/NapasHuman.java\n"
+    "## Verification\n- pytest\n"
+)
+
+
 def test_runtime_contract_emits_queue_handoff_result_and_events(tmp_path):
     active = tmp_path / ".agents" / "knowledge" / "active"
     active.mkdir(parents=True)
@@ -36,8 +46,14 @@ def test_runtime_contract_emits_queue_handoff_result_and_events(tmp_path):
         source="antigravity-brain",
         ticket_id="SME-TRANSFER-002",
     )
-    orchestrator.write_task_handoff(active, "napas-human", "# TASK_HANDOFF.napas-human\n")
-    orchestrator.write_task_handoff(active, "napas-agent", "# TASK_HANDOFF.napas-agent\n")
+    orchestrator.write_task_handoff(active, "napas-human", VALID_HANDOFF)
+    orchestrator.write_task_handoff(
+        active,
+        "napas-agent",
+        VALID_HANDOFF.replace("napas-human", "napas-agent").replace(
+            "src/NapasHuman.java", "src/NapasAgent.java"
+        ),
+    )
     orchestrator.update_task_status(active, "napas-human", "in_progress", event="subagent_started")
     orchestrator.write_task_result(active, "napas-human", "# TASK_RESULT.napas-human\n\nstatus: done\n")
 
@@ -70,6 +86,17 @@ def test_runtime_contract_emits_queue_handoff_result_and_events(tmp_path):
     assert events[2]["actor"] == "parent"
     assert events[2]["source"] == "antigravity-brain"
     assert events[3]["actor"] == "subagent"
+
+
+def test_write_task_handoff_rejects_missing_knowledge_slice(tmp_path):
+    active = tmp_path / ".agents" / "knowledge" / "active"
+    active.mkdir(parents=True)
+    try:
+        orchestrator.write_task_handoff(active, "empty", "# TASK_HANDOFF.empty\n")
+    except ValueError as exc:
+        assert "implementation context" in str(exc)
+    else:
+        raise AssertionError("expected handoff without knowledge slice to be rejected")
 
 
 def test_update_task_status_rejects_unknown_task(tmp_path):

@@ -7,6 +7,7 @@ Command-hook contract:
 - Antigravity: stdout JSON with decision allow|deny.
 """
 import argparse
+import fnmatch
 import importlib.util
 import json
 import re
@@ -52,6 +53,25 @@ def _path_from_value(value):
     if isinstance(value, str) and value.strip():
         return Path(value.strip())
     return None
+
+
+def _project_root_from_cwd(cwd: Path) -> Path:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (FileNotFoundError, OSError, subprocess.CalledProcessError):
+        return cwd
+    root = result.stdout.strip()
+    return Path(root) if root else cwd
+
+
+def _runtime_target(cwd: Path, target_path: Path) -> Path:
+    return target_path if target_path.is_absolute() else (cwd / target_path).resolve()
 
 
 def _policy_path(project_root: Path, target_path: Path) -> Path:
@@ -231,6 +251,92 @@ def _load_all_rule_ids(index_path: Path):
     return {entry["id"] for entry in entries if entry.get("id")}, len(entries) == 0
 
 
+_SECTION_RE = r"##\s+{name}[ \t]*\n(.*?)(?=\n##\s|\Z)"
+
+
+def _section_text(text: str, name: str) -> str:
+    pattern = re.compile(_SECTION_RE.format(name=re.escape(name)), re.DOTALL | re.IGNORECASE)
+    match = pattern.search(text)
+    return match.group(1).strip() if match else ""
+
+
+def _allowed_file_patterns(context_text: str) -> list[str]:
+    allowed = _section_text(context_text, "Allowed Files")
+    patterns = []
+    for line in allowed.splitlines():
+        item = line.strip()
+        if not item:
+            continue
+        if item.startswith("-"):
+            item = item[1:].strip()
+        item = item.strip("`'\"")
+        if item:
+            patterns.append(item)
+    return patterns
+
+
+def _context_allows_target(context_text: str, policy_path: Path) -> bool:
+    target = policy_path.as_posix()
+    for pattern in _allowed_file_patterns(context_text):
+        normalized = Path(pattern).as_posix()
+        if normalized == target or fnmatch.fnmatch(target, normalized):
+            return True
+    return False
+
+
+def _implementation_context_candidates(project_root: Path, framework_root: str):
+    active = project_root / framework_root / "knowledge" / "active"
+    candidates = []
+    direct = active / "IMPLEMENTATION_CONTEXT.md"
+    if direct.exists():
+        candidates.append(direct)
+    queue = active / "microloop" / "TASK_QUEUE.md"
+    if queue.exists():
+        data = yaml.safe_load(queue.read_text(encoding="utf-8")) or {}
+        for task in data.get("tasks") or []:
+            if task.get("status") != "in_progress":
+                continue
+            handoff = task.get("handoff_path")
+            if handoff:
+                path = Path(handoff)
+                if not path.is_absolute():
+                    path = project_root / path
+            elif task.get("id"):
+                path = active / f"TASK_HANDOFF.{task['id']}.md"
+            else:
+                continue
+            if path.exists():
+                candidates.append(path)
+        return candidates
+    candidates.extend(sorted(active.glob("TASK_HANDOFF.*.md")))
+    return candidates
+
+
+def _validate_implementation_context(project_root: Path, policy_path: Path, framework_root: str, gates) -> Decision:
+    candidates = _implementation_context_candidates(project_root, framework_root)
+    if not candidates:
+        return Decision(False, f"Missing valid implementation context before code write: {policy_path}")
+    invalid_reasons = []
+    target_mismatches = []
+    for candidate in candidates:
+        rel = candidate.relative_to(project_root)
+        text = candidate.read_text(encoding="utf-8")
+        result = gates.validate_implementation_context(text)
+        if not result.ok:
+            invalid_reasons.append(f"{rel}: {result.reason}")
+            continue
+        if _context_allows_target(text, policy_path):
+            return Decision(True)
+        target_mismatches.append(rel.as_posix())
+    if target_mismatches:
+        return Decision(
+            False,
+            "Implementation context does not allow code write target "
+            f"{policy_path}; checked: {', '.join(target_mismatches)}",
+        )
+    return Decision(False, "Invalid implementation context before code write: " + "; ".join(invalid_reasons))
+
+
 def evaluate_write(project_root: Path, target_path: Path, framework_root: str = ".maika") -> Decision:
     if not target_path.as_posix():
         return Decision(False, "Unable to identify target path for write-gate payload")
@@ -261,6 +367,9 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
     apply_result = gates.validate_apply_gate(transparency.read_text(encoding="utf-8"))
     if not apply_result.ok:
         return Decision(False, f"{apply_result.reason} before code write: {target_path}")
+    context_result = _validate_implementation_context(project_root, policy_path, framework_root, gates)
+    if not context_result.ok:
+        return context_result
     return Decision(True)
 
 
@@ -300,11 +409,13 @@ def main(argv=None, stdin_text=None):
     args = parser.parse_args(argv)
     raw = stdin_text if stdin_text is not None else sys.stdin.read()
     payload = json.loads(raw or "{}")
-    root = Path.cwd()
+    cwd = Path.cwd()
+    root = _project_root_from_cwd(cwd)
 
     if _is_shell_tool(_tool_name(payload)):
         targets, unresolved = parse_shell_writes(_command_text(payload))
-        targets = [t for t in targets if not _git_ignored(root, t)]
+        targets = [_runtime_target(cwd, t) for t in targets]
+        targets = [t for t in targets if not _git_ignored(root, _policy_path(root, t))]
         if not targets:
             if unresolved:
                 _warn("write-gate: shell write with unresolved path — allowed (heuristic).")
@@ -320,6 +431,7 @@ def main(argv=None, stdin_text=None):
         if not targets:
             decision = Decision(False, "Unable to identify target path for write-gate payload")
         else:
+            targets = [_runtime_target(cwd, t) for t in targets]
             decisions = [
                 evaluate_write(root, target, framework_root=args.framework_root)
                 for target in targets
