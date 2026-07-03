@@ -350,6 +350,8 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
        `append_activity_event`, `record_parent_event`, `write_parent_brain`.
    a. Build `KNOWLEDGE_PACK.md` from REQUIREMENT, EXPLORE_CONTEXT, knowledge-snapshot,
       conventions, author-dna, OpenSpec artifacts, UA/KG evidence, db-explorer evidence, and relevant archive/memory.
+      - Section "Integrations & Field Mapping" của REQUIREMENT là nguồn BẮT BUỘC của
+        Knowledge Pack khi task có integration mới.
       - If task complexity = `complex` and KG graph is unavailable/stale: BLOCK unless user explicitly overrides.
       - If task touches DB and db-explorer evidence is missing: BLOCK and request db-explorer.
       - Record confidence and overrides in AGENT_TRANSPARENCY.
@@ -362,6 +364,9 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
    c. Run Contract Lane sequentially:
       - Assemble `TASK_HANDOFF.<node-id>.md` with Knowledge Pack slice, DNA slice, convention slice,
         architecture boundary, allowed/read-only files, and feedback if retrying.
+      - Node mapper/adapter: nhúng NGUYÊN bảng field mapping của integration tương ứng vào
+        `## Evidence` / `## Constraints` của handoff — executor không tự tra lại tài liệu;
+        cú pháp serialize cụ thể resolve từ dna_slice/convention_slice.
       - After writing each handoff, record `subagent_spawned` in `ACTIVITY_LOG.jsonl`.
       - Dispatch executor by `{{ platform.framework_root }}/profiles/execution-mode.yaml`.
       - Before dispatch, mark that node `in_progress`; after result, mark it `done` or `blocked`.
