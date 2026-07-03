@@ -13,9 +13,10 @@ from typing import Optional
 def expand(template: str, *, home: Optional[Path] = None, platform: str = "",
            ua_mcp_dir: str = "", project_root: str = "") -> str:
     """Substitute the four supported placeholders in a manifest template string."""
+    home_value = home.as_posix() if home is not None else ""
     return (
         template
-        .replace("{home}", str(home) if home is not None else "")
+        .replace("{home}", home_value)
         .replace("{platform}", platform)
         .replace("{ua_mcp_dir}", ua_mcp_dir)
         .replace("{project_root}", project_root)
