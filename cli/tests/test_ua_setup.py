@@ -1,5 +1,5 @@
 import json as _json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from cli.mcp import ua_setup
 
 
@@ -9,6 +9,14 @@ def test_expand_substitutes_all_placeholders():
         home=Path("/h"), platform="codex", ua_mcp_dir="/srv", project_root="/proj",
     )
     assert out == "/h/x codex /srv /proj"
+
+
+def test_expand_normalizes_windows_home_to_forward_slashes():
+    out = ua_setup.expand(
+        "{home}/.agents",
+        home=PureWindowsPath("C:/Users/maika"),
+    )
+    assert out == "C:/Users/maika/.agents"
 
 
 def test_resolve_engine_check_path_exists(tmp_path):

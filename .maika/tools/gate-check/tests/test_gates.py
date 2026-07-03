@@ -146,6 +146,42 @@ def test_handoff_slice_ignores_ruleids_outside_its_section():
     assert g.validate_handoff_slice(leaky).ok is False
 
 
+def test_implementation_context_requires_dna_evidence_and_allowed_files():
+    missing = "# TASK_HANDOFF.x\n## Applicable DNA/Conventions\n- SP-6\n"
+    result = g.validate_implementation_context(missing)
+    assert result.ok is False
+    assert "Evidence" in result.reason
+
+    no_target = (
+        "# TASK_HANDOFF.x\n"
+        "## Applicable DNA/Conventions\n- SP-6: staircase\n"
+        "## Evidence\n- UA evidence: domain_overview=Payment, domain_flow=ApproveTransfer\n"
+    )
+    result = g.validate_implementation_context(no_target)
+    assert result.ok is False
+    assert "Allowed Files" in result.reason
+
+    valid = (
+        "# TASK_HANDOFF.x\n"
+        "## Applicable DNA/Conventions\n- SP-6: staircase\n"
+        "## Evidence\n- UA evidence: domain_overview=Payment, domain_flow=ApproveTransfer\n"
+        "## Allowed Files\n- src/App.java\n"
+    )
+    assert g.validate_implementation_context(valid).ok is True
+
+
+def test_implementation_context_accepts_explicit_ua_degrade_override():
+    text = (
+        "# TASK_HANDOFF.x\n"
+        "## Applicable DNA/Conventions\n- SP-6: staircase\n"
+        "## Evidence\n"
+        "- UA unavailable — explicit override, MEDIUM\n"
+        "- KG unavailable — grep fallback, MEDIUM\n"
+        "## Allowed Files\n- src/App.java\n"
+    )
+    assert g.validate_implementation_context(text).ok is True
+
+
 def test_cli_returns_nonzero_on_invalid(tmp_path):
     import importlib.util
     cli_mod = Path(__file__).resolve().parents[1] / "cli.py"
@@ -239,6 +275,26 @@ def test_cli_apply_gate_exit_codes(tmp_path):
     assert cli.main(["apply-gate", str(f)]) == 0
     f.write_text("Pha 1 DONE\n", encoding="utf-8")
     assert cli.main(["apply-gate", str(f)]) == 1
+
+
+def test_cli_implementation_context_exit_codes(tmp_path):
+    import importlib.util
+    cli_mod = Path(__file__).resolve().parents[1] / "cli.py"
+    spec = importlib.util.spec_from_file_location("cli", cli_mod)
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+
+    f = tmp_path / "TASK_HANDOFF.node-1.md"
+    f.write_text(
+        "# TASK_HANDOFF.node-1\n"
+        "## Applicable DNA/Conventions\n- SP-6\n"
+        "## Evidence\n- UA evidence: domain_overview=User\n"
+        "## Allowed Files\n- src/App.java\n",
+        encoding="utf-8",
+    )
+    assert cli.main(["implementation-context", str(f)]) == 0
+    f.write_text("# TASK_HANDOFF.node-1\n", encoding="utf-8")
+    assert cli.main(["implementation-context", str(f)]) == 1
 
 
 def _tm(section_body: str) -> str:

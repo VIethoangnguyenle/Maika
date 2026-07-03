@@ -10,6 +10,7 @@ VALIDATORS = {
     "mcp-status": "validate_mcp_status",
     "phase-chain": "validate_phase_chain",
     "handoff-slice": "validate_handoff_slice",
+    "implementation-context": "validate_implementation_context",
     "context-request": "validate_context_request",
     "node-checkpoint": "validate_node_checkpoint",
     "apply-gate": "validate_apply_gate",

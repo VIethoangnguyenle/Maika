@@ -34,9 +34,24 @@ _MEMORY_OK = re.compile(r"agent-memory:?\s*(healthy|ok|ready)\b", re.IGNORECASE)
 _MEMORY_DEGRADE = re.compile(
     r"agent-memory unavailable.{0,15}(skip|recall|save)", re.IGNORECASE
 )
+_UA_EVIDENCE = re.compile(
+    r"\b(UA evidence|domain_overview|domain_flow|domain_relationships)\b",
+    re.IGNORECASE,
+)
+_UA_DEGRADE = re.compile(
+    r"UA unavailable.{0,60}(explicit override|override|approved|MEDIUM)",
+    re.IGNORECASE,
+)
 # NOTE: self-asserted; hardening (only-when-index-empty) is deferred to the
 # index-aware validator follow-up (see decision-gates-followups spec).
 _NO_KNOWLEDGE = re.compile(r"no approved (dna|conventions).*low", re.IGNORECASE)
+_SECTION = r"##\s+{name}[ \t]*\n(.*?)(?=\n##\s|\Z)"
+
+
+def _section_text(text: str, name: str) -> str:
+    pattern = re.compile(_SECTION.format(name=re.escape(name)), re.DOTALL | re.IGNORECASE)
+    match = pattern.search(text)
+    return match.group(1).strip() if match else ""
 
 
 def validate_knowledge_checkpoint(
@@ -100,13 +115,27 @@ def validate_handoff_slice(text: str) -> Result:
     return Result(True)
 
 
-_SECTION = r"##\s+{name}[ \t]*\n(.*?)(?=\n##\s|\Z)"
+def validate_implementation_context(text: str) -> Result:
+    applicable = _section_text(text, "Applicable DNA/Conventions")
+    if not applicable or not _RULE_ID.search(applicable):
+        return Result(False, "implementation context missing Applicable DNA/Conventions rule-ids")
+    evidence = _section_text(text, "Evidence")
+    if not evidence:
+        return Result(False, "implementation context missing Evidence section")
+    has_ua = bool(_UA_EVIDENCE.search(evidence) or _UA_DEGRADE.search(evidence))
+    has_codebase = bool((_NODE_ID.search(evidence) and _BLAST.search(evidence)) or _DEGRADE.search(evidence))
+    if not has_ua:
+        return Result(False, "implementation context missing UA evidence or explicit UA degrade override")
+    if not has_codebase and _UA_DEGRADE.search(evidence):
+        return Result(False, "implementation context with UA degrade also needs codebase evidence or KG degrade")
+    allowed = _section_text(text, "Allowed Files")
+    if not allowed:
+        return Result(False, "implementation context missing Allowed Files section")
+    return Result(True)
 
 
 def _section_has_text(text: str, name: str) -> bool:
-    pattern = re.compile(_SECTION.format(name=re.escape(name)), re.DOTALL | re.IGNORECASE)
-    match = pattern.search(text)
-    return bool(match and match.group(1).strip())
+    return bool(_section_text(text, name))
 
 
 _TM_VALID = ("none", "captured", "declined", "pending-confirmation")

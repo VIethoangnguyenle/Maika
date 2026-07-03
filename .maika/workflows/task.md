@@ -285,8 +285,10 @@ Mục tiêu: dùng OpenSpec để sinh **spec kỹ thuật** dựa trên REQUIRE
       > Session mới sẽ Bootstrap fresh — DNA/conventions ở top-of-mind khi code."
     - Nếu user tiếp tục trong cùng session:
       - Ghi WARN vào AGENT_TRANSPARENCY: `[SESSION-BOUNDARY] Tiếp tục cùng session sau Pha 2 — rủi ro Context Dilution khi code.`
-      - **Không block** — micro-loop Pha 3 (SP1b) đã mang `dna_slice` vào context mỗi task qua
-        TASK_HANDOFF để giữ DNA/conventions trong context của từng task.
+      - **Chỉ được code khi implementation preflight pass** — micro-loop Pha 3 (SP1b)
+        phải ghi `TASK_HANDOFF.<node>.md` chứa `## Applicable DNA/Conventions`,
+        `## Evidence`, và `## Allowed Files`; `write-gate` sẽ block code write nếu
+        handoff/context thiếu, stale, hoặc không match target file.
 
 ---
 

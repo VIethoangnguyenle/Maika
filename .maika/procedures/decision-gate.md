@@ -1,4 +1,4 @@
-# decision-gate.md — Quy trình gate dùng chung (4 điểm cắm)
+# decision-gate.md — Quy trình gate dùng chung (5 điểm cắm)
 
 > Mọi gate cùng một hình dạng. Gate kiểm BẰNG CHỨNG trong artifact, không kiểm "đã gọi tool chưa".
 
@@ -10,11 +10,12 @@
    `python3 {{ platform.framework_root }}/tools/gate-check/cli.py <gate> <file>`
    exit≠0 → on_fail (ABORT/degrade).
 
-## Bốn điểm cắm
+## Năm điểm cắm
 | Gate | file kiểm | validator |
 |------|-----------|-----------|
 | knowledge-before-code | `knowledge/active/KNOWLEDGE_CHECKPOINT.md` | `knowledge-checkpoint` |
 | subagent injection | `knowledge/active/TASK_HANDOFF.<node>.md` | `handoff-slice` |
+| implementation preflight | `knowledge/active/TASK_HANDOFF.<node>.md` hoặc `IMPLEMENTATION_CONTEXT.md` | `implementation-context` |
 | phase-non-bypass | `knowledge/active/AGENT_TRANSPARENCY.md` | `phase-chain` |
 | MCP-probe | dòng MCP-status (bootstrap report / transparency) | `mcp-status` |
 
@@ -27,5 +28,9 @@ Validator khớp token theo chữ — khi điền checkpoint phải dùng đúng
   - dòng degrade đúng chữ: `KG unavailable — grep fallback, MEDIUM`.
   - hoặc (project chưa có governance): dòng "no approved DNA/conventions … LOW" → pass ở mức LOW confidence.
 - **handoff-slice:** section `## Applicable DNA/Conventions` không rỗng, chứa ≥1 rule-id dạng `XX-n`.
+- **implementation-context:** `## Applicable DNA/Conventions` chứa ≥1 rule-id, `## Evidence`
+  chứa UA evidence (`domain_overview`, `domain_flow`, `domain_relationships`) hoặc dòng
+  explicit UA degrade/override, và `## Allowed Files` không rỗng. Write-gate còn kiểm
+  target file đang sửa phải khớp một dòng trong `Allowed Files`.
 - **phase-chain:** các marker `Pha 1 DONE`, `Pha 2 DONE`, … liên tục từ 1 (không nhảy cóc).
 - **mcp-status:** số probe thật (`nodes=…`/`edges=…`) **hoặc** dòng degrade `KG unavailable — … MEDIUM`. "Runtime Ready" rỗng = FAIL.
