@@ -1,7 +1,9 @@
 """Tests for the dashboard SSE server."""
 import json
+import os
 import threading
 import textwrap
+import time
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
@@ -67,7 +69,9 @@ def test_snapshot_non_maika_project_is_idle(tmp_path):
 def test_snapshot_includes_subagent_handoff_prompts(tmp_path):
     reg = tmp_path / "projects.yaml"
     proj, active = _make_maika_project(tmp_path)
-    (active / "TASK_HANDOFF.napas-human.md").write_text(
+    human = active / "TASK_HANDOFF.napas-human.md"
+    agent = active / "TASK_HANDOFF.napas-agent.md"
+    human.write_text(
         textwrap.dedent(
             """\
             # TASK_HANDOFF.napas-human
@@ -78,10 +82,15 @@ def test_snapshot_includes_subagent_handoff_prompts(tmp_path):
         ),
         encoding="utf-8",
     )
-    (active / "TASK_HANDOFF.napas-agent.md").write_text(
+    agent.write_text(
         "# TASK_HANDOFF.napas-agent\n\n## Task Objective\nCreate the agent SRS.\n",
         encoding="utf-8",
     )
+    # Force distinct mtimes: both writes can land in the same kernel tick,
+    # and _collect_artifacts orders by (mtime, name) for chronological intent.
+    now = time.time()
+    os.utime(human, (now - 10, now - 10))
+    os.utime(agent, (now, now))
     registry.register(reg, str(proj))
 
     runs = server.snapshot(reg)

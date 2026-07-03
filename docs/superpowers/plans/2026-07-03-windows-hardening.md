@@ -754,11 +754,11 @@ git commit -m "feat(install): non-interactive passthrough (-Yes/-Platform/-Langu
 - Consumes: `_collect_artifacts` sort theo `(st_mtime, name)` (`cli/dashboard/server.py:196`) — hành vi product ĐÚNG (thứ tự thời gian), KHÔNG sửa product (dashboard freeze P6).
 - Produces: suite xanh 240/240 — baseline cho Task 10.
 
-- [ ] **Step 1: Hiểu root cause (đã điều tra sẵn)**
+- [x] **Step 1: Hiểu root cause (đã điều tra sẵn)**
 
 Test ghi 2 file handoff cách nhau < 1 kernel tick → mtime bằng nhau → tiebreak theo tên → `napas-agent` xếp trước `napas-human`. Test flaky theo tốc độ máy, không phải bug product.
 
-- [ ] **Step 2: Sửa test — mtime tường minh**
+- [x] **Step 2: Sửa test — mtime tường minh**
 
 Trong `test_snapshot_includes_subagent_handoff_prompts`, sau khi ghi 2 file và TRƯỚC `registry.register(...)`, thêm (file đã có import `textwrap`; thêm `import os`, `import time` đầu file nếu chưa có):
 
@@ -774,17 +774,17 @@ Trong `test_snapshot_includes_subagent_handoff_prompts`, sau khi ghi 2 file và 
 
 (Đổi 2 lệnh `(active / "TASK_HANDOFF....").write_text(...)` hiện tại sang gán biến `human`/`agent` trước rồi `.write_text(...)` để tái dùng.)
 
-- [ ] **Step 3: Chạy test — lặp để chắc deterministic**
+- [x] **Step 3: Chạy test — lặp để chắc deterministic**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_dashboard_server.py -q && for i in 1 2 3; do .venv/bin/python -m pytest cli/tests/test_dashboard_server.py::test_snapshot_includes_subagent_handoff_prompts -q; done`
 Expected: PASS mọi lần.
 
-- [ ] **Step 4: Chạy full suite**
+- [x] **Step 4: Chạy full suite**
 
 Run: `.venv/bin/python -m pytest cli/tests/ -q`
 Expected: **0 failed** (toàn bộ xanh lần đầu tiên).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cli/tests/test_dashboard_server.py
