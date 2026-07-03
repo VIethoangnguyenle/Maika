@@ -46,6 +46,15 @@ cd maika
 ./install.sh /path/to/your-project
 ```
 
+**Windows (PowerShell):**
+
+```powershell
+.\install.ps1 C:\path\to\your-project
+# Headless (CI/script): .\install.ps1 C:\path\to\project -Yes -Platform claude-code -Language python
+```
+
+> ⚠️ **Giới hạn mixed-OS:** file hook được render theo OS của máy chạy `maika init/update` gần nhất. Team dùng chung repo trên cả Windows lẫn Linux sẽ thấy hook command đổi qua lại trong git — mỗi máy cần chạy lại `maika update` sau khi checkout từ OS khác. Xem TODOS W2.
+
 Installer sẽ:
 
 1. Tạo virtualenv riêng tại `.venv/`.

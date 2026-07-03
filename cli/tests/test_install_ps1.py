@@ -1,5 +1,6 @@
 """Static guards for the Windows bootstrap script (install.ps1)."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -52,3 +53,74 @@ def test_passes_hook_python_launcher(ps1_text):
     # The resolved launcher must flow into scaffolding so the Windows hook uses it.
     assert "--hook-python" in ps1_text
     assert "$HookPython" in ps1_text
+
+
+def test_native_calls_are_exit_checked(ps1_text):
+    # PS 5.1: $ErrorActionPreference='Stop' does NOT cover native exit codes.
+    assert "function Assert-NativeExit" in ps1_text
+    # venv creation + pip upgrade + pip floors + pip -e = 4 guarded call sites.
+    assert ps1_text.count("Assert-NativeExit") >= 5
+
+
+def test_failed_venv_bootstrap_is_cleaned_up(ps1_text):
+    # A half-built venv must not survive to poison the next run.
+    assert "Remove-Item -Recurse -Force -LiteralPath $Venv" in ps1_text
+
+
+def test_venv_pip_runs_via_python_module(ps1_text):
+    # Windows refuses to self-upgrade pip through pip.exe; use python -m pip.
+    assert "& $VenvPy -m pip install --quiet --upgrade pip" in ps1_text
+    assert "& $VenvPy -m pip install --quiet \"jinja2>=3.1\" \"pyyaml>=6.0\"" in ps1_text
+    assert "& $VenvPy -m pip install --quiet -e $MaikaRoot" in ps1_text
+    assert "& $VenvPip install" not in ps1_text
+
+
+def test_forces_utf8_python_output_for_windows_ci(ps1_text):
+    # GitHub Actions PowerShell can expose cp1252 stdout; CLI status glyphs need UTF-8.
+    assert "$env:PYTHONIOENCODING = 'utf-8'" in ps1_text
+
+
+def test_python_floor_matches_pyproject(ps1_text):
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    floor = re.search(r'requires-python\s*=\s*">=(\d+\.\d+)"', pyproject).group(1)
+    assert f"[version]'{floor}'" in ps1_text, f"install.ps1 floor must be {floor}"
+    assert "[version]'3.8'" not in ps1_text
+    sh_text = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
+    assert floor in sh_text, f"install.sh must enforce Python >= {floor}"
+
+
+def test_pyyaml_hint_uses_resolved_launcher(ps1_text):
+    # `py -3` boxes must not be told to run bare `py -m pip ...`.
+    assert "Run: $HookPython -m pip" in ps1_text
+
+
+def test_pyyaml_auto_remediation(ps1_text):
+    # Clean boxes get pyyaml installed (announced, --user); warn only on failure.
+    assert "pip install --user --quiet pyyaml" in ps1_text
+    # Re-check after the attempted install (two import probes total).
+    assert ps1_text.count('-c "import yaml"') >= 2
+
+
+def test_path_write_is_registry_safe(ps1_text):
+    # SetEnvironmentVariable flattens REG_EXPAND_SZ -> REG_SZ and writes back
+    # the EXPANDED value, hardcoding other tools' %VAR% PATH entries.
+    assert "SetEnvironmentVariable" not in ps1_text
+    assert "GetEnvironmentVariable" not in ps1_text
+    assert "DoNotExpandEnvironmentNames" in ps1_text
+    assert "GetValueKind" in ps1_text
+
+
+def test_shim_handles_non_ascii_paths(ps1_text):
+    # -Encoding ASCII mangles paths like C:\Users\Viet\ into '?' - the shim
+    # must fall back to the 8.3 short path (pure ASCII by construction).
+    assert "ShortPath" in ps1_text
+    assert "[^\\x00-\\x7F]" in ps1_text
+
+
+def test_supports_non_interactive_install(ps1_text):
+    # CI and scripted provisioning need a promptless fresh install.
+    assert "[switch]$Yes" in ps1_text
+    assert "'--yes'" in ps1_text
+    assert "'--platform'" in ps1_text
+    assert "'--language'" in ps1_text
+    assert "'--mcp'" in ps1_text

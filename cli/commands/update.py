@@ -54,7 +54,8 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
 
     platform = get_platform(platform_key)
     framework_root = resolved.get("framework_root", platform.framework_root)
-    context = platform.build_render_context(selected_mcps, language, hook_python=hook_python)
+    effective_hook_python = hook_python or resolved.get("hook_python")
+    context = platform.build_render_context(selected_mcps, language, hook_python=effective_hook_python)
     jinja_env = create_renderer(str(maika))
 
     print(f"\n  Updating Maika ({platform.display_name})...\n")
@@ -84,7 +85,7 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
             print(f"     • {p}")
 
     if reconfigure:
-        generate_resolved_config(target, platform, selected_mcps, language)
+        generate_resolved_config(target, platform, selected_mcps, language, hook_python=effective_hook_python)
         from cli.commands.init import resolve_ua_mcp_dir, emit_mcp_setup_files
         ua_dir = resolve_ua_mcp_dir(selected_mcps, None, assume_yes=False)
         emit_mcp_setup_files(target, platform, platform_key, selected_mcps, manifest, ua_dir)
@@ -103,6 +104,9 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
                 print(f"  ⚠️  stale framework root detected: {root_path}")
     else:
         framework_root = resolved.get("framework_root", framework_root)
+
+    if not reconfigure and hook_python and hook_python != resolved.get("hook_python"):
+        generate_resolved_config(target, platform, selected_mcps, language, hook_python=hook_python)
 
     warn_legacy_maika(target, platform)
 

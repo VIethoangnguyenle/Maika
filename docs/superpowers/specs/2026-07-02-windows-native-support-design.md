@@ -171,3 +171,11 @@ Trên Linux: `is_windows = False` → nhánh `else` → chuỗi hiện tại →
    qua đúng như trên Linux (dựa vào `cwd`).
 3. Test Linux byte-identical PASS → chứng minh hành vi Linux không đổi.
 4. `pytest` xanh trên cả hai nhánh render.
+
+## 9. Residual risks (bổ sung từ eng review 2026-07-03)
+
+| Residual | Trạng thái |
+|----------|-----------|
+| **Write-gate parser mù verb Windows** — `parse_shell_writes` chỉ nhận verb Unix (`tee/cp/mv/install/dd`, `/dev/null`); ghi qua `copy`/`xcopy`/`robocopy`/`Set-Content`/`Out-File` KHÔNG bị gate trên Windows. Success criterion #2 vì vậy chỉ đúng cho write qua tool `Edit/Write` và shell POSIX. | Chấp nhận tạm — spec follow-up tại TODOS **W1** (điều tra shell thực tế của 3 runtime trước khi mở rộng parser). |
+| **Mixed-OS team churn** — hook files là framework-owned, committed, nhưng nội dung render theo OS máy chạy `maika init/update` gần nhất → team Windows+Linux sẽ flip command trong git; checkout từ OS khác cần re-run `maika update`. | Chấp nhận (user base hiện tại solo) — document tại README; thiết kế cross-OS tại TODOS **W2** khi có team adoption. |
+| **Codex/Antigravity Windows: đường dẫn hook vẫn cwd-relative** — chỉ nhánh Claude được anchor `%CLAUDE_PROJECT_DIR%` (2B); hai runtime kia chưa validate hành vi hook trên Windows. | Chấp nhận — mở rộng anchor sau khi validate runtime. |

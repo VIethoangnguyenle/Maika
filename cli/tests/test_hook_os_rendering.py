@@ -37,6 +37,16 @@ LINUX_EXPECTED = {
 }
 
 
+# Exact Windows command strings (post-render). Claude anchors via
+# %CLAUDE_PROJECT_DIR% (cwd-drift, claude-code#50960); codex/antigravity stay
+# cwd-relative until their Windows runtimes are validated (review 2B).
+WINDOWS_EXPECTED = {
+    "claude": '{hp} "%CLAUDE_PROJECT_DIR%/.claude/hooks/write-gate/write_gate.py" --framework-root .claude --runtime claude',
+    "codex": "{hp} .agents/hooks/write-gate/write_gate.py --framework-root .agents --runtime codex",
+    "antigravity": "{hp} .agents/hooks/write-gate/write_gate.py --framework-root .agents --runtime antigravity",
+}
+
+
 @pytest.mark.parametrize("template_rel,platform_key,runtime,root", HOOKS)
 def test_linux_command_byte_identical(jinja_env, maika_root, template_rel, platform_key, runtime, root):
     cmd = _command(jinja_env, maika_root, template_rel, platform_key, is_windows=False)
@@ -46,12 +56,11 @@ def test_linux_command_byte_identical(jinja_env, maika_root, template_rel, platf
 @pytest.mark.parametrize("template_rel,platform_key,runtime,root", HOOKS)
 def test_windows_command_portable(jinja_env, maika_root, template_rel, platform_key, runtime, root):
     cmd = _command(jinja_env, maika_root, template_rel, platform_key, is_windows=True)
-    expected = f"python {root}/hooks/write-gate/write_gate.py --framework-root {root} --runtime {runtime}"
-    assert cmd == expected
+    assert cmd == WINDOWS_EXPECTED[runtime].format(hp="python")
     # No Unix-only shell tokens survive on Windows.
     assert "/usr/bin/python3" not in cmd
     assert "$(git rev-parse" not in cmd
-    assert "$CLAUDE_PROJECT_DIR" not in cmd
+    assert "$CLAUDE_PROJECT_DIR" not in cmd  # %VAR% form is not the $VAR form
 
 
 @pytest.mark.parametrize("template_rel,platform_key,runtime,root", HOOKS)
@@ -68,4 +77,4 @@ def test_windows_command_honors_hook_python(jinja_env, maika_root, template_rel,
     ctx["is_windows"] = True
     text = (maika_root / template_rel).read_text(encoding="utf-8")
     cmd = json.loads(render_string(jinja_env, text, ctx))["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-    assert cmd == f"py -3 {root}/hooks/write-gate/write_gate.py --framework-root {root} --runtime {runtime}"
+    assert cmd == WINDOWS_EXPECTED[runtime].format(hp="py -3")
