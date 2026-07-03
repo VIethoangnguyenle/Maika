@@ -802,7 +802,7 @@ git commit -m "test(dashboard): pin handoff mtimes — snapshot ordering test wa
 - Consumes: passthrough flags từ Task 8; suite xanh từ Task 9; auto-pyyaml từ Task 5 (E2E đi qua path này thật vì runner sạch).
 - Produces: mọi PR sau này chạy Linux byte-identical guard + Windows render + bootstrap E2E tự động.
 
-- [ ] **Step 1: Tạo `.github/workflows/ci.yml`**
+- [x] **Step 1: Tạo `.github/workflows/ci.yml`**
 
 ```yaml
 name: CI
@@ -860,12 +860,12 @@ jobs:
           if ($settings -match '/usr/bin/python3') { throw "update re-rendered Unix hooks on Windows" }
 ```
 
-- [ ] **Step 2: Validate YAML cục bộ**
+- [x] **Step 2: Validate YAML cục bộ**
 
 Run: `.venv/bin/python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml')); print('yaml ok')"`
 Expected: `yaml ok`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .github/workflows/ci.yml
