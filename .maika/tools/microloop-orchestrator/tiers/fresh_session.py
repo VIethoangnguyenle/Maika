@@ -1,11 +1,12 @@
-"""fresh-session tier (Cursor/Antigravity): executor runs in a NEW session/context.
+"""fresh-session tier (Cursor/Antigravity): executor chạy trong worker context MỚI.
 
-dispatch() returns an instruction telling the user/host to open a fresh context and
-run the executor procedure against the handoff. Clean context via session boundary."""
+dispatch() trả về worker prompt. Parent (orchestrator) đưa prompt này vào
+`worker_command` của profiles/execution-mode.yaml qua orchestrator.dispatch_worker()
+— mỗi node một worker context sạch, KHÔNG cần user mở session thủ công."""
 
 
 def dispatch(handoff_path, result_path):
     return (
-        f"OPEN A NEW SESSION/CONTEXT and run {{ platform.framework_root }}/procedures/executor.md against "
-        f"{handoff_path}. The executor writes its outcome to {result_path}."
+        f"Read {{ platform.framework_root }}/procedures/executor.md and execute the handoff at "
+        f"{handoff_path}. Write the outcome to {result_path} per the TASK_RESULT schema."
     )
