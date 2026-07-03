@@ -249,7 +249,7 @@ def run_init(
     finally:
         shutil.rmtree(staging, ignore_errors=True)
 
-    generate_resolved_config(target, platform, selected_mcps, language)
+    generate_resolved_config(target, platform, selected_mcps, language, hook_python=hook_python)
 
     emit_mcp_setup_files(target, platform, platform_key, selected_mcps, manifest, ua_dir)
 
