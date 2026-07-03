@@ -40,6 +40,27 @@ Trước khi bắt đầu bất kỳ nhánh nào, luôn chạy bước bootstrap
 
 ---
 
+## 0b. Dispatch mode — Orchestrator mỏng (R-Flow-5)
+
+Đọc `{{ platform.framework_root }}/profiles/execution-mode.yaml` một lần khi bootstrap:
+
+- `execution_mode` = `subagent` hoặc `fresh-session` → các skill đọc-nặng của Pha 1
+  (`spec-extract`, `codebase-explorer`, `db-explorer`) PHẢI chạy trong worker context:
+  - `subagent`: dispatch qua Agent tool với prompt:
+    _"Đọc `{{ platform.framework_root }}/skills/<skill>/SKILL.md`, thực thi với input `<URL/ticket>`,
+    ghi output vào file knowledge mà skill chỉ định."_
+  - `fresh-session`: gọi helper `dispatch_worker(prompt, make_worker_runner(worker_command,
+    worker_timeout_seconds), retries=max_retries)` trong
+    `{{ platform.framework_root }}/tools/microloop-orchestrator/orchestrator.py` với cùng prompt.
+  - Parent KHÔNG đọc tài liệu nguồn / KHÔNG quét code trực tiếp; chỉ đọc lại
+    `REQUIREMENT.md` / `EXPLORE_CONTEXT.md` sau khi worker xong (R-Flow-5).
+  - Worker `blocked` sau max_retries → fallback chạy inline + ghi WARN vào AGENT_TRANSPARENCY:
+    `[DISPATCH-FALLBACK] <skill> chạy inline — worker fail: <lý do>`.
+- `execution_mode` = `inline-reload` → chạy inline như cũ (LCD).
+- Hỏi–đáp với user LUÔN ở parent (tương tác), dựa trên file knowledge đã ghi.
+
+---
+
 ## 1. `/task <ý-tưởng-hoặc-link>` — Pha 1: Hiểu vấn đề
 
 ### 1.1 Nhận diện loại input
@@ -206,13 +227,19 @@ Sau khi nhận diện:
    Nếu bất kỳ ô nào chưa tick: hoàn thành trước khi tiếp tục.
 
 10. **[SESSION-BOUNDARY — Pha 1]** Sau khi POST-PHASE SELF-CHECK pass:
-    - Thông báo user:
+    - **Đường chính** (Pha 1 đã dispatch qua worker theo mục 0b): session này vẫn mỏng —
+      có thể tiếp tục `/task spec` trong CÙNG session, không cần mở mới.
+    - **Nếu Pha 1 đã chạy inline** (inline-reload hoặc dispatch fallback):
       > "Pha 1 hoàn thành. **Vui lòng mở session mới** để chạy `/task spec`.
       > Context đã lưu đầy đủ vào `{{ platform.framework_root }}/knowledge/active/`.
       > Session mới sẽ Bootstrap fresh — rule/DNA ở top-of-mind, tránh Context Dilution."
-    - Nếu user tiếp tục trong cùng session (gọi `/task spec` ngay):
+    - **Escalation theo TOKEN_LOG**: nếu estimate Pha 1 > 50,000 tokens → lời nhắc trên trở thành
+      **BẮT BUỘC**: "Context đã vượt ngưỡng an toàn, khả năng cao đã compact — rules/DNA
+      không còn đảm bảo trong context. Mở session mới trước khi tiếp tục."
+    - Nếu user vẫn tiếp tục cùng session sau cảnh báo:
       - Ghi WARN vào AGENT_TRANSPARENCY: `[SESSION-BOUNDARY] Tiếp tục cùng session sau Pha 1 — rủi ro Context Dilution.`
-      - **Không block** — vẫn cho phép tiếp tục, nhưng ghi vào Violation Log.
+      - **Không block tại đây** — nhưng lưu ý: write-gate SESSION-GATE sẽ chặn code write inline
+        ở Pha 3 trong session này (override: `SESSION_OVERRIDE.md` theo template, có log violation).
 
 
 ---
@@ -282,16 +309,24 @@ Mục tiêu: dùng OpenSpec để sinh **spec kỹ thuật** dựa trên REQUIRE
    Nếu bất kỳ ô nào chưa tick: hoàn thành trước khi tiếp tục.
 
 10. **[SESSION-BOUNDARY — Pha 2]** Sau khi POST-PHASE SELF-CHECK pass:
-    - Thông báo user:
+    - **Đường chính** (execution_mode = subagent/fresh-session): tiếp tục `/task apply` trong
+      CÙNG session — mỗi node code chạy trong worker context mới (§3 bước 5.c), parent chỉ
+      điều phối nên không cần mở session mới.
+    - **Nếu execution_mode = inline-reload** (code sẽ chạy inline trong session này):
       > "Pha 2 hoàn thành. **Vui lòng mở session mới** để chạy `/task apply`.
       > Spec đã lưu tại `openspec/changes/<change-id>/`.
       > Session mới sẽ Bootstrap fresh — DNA/conventions ở top-of-mind khi code."
-    - Nếu user tiếp tục trong cùng session:
+    - **Escalation theo TOKEN_LOG**: nếu tổng estimate Pha 1+2 > 50,000 tokens → lời nhắc trên
+      trở thành **BẮT BUỘC** (context có nguy cơ đã compact).
+    - Nếu user vẫn tiếp tục cùng session:
       - Ghi WARN vào AGENT_TRANSPARENCY: `[SESSION-BOUNDARY] Tiếp tục cùng session sau Pha 2 — rủi ro Context Dilution khi code.`
       - **Chỉ được code khi implementation preflight pass** — micro-loop Pha 3 (SP1b)
         phải ghi `TASK_HANDOFF.<node>.md` chứa `## Applicable DNA/Conventions`,
         `## Evidence`, và `## Allowed Files`; `write-gate` sẽ block code write nếu
         handoff/context thiếu, stale, hoặc không match target file.
+      - Ngoài ra write-gate SESSION-GATE chặn code write inline trong session đã hoàn thành
+        Pha 1/2 (kể cả khi handoff hợp lệ) — đường đúng là dispatch worker hoặc session mới;
+        override tường minh qua `SESSION_OVERRIDE.md`.
 
 ---
 
@@ -368,7 +403,13 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
         `## Evidence` / `## Constraints` của handoff — executor không tự tra lại tài liệu;
         cú pháp serialize cụ thể resolve từ dna_slice/convention_slice.
       - After writing each handoff, record `subagent_spawned` in `ACTIVITY_LOG.jsonl`.
-      - Dispatch executor by `{{ platform.framework_root }}/profiles/execution-mode.yaml`.
+      - Dispatch executor theo `{{ platform.framework_root }}/profiles/execution-mode.yaml`:
+        - `subagent`: Agent tool với prompt từ `tiers/subagent.py`.
+        - `fresh-session`: gọi `dispatch_worker(prompt, make_worker_runner(worker_command, worker_timeout_seconds), retries=max_retries, active_dir=<knowledge/active>, task_id=<node-id>)`
+          (orchestrator.py) với prompt từ `tiers/fresh_session.py` — worker context MỚI per node,
+          KHÔNG yêu cầu user mở session; `dispatch_worker` tự emit `subagent_started`/`subagent_blocked`
+          (không emit thủ công 2 event này cho node đó).
+        - `inline-reload`: prompt từ `tiers/inline_reload.py`, chạy trong session hiện tại (LCD).
       - Before dispatch, mark that node `in_progress`; after result, mark it `done` or `blocked`.
       - Run mechanical gate + semantic surface-check.
       - On PASS, generate/freeze `CONTRACT_SNAPSHOT.<node-id>.md` with contract_version.
@@ -432,6 +473,8 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
       > "Task hoàn thành và đã archive. **Vui lòng mở session mới** cho task tiếp theo.
       > Session mới sẽ Bootstrap fresh với knowledge-snapshot đã cập nhật."
     - Đây là kết thúc tự nhiên của task — session mới là best practice, không chỉ là gợi ý.
+    - Ngoại lệ: nếu toàn bộ task chạy theo đường dispatch worker (mục 0b + §3 bước 5.c),
+      parent vẫn mỏng — có thể nhận task mới trong cùng session sau khi archive xong.
 
 ---
 
