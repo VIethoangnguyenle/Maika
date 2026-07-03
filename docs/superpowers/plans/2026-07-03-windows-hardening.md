@@ -214,7 +214,7 @@ git commit -m "fix(config): persist hook_python in resolved-config; bare update 
 - Consumes: fixtures `jinja_env`, `maika_root` (`cli/tests/conftest.py:11-19`); `render_string` (`cli/renderer.py`).
 - Produces: command Windows-claude mới `{{ hook_python }} "%CLAUDE_PROJECT_DIR%/.claude/hooks/write-gate/write_gate.py" --framework-root .claude --runtime claude`. Codex/Antigravity Windows GIỮ NGUYÊN đường dẫn tương đối (scope 2B). Task 11 ghi chú residual này.
 
-- [ ] **Step 1: Cập nhật test kỳ vọng (failing trước)**
+- [x] **Step 1: Cập nhật test kỳ vọng (failing trước)**
 
 Trong `cli/tests/test_hook_os_rendering.py`, thay `test_windows_command_portable` và `test_windows_command_honors_hook_python` bằng bản dùng dict kỳ vọng theo runtime:
 
@@ -250,12 +250,12 @@ def test_windows_command_honors_hook_python(jinja_env, maika_root, template_rel,
 
 (Xóa biến `expected = f"python {root}/..."` cũ trong 2 test này; `LINUX_EXPECTED` và các test khác giữ nguyên.)
 
-- [ ] **Step 2: Chạy để xác nhận fail đúng chỗ**
+- [x] **Step 2: Chạy để xác nhận fail đúng chỗ**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_hook_os_rendering.py -v`
 Expected: FAIL chỉ ở `claude` cases của 2 test Windows (command hiện là dạng tương đối); codex/antigravity + toàn bộ Linux PASS.
 
-- [ ] **Step 3: Sửa template `.maika/hooks/claude-code/settings.json`**
+- [x] **Step 3: Sửa template `.maika/hooks/claude-code/settings.json`**
 
 Chỉ đổi dòng command trong nhánh `{% if is_windows %}` (giữ tag `{% %}` ở đầu dòng riêng — renderer bật `trim_blocks`/`lstrip_blocks`, xem `cli/renderer.py:33-34`):
 
@@ -275,12 +275,12 @@ Thành:
 {% else %}
 ```
 
-- [ ] **Step 4: Chạy lại**
+- [x] **Step 4: Chạy lại**
 
 Run: `.venv/bin/python -m pytest cli/tests/test_hook_os_rendering.py -v`
 Expected: PASS toàn bộ (kể cả `test_linux_command_byte_identical` — nhánh else không đụng).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .maika/hooks/claude-code/settings.json cli/tests/test_hook_os_rendering.py
