@@ -67,6 +67,14 @@ def test_failed_venv_bootstrap_is_cleaned_up(ps1_text):
     assert "Remove-Item -Recurse -Force -LiteralPath $Venv" in ps1_text
 
 
+def test_venv_pip_runs_via_python_module(ps1_text):
+    # Windows refuses to self-upgrade pip through pip.exe; use python -m pip.
+    assert "& $VenvPy -m pip install --quiet --upgrade pip" in ps1_text
+    assert "& $VenvPy -m pip install --quiet \"jinja2>=3.1\" \"pyyaml>=6.0\"" in ps1_text
+    assert "& $VenvPy -m pip install --quiet -e $MaikaRoot" in ps1_text
+    assert "& $VenvPip install" not in ps1_text
+
+
 def test_python_floor_matches_pyproject(ps1_text):
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     floor = re.search(r'requires-python\s*=\s*">=(\d+\.\d+)"', pyproject).group(1)
