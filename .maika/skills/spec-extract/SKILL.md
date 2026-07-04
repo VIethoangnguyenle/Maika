@@ -107,6 +107,11 @@ Cập nhật `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`:
   #### Ràng buộc phi chức năng
   - ...
 
+  #### Integrations & Field Mapping
+  - Integration: <tên> (hướng, protocol & auth, endpoint, tài liệu nguồn)
+  - Bảng field mapping: field third-party → field canonical + ý định transform + nguồn
+  - Field chưa map được → mirror vào "Lỗ hổng & câu hỏi mở"
+
   #### Độ tin cậy tài liệu
   - CAO / TRUNG BÌNH / THẤP (và lý do)
 
@@ -185,7 +190,7 @@ Từ nội dung thu được:
    - Business Rules / Rules / Constraints.
    - Main Flow / Basic Flow / Normal Scenario.
    - Alternate Flow / Error Flow / Exceptional Flow.
-   - API / Interface / Contract.
+   - API / Interface / Contract (chi tiết integration xử lý ở Bước 5b).
    - Non-functional / Performance / Security / Compliance.
    - Risks / Limitations / Assumptions.
 
@@ -244,6 +249,38 @@ Từ nội dung thu được:
    - Trường hợp X: ...
    - Trường hợp Y: ...
    ```
+
+---
+
+### Bước 5b — Thống kê Integration & Field Mapping
+
+1. Quét tài liệu tìm dấu hiệu integration third-party mới:
+
+   - Section API spec / Interface / Contract / Integration (đã nhận diện ở Bước 3).
+   - Bảng endpoint, sample request/response payload, attachment OpenAPI/WSDL (đã thu ở Bước 2).
+   - Câu mô tả dạng "hệ thống gọi X" / "nhận callback từ Y".
+
+2. Với mỗi integration phát hiện được, ghi block theo format template `REQUIREMENT.tpl.md`
+   (section "Integrations & Field Mapping"): tên, hướng (outbound/inbound), protocol & auth,
+   endpoint/operation, tài liệu nguồn.
+
+3. Lập bảng field mapping cho từng integration:
+
+   - **Field third-party**: lấy nguyên văn từ tài liệu/API spec (vd `mobileNo`).
+   - **Field canonical**: xác định theo **UA-first** (§Quy tắc cốt lõi):
+     `{{ tools.domain_overview }}` → domain/DTO liên quan, sau đó Codebase Memory extract
+     field trong DTO/domain model hiện có (vd `phoneNumber` trong `CustomerDTO`).
+   - **Transform / Serialize**: chỉ ghi **ý định** (rename, format date, split/merge, dịch enum).
+     KHÔNG ghi cú pháp ngôn ngữ cụ thể (`@JsonProperty`, pydantic alias…) — executor Pha 3
+     resolve cú pháp từ conventions/author-dna.
+   - **Nguồn**: trích dẫn section tài liệu + node UA đã probe.
+
+4. Field không xác định được canonical (domain model chưa có field tương ứng, UA không trả lời):
+
+   - Ghi vào "Field chưa map được" kèm lý do.
+   - Mirror thành câu hỏi trong "Lỗ hổng & câu hỏi mở" (Bước 10).
+
+5. Không có integration mới → ghi rõ "Không phát hiện integration mới" (không bỏ trống section).
 
 ---
 
@@ -356,6 +393,7 @@ Nếu THẤP:
 1. Liệt kê rõ:
 
    - Phần nào tài liệu **không đề cập** (ví dụ: case edge, luồng lỗi, migration).
+   - Field chưa map được từ Bước 5b (integration có field không tìm thấy canonical tương ứng).
    - Phần nào **mơ hồ** (ví dụ: “nhanh hơn”, “tốt hơn” không có định lượng).
    - Bất kỳ mâu thuẫn nào giữa các phần trong tài liệu hoặc với ticket.
 

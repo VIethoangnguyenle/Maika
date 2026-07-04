@@ -3,8 +3,12 @@
 __pycache__/
 *.pyc
 *.egg-info/
+.pytest_cache/
 .venv
 .worktrees/
+
+# Workspace scratch cho handoff/review artifact tạm (xem README §Repo hygiene)
+.superpowers/
 
 # Per-dev: persona là phong cách tương tác riêng từng developer (seed từ persona.template.yaml)
 .maika/knowledge/long-term/persona.yaml

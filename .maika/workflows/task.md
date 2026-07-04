@@ -40,6 +40,27 @@ Trước khi bắt đầu bất kỳ nhánh nào, luôn chạy bước bootstrap
 
 ---
 
+## 0b. Dispatch mode — Orchestrator mỏng (R-Flow-5)
+
+Đọc `{{ platform.framework_root }}/profiles/execution-mode.yaml` một lần khi bootstrap:
+
+- `execution_mode` = `subagent` hoặc `fresh-session` → các skill đọc-nặng của Pha 1
+  (`spec-extract`, `codebase-explorer`, `db-explorer`) PHẢI chạy trong worker context:
+  - `subagent`: dispatch qua Agent tool với prompt:
+    _"Đọc `{{ platform.framework_root }}/skills/<skill>/SKILL.md`, thực thi với input `<URL/ticket>`,
+    ghi output vào file knowledge mà skill chỉ định."_
+  - `fresh-session`: gọi helper `dispatch_worker(prompt, make_worker_runner(worker_command,
+    worker_timeout_seconds), retries=max_retries)` trong
+    `{{ platform.framework_root }}/tools/microloop-orchestrator/orchestrator.py` với cùng prompt.
+  - Parent KHÔNG đọc tài liệu nguồn / KHÔNG quét code trực tiếp; chỉ đọc lại
+    `REQUIREMENT.md` / `EXPLORE_CONTEXT.md` sau khi worker xong (R-Flow-5).
+  - Worker `blocked` sau max_retries → fallback chạy inline + ghi WARN vào AGENT_TRANSPARENCY:
+    `[DISPATCH-FALLBACK] <skill> chạy inline — worker fail: <lý do>`.
+- `execution_mode` = `inline-reload` → chạy inline như cũ (LCD).
+- Hỏi–đáp với user LUÔN ở parent (tương tác), dựa trên file knowledge đã ghi.
+
+---
+
 ## 1. `/task <ý-tưởng-hoặc-link>` — Pha 1: Hiểu vấn đề
 
 ### 1.1 Nhận diện loại input
@@ -206,13 +227,19 @@ Sau khi nhận diện:
    Nếu bất kỳ ô nào chưa tick: hoàn thành trước khi tiếp tục.
 
 10. **[SESSION-BOUNDARY — Pha 1]** Sau khi POST-PHASE SELF-CHECK pass:
-    - Thông báo user:
+    - **Đường chính** (Pha 1 đã dispatch qua worker theo mục 0b): session này vẫn mỏng —
+      có thể tiếp tục `/task spec` trong CÙNG session, không cần mở mới.
+    - **Nếu Pha 1 đã chạy inline** (inline-reload hoặc dispatch fallback):
       > "Pha 1 hoàn thành. **Vui lòng mở session mới** để chạy `/task spec`.
       > Context đã lưu đầy đủ vào `{{ platform.framework_root }}/knowledge/active/`.
       > Session mới sẽ Bootstrap fresh — rule/DNA ở top-of-mind, tránh Context Dilution."
-    - Nếu user tiếp tục trong cùng session (gọi `/task spec` ngay):
+    - **Escalation theo TOKEN_LOG**: nếu estimate Pha 1 > 50,000 tokens → lời nhắc trên trở thành
+      **BẮT BUỘC**: "Context đã vượt ngưỡng an toàn, khả năng cao đã compact — rules/DNA
+      không còn đảm bảo trong context. Mở session mới trước khi tiếp tục."
+    - Nếu user vẫn tiếp tục cùng session sau cảnh báo:
       - Ghi WARN vào AGENT_TRANSPARENCY: `[SESSION-BOUNDARY] Tiếp tục cùng session sau Pha 1 — rủi ro Context Dilution.`
-      - **Không block** — vẫn cho phép tiếp tục, nhưng ghi vào Violation Log.
+      - **Không block tại đây** — nhưng lưu ý: write-gate SESSION-GATE sẽ chặn code write inline
+        ở Pha 3 trong session này (override: `SESSION_OVERRIDE.md` theo template, có log violation).
 
 
 ---
@@ -250,6 +277,9 @@ Mục tiêu: dùng OpenSpec để sinh **spec kỹ thuật** dựa trên REQUIRE
      hoặc bất kỳ file nào ra ngoài `openspec/changes/<change-id>/`) — kể cả khi agent
      runtime có planning mode nằm ngoài workflow này (vd Cursor, Antigravity, v.v.).
    - Chờ spec được sinh ra (file spec riêng, ví dụ trong thư mục `spec/`).
+   - **Integration coverage**: nếu REQUIREMENT có section "Integrations & Field Mapping" với
+     integration mới → `tasks.md` sinh ra PHẢI có task mapper/adapter tương ứng cho từng
+     integration (DTO + mapping thuộc contract node trong CONTRACT_DAG ở Pha 3).
    - Xác nhận output path là `openspec/changes/<change-id>/` trước khi báo cáo hoàn thành.
    - **[H5 — State Invalidation]** Sau khi `/opsx:propose` thành công:
      - Ghi `OPENSPEC_STATE: propose_done` vào AGENT_TRANSPARENCY.md (section Cảnh báo / Hạn chế).
@@ -279,16 +309,24 @@ Mục tiêu: dùng OpenSpec để sinh **spec kỹ thuật** dựa trên REQUIRE
    Nếu bất kỳ ô nào chưa tick: hoàn thành trước khi tiếp tục.
 
 10. **[SESSION-BOUNDARY — Pha 2]** Sau khi POST-PHASE SELF-CHECK pass:
-    - Thông báo user:
+    - **Đường chính** (execution_mode = subagent/fresh-session): tiếp tục `/task apply` trong
+      CÙNG session — mỗi node code chạy trong worker context mới (§3 bước 5.c), parent chỉ
+      điều phối nên không cần mở session mới.
+    - **Nếu execution_mode = inline-reload** (code sẽ chạy inline trong session này):
       > "Pha 2 hoàn thành. **Vui lòng mở session mới** để chạy `/task apply`.
       > Spec đã lưu tại `openspec/changes/<change-id>/`.
       > Session mới sẽ Bootstrap fresh — DNA/conventions ở top-of-mind khi code."
-    - Nếu user tiếp tục trong cùng session:
+    - **Escalation theo TOKEN_LOG**: nếu tổng estimate Pha 1+2 > 50,000 tokens → lời nhắc trên
+      trở thành **BẮT BUỘC** (context có nguy cơ đã compact).
+    - Nếu user vẫn tiếp tục cùng session:
       - Ghi WARN vào AGENT_TRANSPARENCY: `[SESSION-BOUNDARY] Tiếp tục cùng session sau Pha 2 — rủi ro Context Dilution khi code.`
       - **Chỉ được code khi implementation preflight pass** — micro-loop Pha 3 (SP1b)
         phải ghi `TASK_HANDOFF.<node>.md` chứa `## Applicable DNA/Conventions`,
         `## Evidence`, và `## Allowed Files`; `write-gate` sẽ block code write nếu
         handoff/context thiếu, stale, hoặc không match target file.
+      - Ngoài ra write-gate SESSION-GATE chặn code write inline trong session đã hoàn thành
+        Pha 1/2 (kể cả khi handoff hợp lệ) — đường đúng là dispatch worker hoặc session mới;
+        override tường minh qua `SESSION_OVERRIDE.md`.
 
 ---
 
@@ -318,6 +356,8 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
      - Nếu **PASS**: tiếp tục.
    - Gọi `spec-validator.check_ac_coverage(spec_path, requirement_path)`:
      - Nếu có AC chưa cover: hiển thị danh sách, hỏi user có muốn tiếp không.
+   - Gọi `spec-validator.check_integration_coverage(spec_path, requirement_path)`:
+     - Nếu có integration chưa có task mapper/adapter: hiển thị danh sách, hỏi user có muốn tiếp không.
 
 4. Hỏi **xác nhận cuối cùng**:
    - Nêu rõ đây là bước sẽ đề nghị thay đổi code theo spec.
@@ -334,17 +374,16 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
        từ danh sách node/task sẽ chạy, với `status: pending`, `handoff_path`, `result_path`, và `depends_on`.
      - Append `task_queue_created` vào `{{ platform.framework_root }}/knowledge/active/microloop/ACTIVITY_LOG.jsonl`.
      - Khi ghi `TASK_HANDOFF.<node-id>.md`, append `subagent_spawned` với `task_id`, label, và path.
-     - Ngay trước khi giao việc cho executor/subagent, update task trong `TASK_QUEUE.md` thành `in_progress`
-       và append `subagent_started`.
-     - Khi executor/subagent hoàn tất, ghi `microloop/TASK_RESULT.<node-id>.md`, update task thành `done`,
-       append `result_written` và `subagent_done`.
-     - Nếu executor/subagent không thể hoàn tất, update task thành `blocked`, ghi lý do vào
-       `TASK_RESULT.<node-id>.md`, append `subagent_blocked`, rồi dừng để user quyết định.
-     - Có thể dùng helpers trong `{{ platform.framework_root }}/tools/microloop-orchestrator/orchestrator.py`:
-       `initialize_runtime_queue`, `write_task_handoff`, `update_task_status`, `write_task_result`,
-       `append_activity_event`, `record_parent_event`, `write_parent_brain`.
+     - Đường fresh-session: driver (`orchestrator.py apply`) TỰ quản các event
+       `in_progress`/`done`/`blocked`/`subagent_started`/`subagent_blocked` — KHÔNG emit thủ công.
+     - Chỉ khi tier `subagent`/`inline-reload` (parent tự vận hành): dùng helpers
+       `update_task_status`, `write_task_result`, `append_activity_event` trong
+       `{{ platform.framework_root }}/tools/microloop-orchestrator/orchestrator.py` theo đúng
+       vòng đời in_progress → done/blocked.
    a. Build `KNOWLEDGE_PACK.md` from REQUIREMENT, EXPLORE_CONTEXT, knowledge-snapshot,
       conventions, author-dna, OpenSpec artifacts, UA/KG evidence, db-explorer evidence, and relevant archive/memory.
+      - Section "Integrations & Field Mapping" của REQUIREMENT là nguồn BẮT BUỘC của
+        Knowledge Pack khi task có integration mới.
       - If task complexity = `complex` and KG graph is unavailable/stale: BLOCK unless user explicitly overrides.
       - If task touches DB and db-explorer evidence is missing: BLOCK and request db-explorer.
       - Record confidence and overrides in AGENT_TRANSPARENCY.
@@ -357,10 +396,19 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
    c. Run Contract Lane sequentially:
       - Assemble `TASK_HANDOFF.<node-id>.md` with Knowledge Pack slice, DNA slice, convention slice,
         architecture boundary, allowed/read-only files, and feedback if retrying.
+      - Node mapper/adapter: nhúng NGUYÊN bảng field mapping của integration tương ứng vào
+        `## Evidence` / `## Constraints` của handoff — executor không tự tra lại tài liệu;
+        cú pháp serialize cụ thể resolve từ dna_slice/convention_slice.
       - After writing each handoff, record `subagent_spawned` in `ACTIVITY_LOG.jsonl`.
-      - Dispatch executor by `{{ platform.framework_root }}/profiles/execution-mode.yaml`.
-      - Before dispatch, mark that node `in_progress`; after result, mark it `done` or `blocked`.
-      - Run mechanical gate + semantic surface-check.
+      - Dispatch executor theo `{{ platform.framework_root }}/profiles/execution-mode.yaml`:
+        - `fresh-session` (đường chính): sau khi ghi XONG toàn bộ handoff, chạy MỘT lệnh từ project root:
+          `python3 {{ platform.framework_root }}/tools/microloop-orchestrator/orchestrator.py apply --active-dir {{ platform.framework_root }}/knowledge/active`
+          Driver tự chạy vòng lặp node (dispatch worker, retry, event, resume). Exit 0 → sang bước 6;
+          exit ≠ 0 → đọc message, sửa nguyên nhân (handoff/feedback), đặt node về `pending`, chạy lại.
+        - `subagent`: Agent tool với prompt từ `tiers/subagent.py`, parent tự vận hành vòng lặp per node.
+        - `inline-reload`: prompt từ `tiers/inline_reload.py`, chạy trong session hiện tại (LCD).
+      - Tier subagent/inline-reload: mark node `in_progress` trước dispatch, `done`/`blocked` sau result;
+        run mechanical gate + semantic surface-check per node.
       - On PASS, generate/freeze `CONTRACT_SNAPSHOT.<node-id>.md` with contract_version.
       - On FAIL after max retries, mark node `blocked` and stop for user decision.
    d. Run Implementation Lane in safe parallel batches:
@@ -422,6 +470,8 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
       > "Task hoàn thành và đã archive. **Vui lòng mở session mới** cho task tiếp theo.
       > Session mới sẽ Bootstrap fresh với knowledge-snapshot đã cập nhật."
     - Đây là kết thúc tự nhiên của task — session mới là best practice, không chỉ là gợi ý.
+    - Ngoại lệ: nếu toàn bộ task chạy theo đường dispatch worker (mục 0b + §3 bước 5.c),
+      parent vẫn mỏng — có thể nhận task mới trong cùng session sau khi archive xong.
 
 ---
 

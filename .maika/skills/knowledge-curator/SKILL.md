@@ -87,6 +87,8 @@ STEPS:
    - {{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md  → archive/{ticket_id}/EXPLORE_CONTEXT.md
    - {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md → archive/{ticket_id}/AGENT_TRANSPARENCY.md
    - {{ platform.framework_root }}/knowledge/active/TOKEN_LOG.md        → archive/{ticket_id}/TOKEN_LOG.md (nếu có)
+   - {{ platform.framework_root }}/knowledge/active/SESSION_OVERRIDE.md → archive/{ticket_id}/SESSION_OVERRIDE.md (nếu có)
+   - {{ platform.framework_root }}/knowledge/active/.session_state.json → archive/{ticket_id}/.session_state.json (nếu có)
    - {{ platform.framework_root }}/knowledge/active/ideation/           → archive/{ticket_id}/ideation/ (nếu có)
 3. Tạo archive/{ticket_id}/ARCHIVE_META.md:
    - ticket_id: {ticket_id}
@@ -121,7 +123,10 @@ STEPS:
 4. Reset TOKEN_LOG.md:
    → Xoá (hoặc rename sang TOKEN_LOG.{timestamp}.bak nếu muốn giữ)
    → Tạo file mới từ template TOKEN_LOG.tpl.md (trống, chờ task mới điền)
-5. REPORT: "Active context reset. Ready for new task."
+5. Xoá session-safety sidecars nếu có:
+   - {{ platform.framework_root }}/knowledge/active/SESSION_OVERRIDE.md
+   - {{ platform.framework_root }}/knowledge/active/.session_state.json
+6. REPORT: "Active context reset. Ready for new task."
 ```
 
 ### 3.3 `update_knowledge_snapshot(discoveries)`

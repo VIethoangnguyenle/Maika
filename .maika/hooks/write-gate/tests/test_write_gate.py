@@ -517,3 +517,127 @@ def test_allows_app_write_with_checkpoint_and_apply_evidence(tmp_path):
     _write_valid_implementation_context(active, "src/App.java")
     result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
     assert result.ok is True
+
+
+# ---------- SESSION-GATE (context-overflow safety net) ----------
+
+
+def _setup_valid_app_context(tmp_path, target="src/App.java"):
+    active = tmp_path / ".maika" / "knowledge" / "active"
+    _write_valid_checkpoint(active)
+    (active / "AGENT_TRANSPARENCY.md").write_text(
+        "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
+    )
+    _write_valid_implementation_context(active, target)
+    return active
+
+
+def _write_session_state(active, identity, phase="phase-2-done"):
+    (active / ".session_state.json").write_text(
+        json.dumps({"phases": {phase: {"session_identity": identity, "ts": "t"}}}),
+        encoding="utf-8",
+    )
+
+
+def test_session_gate_blocks_same_session_code_write(tmp_path):
+    active = _setup_valid_app_context(tmp_path)
+    _write_session_state(active, "sid:abc")
+    result = wg.evaluate_write(
+        tmp_path, Path("src/App.java"), framework_root=".maika",
+        session_identity="sid:abc",
+    )
+    assert result.ok is False
+    assert "[SESSION-GATE]" in result.reason
+
+
+def test_session_gate_allows_new_session(tmp_path):
+    active = _setup_valid_app_context(tmp_path)
+    _write_session_state(active, "sid:abc")
+    result = wg.evaluate_write(
+        tmp_path, Path("src/App.java"), framework_root=".maika",
+        session_identity="sid:xyz",
+    )
+    assert result.ok is True
+
+
+def test_session_gate_degrades_without_identity(tmp_path):
+    active = _setup_valid_app_context(tmp_path)
+    _write_session_state(active, "sid:abc")
+    result = wg.evaluate_write(
+        tmp_path, Path("src/App.java"), framework_root=".maika",
+        session_identity=None,
+    )
+    assert result.ok is True
+
+
+def test_session_override_allows_and_logs_violation(tmp_path):
+    active = _setup_valid_app_context(tmp_path)
+    _write_session_state(active, "sid:abc")
+    (active / "SESSION_OVERRIDE.md").write_text(
+        "ticket: ABC-1\nuser-confirm: đồng ý tiếp tục cùng session\nreason: hotfix 1 dòng\n",
+        encoding="utf-8",
+    )
+    result = wg.evaluate_write(
+        tmp_path, Path("src/App.java"), framework_root=".maika",
+        session_identity="sid:abc",
+    )
+    assert result.ok is True
+    transparency = (active / "AGENT_TRANSPARENCY.md").read_text(encoding="utf-8")
+    assert "[VIOLATION][SESSION-GATE]" in transparency
+
+
+def test_session_override_incomplete_still_blocks(tmp_path):
+    active = _setup_valid_app_context(tmp_path)
+    _write_session_state(active, "sid:abc")
+    (active / "SESSION_OVERRIDE.md").write_text("reason: quên format\n", encoding="utf-8")
+    result = wg.evaluate_write(
+        tmp_path, Path("src/App.java"), framework_root=".maika",
+        session_identity="sid:abc",
+    )
+    assert result.ok is False
+
+
+def test_record_session_state_first_writer_wins(tmp_path):
+    active = tmp_path / ".maika" / "knowledge" / "active"
+    active.mkdir(parents=True)
+    (active / "AGENT_TRANSPARENCY.md").write_text(
+        "## Phase State\nphase_state: phase-1-done\n", encoding="utf-8"
+    )
+    wg.record_session_state(tmp_path, ".maika", "sid:one")
+    wg.record_session_state(tmp_path, ".maika", "sid:two")
+    state = json.loads((active / ".session_state.json").read_text(encoding="utf-8"))
+    assert state["phases"]["phase-1-done"]["session_identity"] == "sid:one"
+
+
+def test_record_session_state_ignores_other_phase(tmp_path):
+    active = tmp_path / ".maika" / "knowledge" / "active"
+    active.mkdir(parents=True)
+    (active / "AGENT_TRANSPARENCY.md").write_text(
+        "phase_state: applying\n", encoding="utf-8"
+    )
+    wg.record_session_state(tmp_path, ".maika", "sid:one")
+    assert not (active / ".session_state.json").exists()
+
+
+def _write_proc_stat(proc_root, pid, comm, ppid, starttime):
+    d = proc_root / str(pid)
+    d.mkdir(parents=True)
+    tokens = ["S", str(ppid)] + ["0"] * 17 + [str(starttime)]
+    (d / "stat").write_text(f"{pid} ({comm}) " + " ".join(tokens), encoding="utf-8")
+
+
+def test_process_identity_skips_shell_ancestors(tmp_path, monkeypatch):
+    proc = tmp_path / "proc"
+    _write_proc_stat(proc, 100, "sh", 50, 8888)     # wrapper shell của hook
+    _write_proc_stat(proc, 50, "agy", 1, 4242)      # process agent runtime
+    monkeypatch.setattr(wg.os, "getppid", lambda: 100)
+    assert wg._process_identity(proc_root=proc) == "pid:50:4242"
+
+
+def test_process_identity_none_without_proc(tmp_path, monkeypatch):
+    monkeypatch.setattr(wg.os, "getppid", lambda: 100)
+    assert wg._process_identity(proc_root=tmp_path / "no-proc") is None
+
+
+def test_session_identity_prefers_payload_id(tmp_path):
+    assert wg._session_identity({"session_id": "s-9"}, proc_root=tmp_path) == "sid:s-9"

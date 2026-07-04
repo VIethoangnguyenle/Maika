@@ -26,8 +26,9 @@ Memory + Workflow + Guardrails = Agent làm việc có kỷ luật
 
 - 💾 **Persistent memory**: requirement, explore context, architecture snapshot, conventions, author DNA và archive được lưu thành file trong repo.
 - 🚦 **Phase-gated workflow**: agent đi qua `Ideation -> Requirement -> Architecture -> Spec -> Apply`, không nhảy thẳng vào code.
+- 🧭 **Thin orchestrator**: `/task` giữ context cha mỏng, đẩy phần nặng sang subagent hoặc fresh worker theo `execution-mode`.
 - 🔍 **Knowledge-first reasoning**: quyết định kỹ thuật dựa trên code, DB, docs và knowledge graph thay vì trí nhớ ngắn hạn.
-- 🛡️ **Guardrails có cấu trúc**: rules về flow, tool permission, PII, cost budget, convention, teaching moments và human confirmation.
+- 🛡️ **Guardrails có cấu trúc**: rules về flow, tool permission, PII, cost budget, convention, teaching moments, session boundary và human confirmation.
 - 🧩 **Multi-platform runtime**: render vào root native cho Antigravity, Codex, Claude Code hoặc generic `AGENTS.md`.
 - 🔄 **Update an toàn**: framework-owned files được re-render, còn project knowledge và persona của bạn được giữ lại.
 
@@ -53,7 +54,7 @@ cd maika
 # Headless (CI/script): .\install.ps1 C:\path\to\project -Yes -Platform claude-code -Language python
 ```
 
-> ⚠️ **Giới hạn mixed-OS:** file hook được render theo OS của máy chạy `maika init/update` gần nhất. Team dùng chung repo trên cả Windows lẫn Linux sẽ thấy hook command đổi qua lại trong git — mỗi máy cần chạy lại `maika update` sau khi checkout từ OS khác. Xem TODOS W2.
+> ⚠️ **Giới hạn mixed-OS:** file hook được render theo OS của máy chạy `maika init/update` gần nhất. Team dùng chung repo trên cả Windows lẫn Linux sẽ thấy hook command đổi qua lại trong git — mỗi máy cần chạy lại `maika update` sau khi checkout từ OS khác. Thiết kế hook cross-OS chung là follow-up riêng khi team multi-OS cần.
 
 Installer sẽ:
 
@@ -177,6 +178,8 @@ Các công cụ hỗ trợ runtime:
 - `rule-projector`: project rule có thể check cơ học.
 - `gate-check`: kiểm phase chain, knowledge checkpoint, handoff slice.
 - `microloop-orchestrator`: điều phối contract DAG cho apply phase phức tạp.
+- `write-gate`: chặn write khi phase/spec/session boundary chưa đạt điều kiện.
+- `execution-mode`: chọn dispatch mode `subagent`, `fresh-session`, hoặc `inline-reload` theo platform.
 - CLI `maika init/update/status`: scaffold, re-render, kiểm trạng thái install.
 
 ---
@@ -204,6 +207,13 @@ Mỗi pha có artifact riêng:
 | Apply | Apply spec vào code có checkpoint và review | code diff + transparency log |
 
 Rule quan trọng: `/task apply` chỉ được đi tiếp khi spec đã có, architecture blocker đã resolve, và user đã confirm.
+
+Trong flow hiện tại, `/task` là orchestrator mỏng:
+
+- Pha 1 chuẩn hoá requirement có section `Integrations & Field Mapping` để mapper API/DB/event không bị mất khi sang spec.
+- Pha 2 chạy `spec-validator.check_integration_coverage()` để cảnh báo integration có trong requirement nhưng thiếu trong spec.
+- Pha 3 dispatch task con qua subagent hoặc fresh-session worker khi platform hỗ trợ; agent cha chỉ giữ phase state, file path và tóm tắt ngắn.
+- `SESSION-GATE` trong write-gate chặn code write inline trong cùng session đã chạy Pha 1/2, trừ khi có override tường minh bằng `SESSION_OVERRIDE.md`.
 
 ---
 
@@ -598,6 +608,12 @@ Package metadata nằm trong [pyproject.toml](pyproject.toml). Manifest scaffold
 4. Gửi pull request với mô tả rõ scope và validation.
 
 Khi thay đổi runtime `.maika/`, ưu tiên giữ instruction ngắn, portable, action-oriented và tránh rationale lịch sử trong file clone sang dự án khác.
+
+### Repo hygiene
+
+- Specs và plans trong `docs/superpowers/` là nguồn lịch sử dài hạn.
+- Handoff/review artifact tạm thời không nên commit vào source; dùng workspace scratch như `.superpowers/` rồi dọn sau khi task xong.
+- Không commit cache hoặc build artifact như `__pycache__/`, `.pytest_cache/`, `.egg-info/`, `.venv/`.
 
 ---
 

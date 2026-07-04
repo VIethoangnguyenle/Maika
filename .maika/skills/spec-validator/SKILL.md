@@ -126,6 +126,38 @@ RESULT:
     "[AC-COVERAGE] {n_covered}/{n_total} AC covered. Uncovered: {list if any}"
 ```
 
+### 3.2b `check_integration_coverage(spec_path, requirement_path)`
+
+```
+INPUT: (như trên)
+
+STEPS:
+1. Đọc REQUIREMENT.md — extract danh sách integration từ section "Integrations & Field Mapping"
+   (mỗi heading "### Integration: <tên>" là một integration).
+   - Section không tồn tại, hoặc ghi "Không phát hiện integration mới" → SKIP (PASS, không check).
+2. Đọc tasks.md (hoặc spec.md) — extract tất cả tasks/changes.
+
+ALGORITHM:
+  FOR EACH integration IN requirement_integrations:
+    covered = False
+    FOR EACH task IN spec_tasks:
+      IF semantic_match(integration, task):  ← tên integration/endpoint/field xuất hiện trong task mapper/adapter/DTO
+        covered = True
+        break
+    IF NOT covered:
+      uncovered.append(integration)
+
+RESULT:
+  IF uncovered is empty:
+    → PASS: "Tất cả {n} integration đã có task mapper/adapter"
+  ELSE:
+    → WARN: "Integration chưa có task mapper/adapter trong spec: {list}"
+    → Không BLOCK apply — user tự quyết định có cần thêm task không
+
+  Ghi vào AGENT_TRANSPARENCY:
+    "[INTEGRATION-COVERAGE] {n_covered}/{n_total} integration covered. Uncovered: {list if any}"
+```
+
 ### 3.3 `post_apply_verify(spec_path, changed_files)`
 
 ```
@@ -193,6 +225,8 @@ Ghi vào AGENT_TRANSPARENCY:
 spec-validator.pre_apply_gate()     ← nếu BLOCK: dừng, hỏi user
   ↓
 spec-validator.check_ac_coverage()  ← nếu WARN: hiển thị, hỏi user có muốn tiếp không
+  ↓
+spec-validator.check_integration_coverage()  ← nếu WARN: hiển thị integration chưa cover, hỏi user
   ↓
 [user confirm] → Hybrid Contract DAG micro-loop
   ↓

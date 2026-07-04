@@ -26,3 +26,12 @@ def test_loop_completes_without_subagent_module(monkeypatch):
         return "PASS"
     final = orchestrator.run_loop(q, dispatch_fn, gate_fn)
     assert final["tasks"][0]["status"] == "done"
+
+
+def test_fresh_session_dispatch_targets_executor_procedure():
+    fn = get_dispatch("fresh-session")
+    prompt = fn("X/TASK_HANDOFF.T1.md", "X/microloop/TASK_RESULT.T1.md")
+    assert "procedures/executor.md" in prompt
+    assert "X/TASK_HANDOFF.T1.md" in prompt
+    assert "X/microloop/TASK_RESULT.T1.md" in prompt
+    assert "OPEN A NEW SESSION" not in prompt

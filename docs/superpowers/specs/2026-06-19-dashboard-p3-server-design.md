@@ -2,8 +2,7 @@
 
 > Ngày: 2026-06-19
 > Tiếp nối: [P0–P2 slice](2026-06-19-agent-activity-dashboard-design.md) (PR #9, P2.5 PASS mức phase)
-> Trạng thái: design đã chốt; implementation giao cho Codex qua handoff plan
-> Handoff: [docs/superpowers/plans/2026-06-19-dashboard-p3-server-codex-handoff.md](../plans/2026-06-19-dashboard-p3-server-codex-handoff.md)
+> Trạng thái: design đã chốt; handoff tạm thời đã được dọn khỏi source, design này là nguồn tham chiếu lâu dài
 
 ---
 

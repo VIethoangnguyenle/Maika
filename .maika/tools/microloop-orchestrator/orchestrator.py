@@ -5,7 +5,10 @@ dependency injection so the whole protocol is unit-testable with stubs —
 no Java, no real subagent.
 """
 import importlib.util
+import argparse
 import json
+import shlex
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -339,6 +342,53 @@ def make_gate_fn(runner, parse_fn=None):
     return gate_fn
 
 
+def make_worker_runner(worker_command, timeout=900):
+    """Tạo runner spawn MỘT worker CLI dùng-một-lần (fresh-session tier).
+
+    worker_command: template có placeholder {prompt} (vd 'agy -p {prompt}');
+    prompt được shell-quote trước khi thay. Trả về (exit_code, output).
+    Timeout → exit_code 124 (convention của timeout(1))."""
+    def runner(prompt):
+        command = worker_command.replace("{prompt}", shlex.quote(prompt))
+        try:
+            proc = subprocess.run(
+                command, shell=True, capture_output=True, text=True, timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            return 124, f"worker timeout sau {timeout}s"
+        return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+    return runner
+
+
+def dispatch_worker(prompt, runner, *, retries=2, active_dir=None, task_id=None):
+    """Chạy một worker context mới cho prompt; retry khi fail; log activity event.
+
+    runner: (prompt) -> (exit_code, output) — inject được (make_worker_runner cho
+    subprocess thật, stub cho unit test; cùng pattern với make_gate_fn).
+    Khi truyền active_dir: tự emit subagent_started (mỗi attempt) và subagent_blocked
+    (fail cuối). KHÔNG emit subagent_done — write_task_result của worker đã emit,
+    tránh double-emission."""
+    attempt = 0
+    while True:
+        if active_dir is not None:
+            append_activity_event(
+                active_dir, "subagent_started",
+                actor="subagent", task_id=task_id, attempt=attempt,
+            )
+        exit_code, output = runner(prompt)
+        if exit_code == 0:
+            return {"status": "done", "attempts": attempt + 1, "output": output}
+        attempt += 1
+        if attempt > retries:
+            if active_dir is not None:
+                append_activity_event(
+                    active_dir, "subagent_blocked",
+                    actor="subagent", task_id=task_id, reason=str(output)[:500],
+                )
+            return {"status": "blocked", "attempts": attempt, "output": output}
+
+
 def run_loop(queue, dispatch_fn, gate_fn, max_retries=2):
     """Drive the micro-loop. dispatch_fn(task)->changed_files;
     gate_fn(changed_files)->dict{'status','violations'} or str 'PASS'|'FAIL'.
@@ -460,3 +510,149 @@ def build_contract_handoff(task, knowledge_pack, spec_slice, snapshot_slice, con
         "boundary": boundary,
         "feedback": feedback,
     }
+
+
+def load_execution_config(active_dir):
+    """Đọc profiles/execution-mode.yaml (bản ĐÃ render) của scaffold chứa active_dir.
+
+    active_dir = <framework_root>/knowledge/active → config ở <framework_root>/profiles/.
+    Trả None nếu file không tồn tại (precondition sẽ báo)."""
+    path = Path(active_dir).resolve().parents[1] / "profiles" / "execution-mode.yaml"
+    if not path.exists():
+        return None
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def check_apply_preconditions(active_dir, config):
+    """Preconditions cơ học của driver (thay rule text — spec §4.2).
+
+    Trả list lý do từ chối (rỗng = chạy được); mỗi lý do một dòng chỉ thẳng cách sửa."""
+    reasons = []
+    active = Path(active_dir)
+    if config is None:
+        reasons.append(
+            "Thiếu profiles/execution-mode.yaml — chạy `maika update` để render lại scaffold."
+        )
+        return reasons
+    if config.get("execution_mode") != "fresh-session":
+        reasons.append(
+            f"Driver chỉ hỗ trợ execution_mode fresh-session (hiện tại: "
+            f"{config.get('execution_mode')!r}) — tier subagent/inline-reload do parent "
+            "agent vận hành theo workflows/task.md."
+        )
+    if not str(config.get("worker_command") or "").strip():
+        reasons.append(
+            "worker_command rỗng trong execution-mode.yaml — khai báo lệnh worker cho platform này."
+        )
+    if not (active / "KNOWLEDGE_CHECKPOINT.md").exists():
+        reasons.append("Thiếu KNOWLEDGE_CHECKPOINT.md — hoàn thành Pha 1/2 trước khi apply.")
+    if not _queue_path(active).exists():
+        reasons.append(
+            "Thiếu microloop/TASK_QUEUE.md — parent phải chạy initialize_runtime_queue trước."
+        )
+        return reasons
+    tasks = (load_runtime_queue(active).get("tasks") or [])
+    if not tasks:
+        reasons.append("TASK_QUEUE.md không có task nào.")
+        return reasons
+    project_root = active.resolve().parents[2]
+    for t in tasks:
+        if t.get("status") == "done":
+            continue
+        handoff = t.get("handoff_path")
+        if not handoff or not (project_root / handoff).exists():
+            reasons.append(
+                f"Node {t.get('id')}: thiếu TASK_HANDOFF ({handoff}) — parent phải ghi handoff trước."
+            )
+    return reasons
+
+
+def apply_command(active_dir, runner=None, config=None):
+    """Driver Pha 3 (fresh-session): vòng lặp node chạy bằng code — LLM chỉ còn trong worker.
+
+    Disk (TASK_QUEUE.md) là source of truth mỗi vòng: crash-safe, resume tự nhiên
+    (next_task resume-first, skip node done). runner inject được cho test; mặc định
+    make_worker_runner từ execution-mode.yaml. Gate v1: worker exit 0 + TASK_RESULT
+    tồn tại (executor procedure tự chạy gate dự án; write-gate vẫn chặn cơ học trong
+    worker process). Trả dict {"status","done","task_id","reason"}."""
+    active = Path(active_dir)
+    if config is None:
+        config = load_execution_config(active)
+    reasons = check_apply_preconditions(active, config)
+    if reasons:
+        return {"status": "refused", "done": 0, "task_id": None,
+                "reason": "\n".join(reasons)}
+    from tiers import get_dispatch  # lazy: giữ loop protocol không biết tier (docstring module)
+    dispatch = get_dispatch("fresh-session")
+    if runner is None:
+        runner = make_worker_runner(
+            config["worker_command"], config.get("worker_timeout_seconds", 900)
+        )
+    max_retries = config.get("max_retries", 2)
+    project_root = active.resolve().parents[2]
+    done_count = 0
+    while True:
+        queue = load_runtime_queue(active)
+        task = next_task(queue)
+        if task is None:
+            blocked = [t["id"] for t in queue["tasks"] if t["status"] == "blocked"]
+            if blocked:
+                return {"status": "blocked", "done": done_count, "task_id": blocked[0],
+                        "reason": "node blocked từ lần chạy trước — sửa nguyên nhân rồi đặt lại pending"}
+            return {"status": "done", "done": done_count, "task_id": None, "reason": None}
+        task_id = task["id"]
+        if task["status"] != "in_progress":
+            update_task_status(active, task_id, "in_progress")
+        prompt = dispatch(task["handoff_path"], task["result_path"])
+        outcome = dispatch_worker(
+            prompt, runner, retries=max_retries, active_dir=active, task_id=task_id,
+        )
+        if outcome["status"] == "done" and not (project_root / task["result_path"]).exists():
+            outcome = {"status": "blocked", "attempts": outcome["attempts"],
+                       "output": f"worker exit 0 nhưng thiếu {task['result_path']}"}
+        current = next(
+            t for t in load_runtime_queue(active)["tasks"] if t["id"] == task_id
+        )
+        if outcome["status"] == "done":
+            if current["status"] != "done":  # worker dùng write_task_result thì đã done + emit
+                update_task_status(active, task_id, "done", event="subagent_done")
+            done_count += 1
+        else:
+            if current["status"] != "blocked":
+                update_task_status(active, task_id, "blocked")
+            return {"status": "blocked", "done": done_count, "task_id": task_id,
+                    "reason": str(outcome["output"])[:500]}
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Micro-loop orchestrator CLI (Pha 3 driver)")
+    sub = parser.add_subparsers(dest="command", required=True)
+    apply_parser = sub.add_parser("apply", help="Chạy vòng lặp node Pha 3 (fresh-session)")
+    apply_parser.add_argument(
+        "--active-dir", required=True,
+        help="Đường dẫn knowledge/active của scaffold (chạy từ project root)",
+    )
+    args = parser.parse_args(argv)
+    summary = apply_command(args.active_dir)
+    if summary["status"] == "refused":
+        print(f"[DRIVER] Từ chối chạy:\n{summary['reason']}")
+        return 2
+    if summary["status"] == "blocked":
+        print(
+            f"[DRIVER] BLOCKED tại node {summary['task_id']} "
+            f"(đã xong {summary['done']} node): {summary['reason']}"
+        )
+        print(
+            "[DRIVER] Sửa nguyên nhân (handoff/feedback), đặt node về pending, "
+            "chạy lại lệnh này — driver tự resume."
+        )
+        return 3
+    print(
+        f"[DRIVER] Hoàn thành {summary['done']} node. "
+        "Parent tiếp tục §3 bước 6 (post_apply_verify)."
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

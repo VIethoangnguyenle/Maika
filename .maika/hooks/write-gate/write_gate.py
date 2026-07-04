@@ -10,11 +10,13 @@ import argparse
 import fnmatch
 import importlib.util
 import json
+import os
 import re
 import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -27,6 +29,16 @@ _SEGMENT_RE = re.compile(r"[\n;]|\|\||&&|(?<!>)\|")
 _DEVNULL = {"/dev/null", "/dev/stdout", "/dev/stderr"}
 _DOC_SUFFIXES = {".md", ".markdown", ".txt", ".rst"}
 _SHELL_TOOLS = {"bash", "shell", "local_shell", "run_command", "run_terminal_cmd"}
+_SESSION_PHASES = ("phase-1-done", "phase-2-done")
+_PHASE_STATE_RE = re.compile(r"phase_state:\s*([A-Za-z0-9-]+)")
+_SHELL_COMMS = {"sh", "bash", "dash", "zsh", "fish", "python", "python3", "py"}
+_SESSION_GATE_MESSAGE = (
+    "[SESSION-GATE] Pha 1/2 đã chạy trong session này — context có nguy cơ đã tràn/compact. "
+    "Dispatch node qua worker (procedures/executor.md + TASK_HANDOFF, xem "
+    "profiles/execution-mode.yaml) hoặc mở session mới rồi chạy /task apply <ticket>. "
+    "User có thể override tường minh: ghi knowledge/active/SESSION_OVERRIDE.md theo template "
+    "(sẽ được log vào Violation Log)."
+)
 
 
 @dataclass
@@ -205,6 +217,145 @@ def _warn(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def _proc_stat(proc_root: Path, pid: int):
+    """Parse /proc/<pid>/stat → (comm, ppid, starttime). None nếu không đọc được."""
+    try:
+        stat = (proc_root / str(pid) / "stat").read_text(encoding="utf-8")
+        comm = stat.split("(", 1)[1].rsplit(")", 1)[0]
+        rest = stat.rsplit(")", 1)[1].split()
+        return comm, int(rest[1]), rest[19]
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def _process_identity(proc_root: Path = Path("/proc")):
+    """Tổ tiên đầu tiên không phải shell/python = process của agent runtime.
+
+    Ổn định qua compaction (cùng process), đổi khi restart session (process mới).
+    Trả về "pid:<pid>:<starttime>" hoặc None (vd Windows không có /proc → degrade)."""
+    pid = os.getppid()
+    for _ in range(16):
+        info = _proc_stat(proc_root, pid)
+        if info is None:
+            return None
+        comm, ppid, starttime = info
+        if comm.lower() not in _SHELL_COMMS:
+            return f"pid:{pid}:{starttime}"
+        if ppid <= 1:
+            return None
+        pid = ppid
+    return None
+
+
+def _session_identity(payload: dict, proc_root: Path = Path("/proc")):
+    """Định danh session hiện tại: ưu tiên id từ hook payload; fallback POSIX
+    process-identity; không có → None (SESSION-GATE degrade về cho-qua)."""
+    sid = (
+        payload.get("session_id")
+        or payload.get("sessionId")
+        or payload.get("conversation_id")
+        or payload.get("conversationId")
+    )
+    if sid:
+        return f"sid:{sid}"
+    return _process_identity(proc_root=proc_root)
+
+
+def _session_state_path(project_root: Path, framework_root: str) -> Path:
+    return project_root / framework_root / "knowledge" / "active" / ".session_state.json"
+
+
+def record_session_state(project_root: Path, framework_root: str, session_identity) -> None:
+    """Ghi session identity tại LẦN ĐẦU quan sát phase_state ∈ _SESSION_PHASES.
+
+    Sidecar nằm trong knowledge/active/ nên được knowledge-curator reset cùng task —
+    state cũ không bao giờ chặn nhầm task sau."""
+    if not session_identity:
+        return
+    transparency = project_root / framework_root / "knowledge" / "active" / "AGENT_TRANSPARENCY.md"
+    if not transparency.exists():
+        return
+    try:
+        match = _PHASE_STATE_RE.search(transparency.read_text(encoding="utf-8"))
+    except OSError:
+        return
+    if not match:
+        return
+    phase = match.group(1).lower()
+    if phase not in _SESSION_PHASES:
+        return
+    state_path = _session_state_path(project_root, framework_root)
+    state = {}
+    if state_path.exists():
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8")) or {}
+        except (OSError, json.JSONDecodeError):
+            state = {}
+    phases = state.setdefault("phases", {})
+    if phase in phases:
+        return
+    phases[phase] = {
+        "session_identity": session_identity,
+        "ts": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(
+            json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except OSError:
+        pass
+
+
+def _log_session_violation(project_root: Path, framework_root: str, session_identity: str) -> None:
+    transparency = project_root / framework_root / "knowledge" / "active" / "AGENT_TRANSPARENCY.md"
+    marker = f"[VIOLATION][SESSION-GATE] override dùng cho session {session_identity}"
+    try:
+        text = transparency.read_text(encoding="utf-8") if transparency.exists() else ""
+        if marker in text:
+            return
+        stamp = datetime.now(timezone.utc).isoformat()
+        with transparency.open("a", encoding="utf-8") as f:
+            f.write(f"\n{marker} lúc {stamp}\n")
+    except OSError:
+        pass
+
+
+def check_session_gate(project_root: Path, framework_root: str, session_identity) -> Decision:
+    """Lưới an toàn context-overflow: chặn code write inline trong session đã
+    hoàn thành Pha 1/2. Không có identity/state → cho qua (degrade, không tệ hơn hiện trạng)."""
+    if not session_identity:
+        return Decision(True)
+    state_path = _session_state_path(project_root, framework_root)
+    if not state_path.exists():
+        return Decision(True)
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8")) or {}
+    except (OSError, json.JSONDecodeError):
+        return Decision(True)
+    phases = state.get("phases", {})
+    same_session = any(
+        phases.get(phase, {}).get("session_identity") == session_identity
+        for phase in _SESSION_PHASES
+    )
+    if not same_session:
+        return Decision(True)
+    override = project_root / framework_root / "knowledge" / "active" / "SESSION_OVERRIDE.md"
+    if override.exists():
+        try:
+            body = override.read_text(encoding="utf-8")
+        except OSError:
+            body = ""
+        if re.search(r"^ticket:\s*\S+", body, re.MULTILINE) and re.search(
+            r"^user-confirm:\s*\S+", body, re.MULTILINE
+        ):
+            _log_session_violation(project_root, framework_root, session_identity)
+            _warn("write-gate: [SESSION-GATE] override active — violation đã log vào AGENT_TRANSPARENCY.")
+            return Decision(True)
+        return Decision(False, "SESSION_OVERRIDE.md thiếu ticket:/user-confirm: — " + _SESSION_GATE_MESSAGE)
+    return Decision(False, _SESSION_GATE_MESSAGE)
+
+
 def extract_target_paths(payload: dict):
     tool_input = payload.get("tool_input") or {}
     tool_call = payload.get("toolCall") or {}
@@ -337,7 +488,8 @@ def _validate_implementation_context(project_root: Path, policy_path: Path, fram
     return Decision(False, "Invalid implementation context before code write: " + "; ".join(invalid_reasons))
 
 
-def evaluate_write(project_root: Path, target_path: Path, framework_root: str = ".maika") -> Decision:
+def evaluate_write(project_root: Path, target_path: Path, framework_root: str = ".maika",
+                   session_identity=None) -> Decision:
     if not target_path.as_posix():
         return Decision(False, "Unable to identify target path for write-gate payload")
     policy_path = _policy_path(project_root, target_path)
@@ -345,6 +497,10 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
         return Decision(True)
     if _is_documentation(policy_path):
         return Decision(True)
+
+    session_result = check_session_gate(project_root, framework_root, session_identity)
+    if not session_result.ok:
+        return session_result
 
     checkpoint = project_root / framework_root / "knowledge" / "active" / "KNOWLEDGE_CHECKPOINT.md"
     if not checkpoint.exists():
@@ -411,6 +567,8 @@ def main(argv=None, stdin_text=None):
     payload = json.loads(raw or "{}")
     cwd = Path.cwd()
     root = _project_root_from_cwd(cwd)
+    session_identity = _session_identity(payload)
+    record_session_state(root, args.framework_root, session_identity)
 
     if _is_shell_tool(_tool_name(payload)):
         targets, unresolved = parse_shell_writes(_command_text(payload))
@@ -422,7 +580,8 @@ def main(argv=None, stdin_text=None):
             decision = Decision(True)
         else:
             decisions = [
-                evaluate_write(root, target, framework_root=args.framework_root)
+                evaluate_write(root, target, framework_root=args.framework_root,
+                               session_identity=session_identity)
                 for target in targets
             ]
             decision = next((item for item in decisions if not item.ok), Decision(True))
@@ -433,7 +592,8 @@ def main(argv=None, stdin_text=None):
         else:
             targets = [_runtime_target(cwd, t) for t in targets]
             decisions = [
-                evaluate_write(root, target, framework_root=args.framework_root)
+                evaluate_write(root, target, framework_root=args.framework_root,
+                               session_identity=session_identity)
                 for target in targets
             ]
             decision = next((item for item in decisions if not item.ok), Decision(True))

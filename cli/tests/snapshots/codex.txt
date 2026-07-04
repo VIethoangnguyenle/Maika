@@ -29,6 +29,7 @@
 .agents/knowledge/templates/KNOWLEDGE_PACK.tpl.md
 .agents/knowledge/templates/NODE_CHECKPOINT.tpl.md
 .agents/knowledge/templates/REQUIREMENT.tpl.md
+.agents/knowledge/templates/SESSION_OVERRIDE.tpl.md
 .agents/knowledge/templates/TASK_HANDOFF.tpl.md
 .agents/knowledge/templates/TOKEN_LOG.tpl.md
 .agents/knowledge/templates/changerequest.tpl.md
@@ -137,8 +138,10 @@
 .agents/tools/microloop-orchestrator/tests/fixtures/
 .agents/tools/microloop-orchestrator/tests/fixtures/.gitkeep
 .agents/tools/microloop-orchestrator/tests/fixtures/sample-extraction-input.md
+.agents/tools/microloop-orchestrator/tests/test_apply_command.py
 .agents/tools/microloop-orchestrator/tests/test_contract.py
 .agents/tools/microloop-orchestrator/tests/test_degradation.py
+.agents/tools/microloop-orchestrator/tests/test_dispatch_worker.py
 .agents/tools/microloop-orchestrator/tests/test_extraction.py
 .agents/tools/microloop-orchestrator/tests/test_handoff.py
 .agents/tools/microloop-orchestrator/tests/test_hybrid_contract_dag.py

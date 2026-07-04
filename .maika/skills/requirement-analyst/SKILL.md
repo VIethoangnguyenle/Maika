@@ -108,6 +108,10 @@ Cấu trúc tối thiểu:
   - Định nghĩa rõ giao thức, endpoint, format (REST/gRPC/Kafka).
   - Schema đầu vào (Request/Message) và đầu ra (Response/Event).
   - Các thiết kế này phải tuân thủ kiến trúc hệ thống hiện tại.
+- **Integrations & Field Mapping**:
+  - Integration third-party mới (hướng, protocol & auth, endpoint, tài liệu nguồn).
+  - Bảng field mapping: field third-party → field canonical + ý định transform + nguồn.
+  - Field chưa map được → mirror vào "Vấn đề yêu cầu".
 - **Giả định (assumptions)**:
   - Điều đang được coi là đúng nhưng chưa xác nhận.
 - **Vấn đề yêu cầu (requirement issues / open questions)**:
@@ -290,6 +294,14 @@ Vai trò:
    - Contract đề xuất phải tuân thủ kiến trúc hiện có.
    - Đọc `conventions.yaml` (section `design_patterns`, `upstream_constraints`) và `knowledge-snapshot.md` để xác định các pattern/framework bắt buộc của hệ thống.
    - Nếu `conventions.yaml` chưa có hoặc status ≠ approved → ghi giả định vào section "Giả định", không tự bịa pattern.
+4. Thống kê Integration & Field Mapping (khi ticket/tài liệu chạm tới third-party API mới):
+   - Ghi block theo format template `REQUIREMENT.tpl.md` section "Integrations & Field Mapping":
+     tên, hướng (outbound/inbound), protocol & auth, endpoint/operation, tài liệu nguồn.
+   - Bảng field mapping: field third-party (nguyên văn từ tài liệu) → field canonical
+     (xác định UA-first qua domain model/DTO hiện có) + **ý định** transform (rename/format/…).
+   - KHÔNG ghi cú pháp serialize cụ thể của ngôn ngữ — executor Pha 3 resolve từ
+     conventions/author-dna.
+   - Field chưa map được → ghi lý do + mirror vào Bước 9 "Vấn đề yêu cầu".
 
 ---
 
