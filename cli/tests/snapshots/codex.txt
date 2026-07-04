@@ -138,6 +138,7 @@
 .agents/tools/microloop-orchestrator/tests/fixtures/
 .agents/tools/microloop-orchestrator/tests/fixtures/.gitkeep
 .agents/tools/microloop-orchestrator/tests/fixtures/sample-extraction-input.md
+.agents/tools/microloop-orchestrator/tests/test_apply_command.py
 .agents/tools/microloop-orchestrator/tests/test_contract.py
 .agents/tools/microloop-orchestrator/tests/test_degradation.py
 .agents/tools/microloop-orchestrator/tests/test_dispatch_worker.py
