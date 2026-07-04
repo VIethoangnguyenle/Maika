@@ -374,15 +374,12 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
        từ danh sách node/task sẽ chạy, với `status: pending`, `handoff_path`, `result_path`, và `depends_on`.
      - Append `task_queue_created` vào `{{ platform.framework_root }}/knowledge/active/microloop/ACTIVITY_LOG.jsonl`.
      - Khi ghi `TASK_HANDOFF.<node-id>.md`, append `subagent_spawned` với `task_id`, label, và path.
-     - Ngay trước khi giao việc cho executor/subagent, update task trong `TASK_QUEUE.md` thành `in_progress`
-       và append `subagent_started`.
-     - Khi executor/subagent hoàn tất, ghi `microloop/TASK_RESULT.<node-id>.md`, update task thành `done`,
-       append `result_written` và `subagent_done`.
-     - Nếu executor/subagent không thể hoàn tất, update task thành `blocked`, ghi lý do vào
-       `TASK_RESULT.<node-id>.md`, append `subagent_blocked`, rồi dừng để user quyết định.
-     - Có thể dùng helpers trong `{{ platform.framework_root }}/tools/microloop-orchestrator/orchestrator.py`:
-       `initialize_runtime_queue`, `write_task_handoff`, `update_task_status`, `write_task_result`,
-       `append_activity_event`, `record_parent_event`, `write_parent_brain`.
+     - Đường fresh-session: driver (`orchestrator.py apply`) TỰ quản các event
+       `in_progress`/`done`/`blocked`/`subagent_started`/`subagent_blocked` — KHÔNG emit thủ công.
+     - Chỉ khi tier `subagent`/`inline-reload` (parent tự vận hành): dùng helpers
+       `update_task_status`, `write_task_result`, `append_activity_event` trong
+       `{{ platform.framework_root }}/tools/microloop-orchestrator/orchestrator.py` theo đúng
+       vòng đời in_progress → done/blocked.
    a. Build `KNOWLEDGE_PACK.md` from REQUIREMENT, EXPLORE_CONTEXT, knowledge-snapshot,
       conventions, author-dna, OpenSpec artifacts, UA/KG evidence, db-explorer evidence, and relevant archive/memory.
       - Section "Integrations & Field Mapping" của REQUIREMENT là nguồn BẮT BUỘC của
@@ -404,14 +401,14 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
         cú pháp serialize cụ thể resolve từ dna_slice/convention_slice.
       - After writing each handoff, record `subagent_spawned` in `ACTIVITY_LOG.jsonl`.
       - Dispatch executor theo `{{ platform.framework_root }}/profiles/execution-mode.yaml`:
-        - `subagent`: Agent tool với prompt từ `tiers/subagent.py`.
-        - `fresh-session`: gọi `dispatch_worker(prompt, make_worker_runner(worker_command, worker_timeout_seconds), retries=max_retries, active_dir=<knowledge/active>, task_id=<node-id>)`
-          (orchestrator.py) với prompt từ `tiers/fresh_session.py` — worker context MỚI per node,
-          KHÔNG yêu cầu user mở session; `dispatch_worker` tự emit `subagent_started`/`subagent_blocked`
-          (không emit thủ công 2 event này cho node đó).
+        - `fresh-session` (đường chính): sau khi ghi XONG toàn bộ handoff, chạy MỘT lệnh từ project root:
+          `python3 {{ platform.framework_root }}/tools/microloop-orchestrator/orchestrator.py apply --active-dir {{ platform.framework_root }}/knowledge/active`
+          Driver tự chạy vòng lặp node (dispatch worker, retry, event, resume). Exit 0 → sang bước 6;
+          exit ≠ 0 → đọc message, sửa nguyên nhân (handoff/feedback), đặt node về `pending`, chạy lại.
+        - `subagent`: Agent tool với prompt từ `tiers/subagent.py`, parent tự vận hành vòng lặp per node.
         - `inline-reload`: prompt từ `tiers/inline_reload.py`, chạy trong session hiện tại (LCD).
-      - Before dispatch, mark that node `in_progress`; after result, mark it `done` or `blocked`.
-      - Run mechanical gate + semantic surface-check.
+      - Tier subagent/inline-reload: mark node `in_progress` trước dispatch, `done`/`blocked` sau result;
+        run mechanical gate + semantic surface-check per node.
       - On PASS, generate/freeze `CONTRACT_SNAPSHOT.<node-id>.md` with contract_version.
       - On FAIL after max retries, mark node `blocked` and stop for user decision.
    d. Run Implementation Lane in safe parallel batches:

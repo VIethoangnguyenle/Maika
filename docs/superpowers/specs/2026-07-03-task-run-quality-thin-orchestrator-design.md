@@ -2,6 +2,9 @@
 
 > Ngày: 2026-07-03
 > Trạng thái: draft-for-review
+> Cập nhật 2026-07-04: đường vận hành Pha 3 fresh-session (LLM gọi dispatch_worker thủ công, §B)
+> được code-hóa bởi docs/superpowers/specs/2026-07-04-phase3-driver-thin-orchestrator-design.md —
+> mô tả LLM-driven trong §B là lịch sử; cơ chế dispatch_worker/worker_command giữ nguyên hiệu lực.
 > Phạm vi: Maika upstream (`.maika/`, `cli/`). Xuất phát từ một lần chạy task thực tế ở downstream (ticket Jira + tài liệu Confluence, runtime Antigravity).
 
 ## Vấn đề

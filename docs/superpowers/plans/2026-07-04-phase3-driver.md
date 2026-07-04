@@ -674,8 +674,10 @@ Edit `docs/superpowers/specs/2026-07-04-phase3-driver-thin-orchestrator-design.m
 - [ ] **Bước 7: Verify diff âm**
 
 Run: `wc -l .maika/workflows/task.md .maika/rules/rules-flow.md`
-Expected: tổng 2 file GIẢM so với Bước 1 (task.md giảm ≥ 5 dòng; rules-flow +1 — tổng vẫn âm).
-Run thêm: `grep -c "orchestrator.py apply" .maika/workflows/task.md` → Expected: `1`
+Expected: tổng 2 file GIẢM so với Bước 1 (tiêu chí cứng của spec là TỔNG ÂM; thực tế 646→644).
+Run thêm: `grep -c "orchestrator.py apply" .maika/workflows/task.md` → Expected: `2` (mô tả P5 ở Bước 2 + lệnh driver ở Bước 3).
+
+> Hiệu chỉnh 2026-07-04 (Claude review): bản đầu của Bước 7 ghi "task.md giảm ≥ 5" và grep `1` — lỗi số học của PLAN (Bước 3 old/new đều 9 dòng nên net 0; cụm "orchestrator.py apply" xuất hiện ở cả 2 new_string). Codex BLOCKED đúng kỷ luật tại đây; edit Bước 2–6 đã đối chiếu khớp plan nguyên văn — ACCEPTED DEVIATION, không phải lỗi implementer.
 
 - [ ] **Bước 8: Commit**
 

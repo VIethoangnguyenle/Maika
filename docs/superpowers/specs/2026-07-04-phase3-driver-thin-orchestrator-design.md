@@ -66,7 +66,8 @@ Confirm cuối với user
                     │    dispatch_fn = tiers/fresh_session.dispatch(handoff, result)
                     │                  → dispatch_worker(prompt, make_worker_runner(...),
                     │                                    active_dir=…, task_id=…)
-                    │    gate_fn     = make_gate_fn(runner) (checkstyle nếu cấu hình; else PASS)
+                    │    gate v1    = worker exit 0 + TASK_RESULT tồn tại (executor tự chạy
+                    │                 gate dự án; checkstyle driver-side chờ evidence — R3)
                     ├─ save_runtime_queue sau mỗi node (crash-safe)
                     └─ exit 0: tất cả done │ exit ≠0: node blocked / precondition fail
                        + in báo cáo tóm tắt (node done/blocked, lý do) ra stdout
