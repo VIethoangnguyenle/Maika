@@ -54,6 +54,20 @@
 
 ---
 
+## Best-practice gaps (audit 2026-07-05)
+
+> Track riêng. Nguồn: [docs/superpowers/specs/2026-07-04-anthropic-bp-audit-report.md](docs/superpowers/specs/2026-07-04-anthropic-bp-audit-report.md)
+> (rubric citation-grounded: [2026-07-04-anthropic-bp-rubric.md](docs/superpowers/specs/2026-07-04-anthropic-bp-rubric.md)). Chỉ liệt kê phần A (đã khớp observed failure);
+> watchlist xem phần B của báo cáo. A-6/A-7 không tạo entry mới — chỉ bổ sung căn cứ trích dẫn cho UP5 và P1.1/UP1 sẵn có.
+
+- **BP-A1 — Hook 3 rule `[CRITICAL]` còn giấy** ⬜ TODO — R-Data-1/R-KL-1/R-Tool-1 không khớp hook nào; thêm matcher vào gate sẵn có hoặc ghi lý do không hook được ngay tại rule. Why: F-01/F-02 (audit 2026-06-20, assessment W1). Effort: CC ~30-45′. [BP-12]
+- **BP-A2 — Script hóa việc deterministic trong 7 skill + 8 workflow** ⬜ TODO — spec-validator ALGORITHM, knowledge-curator reset `active/` (đóng luôn gap #4 pre_conditions), các bước CHECK đầu approve-*/scan; prune prose cùng PR (diff âm). Why: F-01 gap #4, F-02, bài học Pha 3 driver. Effort: CC ~1-2h, làm theo cụm. [BP-07]
+- **BP-A3 — Rule diet khối bootstrap (1103 dòng)** ⬜ TODO — khử 2 cặp trùng meta-prompt↔rules (load-order, flow-prohibition); dời R-Skill-1 schema + bảng tool agent-memory khỏi bootstrap; hạ marker theo phép thử "bỏ đi có gây lỗi không". Why: F-05 (context tràn 2026-07-03), F-04/F-06/F-07. Effort: CC ~1h + review kỹ (đụng bề mặt nhạy). [BP-15, BP-10, BP-20, BP-13]
+- **BP-A4 — Gate đòi evidence thay lời khai** ⬜ TODO — RULES.md + tdd.md theo mẫu teaching-moment checkpoint (C-24); gate không đòi được evidence thì bỏ. Why: F-03 (W2 compliance theater). Effort: CC ~30′. [BP-21]
+- **BP-A5 — Dispatch prompt Pha 1 đủ 4 thành phần** ⬜ TODO — bổ sung output format + task boundaries vào template task.md:50 (như fresh-session Pha 3 đã làm). Why: F-08 (task-run-quality 2026-07-03, mảnh còn lại). Effort: CC ~15′. [BP-18]
+
+---
+
 ## P1 — Làm trước (đòn bẩy cao, chi phí thấp)
 
 ### P1.1 — U0 litmus phải có baseline arm (đo outcome, không đo process)
