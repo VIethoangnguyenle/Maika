@@ -139,6 +139,7 @@
 .claude/tools/microloop-orchestrator/tests/fixtures/
 .claude/tools/microloop-orchestrator/tests/fixtures/.gitkeep
 .claude/tools/microloop-orchestrator/tests/fixtures/sample-extraction-input.md
+.claude/tools/microloop-orchestrator/tests/test_apply_command.py
 .claude/tools/microloop-orchestrator/tests/test_contract.py
 .claude/tools/microloop-orchestrator/tests/test_degradation.py
 .claude/tools/microloop-orchestrator/tests/test_dispatch_worker.py
