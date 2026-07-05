@@ -18,7 +18,9 @@ pre_conditions:
 
 ## UA-first invariant
 
-Trước khi hỏi user, câu hỏi code-trả-lời-được phải tự giải bằng UA-first probe (`{{ tools.domain_overview }}` / `{{ tools.domain_flow }}`). Chỉ unknown nghiệp vụ thật mới hỏi user. Codebase Memory chỉ hỗ trợ đọc logic node sau khi UA đã định vị flow.
+Trước khi hỏi user, câu hỏi Code-trả-lời-được phải tự giải bằng UA-first probe (`{{ tools.domain_overview }}` / `{{ tools.domain_flow }}`). Chỉ unknown nghiệp vụ thật mới hỏi user. Codebase Memory chỉ hỗ trợ đọc logic node sau khi UA đã định vị flow.
+
+Đối chiếu codebase là bước bắt buộc trước khi viết As-is hoặc ghi Open Question liên quan tới flow/code hiện có.
 
 ## Mục tiêu
 

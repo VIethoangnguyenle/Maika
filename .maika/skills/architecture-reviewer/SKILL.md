@@ -71,6 +71,8 @@ Kết luận về boundary/topology/cross-service/async phải dùng Understand-
 - Chạy `{{ tools.domain_flow }}` để xác định topology REST/gRPC/Kafka/job.
 - Chỉ dùng Codebase Memory sau khi UA đã định vị node/flow, nhằm đọc chi tiết source.
 - Chỉ dùng grep như fallback. Codebase Memory lỗi không có nghĩa là UA unavailable.
+- UA là probe chủ động cho topology/boundary, không chỉ là cờ confidence.
+- Codebase Memory và grep KHÔNG được định hình kiến trúc cross-service; chúng chỉ xác minh code-fact nội-service sau UA.
 
 Đọc [references/ua-boundary-doctrine.md](references/ua-boundary-doctrine.md) trước khi kết luận về topology, async, Kafka, gRPC, hoặc cross-service.
 
