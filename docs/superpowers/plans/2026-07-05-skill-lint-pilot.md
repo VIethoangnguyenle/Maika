@@ -279,7 +279,9 @@ def test_l7_todo_flagged(tmp_path):
 - [ ] **Bước 2: Chạy self-fixture, xác nhận PASS**
 
 Run: `/usr/bin/python3 -m pytest cli/tests/test_skill_standard.py -v`
-Expected: 12 test PASS (không có test scan skill thật ở task này).
+Expected: 11 test PASS (không có test scan skill thật ở task này).
+
+> Hiệu chỉnh 2026-07-05 (Claude review): bản đầu ghi "12" — lỗi đếm của PLAN (đúng là 11 self-fixture test). Codex BLOCKED đúng kỷ luật tại đây; file khớp plan nguyên văn (11/11 pass) — ACCEPTED, không phải lỗi implementer.
 
 - [ ] **Bước 3: Commit**
 
