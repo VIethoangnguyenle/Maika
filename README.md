@@ -329,7 +329,7 @@ Maika resolve tool names tại scaffold time. Khi bạn chạy `maika init`, CLI
 | MCP server | Capability | Khi nào cần |
 |---|---|---|
 | Codebase Memory | Knowledge graph + semantic search, dependency graph, symbol analysis (single binary, MIT) | Hầu hết dự án có codebase lớn |
-| Understand Anything | Knowledge graph code-exploration — **bổ trợ** Codebase Memory (semantic) | Dùng cùng Codebase Memory để hiểu codebase sâu hơn |
+| Understand Anything | Knowledge graph code-exploration — nguồn **chính** cho kiến trúc/domain/flow (UA-first) | Mọi truy vấn kiến trúc/flow; Codebase Memory hỗ trợ sau — extract logic tại node UA đã định vị |
 | Confluence | Wiki/document search | Dự án có docs trên Confluence |
 | DB Remote | Database schema exploration read-only | Dự án có DB cần khám phá |
 
