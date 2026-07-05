@@ -12,16 +12,10 @@ import yaml
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent.parent / ".maika" / "skills"
 
-# L3 (BP-03): skill được phép vượt MAX_BODY_LINES — backlog migrate đợt 2.
-# CHỈ được RÚT NGẮN (mỗi lần migrate xong một skill thì xóa khỏi đây). Không thêm.
+# L3 (BP-03): emergency grandfather set cho skill vượt MAX_BODY_LINES.
+# Phase 2 đã migrate hết backlog; không thêm skill thật vào đây nếu chưa có kế hoạch migrate.
 MAX_BODY_LINES = 300
-BODY_LINE_ALLOWLIST = {
-    "architecture-reviewer",
-    "knowledge-curator",
-    "openspec-explore",
-    "requirement-analyst",
-    "spec-validator",
-}
+BODY_LINE_ALLOWLIST = set()
 
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 _NAME_RE = re.compile(r"^[a-z0-9-]{1,64}$")
