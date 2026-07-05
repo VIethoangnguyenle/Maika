@@ -8,6 +8,7 @@ import yaml
 VALIDATORS = {
     "knowledge-checkpoint": "validate_knowledge_checkpoint",
     "mcp-status": "validate_mcp_status",
+    "memory-recall": "validate_memory_recall",
     "phase-chain": "validate_phase_chain",
     "handoff-slice": "validate_handoff_slice",
     "implementation-context": "validate_implementation_context",
