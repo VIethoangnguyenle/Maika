@@ -63,7 +63,7 @@ Exit khác 0 thì abort operation và phải hiển thị lý do cho user.
 Đọc [references/m7-memory-push.md](references/m7-memory-push.md) trước khi đẩy bài học của task vào agent memory.
 Đọc [references/token-calibration.md](references/token-calibration.md) khi calibrate `TOKEN_LOG.md` sau archive.
 Đọc [references/violation-tracking.md](references/violation-tracking.md) khi tracking workflow/rule violation lặp lại từ task đã archive.
-Đọc [references/archive-rotation.md](references/archive-rotation.md) trước khi rotate archive hoặc ghi cross-repo snapshot pointer.
+Đọc [references/archive-rotation.md](references/archive-rotation.md) trước khi restore from archive, rotate archive, hoặc ghi cross-repo snapshot pointer.
 
 ## Output
 

@@ -21,7 +21,14 @@
 
 ## Bước 2 — Xác định loại task
 
-Phân loại là `feature`, `fixbug`, `changerequest`, hoặc `refactor`. Nếu chưa chắc, đánh dấu tentative.
+Phân loại theo định nghĩa:
+
+- `feature`: hành vi mới / luồng mới / màn hình mới chưa tồn tại.
+- `fixbug`: hành vi thực tế của hệ thống **sai so với kỳ vọng** (spec, AC, business rule).
+- `changerequest`: hành vi hiện tại **đúng** theo thiết kế ban đầu, nhưng business muốn **thay đổi cách hoạt động**.
+- `refactor`: cải thiện cấu trúc/nợ kỹ thuật, **không được đổi behaviour quan sát được**.
+
+Nếu chưa chắc, đánh dấu tentative (vd `type: changerequest?`) + note "cần xác nhận với BA/PO". Không "nắn" requirement chỉ để khớp một loại.
 
 ## Bước 3 — Business context
 

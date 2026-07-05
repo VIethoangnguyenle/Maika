@@ -10,7 +10,11 @@
 
 ## Điều kiện trigger
 
-Đề xuất `infra-tdd` khi kết quả review có issue HIGH/BLOCKER liên quan tới database schema, index, migration, platform topology, service mới, Kafka topic, API contract, hoặc external integration.
+Đề xuất `infra-tdd` khi BẤT KỲ điều kiện nào đúng:
+
+- Review có issue HIGH/BLOCKER liên quan tới database schema, index, migration, platform topology, service mới, Kafka topic, API contract, hoặc external integration.
+- `REQUIREMENT.task_type = changerequest` VÀ scope chạm infrastructure.
+- Spec sẽ tạo artifact cần TDD riêng (vd DB migration, k8s config, pipeline mới).
 
 ## Luồng đề xuất
 

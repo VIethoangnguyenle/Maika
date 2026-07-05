@@ -4,10 +4,21 @@
 
 ## Mục lục
 
+- Restore from archive
 - Rotate archive
 - Rotate transparency log
 - Cross-repo snapshot reference
 - Gotchas
+
+## Restore from archive
+
+`restore_from_archive(ticket_id)` — điền lại `active/` từ `archive/{ticket_id}/` khi resume task cũ:
+
+1. Kiểm tra `archive/{ticket_id}/` tồn tại → nếu không: ERROR "Không tìm thấy archive cho ticket {ticket_id}".
+2. Kiểm tra `active/` có context đang active không → nếu có: WARN và hỏi user có muốn archive trước không.
+3. Copy `REQUIREMENT.md`, `EXPLORE_CONTEXT.md`, `AGENT_TRANSPARENCY.md`, và `ideation/` (nếu có) từ archive về `active/`.
+4. Thêm note vào `AGENT_TRANSPARENCY.md`: "Restored from archive at <timestamp> — Tiếp tục task {ticket_id}".
+5. Báo: "Context restored for ticket {ticket_id}. Ready to continue."
 
 ## Rotate archive
 
