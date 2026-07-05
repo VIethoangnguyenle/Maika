@@ -16,10 +16,18 @@ def test_spec_extract_requires_ascii_diagram_capture():
     schema = read_text(".maika/skills/spec-extract/references/output-schema.md")
     requirement_template = read_text(".maika/knowledge/templates/REQUIREMENT.tpl.md")
 
+    output_section = skill.split("## 3. Input / Output", 1)[1].split("## 4. Quy trình chi tiết", 1)[0]
+    process_section = skill.split("## 4. Quy trình chi tiết", 1)[1].split("## 5. Cập nhật AGENT_TRANSPARENCY", 1)[0]
+    step_5c_section = detail.split("### Bước 5c — Vẽ ASCII Flow / State Diagram", 1)[1].split("### Bước 6 — Trích quy tắc nghiệp vụ (Business Rules)", 1)[0]
+
     assert "#### ASCII Flow / State Diagram" in skill
     assert "flow, state, integration, callback, job, hoặc data path" in skill
+    assert "Integrations & Field Mapping; ASCII Flow / State Diagram; Độ tin cậy tài liệu; Lỗ hổng & câu hỏi mở" in output_section
+    assert "Bước 5c — Vẽ ASCII Flow / State Diagram" in process_section
     assert "Bước 5c — Vẽ ASCII Flow / State Diagram" in detail
     assert "Diagram phải đánh dấu `unknown`, `assumption`, hoặc `needs BA/PO confirmation`" in detail
+    assert "~~~md" in step_5c_section
+    assert "```text" in step_5c_section
     assert "#### ASCII Flow / State Diagram" in schema
     assert "## Flow / State Diagram" in requirement_template
     assert "Bắt buộc khi task có flow, state, integration, callback, job, hoặc data path" in requirement_template

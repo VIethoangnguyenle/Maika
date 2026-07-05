@@ -179,7 +179,7 @@ Từ nội dung thu được:
 
 1. Nếu tài liệu có flow, state, integration, callback, job, hoặc data path, thêm section:
 
-   ```md
+   ~~~md
    #### ASCII Flow / State Diagram
 
    ```text
@@ -188,7 +188,7 @@ Từ nội dung thu được:
      -> boundary nội bộ / bên ngoài
      -> kết quả hoặc nhánh tiếp theo
    ```
-   ```
+   ~~~
 
 2. Diagram phải ưu tiên overview trước:
    - Actor / system chính.
