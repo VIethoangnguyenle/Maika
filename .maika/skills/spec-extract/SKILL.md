@@ -96,7 +96,7 @@ Không dùng `spec-extract` cho:
 Cập nhật `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`:
 
 - Thêm section (hoặc cập nhật) `### Yêu cầu nghiệp vụ trích từ tài liệu`.
-- Skeleton tối thiểu: Bối cảnh & mục tiêu; Actor & Use Case; Luồng chính; Luồng lỗi / ngoại lệ; Quy tắc nghiệp vụ; Acceptance Criteria; Ràng buộc phi chức năng; Integrations & Field Mapping; Độ tin cậy tài liệu; Lỗ hổng & câu hỏi mở.
+- Skeleton tối thiểu: Bối cảnh & mục tiêu; Actor & Use Case; Luồng chính; Luồng lỗi / ngoại lệ; Quy tắc nghiệp vụ; Acceptance Criteria; Ràng buộc phi chức năng; Integrations & Field Mapping; ASCII Flow / State Diagram; Độ tin cậy tài liệu; Lỗ hổng & câu hỏi mở.
 - Xem [references/output-schema.md](references/output-schema.md) khi cần output schema đầy đủ để cập nhật `REQUIREMENT.md`.
 
 ---
@@ -109,6 +109,7 @@ Cập nhật `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`:
 - Bước 4 — Trích Actor & Use Case: liệt kê actor, use case và goal ở mức business.
 - Bước 5 — Trích luồng chính và luồng lỗi: giữ thứ tự logic, không thêm bước không có cơ sở.
 - Bước 5b — Thống kê Integration & Field Mapping: phát hiện integration, map field third-party sang canonical bằng UA-first.
+- Bước 5c — Vẽ ASCII Flow / State Diagram: biểu diễn trình tự, boundary, và nhánh quan trọng bằng ASCII khi tài liệu có flow/state/data path.
 - Bước 6 — Trích quy tắc nghiệp vụ: tách rule thành bullet rõ ràng, độc lập.
 - Bước 7 — Trích Acceptance Criteria & ràng buộc phi chức năng: chỉ chuyển thành AC khi có cơ sở an toàn.
 - Bước 8 — Merge vào REQUIREMENT.md: merge cẩn thận, không xoá phần đã có, ghi rõ nguồn.
