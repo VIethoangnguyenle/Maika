@@ -20,7 +20,6 @@ BODY_LINE_ALLOWLIST = {
     "knowledge-curator",
     "openspec-explore",
     "requirement-analyst",
-    "spec-extract",     # pilot — xóa ở Task 4
     "spec-validator",
 }
 
