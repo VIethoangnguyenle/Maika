@@ -298,7 +298,7 @@ Trong `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
 
 ## 8. Lưu ý
 
-- Không hard-code bất kỳ tên bảng/collection/domain cụ thể nào trong SKILL; mọi ví dụ nên ở dạng khái quát (`<entity>`, `<status>`, `<amount>`...).[web:120][web:170]
+- Không hard-code bất kỳ tên bảng/collection/domain cụ thể nào trong SKILL; mọi ví dụ nên ở dạng khái quát (`<entity>`, `<status>`, `<amount>`...).
 - Không sinh, không chạy lệnh DDL/DML thay đổi dữ liệu/schema trong scope skill này.
 - Luôn ưu tiên **metadata và pattern** hơn raw data, để tránh rủi ro bảo mật và PII.
 ---

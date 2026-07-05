@@ -23,7 +23,7 @@
 ### [CRITICAL] R-Guard-2: Knowledge-before-code gate (evidence-based)
 
 Trước khi tạo/sửa bất kỳ artifact nào, agent PHẢI sinh
-`knowledge/active/KNOWLEDGE_CHECKPOINT.md` (theo template) và pass gate:
+`{{ platform.framework_root }}/knowledge/active/KNOWLEDGE_CHECKPOINT.md` (theo template) và pass gate:
 
 `python3 {{ platform.framework_root }}/tools/gate-check/cli.py knowledge-checkpoint <file>`
 

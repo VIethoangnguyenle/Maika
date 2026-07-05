@@ -21,8 +21,6 @@
 
 ---
 
----
-
 ## 5. Architecture & Reliability Rules
 
 ### [CRITICAL] R-Arch-1: Độ tin cậy kiến trúc ràng buộc tool
@@ -40,8 +38,6 @@
 - Mọi requirement liên quan đến dữ liệu (mã dịch vụ mới, bảng mới, logic định tuyến theo database):
   - **BẮT BUỘC** phải gọi `db-explorer` (sử dụng `db-remote`) để soi dữ liệu/schema thực tế **TRƯỚC KHI** phân tích mã nguồn bằng `codebase-explorer`.
   - Nghiêm cấm việc đưa ra kết luận kiến trúc hoặc propose code nếu thiếu bằng chứng (evidence) từ Database.
-
----
 
 ---
 
@@ -108,8 +104,6 @@ Trong Pha 3 Hybrid Contract DAG:
   - Tạo từ template, điền ticket-id, timestamp bắt đầu, model name.
 - POST-PHASE SELF-CHECK trong `task.md` đã liệt TOKEN_LOG — rule này enforce nó thành **hard constraint**.
 - Vi phạm: ghi vào AGENT_TRANSPARENCY `[R-Exec-4] TOKEN_LOG chưa ghi — phải ghi trước khi tiếp.` và **không được kết thúc pha**.
-
----
 
 ---
 

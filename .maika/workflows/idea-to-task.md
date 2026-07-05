@@ -196,7 +196,7 @@ Trong `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
 
 ### ideation_expiry field
 
-Mỗi file ideation có field `ideation_expiry` trong frontmatter (xem template `ideation.md`).
+Mỗi file ideation có field `ideation_expiry` trong frontmatter (xem template `ideation.tpl.md`).
 Mặc định: `created_at + 30 ngày`.
 
 ### Kiểm tra Expiry khi mở workflow

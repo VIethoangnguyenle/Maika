@@ -5,7 +5,7 @@
 - Ví dụ: `/tdd api-gateway`, `/tdd payment-qr`, `/tdd cache-refactor`
 
 ## Mô tả
-Standalone workflow — không qua `/task` flow. Kích hoạt skill `infra-tdd` để viết Technical Design Document theo chuẩn 4-layer (Chiến lược, Kiến trúc, Quyết định, Vận hành).
+Standalone workflow — không qua `/task` flow. Kích hoạt skill `infra-tdd` để viết Technical Design Document theo chuẩn 5 tầng (T0 Bối cảnh Nghiệp vụ, Chiến lược, Kiến trúc, Quyết định, Vận hành).
 
 ## Yêu cầu
 - Skill `infra-tdd` phải đã load
@@ -29,7 +29,7 @@ Hỏi user hoặc đọc từ context:
 ```
 COPY: {{ platform.framework_root }}/skills/infra-tdd/assets/TDD_TEMPLATE.md → docs/tdd/<module>-TDD.md
 ```
-Điền từng tầng theo thứ tự T1 → T2 → T3 → T4.
+Điền từng tầng theo thứ tự T0 → T1 → T2 → T3 → T4.
 
 **BẮT BUỘC**: Chạy knowledge tools trước mỗi tầng (xem Knowledge-First Protocol trong SKILL.md).
 

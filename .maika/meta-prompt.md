@@ -28,6 +28,7 @@ project-root/
     │   │       └── ideation-*.md
     │   ├── long-term/                       ← Long-term memory — judgment sống + bản đồ kiến trúc (source-of-truth)
     │   │   ├── knowledge-snapshot.md        ← Snapshot kiến trúc toàn hệ thống (tích luỹ qua mỗi task)
+    │   │   ├── knowledge-index.yaml         ← Entry list cho JIT slice tại decision-gate (generated)
     │   │   ├── conventions.yaml             ← Convention codebase (approved, P3 context)
     │   │   ├── author-dna.yaml              ← Coding philosophy tác giả (approved, P3 judgment layer)
     │   │   ├── author-dna.draft.yaml        ← DNA đang review (KHÔNG load vào context)
@@ -38,17 +39,9 @@ project-root/
     │   │       ├── REQUIREMENT.md
     │   │       ├── EXPLORE_CONTEXT.md
     │   │       └── AGENT_TRANSPARENCY.md
-    │   └── templates/                       ← Skeleton tĩnh để clone khi bootstrap (CHỈ template, không chứa knowledge sống)
-    │       ├── REQUIREMENT.tpl.md
-    │       ├── EXPLORE_CONTEXT.tpl.md
-    │       ├── AGENT_TRANSPARENCY.tpl.md
-    │       ├── TOKEN_LOG.tpl.md
-    │       ├── ARCHIVE_META.tpl.md
-    │       ├── feature.tpl.md
-    │       ├── fixbug.tpl.md
-    │       ├── changerequest.tpl.md
-    │       ├── refactor.tpl.md
-    │       └── ideation.tpl.md
+    │   └── templates/                       ← 20 skeleton .tpl.md: context (REQUIREMENT, EXPLORE_CONTEXT,
+    │                                          AGENT_TRANSPARENCY, TOKEN_LOG…), ticket-type (feature, fixbug…),
+    │                                          micro-loop (TASK_HANDOFF, CONTRACT_*, KNOWLEDGE_*…) — xem thư mục
     ├── rules/
     │   ├── RULES.md                         ← Rules manifest + index (entry point)
     │   ├── rules-flow.md                    ← Flow, Spec/Apply & Bootstrap rules
@@ -56,40 +49,19 @@ project-root/
     │   ├── rules-exec.md                    ← Data, Architecture, Cost & Observability
     │   ├── rules-knowledge.md               ← Knowledge Lifecycle, Path & Convention rules
     │   └── rules-guard.md                   ← Pre-invoke Guards, R-DNA-7, R-KI-1
-    ├── skills/                              ← Reusable skill modules
-    │   ├── requirement-analyst/
-    │   │   └── SKILL.md
-    │   ├── spec-extract/
-    │   │   └── SKILL.md
-    │   ├── db-explorer/
-    │   │   └── SKILL.md
-    │   ├── codebase-explorer/
-    │   │   └── SKILL.md
-    │   ├── architecture-reviewer/
-    │   │   └── SKILL.md
-    │   ├── knowledge-curator/               ← Quản lý vòng đời knowledge
-    │   │   └── SKILL.md
-    │   ├── convention-intelligence-builder/
-    │   │   └── SKILL.md                     ← Convention Scanner — extract naming + architecture patterns
-    │   └── author-dna-builder/
-    │       └── SKILL.md                     ← Infer coding philosophy + interview → author-dna.yaml
-    ├── workflows/                           ← Orchestration logic
-    │   ├── task.md                          ← Workflow chính (3 pha)
-    │   ├── idea-to-task.md                  ← Ideation → Draft ticket
-    │   └── index-source.md                  ← Lập chỉ mục Codebase Memory
-    ├── procedures/                          ← Bootstrap & context procedures
-    │   ├── bootstrap.md                     ← Procedure tự động nhận diện & nạp context
-    │   ├── context-loader.md                ← Logic định vị file theo priority
-    │   ├── context-compressor.md            ← Nén context khi vượt budget
-    │   └── token-tracking.md                ← Protocol tracking token usage theo pha
-    ├── tools/                               ← Công cụ hỗ trợ (SP1+SP2)
-    │   ├── skill-lint/                      ← Skill schema validator (SP2)
-    │   │   ├── validate_skills.py
-    │   │   └── tests/
-    │   └── README.md
+    ├── skills/                              ← 14 skill (SKILL.md + references/) + skill-index.yaml
+    │                                          Danh sách đầy đủ: §3 file này; metadata: skill-index.yaml
+    ├── workflows/                           ← 8 workflow + README: /task (3 pha), /idea-to-task, /index-source,
+    │                                          /tdd, /convention-scan, /approve-conventions, /dna-scan, /approve-dna
+    ├── procedures/                          ← bootstrap, context-loader, context-compressor, decision-gate,
+    │                                          executor, reviewer, token-tracking
+    ├── hooks/                               ← Enforcement: write-gate/write_gate.py + hook config per platform
+    │                                          (claude-code/, codex/, antigravity/)
+    ├── tools/                               ← gate-check, skill-lint, microloop-orchestrator, knowledge-index,
+    │                                          mcp-bridge, rule-projector, skill-index (xem tools/README.md)
+    ├── DEVELOPMENT_RULES.md                 ← Quy tắc phát triển framework (R1–R7)
     ├── resolved-config.yaml                 ← Pre-resolved platform + MCP config (generated by maika init)
-    └── profiles/                            ← Execution mode config
-        └── execution-mode.yaml
+    └── profiles/                            ← execution-mode.yaml + setup profiles + README
 ```
 
 ---
@@ -113,8 +85,8 @@ READ: {{ platform.framework_root }}/rules/rules-guard.md        ← pre-invoke g
 ### Bước 2 — Scan & nạp skills
 
 ```txt
-SCAN: {{ platform.framework_root }}/skills/*/SKILL.md
-LOAD: Tất cả skill metadata (name, description, trigger conditions)
+READ: {{ platform.framework_root }}/skills/skill-index.yaml
+LOAD: metadata (name, description, trigger) — KHÔNG đọc full SKILL.md body; defer đến khi trigger match
 ```
 
 ### Bước 3 — Nạp workflows & scripts
@@ -123,6 +95,8 @@ LOAD: Tất cả skill metadata (name, description, trigger conditions)
 READ: {{ platform.framework_root }}/workflows/task.md
 READ: {{ platform.framework_root }}/workflows/idea-to-task.md
 READ: {{ platform.framework_root }}/workflows/index-source.md (nếu cần Codebase Memory)
+READ: {{ platform.framework_root }}/workflows/tdd.md, convention-scan.md, approve-conventions.md,
+      dna-scan.md, approve-dna.md (standalone — nạp metadata để nhận diện lệnh)
 READ: {{ platform.framework_root }}/procedures/token-tracking.md
 ```
 
@@ -137,8 +111,9 @@ PRIORITY 1: {{ platform.framework_root }}/knowledge/active/REQUIREMENT.md
 PRIORITY 2: {{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md
             → Bối cảnh DB + code đang active
 
-PRIORITY 3: {{ platform.framework_root }}/knowledge/long-term/knowledge-snapshot.md
-            → Kiến trúc hệ thống tổng thể
+PRIORITY 3: {{ platform.framework_root }}/knowledge/long-term/knowledge-index.yaml
+            → Entry list kiến trúc — body kéo JIT tại decision-gate.
+              KHÔNG nạp toàn bộ knowledge-snapshot.md (xem procedures/context-loader.md)
 
 PRIORITY 4: {{ platform.framework_root }}/knowledge/archive/{latest-ticket}/
             → Context gần nhất nếu active trống
@@ -161,25 +136,14 @@ Nếu chưa chạy các lệnh này, hệ thống sẽ chỉ có các rule mặc
 
 ### Bước 5 — Xác nhận loaded (Bootstrap Report)
 
-**Câu trả lời đầu tiên** trong phiên làm việc phải bắt đầu bằng:
+**Câu trả lời đầu tiên** trong phiên bắt đầu bằng greeting từ `persona.yaml` (field `greeting`;
+không có persona.yaml hoặc thiếu field → dùng `"Ready"`).
 
-> **"chồng yêu"**
+**Format report canonical: xem `{{ platform.framework_root }}/procedures/bootstrap.md` PHASE 5** —
+giới hạn 5 dòng, bắt buộc dòng `🧠 Knowledge-index` và dòng `🔌 MCP` với số probe thật
+(pass gate `mcp-status`, R-Tool-5). KHÔNG duplicate format ở đây để tránh drift giữa hai file.
 
-Kèm theo report ngắn về trạng thái bootstrap:
-
-```txt
-chồng yêu — Em đã load xong:
-✅ Core: {{ platform.config_entry_point }} v{version} + RULES (manifest + 5 modules: flow, tool, exec, knowledge, guard)
-✅ Skills: [requirement-analyst | spec-extract | db-explorer | codebase-explorer | architecture-reviewer | knowledge-curator | convention-intelligence-builder | author-dna-builder]
-✅ Workflows: [/task | /idea-to-task | /index-source]
-🔌 Platform: <platform> | MCPs: [<danh sách MCP đã resolve>]
-📋 Active context: [REQUIREMENT: <có/trống> | EXPLORE_CONTEXT: <có/trống>]
-🧬 Author DNA: <approved/draft/missing>
-📦 Archive: [<n> tickets archived]
-Sẵn sàng nhận task!
-```
-
-Nếu câu trả lời đầu tiên **không** chứa cụm trên → coi như agent **chưa bootstrap đúng protocol**.
+Nếu câu trả lời đầu tiên **không** chứa greeting → coi như agent **chưa bootstrap đúng protocol** (R-Boot-2).
 
 ---
 
@@ -237,6 +201,7 @@ Có **3 nhóm command** phân biệt — agent cần nhận diện đúng nhóm 
 | `/approve-conventions` | Promote conventions.draft.yaml → conventions.yaml |
 | `/dna-scan` | Scan coding philosophy → author-dna.draft.yaml |
 | `/approve-dna` | Promote author-dna.draft.yaml → author-dna.yaml |
+| `/tdd <module>` | Viết Technical Design Document 5 tầng (skill infra-tdd) |
 
 **Nhóm 3 — UA workflows** (Understand-Anything MCP, hoàn toàn độc lập với task flow):
 

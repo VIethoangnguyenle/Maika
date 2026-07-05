@@ -32,10 +32,6 @@ Tạo ra tài liệu:
 - dễ đọc, dễ bảo trì, dễ cập nhật cùng vòng đời code
 - tránh lan man, tránh lặp lại, tránh bịa đặt
 
-## Giai đoạn 1: Xác định loại tài liệu
-
----
-
 ## Khi nào KHÔNG sử dụng
 
 - Khi cần viết TDD 5 tầng (→ infra-tdd).

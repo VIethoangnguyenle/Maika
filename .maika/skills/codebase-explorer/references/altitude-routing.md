@@ -123,7 +123,7 @@ hạ độ tin cậy section DB xuống THẤP, không được kết luận gap
 Trong `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`, đánh dấu đã dùng:
 - `codebase-explorer`
 - Provider đã chọn cho `code_exploration` (ghi tên + confidence level)
-- Các operations đã gọi: `[ ] check_availability`, `[ ] search_code`, `[ ] get_source`,
+- Các operations đã gọi: `[ ] {{ tools.code_status }}`, `[ ] search_code`, `[ ] {{ tools.read_file }}`,
   `[ ] get_dependencies / trace_flow`, `[ ] find_blast_radius`
 
 Ghi rõ: provider nào đang active, operations nào không khả dụng (mapping = null), confidence level

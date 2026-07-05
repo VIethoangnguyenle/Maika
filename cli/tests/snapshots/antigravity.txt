@@ -223,6 +223,9 @@
 .agents/tools/skill-lint/validate_skills.py
 .agents/workflows/
 .agents/workflows/approve-conventions.md
+.agents/workflows/approve-dna.md
+.agents/workflows/convention-scan.md
+.agents/workflows/dna-scan.md
 .agents/workflows/idea-to-task.md
 .agents/workflows/index-source.md
 .agents/workflows/task.md

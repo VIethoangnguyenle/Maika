@@ -16,7 +16,7 @@ Tracking token usage **theo pha** (Pha 1 / Pha 2 / Pha 3) để:
 
 ## Công thức tính token
 
-- **Tỷ lệ:** 1 token ≈ 4 characters (English) / ≈ 3 characters (tiếng Việt — BPE tốn ~2.5× token do ký tự có dấu là multi-byte)
+- **Tỷ lệ:** 1 token ≈ 4 characters (English) / ≈ 3 characters (tiếng Việt — tokenizer BPE kém hiệu quả hơn với ký tự có dấu; đây là ước lượng thô, chấp nhận sai số)
 - **Làm tròn:** `ceil(chars / tỷ_lệ / 10) × 10` (làm tròn lên hàng chục)
 - Ví dụ (EN): 347 chars → ceil(347/4/10)×10 = ceil(8.675)×10 = 90 tokens; (VI): ceil(347/3/10)×10 = 120 tokens
 
