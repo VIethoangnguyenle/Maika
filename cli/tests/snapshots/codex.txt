@@ -82,7 +82,10 @@
 .agents/skills/infra-tdd/assets/TDD_TEMPLATE.md
 .agents/skills/infra-tdd/references/
 .agents/skills/infra-tdd/references/adr-guide.md
+.agents/skills/infra-tdd/references/cau-truc-5-tang.md
 .agents/skills/infra-tdd/references/diagrams-guide.md
+.agents/skills/infra-tdd/references/format-standards.md
+.agents/skills/infra-tdd/references/knowledge-first-protocol.md
 .agents/skills/infra-tdd/references/socratic-deep-dive.md
 .agents/skills/knowledge-curator/
 .agents/skills/knowledge-curator/SKILL.md
@@ -100,6 +103,9 @@
 .agents/skills/requirement-analyst/SKILL.md
 .agents/skills/spec-extract/
 .agents/skills/spec-extract/SKILL.md
+.agents/skills/spec-extract/references/
+.agents/skills/spec-extract/references/output-schema.md
+.agents/skills/spec-extract/references/quy-trinh-chi-tiet.md
 .agents/skills/spec-validator/
 .agents/skills/spec-validator/SKILL.md
 .agents/tools/

@@ -83,7 +83,10 @@
 .claude/skills/infra-tdd/assets/TDD_TEMPLATE.md
 .claude/skills/infra-tdd/references/
 .claude/skills/infra-tdd/references/adr-guide.md
+.claude/skills/infra-tdd/references/cau-truc-5-tang.md
 .claude/skills/infra-tdd/references/diagrams-guide.md
+.claude/skills/infra-tdd/references/format-standards.md
+.claude/skills/infra-tdd/references/knowledge-first-protocol.md
 .claude/skills/infra-tdd/references/socratic-deep-dive.md
 .claude/skills/knowledge-curator/
 .claude/skills/knowledge-curator/SKILL.md
@@ -101,6 +104,9 @@
 .claude/skills/requirement-analyst/SKILL.md
 .claude/skills/spec-extract/
 .claude/skills/spec-extract/SKILL.md
+.claude/skills/spec-extract/references/
+.claude/skills/spec-extract/references/output-schema.md
+.claude/skills/spec-extract/references/quy-trinh-chi-tiet.md
 .claude/skills/spec-validator/
 .claude/skills/spec-validator/SKILL.md
 .claude/tools/

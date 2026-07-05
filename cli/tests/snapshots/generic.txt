@@ -69,7 +69,10 @@
 .maika/skills/infra-tdd/assets/TDD_TEMPLATE.md
 .maika/skills/infra-tdd/references/
 .maika/skills/infra-tdd/references/adr-guide.md
+.maika/skills/infra-tdd/references/cau-truc-5-tang.md
 .maika/skills/infra-tdd/references/diagrams-guide.md
+.maika/skills/infra-tdd/references/format-standards.md
+.maika/skills/infra-tdd/references/knowledge-first-protocol.md
 .maika/skills/infra-tdd/references/socratic-deep-dive.md
 .maika/skills/knowledge-curator/
 .maika/skills/knowledge-curator/SKILL.md
@@ -87,6 +90,9 @@
 .maika/skills/requirement-analyst/SKILL.md
 .maika/skills/spec-extract/
 .maika/skills/spec-extract/SKILL.md
+.maika/skills/spec-extract/references/
+.maika/skills/spec-extract/references/output-schema.md
+.maika/skills/spec-extract/references/quy-trinh-chi-tiet.md
 .maika/skills/spec-validator/
 .maika/skills/spec-validator/SKILL.md
 .maika/tools/
