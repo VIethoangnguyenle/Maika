@@ -87,7 +87,7 @@ Khi không có MCP tools, chạy deep-dive bằng câu hỏi trực tiếp từ 
 | A4 | Data model đang giả định schema ổn định — nếu business thay đổi yêu cầu? |
 | A5 | Team đang giả định có skill gì? Nếu key person nghỉ? |
 
-**Với UA/Codebase Memory**: Dùng `{{ tools.find_blast_radius }}` / `{{ tools.find_blast_radius }}` để verify A2, A3 bằng blast radius thực tế.
+**Với UA/Codebase Memory**: Dùng `{{ tools.find_blast_radius }}` / `{{ tools.get_dependencies }}` để verify A2, A3 bằng blast radius thực tế.
 
 ### Bucket 2 — Alternatives (Lựa chọn)
 

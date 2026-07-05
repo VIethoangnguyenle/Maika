@@ -28,27 +28,29 @@
   - Có spec tương ứng với ticket (sinh từ `/task spec`).
   - User đã được tóm tắt file/module bị chạm và xác nhận rõ ràng.
 
+> R-Tool-4 và R-Tool-5b đã collapse vào R-Tool-5 (xem `docs/superpowers/plans/2026-06-18-decision-point-gates.md`) — numbering giữ nguyên để không gãy reference.
+
 ### [CRITICAL] R-Tool-5: Codebase-knowledge qua MCP — evidence gate
 
 - MCP-status (bootstrap + transparency) hợp lệ CHỈ KHI nhúng số thật từ probe
-  (`get_graph_stats`/`list_projects`: nodes/edges/freshness). "Runtime Ready" rỗng = invalid.
+  (`{{ tools.graph_stats }}`: nodes/edges/freshness). "Runtime Ready" rỗng = invalid.
   Pass: `python3 {{ platform.framework_root }}/tools/gate-check/cli.py mcp-status <file>`.
 - Khi cần codebase-facts: bằng chứng trong KNOWLEDGE_CHECKPOINT (node_id + blast-radius)
-  tự khắc buộc dùng KG tools (`query_nodes`/`get_node_source`/`trace_call_chain`/`find_impact`);
+  tự khắc buộc dùng KG tools (`{{ tools.search_code }}`/`{{ tools.read_file }}`/`{{ tools.trace_flow }}`/`{{ tools.find_blast_radius }}`);
   KG không có → dòng degrade "KG unavailable — grep fallback, MEDIUM" + hạ confidence kiến trúc.
 - **Thứ tự nguồn khi trace code (UA-first):**
   1. **UA + kinh nghiệm** (`agent-memory` R-Tool-6, `knowledge-snapshot`) — LUÔN trước.
      UA là bản đồ node (class/func/domain/flow/quan hệ/entry-point), **không chứa logic** →
-     dùng để trace/định vị/map. Blast-radius độ cao kiến trúc: UA (`find_impact`/`domain_relationships`) trước.
+     dùng để trace/định vị/map. Blast-radius độ cao kiến trúc: UA (`{{ tools.find_blast_radius }}`/`{{ tools.domain_relationships }}`) trước.
   2. **Codebase Memory** — hỗ trợ UA, vào SAU: extract **logic trong thân hàm**
-     (`get_node_source`) tại node UA đã định vị.
+     (`{{ tools.read_file }}`) tại node UA đã định vị.
   3. **grep** — fallback cuối; KG/UA vắng → dòng degrade + hạ confidence.
   - Lỗi Codebase Memory MCP ≠ UA không khả dụng → vẫn thử UA độc lập, không fallback grep cả hai.
   - *Identifier trong EXPLORE_CONTEXT* vẫn phân theo fact-type: architecture-facts → UA identifier
     (domain/flow/entry-point); code-facts → `node_id`. (Đây là phân loại *nhãn lưu*, không phải *thứ tự dùng*.)
   - Mâu thuẫn ở code-fact: surface vào `AGENT_TRANSPARENCY`, knowledge chính thắng (R-KL-3), không suppress.
-- `get_node_source` tuân thủ R-Data-1 (không log raw PII vào context files).
-- Khi ghi `EXPLORE_CONTEXT.md`, luôn kèm identifier cho component quan trọng — `node_id` cho code-facts, hoặc UA identifier (domain/flow/entry-point) cho architecture-facts (`node_id` không bắt buộc với nguồn UA); cho phép downstream `get_node_source(node_id)` hoặc đọc theo identifier UA.
+- `{{ tools.read_file }}` tuân thủ R-Data-1 (không log raw PII vào context files).
+- Khi ghi `EXPLORE_CONTEXT.md`, luôn kèm identifier cho component quan trọng — `node_id` cho code-facts, hoặc UA identifier (domain/flow/entry-point) cho architecture-facts (`node_id` không bắt buộc với nguồn UA); cho phép downstream `{{ tools.read_file }}(node_id)` hoặc đọc theo identifier UA.
 - KHÔNG bịa kết quả cho tool không khả dụng.
 - (Infra: thiếu mcp_config.json theo runtime là việc của `maika doctor`, ngoài rule này.)
 

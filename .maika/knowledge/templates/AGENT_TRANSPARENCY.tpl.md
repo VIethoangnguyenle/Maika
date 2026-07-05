@@ -30,10 +30,9 @@ phase_state: bootstrapped
   phase-1-done        ← Pha 1 hoàn thành (REQUIREMENT + EXPLORE_CONTEXT đã ghi)
   phase-2-in-progress ← đang chạy Pha 2 (spec)
   phase-2-done        ← Pha 2 hoàn thành (OpenSpec đã propose)
-  phase-3-in-progress ← đang apply
   blocked-by-arch     ← architecture-reviewer gửi BLOCKER, chờ user quyết định
   blocked-by-data     ← thiếu dữ liệu/DB, đang chờ backfill/seed
-  applying            ← /opsx:apply đang chạy
+  applying            ← đang apply (Pha 3 — micro-loop / /opsx:apply đang chạy)
   completed           ← apply xong, knowledge-curator đã archive
 -->
 
@@ -56,13 +55,14 @@ phase_state: bootstrapped
 
 ## Lịch sử pha
 
-| Pha | Thời điểm | phase_state | Mô tả |
-|-----|-----------|-------------|-------|
-| Bootstrap | <!-- time --> | bootstrapped | Task: <!-- input --> |
+Bootstrap | <!-- time --> | Task: <!-- input -->
 
-<!-- Quy tắc cập nhật phase_state:
-  - Mỗi khi phase_state thay đổi: cập nhật cả block `## Phase State` ở trên và thêm dòng mới vào bảng này.
-  - Resume check: đọc `phase_state` trong block `## Phase State` — nếu là `phase-1-done` trở lên thì không re-trigger Pha 1.
+<!-- Quy tắc:
+  - Kết thúc mỗi pha: thêm MỘT DÒNG THÔ dạng `Pha N DONE | <timestamp> | <mô tả>` vào section này.
+    Marker literal `Pha N DONE` là input của write-gate (apply-gate) và gate phase-chain —
+    đặt trong bảng markdown (`| Pha 1 | … |`) sẽ KHÔNG match regex và bị coi là pha chưa xong.
+  - Mỗi khi phase_state thay đổi: cập nhật block `## Phase State` ở trên.
+  - Resume check: đọc `phase_state` — nếu `phase-1-done` trở lên thì không re-trigger Pha 1.
 -->
 
 ---

@@ -68,8 +68,8 @@ FOR EACH entry trong conventions.draft.yaml:
 3. Backup draft:
    Tạo conventions.draft.{YYYYMMDD-HHMMSS}.yaml.bak
    (copy từ conventions.draft.yaml trước khi rename)
-   → Giữ trong {{ platform.framework_root }}/knowledge/templates/ làm audit trail
-   → Không nạp vào context (context-loader bỏ qua *.bak)
+   → Giữ trong {{ platform.framework_root }}/knowledge/long-term/ làm audit trail
+   → Không vào context (context-loader chỉ nạp knowledge-index.yaml từ long-term/, không nạp *.bak)
 ```
 
 ---

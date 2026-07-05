@@ -27,7 +27,9 @@ Trước khi bắt đầu bất kỳ nhánh nào, luôn chạy bước bootstrap
      > "Active context đang có dữ liệu từ task trước. Reset cho task mới hay giữ lại?"
    - Nếu user chọn reset hoặc file là template trống → giữ nguyên skeleton.
 2. Tương tự cho `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`.
-3. Reset `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
+3. Reset `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md` — **chỉ khi bắt đầu task mới**
+   (Pha 1) hoặc user chọn reset ở bước 1. Khi vào `/task spec` / `/task apply` của task đang chạy:
+   KHÔNG reset — giữ "Lịch sử pha" (marker `Pha N DONE` là input của write-gate và resume detection).
    - Ghi mới với task/ticket ID hiện tại.
    - Đánh dấu `[x] {{ platform.config_entry_point }}` và `[x] {{ platform.framework_root }}/rules/RULES.md` nếu đã đọc.
    - Ghi vào "Lịch sử pha": `Bootstrap | <thời điểm> | Task: <input>`.
@@ -165,9 +167,10 @@ Sau khi nhận diện:
      - Tiếp tục flow bình thường.
 
    Tương tự cho **BLOCKED-DATA** (từ R-Flow-4):
-   - Cập nhật `phase_state: blocked-by-data`.
    - Ghi `[BLOCKED-DATA] {mô tả} — tiếp tục với assumption đã ghi.`
    - Tiếp tục flow dựa trên assumption (không chờ data — theo R-Flow-4).
+     KHÔNG đổi `phase_state` — giá trị `blocked-by-data` chặn archive (gate `archive-ready`)
+     trong khi flow này vẫn chạy tiếp, task sẽ kẹt ở cuối.
 
 5. Gọi `/opsx:explore` — **[H2] BẮT BUỘC** trong các trường hợp sau, tuỳ chọn còn lại:
    - **BẮT BUỘC khi**:
@@ -191,7 +194,7 @@ Sau khi nhận diện:
        - `[ ] {{ tools.read_file }}`
        - `[ ] {{ tools.get_dependencies }} / {{ tools.trace_flow }}`
        - `[ ] {{ tools.get_symbol }}`
-       - `[ ] {{ tools.find_blast_radius }} / find_entry_points`
+       - `[ ] {{ tools.find_blast_radius }}`
      - UA domain tools (nếu có):
        - `[ ] {{ tools.domain_overview }}`
        - `[ ] {{ tools.domain_flow }}`
@@ -250,7 +253,7 @@ Mục tiêu: dùng OpenSpec để sinh **spec kỹ thuật** dựa trên REQUIRE
 
 > **[CRITICAL / BẮT BUỘC]**: 
 > - **KHÔNG ĐƯỢC** dùng thói quen mặc định của Agent (như tự ý sinh file `implementation_plan.md` hay `plan.md` ở ngoài thư mục repo).
-> - **BẮT BUỘC** phải gọi quy trình OpenSpec (`/opsx-propose` hoặc sử dụng skill `openspec-propose`) để sinh bộ artifact chuẩn (`proposal.md`, `design.md`, `spec.md`, `tasks.md`) lưu vào `openspec/changes/<change-id>/`.
+> - **BẮT BUỘC** phải gọi quy trình OpenSpec (`/opsx:propose` hoặc sử dụng skill `openspec-propose`) để sinh bộ artifact chuẩn (`proposal.md`, `design.md`, `spec.md`, `tasks.md`) lưu vào `openspec/changes/<change-id>/`.
 
 1. Định vị context theo ticket:
    - Đọc `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md` tương ứng ticket.
@@ -280,11 +283,11 @@ Mục tiêu: dùng OpenSpec để sinh **spec kỹ thuật** dựa trên REQUIRE
      - Chạy gate: `python3 {{ platform.framework_root }}/tools/gate-check/cli.py memory-recall {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`
        — PHẢI pass (exit 0) rồi mới được gọi OpenSpec.
    - Gọi OpenSpec:
-     - Thường là `/opsx:propose` (hoặc `/opsx:new` tuỳ convention).
+     - Thường là `/opsx:propose`.
    - **Không được** dùng planning mode mặc định của agent (sinh `implementation_plan.md`, `plan.md`,
      hoặc bất kỳ file nào ra ngoài `openspec/changes/<change-id>/`) — kể cả khi agent
      runtime có planning mode nằm ngoài workflow này (vd Cursor, Antigravity, v.v.).
-   - Chờ spec được sinh ra (file spec riêng, ví dụ trong thư mục `spec/`).
+   - Chờ spec được sinh ra (bộ artifact trong `openspec/changes/<change-id>/`).
    - **Integration coverage**: nếu REQUIREMENT có section "Integrations & Field Mapping" với
      integration mới → `tasks.md` sinh ra PHẢI có task mapper/adapter tương ứng cho từng
      integration (DTO + mapping thuộc contract node trong CONTRACT_DAG ở Pha 3).
@@ -292,6 +295,9 @@ Mục tiêu: dùng OpenSpec để sinh **spec kỹ thuật** dựa trên REQUIRE
    - **[H5 — State Invalidation]** Sau khi `/opsx:propose` thành công:
      - Ghi `OPENSPEC_STATE: propose_done` vào AGENT_TRANSPARENCY.md (section Cảnh báo / Hạn chế).
      - Cập nhật `phase_state: phase-2-done`.
+     - Thêm dòng vào section "Lịch sử pha": `Pha 2 DONE | <timestamp> | spec tại openspec/changes/<change-id>/`
+       — marker literal `Pha 2 DONE` là input của write-gate (apply-gate) và resume detection;
+       chỉ ghi `phase_state` mà thiếu dòng này thì mọi code-write Pha 3 bị block.
      - Ý nghĩa: bất kỳ thay đổi requirement nào SAU điểm này đều làm OpenSpec spec hiện tại
        **stale** — phải chạy lại `/opsx:propose` nếu REQUIREMENT bị sửa.
 6. Thông báo:
@@ -312,6 +318,7 @@ Mục tiêu: dùng OpenSpec để sinh **spec kỹ thuật** dựa trên REQUIRE
 9. **[POST-PHASE SELF-CHECK — Pha 2]** Trước khi báo "Pha 2 xong" với user:
    - `[ ]` spec file tồn tại trong `openspec/changes/<change-id>/`.
    - `[ ]` AGENT_TRANSPARENCY.md có `phase_state: phase-2-done`.
+   - `[ ]` Dòng `Pha 2 DONE | …` đã có trong section "Lịch sử pha".
    - `[ ]` `OPENSPEC_STATE: propose_done` đã ghi vào AGENT_TRANSPARENCY.md.
    - `[ ]` TOKEN_LOG.md đã ghi checkpoint Pha 2.
    Nếu bất kỳ ô nào chưa tick: hoàn thành trước khi tiếp tục.
@@ -362,15 +369,16 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
    - Gọi `spec-validator.pre_apply_gate(spec_path, requirement_path)`:
      - Nếu **BLOCK**: dừng apply, hiển thị issues, hỏi user fix spec rồi chạy lại `/task spec`.
      - Nếu **PASS**: tiếp tục.
-   - Gọi `spec-validator.check_ac_coverage(spec_path, requirement_path)`:
+   - Gọi `spec-validator.ac_coverage(spec_path, requirement_path)`:
      - Nếu có AC chưa cover: hiển thị danh sách, hỏi user có muốn tiếp không.
-   - Gọi `spec-validator.check_integration_coverage(spec_path, requirement_path)`:
+   - Gọi `spec-validator.integration_coverage(spec_path, requirement_path)`:
      - Nếu có integration chưa có task mapper/adapter: hiển thị danh sách, hỏi user có muốn tiếp không.
 
 4. Hỏi **xác nhận cuối cùng**:
    - Nêu rõ đây là bước sẽ đề nghị thay đổi code theo spec.
    - Nếu user muốn, có thể giới hạn phạm vi (chỉ generate patch, không apply; hoặc chỉ apply một phần).
-5. Khi user đồng ý — **Orchestrate Hybrid Contract DAG micro-loop (SP1d)**:
+5. Khi user đồng ý — cập nhật `phase_state: applying` trong AGENT_TRANSPARENCY.md, rồi
+   **Orchestrate Hybrid Contract DAG micro-loop (SP1d)**:
    - **Dashboard runtime contract bắt buộc (P5):**
      - Log cả vòng đời của agent cha vào `{{ platform.framework_root }}/knowledge/active/microloop/ACTIVITY_LOG.jsonl`,
        không chỉ subagent. Dùng `actor: parent` cho các event như `phase_changed`,
@@ -450,22 +458,25 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
    - Ghi:
      - Spec nào đã apply.
      - Bất kỳ hạn chế nào (ví dụ: apply một phần, lỗi khi apply, cần manual follow-up).
+   - Thêm dòng vào section "Lịch sử pha": `Pha 3 DONE | <timestamp> | apply hoàn tất`
+   - Cập nhật `phase_state: completed`.
 
-7. Ghi token checkpoint CUỐI TASK vào `{{ platform.framework_root }}/knowledge/active/TOKEN_LOG.md`:
+8. Ghi token checkpoint CUỐI TASK vào `{{ platform.framework_root }}/knowledge/active/TOKEN_LOG.md`:
    - Điền timestamp kết thúc Pha 3.
    - Estimate token Pha 3: input (spec + codebase context) + output (code changes).
    - Cập nhật dòng "Pha 3" và dòng **TỔNG TASK** trong bảng Tóm tắt.
    - Đây là lần ghi cuối trước khi `knowledge-curator` archive TOKEN_LOG.md.
    - Tham chiếu protocol đầy đủ: `{{ platform.framework_root }}/procedures/token-tracking.md`.
 
-8. **[POST-PHASE SELF-CHECK — Pha 3]** Trước khi gọi knowledge-curator archive:
+9. **[POST-PHASE SELF-CHECK — Pha 3]** Trước khi gọi knowledge-curator archive:
    - `[ ]` Micro-loop hoàn tất: mọi task trong `TASK_QUEUE` = `done` (không còn `pending`/`blocked`).
    - `[ ]` Extraction review đã chạy, `EXTRACTION_REPORT` đã trình user.
    - `[ ]` Code changes / diff / PR đã được tóm tắt cho user.
    - `[ ]` AGENT_TRANSPARENCY.md có `phase_state: applying` → đã cập nhật thành `completed`.
+   - `[ ]` Dòng `Pha 3 DONE | …` đã có trong section "Lịch sử pha".
    - `[ ]` TOKEN_LOG.md đã ghi TỔNG TASK.
    - `[ ]` Không có BLOCKER chưa resolve trong AGENT_TRANSPARENCY.md.
-   - `[ ]` spec-validator.post_apply_dna_check đã chạy (xem spec-validator §3.4).
+   - `[ ]` spec-validator DNA compliance check (gate #6) đã chạy.
    - `[ ]` KNOWLEDGE_PACK.md exists and confidence/override status is recorded.
    - `[ ]` CONTRACT_DAG.md has no `pending` / `in_progress` / `blocked` / `stale` nodes.
    - `[ ]` Every leaf node with `contract_ref` uses the current `contract_version`.
@@ -473,7 +484,7 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
    - `[ ]` Teaching Moment Check trong AGENT_TRANSPARENCY.md đã resolved — chạy `python3 {{ platform.framework_root }}/tools/gate-check/cli.py teaching-moment {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md` và pass (exit 0) trước khi gọi knowledge-curator.
    Nếu bất kỳ ô nào chưa tick: hoàn thành trước khi gọi knowledge-curator.
 
-9. **[SESSION-BOUNDARY — Pha 3]** Sau khi archive hoàn thành:
+10. **[SESSION-BOUNDARY — Pha 3]** Sau khi archive hoàn thành:
     - Thông báo user:
       > "Task hoàn thành và đã archive. **Vui lòng mở session mới** cho task tiếp theo.
       > Session mới sẽ Bootstrap fresh với knowledge-snapshot đã cập nhật."
@@ -511,14 +522,19 @@ Sau khi `/task apply` Pha 3 hoàn thành thành công:
      - Business rules đã xác nhận
    - Cập nhật {{ platform.framework_root }}/knowledge/long-term/knowledge-snapshot.md
 
-3. Gọi knowledge-curator.reset_active_context():
+3. Gọi knowledge-curator.push_to_agent_memory(ticket_id):
+   - Push memory đã lọc qua 4 tầng chất lượng lên agent-memory (M7)
+   - PHẢI chạy TRƯỚC reset — reset xoá active/ là mất nguồn push
+   - agent-memory unavailable → ghi degrade `agent-memory unavailable — skip recall/save`, không block
+
+4. Gọi knowledge-curator.reset_active_context():
    - Reset active/ về skeleton sạch
 
-4. Cập nhật {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md (mới, sau reset):
+5. Cập nhật {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md (mới, sau reset):
    - Ghi: "Task {ticket_id} completed and archived at {timestamp}"
-   - Mark: [x] knowledge-curator: archive + update_snapshot + reset
+   - Mark: [x] knowledge-curator: archive + update_snapshot + push_to_agent_memory + reset
 
-5. Thông báo user:
+6. Thông báo user:
    "Task {ticket_id} đã hoàn thành. Context đã được archive.
     Knowledge snapshot đã cập nhật với {n} phát hiện mới.
     Sẵn sàng nhận task mới!"

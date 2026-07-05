@@ -94,7 +94,7 @@ Archive a completed change in the experimental workflow.
    - If changes needed: "Sync now (recommended)", "Archive without syncing"
    - If already synced: "Archive now", "Sync anyway", "Cancel"
 
-   If user chooses sync, use Task tool (subagent_type: "general-purpose", prompt: "Use Skill tool to invoke openspec-sync-specs for change '<name>'. Delta spec analysis: <include the analyzed delta spec summary>"). Proceed to archive regardless of choice.
+   If user chooses sync, apply the delta specs inline: merge each analyzed delta (adds, modifications, removals, renames) into the corresponding file under `openspec/specs/`, then re-run the sync assessment to confirm no remaining deltas. Proceed to archive regardless of choice.
 
 5. **Perform the archive**
 
@@ -141,14 +141,14 @@ All artifacts complete. All tasks complete.
 - Don't block archive on warnings - just inform and confirm
 - Preserve .openspec.yaml when moving to archive (it moves with the directory)
 - Show clear summary of what happened
-- If sync is requested, use openspec-sync-specs approach (agent-driven)
+- If sync is requested, apply delta specs inline to `openspec/specs/` (agent-driven, xem bước 4)
 - If delta specs exist, always run the sync assessment and show the combined summary before prompting
 
 ---
 
 ## [L2] Tích hợp với Knowledge Curator
 
-Sau khi archive change trong OpenSpec (`openspec archive --change "<name>"`), **phải** gọi `knowledge-curator` để đồng bộ:
+Sau khi archive change trong OpenSpec (bước 5 — move vào `openspec/changes/archive/`), **phải** gọi `knowledge-curator` để đồng bộ:
 
 ```
 FUNCTION sync_with_knowledge_curator(change_name, ticket_id):
