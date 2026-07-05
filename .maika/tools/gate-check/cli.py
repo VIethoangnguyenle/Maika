@@ -65,6 +65,7 @@ def main(argv=None):
         kwargs["allow_no_knowledge"] = index_empty
     elif args.gate in {"ac-coverage", "integration-coverage"}:
         if not args.against:
+            print("FAIL — --against is required for coverage checks")
             return 2
         kwargs["spec_text"] = Path(args.against).read_text(encoding="utf-8")
 

@@ -253,7 +253,7 @@ def _covered(item: str, spec_text: str) -> bool:
     if not item_words:
         return True
     spec_words = _keywords(spec_text)
-    needed = len(item_words) if len(item_words) <= 2 else max(2, min(4, len(item_words)))
+    needed = 1 if len(item_words) <= 2 else max(2, min(4, len(item_words)))
     return len(item_words.intersection(spec_words)) >= needed
 
 

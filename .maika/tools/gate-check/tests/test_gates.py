@@ -542,6 +542,20 @@ def test_ac_coverage_fails_when_an_ac_is_uncovered():
     assert "missing account id" in result.reason
 
 
+def test_ac_coverage_allows_partial_match_for_two_keywords_per_brief():
+    requirement = """# REQUIREMENT
+
+## Acceptance Criteria
+
+- export settlement
+"""
+    spec = """# tasks
+
+- Add export workflow only
+"""
+    assert g.validate_ac_coverage(requirement, spec).ok is True
+
+
 def test_ac_coverage_skips_when_requirement_has_no_ac_section():
     assert g.validate_ac_coverage("# REQUIREMENT\n\nNo AC here\n", SPEC_MISSES_AC).ok is True
 
@@ -556,7 +570,7 @@ def test_integration_coverage_fails_when_integration_is_uncovered():
     assert "Partner KYC API" in result.reason
 
 
-def test_cli_coverage_checks_require_against_file(tmp_path):
+def test_cli_coverage_checks_require_against_file(tmp_path, capsys):
     import importlib.util
     cli_mod = Path(__file__).resolve().parents[1] / "cli.py"
     spec = importlib.util.spec_from_file_location("cli", cli_mod)
@@ -568,4 +582,7 @@ def test_cli_coverage_checks_require_against_file(tmp_path):
     req.write_text(REQ_WITH_AC, encoding="utf-8")
     tasks.write_text(SPEC_COVERS_AC, encoding="utf-8")
     assert cli.main(["ac-coverage", str(req), "--against", str(tasks)]) == 0
+    capsys.readouterr()
     assert cli.main(["ac-coverage", str(req)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "FAIL — --against is required for coverage checks"
