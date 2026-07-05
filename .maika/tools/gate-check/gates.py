@@ -176,6 +176,13 @@ def validate_teaching_moment(text: str) -> Result:
 
 
 _ARCHIVE_BLOCKED = {"blocked-by-arch", "blocked-by-data"}
+_RESET_ALLOWED = {"completed", "cancelled", "stashed"}
+_WORD = re.compile(r"[A-Za-z0-9_\-/]+", re.IGNORECASE)
+_STOPWORDS = {
+    "the", "and", "for", "with", "that", "this", "from", "when", "then",
+    "user", "system", "can", "must", "should", "error", "validation",
+    "api", "id", "missing", "returns",
+}
 
 
 def validate_archive_ready(text: str) -> Result:
@@ -188,6 +195,96 @@ def validate_archive_ready(text: str) -> Result:
     phase_state = ps.group(1).strip() if ps else ""
     if phase_state in _ARCHIVE_BLOCKED:
         return Result(False, f"archive blocked: phase_state={phase_state} — resolve the blocker first")
+    return Result(True)
+
+
+def validate_reset_ready(text: str) -> Result:
+    """Refuse destructive active-context reset unless the task is closed or stashed
+    and the Teaching Moment Check is structurally valid."""
+    m = re.search(_SECTION.format(name=re.escape("Phase State")), text, re.DOTALL | re.IGNORECASE)
+    section = m.group(1) if m else ""
+    ps = re.search(r"phase_state:\s*(\S+)", section)
+    phase_state = ps.group(1).strip() if ps else ""
+    if phase_state in _ARCHIVE_BLOCKED:
+        return Result(False, f"reset blocked: phase_state={phase_state} — resolve the blocker first")
+    if phase_state not in _RESET_ALLOWED:
+        return Result(False, "reset requires phase_state completed, cancelled, or stashed")
+    tm = validate_teaching_moment(text)
+    if not tm.ok:
+        return Result(False, f"reset requires valid Teaching Moment Check: {tm.reason}")
+    return Result(True)
+
+
+def _heading_section(text: str, heading: str) -> str:
+    lines = text.splitlines()
+    collecting = False
+    body = []
+    needle = heading.lower()
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            if collecting:
+                break
+            collecting = needle in stripped.lower()
+            continue
+        if collecting:
+            body.append(line)
+    return "\n".join(body).strip()
+
+
+def _bullets(section: str):
+    items = []
+    for line in section.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("- ", "* ")):
+            value = stripped[2:].strip()
+            if value and not value.startswith("<!--"):
+                items.append(value)
+    return items
+
+
+def _keywords(text: str):
+    words = {w.lower() for w in _WORD.findall(text)}
+    return {w for w in words if len(w) >= 4 and w not in _STOPWORDS}
+
+
+def _covered(item: str, spec_text: str) -> bool:
+    item_words = _keywords(item)
+    if not item_words:
+        return True
+    spec_words = _keywords(spec_text)
+    needed = len(item_words) if len(item_words) <= 2 else max(2, min(4, len(item_words)))
+    return len(item_words.intersection(spec_words)) >= needed
+
+
+def validate_ac_coverage(requirement_text: str, spec_text: str = "") -> Result:
+    section = _heading_section(requirement_text, "Acceptance Criteria")
+    items = _bullets(section)
+    if not items:
+        return Result(True)
+    missing = [item for item in items if not _covered(item, spec_text)]
+    if missing:
+        return Result(False, "uncovered AC: " + "; ".join(missing))
+    return Result(True)
+
+
+def validate_integration_coverage(requirement_text: str, spec_text: str = "") -> Result:
+    section = _heading_section(requirement_text, "Integrations")
+    if not section:
+        return Result(True)
+    items = []
+    for line in section.splitlines():
+        stripped = line.strip()
+        heading = re.match(r"^###+\s+Integration:\s*(.+)$", stripped, re.IGNORECASE)
+        if heading:
+            items.append(heading.group(1).strip())
+        elif stripped.startswith("- Integration:"):
+            items.append(stripped.split(":", 1)[1].strip())
+    if not items:
+        return Result(True)
+    missing = [item for item in items if not _covered(item, spec_text)]
+    if missing:
+        return Result(False, "uncovered integration(s): " + "; ".join(missing))
     return Result(True)
 
 
