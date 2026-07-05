@@ -271,6 +271,14 @@ Mục tiêu: dùng OpenSpec để sinh **spec kỹ thuật** dựa trên REQUIRE
    > không phát hiện được sớm.
 5. Khi user xác nhận rõ ràng:
    - Cập nhật `phase_state: phase-2-in-progress` trong AGENT_TRANSPARENCY.md.
+   - **[MEMORY-RECALL GATE — R-Tool-6]** Trước khi gọi OpenSpec:
+     - Nếu `resolved-config.yaml → mcps` chứa `agent-memory`: gọi `{{ tools.dynamic_memory_recall }}`
+       (query prefix tên project từ REQUIREMENT.md) và ghi dòng evidence vào AGENT_TRANSPARENCY.md:
+       `agent-memory recall — query:"<query>" · results:<N> — ảnh hưởng reasoning`
+     - Nếu KHÔNG chứa `agent-memory` (hoặc backend chết): đảm bảo AGENT_TRANSPARENCY.md có dòng degrade
+       `agent-memory unavailable — skip recall/save`.
+     - Chạy gate: `python3 {{ platform.framework_root }}/tools/gate-check/cli.py memory-recall {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`
+       — PHẢI pass (exit 0) rồi mới được gọi OpenSpec.
    - Gọi OpenSpec:
      - Thường là `/opsx:propose` (hoặc `/opsx:new` tuỳ convention).
    - **Không được** dùng planning mode mặc định của agent (sinh `implementation_plan.md`, `plan.md`,

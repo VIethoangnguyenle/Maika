@@ -92,7 +92,11 @@ Khi mâu thuẫn với kiến thức chính (`knowledge-snapshot.md`, db-explore
 #### Ngữ cảnh sử dụng được phép
 
 - **Pha 1 exploration**: agent phát hiện module/table/service trong `REQUIREMENT.md` trùng với archive cũ → đề xuất `{{ tools.dynamic_memory_search }}` trước khi thực thi; ghi tín hiệu trong `AGENT_TRANSPARENCY.md`.
-- **Trước spec (Pre-spec)**: `{{ tools.dynamic_memory_recall }}` để tra cứu quyết định kiến trúc trước đó.
+- **Trước spec (Pre-spec) — BẮT BUỘC (hard gate `memory-recall`)**: `{{ tools.dynamic_memory_recall }}`
+  để tra cứu quyết định kiến trúc trước đó (query prefix tên project). Ghi dòng evidence vào
+  `AGENT_TRANSPARENCY.md`: `agent-memory recall — query:"<query>" · results:<N> — ảnh hưởng reasoning`.
+  Gate-check `memory-recall` phải PASS trước khi gọi OpenSpec ở Pha 2 (xem `workflows/task.md`);
+  không cấu hình / backend chết → dòng degrade chuẩn (mục Degrade bên dưới) cũng pass gate.
 - **Sau task (Pha 3)**: `{{ tools.dynamic_memory_save }}` chỉ qua `knowledge-curator` post-task hook.
 
 > **Phạm vi project khi recall:** `{{ tools.dynamic_memory_search }}` / `{{ tools.dynamic_memory_recall }}`
