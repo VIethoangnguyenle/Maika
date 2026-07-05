@@ -25,16 +25,25 @@ Lập bảng so sánh nhỏ và chỉ recommend hướng đi khi đã có đủ 
 
 ## Visualize
 
-Dùng ASCII diagram rộng rãi cho state machine, data flow, architecture sketch, so sánh dependency, và đặc biệt là flow xử lý khi nhận task mới.
+Dùng ASCII diagram rộng rãi cho state machine, data flow, architecture sketch, so sánh dependency, integration boundary, option branching, và đặc biệt là flow xử lý khi nhận task mới.
+
+ASCII diagram bắt buộc khi có flow/state/data path đủ phức tạp để prose dễ gây mơ hồ.
 
 Khi user đưa task mới còn nhiều nhánh xử lý, vẽ nhanh:
 
 ```text
-input task
-  -> clarify requirement
+vấn đề user nêu
+  -> hành vi hiện tại / unknown
   -> UA-first probe nếu chạm code
   -> map As-is / To-be
-  -> decide: explore thêm | tạo proposal | handoff skill khác
+  -> option A | option B | option C
+  -> recommended next step
+```
+
+Khi diagram làm rõ một insight quan trọng, hỏi nhẹ xem có capture không:
+
+```text
+Insight này đã rõ hơn sau diagram. Capture vào EXPLORE_CONTEXT.md hoặc artifact OpenSpec liên quan không?
 ```
 
 ## Rủi ro và unknown
