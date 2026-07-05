@@ -17,7 +17,6 @@ SKILLS_DIR = Path(__file__).resolve().parent.parent.parent / ".maika" / "skills"
 MAX_BODY_LINES = 300
 BODY_LINE_ALLOWLIST = {
     "architecture-reviewer",
-    "infra-tdd",       # pilot — xóa ở Task 3
     "knowledge-curator",
     "openspec-explore",
     "requirement-analyst",
