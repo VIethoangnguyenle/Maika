@@ -24,6 +24,8 @@ def run_doctor_mcp(
     report = write_report(target, status)
     print(f"\n  MCP doctor report: {report}")
     print(f"  native: {status.native_state} | bridge: {status.bridge_state}")
+    if status.memory_daemon != "not-selected":
+        print(f"  agent-memory daemon: {status.memory_daemon} ({status.memory_daemon_url})")
     if fix:
         fixed = apply_fix(target, home_path, assume_yes)
         if fixed is None:

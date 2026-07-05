@@ -175,3 +175,78 @@ def test_doctor_regression_no_ua(tmp_path):
     )
     status = build_doctor_status(tmp_path, home, maika_root=MAIKA_ROOT)
     assert status.setup_reports == {}
+
+
+def test_probe_memory_daemon_connection_refused_is_down():
+    from cli.mcp.doctor import _probe_memory_daemon
+    # port 1: không có gì lắng nghe -> connection refused -> DOWN
+    assert _probe_memory_daemon("http://127.0.0.1:1", timeout=0.3) is False
+
+
+def test_probe_memory_daemon_any_http_response_is_up():
+    import http.server
+    import threading
+    from cli.mcp.doctor import _probe_memory_daemon
+
+    # BaseHTTPRequestHandler tra loi 501 cho moi request — van tinh la ALIVE
+    # (khong phu thuoc endpoint /health cu the cua upstream)
+    server = http.server.HTTPServer(("127.0.0.1", 0), http.server.BaseHTTPRequestHandler)
+    thread = threading.Thread(target=server.handle_request, daemon=True)
+    thread.start()
+    try:
+        port = server.server_address[1]
+        assert _probe_memory_daemon(f"http://127.0.0.1:{port}", timeout=2.0) is True
+    finally:
+        server.server_close()
+
+
+def test_doctor_reports_memory_daemon_down_with_start_hint(tmp_path, monkeypatch):
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    write_resolved(target, mcps=["agent-memory"])
+    monkeypatch.delenv("AGENTMEMORY_URL", raising=False)
+    monkeypatch.setattr("cli.mcp.doctor._probe_memory_daemon", lambda url, timeout=2.0: False)
+
+    run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
+
+    text = (target / ".agents" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
+    assert "agent-memory daemon: DOWN (http://localhost:3111)" in text
+    assert "npm i -g @agentmemory/agentmemory" in text
+    assert "agentmemory doctor" in text
+
+
+def test_doctor_reports_memory_daemon_running(tmp_path, monkeypatch):
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    write_resolved(target, mcps=["agent-memory"])
+    monkeypatch.delenv("AGENTMEMORY_URL", raising=False)
+    monkeypatch.setattr("cli.mcp.doctor._probe_memory_daemon", lambda url, timeout=2.0: True)
+
+    run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
+
+    text = (target / ".agents" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
+    assert "agent-memory daemon: RUNNING (http://localhost:3111)" in text
+
+
+def test_doctor_memory_daemon_respects_agentmemory_url_env(tmp_path, monkeypatch):
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    write_resolved(target, mcps=["agent-memory"])
+    monkeypatch.setenv("AGENTMEMORY_URL", "http://127.0.0.1:4222")
+    monkeypatch.setattr("cli.mcp.doctor._probe_memory_daemon", lambda url, timeout=2.0: True)
+
+    run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
+
+    text = (target / ".agents" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
+    assert "agent-memory daemon: RUNNING (http://127.0.0.1:4222)" in text
+
+
+def test_doctor_omits_memory_daemon_line_when_not_selected(tmp_path):
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    write_resolved(target)  # mcps mặc định: codebase-memory-mcp
+
+    run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
+
+    text = (target / ".agents" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
+    assert "agent-memory daemon" not in text
