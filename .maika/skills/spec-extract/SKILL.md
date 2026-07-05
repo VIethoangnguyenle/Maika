@@ -35,6 +35,20 @@ pre_conditions:
   - Ràng buộc phi chức năng (non-functional constraints).
 - Đánh giá **Độ tin cậy** của tài liệu (CAO/TRUNG BÌNH/THẤP) và chỉ rõ lỗ hổng.
 
+#### ASCII Flow / State Diagram
+
+Bắt buộc thêm block `#### ASCII Flow / State Diagram` vào phần yêu cầu trích từ tài liệu khi tài liệu có flow, state, integration, callback, job, hoặc data path.
+
+Áp dụng khi gặp:
+- Luồng chính có nhiều bước.
+- Luồng lỗi, retry, fallback, cancellation, hoặc nhánh xử lý.
+- State transition / lifecycle.
+- Integration boundary nội bộ ↔ bên ngoài.
+- Callback, webhook, scheduled job, queue, event, hoặc async handoff.
+- Data path qua module/service/table/DTO/third-party field.
+
+Nếu evidence chưa đủ, diagram phải đánh dấu phần chưa chắc là `unknown`, `assumption`, hoặc `needs BA/PO confirmation`. Không vẽ diagram như fact khi nguồn chỉ cho phép suy luận.
+
 Skill này tập trung **đọc – hiểu – tóm tắt có cấu trúc**, không thay thế `requirement-analyst` mà bổ sung cho nó.
 
 ---

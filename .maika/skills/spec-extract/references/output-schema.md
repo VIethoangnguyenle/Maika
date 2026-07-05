@@ -19,6 +19,12 @@ Cập nhật `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`:
   #### Actor & Use Case
   - ...
 
+  #### ASCII Flow / State Diagram
+  - Bắt buộc khi tài liệu có flow, state, integration, callback, job, hoặc data path.
+  - Dùng fenced block `text`.
+  - Label boundary nội bộ / bên ngoài khi có integration.
+  - Mark `unknown`, `assumption`, hoặc `needs BA/PO confirmation` khi evidence chưa đủ.
+
   #### Luồng chính
   - ...
 

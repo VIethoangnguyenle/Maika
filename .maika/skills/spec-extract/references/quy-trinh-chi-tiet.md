@@ -9,6 +9,7 @@
 - Bước 4 — Trích Actor & Use Case
 - Bước 5 — Trích luồng chính và luồng lỗi
 - Bước 5b — Thống kê Integration & Field Mapping
+- Bước 5c — Vẽ ASCII Flow / State Diagram
 - Bước 6 — Trích quy tắc nghiệp vụ (Business Rules)
 - Bước 7 — Trích Acceptance Criteria & ràng buộc phi chức năng
 - Bước 8 — Merge vào REQUIREMENT.md
@@ -171,6 +172,37 @@ Từ nội dung thu được:
    - Mirror thành câu hỏi trong "Lỗ hổng & câu hỏi mở" (Bước 10).
 
 5. Không có integration mới → ghi rõ "Không phát hiện integration mới" (không bỏ trống section).
+
+---
+
+### Bước 5c — Vẽ ASCII Flow / State Diagram
+
+1. Nếu tài liệu có flow, state, integration, callback, job, hoặc data path, thêm section:
+
+   ```md
+   #### ASCII Flow / State Diagram
+
+   ```text
+   actor / system A
+     -> bước xử lý hoặc state
+     -> boundary nội bộ / bên ngoài
+     -> kết quả hoặc nhánh tiếp theo
+   ```
+   ```
+
+2. Diagram phải ưu tiên overview trước:
+   - Actor / system chính.
+   - Boundary nội bộ ↔ bên ngoài.
+   - Happy path.
+   - Nhánh lỗi hoặc async handoff quan trọng.
+
+3. Nếu có nhiều flow:
+   - Vẽ một overview diagram.
+   - Chỉ vẽ diagram nhỏ cho nhánh phức tạp nếu prose dễ gây mơ hồ.
+
+4. Diagram phải đánh dấu `unknown`, `assumption`, hoặc `needs BA/PO confirmation` khi evidence chưa đủ.
+
+5. Không dùng diagram để thay thế Luồng chính, Luồng lỗi, Acceptance Criteria, hoặc Field Mapping. Diagram chỉ làm rõ trình tự và boundary.
 
 ---
 

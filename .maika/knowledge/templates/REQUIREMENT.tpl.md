@@ -26,6 +26,17 @@
 
 ---
 
+## Flow / State Diagram
+
+<!-- Bắt buộc khi task có flow, state, integration, callback, job, hoặc data path. -->
+<!-- Nếu task đơn giản không có sequence/boundary đáng kể: ghi "Không cần diagram — task không có flow/state/data path đáng kể". -->
+
+```text
+<!-- ASCII diagram: actor/system -> step/state -> boundary -> result -->
+```
+
+---
+
 ## Scope
 
 ### In-scope
