@@ -2,6 +2,26 @@
 
 > Tài liệu tham khảo cho skill `infra-tdd`. Chỉ load khi đang viết ADR (Bước 5 trong workflow).
 
+## Mục lục
+
+- ADR là gì?
+- 7 Quy tắc viết ADR
+- Ví dụ mẫu 1 — ADR Banking
+- Bối cảnh
+- Quyết định
+- Alternatives đã xem xét
+- Ma trận đánh giá
+- Hệ quả
+- Bằng chứng
+- Ví dụ mẫu 2 — ADR Async Export
+- Bối cảnh
+- Quyết định
+- Alternatives
+- Hệ quả
+- Lỗi phổ biến khi viết ADR
+- Lifecycle ADR
+- Đặt tên file
+
 ---
 
 ## ADR là gì?

@@ -439,3 +439,150 @@ def test_cli_archive_ready_exit_codes(tmp_path):
     assert cli.main(["archive-ready", str(f)]) == 0
     f.write_text(_ps("blocked-by-arch"), encoding="utf-8")
     assert cli.main(["archive-ready", str(f)]) == 1
+
+
+def _reset_doc(phase_state="completed", teaching_status="none", note="nothing to capture"):
+    return (
+        "# AGENT_TRANSPARENCY\n\n"
+        "## Phase State\n\n"
+        "```\n"
+        f"phase_state: {phase_state}\n"
+        "```\n\n"
+        "## Teaching Moment Check\n\n"
+        f"status: {teaching_status}\n"
+        f"note: {note}\n"
+        "target_updates:\n"
+        "warn:\n"
+        "reason:\n"
+    )
+
+
+def test_reset_ready_passes_completed_cancelled_or_stashed():
+    assert g.validate_reset_ready(_reset_doc("completed")).ok is True
+    assert g.validate_reset_ready(_reset_doc("cancelled")).ok is True
+    assert g.validate_reset_ready(_reset_doc("stashed")).ok is True
+
+
+def test_reset_ready_blocks_applying_or_blocked_state():
+    applying = g.validate_reset_ready(_reset_doc("applying"))
+    assert applying.ok is False
+    assert "completed, cancelled, or stashed" in applying.reason
+    blocked = g.validate_reset_ready(_reset_doc("blocked-by-arch"))
+    assert blocked.ok is False
+    assert "blocked-by-arch" in blocked.reason
+
+
+def test_reset_ready_requires_teaching_moment_check():
+    text = "# AGENT_TRANSPARENCY\n\n## Phase State\n\nphase_state: completed\n"
+    result = g.validate_reset_ready(text)
+    assert result.ok is False
+    assert "Teaching Moment" in result.reason
+
+
+def test_cli_reset_ready_exit_codes(tmp_path):
+    import importlib.util
+    cli_mod = Path(__file__).resolve().parents[1] / "cli.py"
+    spec = importlib.util.spec_from_file_location("cli", cli_mod)
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+
+    f = tmp_path / "AGENT_TRANSPARENCY.md"
+    f.write_text(_reset_doc("completed"), encoding="utf-8")
+    assert cli.main(["reset-ready", str(f)]) == 0
+    f.write_text(_reset_doc("applying"), encoding="utf-8")
+    assert cli.main(["reset-ready", str(f)]) == 1
+
+
+REQ_WITH_AC = """# REQUIREMENT
+
+## Acceptance Criteria
+
+- User can export monthly settlement report
+- API returns validation error for missing account id
+"""
+
+SPEC_COVERS_AC = """# tasks
+
+- Implement monthly settlement report export
+- Add validation error when account id is missing
+"""
+
+SPEC_MISSES_AC = """# tasks
+
+- Implement monthly settlement report export
+"""
+
+REQ_WITH_INTEGRATION = """# REQUIREMENT
+
+## Integrations & Field Mapping
+
+### Integration: Partner KYC API
+
+- endpoint: /kyc/check
+"""
+
+SPEC_COVERS_INTEGRATION = """# tasks
+
+- Add Partner KYC API adapter for /kyc/check
+"""
+
+SPEC_WITHOUT_INTEGRATION = """# tasks
+
+- Update local validation copy
+"""
+
+
+def test_ac_coverage_passes_when_all_ac_terms_are_in_spec():
+    assert g.validate_ac_coverage(REQ_WITH_AC, SPEC_COVERS_AC).ok is True
+
+
+def test_ac_coverage_fails_when_an_ac_is_uncovered():
+    result = g.validate_ac_coverage(REQ_WITH_AC, SPEC_MISSES_AC)
+    assert result.ok is False
+    assert "missing account id" in result.reason
+
+
+def test_ac_coverage_allows_partial_match_for_two_keywords_per_brief():
+    requirement = """# REQUIREMENT
+
+## Acceptance Criteria
+
+- export settlement
+"""
+    spec = """# tasks
+
+- Add export workflow only
+"""
+    assert g.validate_ac_coverage(requirement, spec).ok is True
+
+
+def test_ac_coverage_skips_when_requirement_has_no_ac_section():
+    assert g.validate_ac_coverage("# REQUIREMENT\n\nNo AC here\n", SPEC_MISSES_AC).ok is True
+
+
+def test_integration_coverage_passes_when_integration_is_in_spec():
+    assert g.validate_integration_coverage(REQ_WITH_INTEGRATION, SPEC_COVERS_INTEGRATION).ok is True
+
+
+def test_integration_coverage_fails_when_integration_is_uncovered():
+    result = g.validate_integration_coverage(REQ_WITH_INTEGRATION, SPEC_WITHOUT_INTEGRATION)
+    assert result.ok is False
+    assert "Partner KYC API" in result.reason
+
+
+def test_cli_coverage_checks_require_against_file(tmp_path, capsys):
+    import importlib.util
+    cli_mod = Path(__file__).resolve().parents[1] / "cli.py"
+    spec = importlib.util.spec_from_file_location("cli", cli_mod)
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+
+    req = tmp_path / "REQUIREMENT.md"
+    tasks = tmp_path / "tasks.md"
+    req.write_text(REQ_WITH_AC, encoding="utf-8")
+    tasks.write_text(SPEC_COVERS_AC, encoding="utf-8")
+    assert cli.main(["ac-coverage", str(req), "--against", str(tasks)]) == 0
+    capsys.readouterr()
+    assert cli.main(["ac-coverage", str(req)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "FAIL — --against is required for coverage checks"

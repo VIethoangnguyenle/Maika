@@ -16,6 +16,9 @@ VALIDATORS = {
     "apply-gate": "validate_apply_gate",
     "teaching-moment": "validate_teaching_moment",
     "archive-ready": "validate_archive_ready",
+    "reset-ready": "validate_reset_ready",
+    "ac-coverage": "validate_ac_coverage",
+    "integration-coverage": "validate_integration_coverage",
 }
 
 
@@ -45,6 +48,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("gate", choices=VALIDATORS)
     parser.add_argument("file")
+    parser.add_argument("--against")
     parser.add_argument("--index")
     parser.add_argument("--artifact-type")
     try:
@@ -59,6 +63,11 @@ def main(argv=None):
         valid_rule_ids, index_empty = _load_index_rule_ids(args.index, args.artifact_type)
         kwargs["valid_rule_ids"] = valid_rule_ids
         kwargs["allow_no_knowledge"] = index_empty
+    elif args.gate in {"ac-coverage", "integration-coverage"}:
+        if not args.against:
+            print("FAIL — --against is required for coverage checks")
+            return 2
+        kwargs["spec_text"] = Path(args.against).read_text(encoding="utf-8")
 
     res = getattr(g, VALIDATORS[args.gate])(text, **kwargs)
     print(("PASS" if res.ok else f"FAIL — {res.reason}"))

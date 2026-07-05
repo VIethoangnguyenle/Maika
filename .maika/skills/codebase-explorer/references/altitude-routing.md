@@ -1,5 +1,15 @@
 # Altitude Routing — Chi tiết (codebase-explorer)
 
+## Mục lục
+
+- Cue Cards (phản xạ theo triệu chứng — CUE → ROUTINE → REWARD)
+- Bản đồ năng lực (theo ý định — minh họa, KHÔNG whitelist)
+- Ví dụ áp dụng
+- Output format đầy đủ (EXPLORE_CONTEXT section)
+- Operations đầy đủ (Codebase Memory)
+- Bước 6b — DB cross-reference (chi tiết)
+- Bước 8 — AGENT_TRANSPARENCY checklist đầy đủ
+
 Tài liệu hỗ trợ cho [SKILL.md](../SKILL.md) §2. Đây là chi tiết bổ sung cho doctrine UA-first
 đã nêu trong reflex block — không lặp lại nguyên tắc, chỉ minh hoạ cụ thể.
 

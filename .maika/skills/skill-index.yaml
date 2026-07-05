@@ -37,9 +37,10 @@ skills:
     approve_trigger: /approve-dna
   -
     name: codebase-explorer
-    version: '1.0'
+    version: '1.1'
+    standard: SP3
     description: >
-      Khám phá codebase bằng Codebase Memory + Understand-Anything để map REQUIREMENT → module/service/file liên quan.
+      Khám phá codebase bằng Understand-Anything (UA, ưu tiên) + Codebase Memory để map REQUIREMENT → module/service/file liên quan.
       Dùng khi cần tìm module, file, dependency liên quan đến requirement hiện tại.
       KHÔNG dùng cho: khám phá DB schema (→ db-explorer),
       review kiến trúc/rủi ro (→ architecture-reviewer), sinh spec (→ openspec-propose).
@@ -71,9 +72,6 @@ skills:
       - file: "{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md"
         condition: not_skeleton
         on_fail: "ABORT — chạy requirement-analyst trước"
-      - tool: "{{ tools.db_query }}"
-        condition: exists
-        on_fail: "WARN — không có DB access, ghi vào AGENT_TRANSPARENCY và hạ Độ tin cậy xuống THẤP"
   -
     name: document-writer
     version: '1.0'
@@ -122,11 +120,12 @@ skills:
   -
     name: openspec-explore
     version: '1.0'
+    standard: SP3
     description: >
-      Enter explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements.
-      Use when the user wants to think through something before or during a change. No code writing.
-      NOT for: formalized requirements (→ requirement-analyst),
-      generating specs/artifacts (→ openspec-propose), architecture review (→ architecture-reviewer).
+      Vào chế độ explore — đối tác suy nghĩ để khám phá ý tưởng, điều tra vấn đề, và làm rõ yêu cầu.
+      Dùng khi user muốn suy nghĩ trước hoặc trong một change. Không viết code.
+      KHÔNG dùng cho: requirement đã cần chuẩn hoá (→ requirement-analyst),
+      sinh spec/artifact (→ openspec-propose), review kiến trúc (→ architecture-reviewer).
     license: MIT
     compatibility: Requires openspec CLI.
     metadata:
@@ -160,6 +159,7 @@ skills:
   -
     name: requirement-analyst
     version: '1.1'
+    standard: SP3
     description: >
       Phân tích ticket/tài liệu thành REQUIREMENT.md chuẩn hoá, rõ scope và Acceptance Criteria.
       Dùng khi có ticket link hoặc tài liệu PRD rõ ràng cần chuẩn hoá.
@@ -170,12 +170,10 @@ skills:
       - file: "{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md"
         condition: exists
         on_fail: "ABORT — bootstrap chưa chạy, gọi `/task` trước"
-      - input: ticket_id_or_doc_url
-        condition: not_empty
-        on_fail: "ABORT — thiếu ticket ID hoặc URL tài liệu"
   -
     name: spec-extract
     version: '1.0'
+    standard: SP3
     description: >
       Trích xuất spec có cấu trúc từ tài liệu (wiki/Confluence/PRD) vào REQUIREMENT.md, kèm đánh giá độ tin cậy.
       Dùng khi đầu vào là tài liệu dài, wiki nhiều trang, hoặc PRD cần parse.
@@ -185,9 +183,6 @@ skills:
       - file: "{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md"
         condition: exists
         on_fail: "ABORT — bootstrap chưa chạy, gọi `/task` trước"
-      - input: doc_url_or_text
-        condition: not_empty
-        on_fail: "ABORT — thiếu tài liệu nguồn để extract"
   -
     name: spec-validator
     version: '1.1'

@@ -2,6 +2,11 @@
 
 > Reference file — extracted from SKILL.md for progressive disclosure.
 
+## Mục lục
+
+- GIAI ĐOẠN 1: Code Evidence Scan
+- GIAI ĐOẠN 2: Hypothesis Generation
+
 ## GIAI ĐOẠN 1: Code Evidence Scan
 
 Mục tiêu: Thu thập evidence thực tế từ codebase, không infer intent.

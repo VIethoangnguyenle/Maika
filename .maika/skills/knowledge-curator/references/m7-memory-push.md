@@ -2,6 +2,16 @@
 
 > Reference file — extracted from SKILL.md for progressive disclosure.
 
+## Mục lục
+
+- Trigger
+- 3 tầng lọc chất lượng
+- Gọi `{{ tools.dynamic_memory_save }}`
+- Hướng dẫn chọn kind
+- Chống trùng (dedup-by-search, KHÔNG upsert)
+- Triển khai theo giai đoạn (R-Tool-6)
+- Ghi AGENT_TRANSPARENCY
+
 ## Trigger
 
 Gọi SAU `update_knowledge_snapshot` và TRƯỚC `reset_active_context`.

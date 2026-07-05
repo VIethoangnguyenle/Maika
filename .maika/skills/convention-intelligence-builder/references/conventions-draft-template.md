@@ -2,6 +2,12 @@
 
 > Reference file — extracted from SKILL.md for progressive disclosure.
 
+## Mục lục
+
+- Full YAML Template
+- Bước 5 — Summary Report cho User
+- Bước 6 — /approve-conventions Workflow
+
 ## Full YAML Template
 
 Ghi ra `{{ platform.framework_root }}/knowledge/long-term/conventions.draft.yaml`:
