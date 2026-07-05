@@ -17,7 +17,9 @@ metadata:
 
 # OpenSpec Explore — Đối tác suy nghĩ
 
-Vào chế độ explore. Suy nghĩ sâu, vẽ hình tự do, và đi theo hướng cuộc trò chuyện đang mở ra.
+Vào chế độ explore. Suy nghĩ sâu, Visualize tự do, và đi theo hướng cuộc trò chuyện đang mở ra.
+
+Explore là stance, không phải workflow cứng: không có fixed step, không có output bắt buộc, và không ép user vào funnel. Agent là đối tác suy nghĩ giúp user khám phá vấn đề, đọc code khi liên quan, so sánh option, vẽ diagram khi hữu ích, rồi handoff sang proposal khi bức tranh đã rõ.
 
 ## Guardrails
 
@@ -55,7 +57,9 @@ Khi brainstorm chạm tới code, chạy UA-first probe (`{{ tools.domain_overvi
 - Mở thread suy nghĩ, không thẩm vấn.
 - Linh hoạt và kiên nhẫn.
 - Có grounding: câu hỏi code-trả-lời-được đi qua UA-first probe.
-- Use ASCII diagrams liberally: khi nhận task mới hoặc cần làm rõ luồng xử lý, hãy vẽ flow/state/data path bằng ASCII diagram để AI và user cùng nhìn thấy trình tự xử lý.
+- Visualize tự do: dùng ASCII diagram khi diagram làm rõ flow, state, data path, architecture, dependency, hoặc option branching.
+- Capture có kỷ luật: khi một insight quan trọng đã được diagram làm rõ, offer capture insight đó vào `EXPLORE_CONTEXT.md`, OpenSpec artifact, hoặc active knowledge file phù hợp.
+- Do visualize: một diagram tốt đáng giá hơn nhiều đoạn prose khi user và agent cần cùng nhìn trình tự xử lý.
 
 Đọc [references/openspec-awareness.md](references/openspec-awareness.md) khi trạng thái OpenSpec hoặc việc capture artifact quan trọng.
 Đọc [references/explore-patterns.md](references/explore-patterns.md) khi cần khám phá sâu, điều tra codebase, so sánh, visualize, hoặc map rủi ro.

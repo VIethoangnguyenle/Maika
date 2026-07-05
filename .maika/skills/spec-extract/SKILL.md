@@ -35,6 +35,20 @@ pre_conditions:
   - Ràng buộc phi chức năng (non-functional constraints).
 - Đánh giá **Độ tin cậy** của tài liệu (CAO/TRUNG BÌNH/THẤP) và chỉ rõ lỗ hổng.
 
+#### ASCII Flow / State Diagram
+
+Bắt buộc thêm block `#### ASCII Flow / State Diagram` vào phần yêu cầu trích từ tài liệu khi tài liệu có flow, state, integration, callback, job, hoặc data path.
+
+Áp dụng khi gặp:
+- Luồng chính có nhiều bước.
+- Luồng lỗi, retry, fallback, cancellation, hoặc nhánh xử lý.
+- State transition / lifecycle.
+- Integration boundary nội bộ ↔ bên ngoài.
+- Callback, webhook, scheduled job, queue, event, hoặc async handoff.
+- Data path qua module/service/table/DTO/third-party field.
+
+Nếu evidence chưa đủ, diagram phải đánh dấu phần chưa chắc là `unknown`, `assumption`, hoặc `needs BA/PO confirmation`. Không vẽ diagram như fact khi nguồn chỉ cho phép suy luận.
+
 Skill này tập trung **đọc – hiểu – tóm tắt có cấu trúc**, không thay thế `requirement-analyst` mà bổ sung cho nó.
 
 ---
@@ -82,7 +96,7 @@ Không dùng `spec-extract` cho:
 Cập nhật `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`:
 
 - Thêm section (hoặc cập nhật) `### Yêu cầu nghiệp vụ trích từ tài liệu`.
-- Skeleton tối thiểu: Bối cảnh & mục tiêu; Actor & Use Case; Luồng chính; Luồng lỗi / ngoại lệ; Quy tắc nghiệp vụ; Acceptance Criteria; Ràng buộc phi chức năng; Integrations & Field Mapping; Độ tin cậy tài liệu; Lỗ hổng & câu hỏi mở.
+- Skeleton tối thiểu: Bối cảnh & mục tiêu; Actor & Use Case; Luồng chính; Luồng lỗi / ngoại lệ; Quy tắc nghiệp vụ; Acceptance Criteria; Ràng buộc phi chức năng; Integrations & Field Mapping; ASCII Flow / State Diagram; Độ tin cậy tài liệu; Lỗ hổng & câu hỏi mở.
 - Xem [references/output-schema.md](references/output-schema.md) khi cần output schema đầy đủ để cập nhật `REQUIREMENT.md`.
 
 ---
@@ -95,6 +109,7 @@ Cập nhật `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`:
 - Bước 4 — Trích Actor & Use Case: liệt kê actor, use case và goal ở mức business.
 - Bước 5 — Trích luồng chính và luồng lỗi: giữ thứ tự logic, không thêm bước không có cơ sở.
 - Bước 5b — Thống kê Integration & Field Mapping: phát hiện integration, map field third-party sang canonical bằng UA-first.
+- Bước 5c — Vẽ ASCII Flow / State Diagram: biểu diễn trình tự, boundary, và nhánh quan trọng bằng ASCII khi tài liệu có flow/state/data path.
 - Bước 6 — Trích quy tắc nghiệp vụ: tách rule thành bullet rõ ràng, độc lập.
 - Bước 7 — Trích Acceptance Criteria & ràng buộc phi chức năng: chỉ chuyển thành AC khi có cơ sở an toàn.
 - Bước 8 — Merge vào REQUIREMENT.md: merge cẩn thận, không xoá phần đã có, ghi rõ nguồn.
