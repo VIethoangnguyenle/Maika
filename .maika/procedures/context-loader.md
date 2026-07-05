@@ -51,19 +51,10 @@ slice = [ entry for entry in knowledge-index
 - **Vocabulary artifact-type do PROJECT định nghĩa** (tag `applies_to` mà author-dna-builder / convention-intelligence-builder gắn vào entry) — framework KHÔNG hard-code danh sách type (vd Factory/Service…). Khớp thuần theo `applies_to`, không qua bảng cố định.
 - Đây là slice JIT — context-loader không pre-load; decision-gate kéo đúng lúc cần bằng chứng (xem token bằng chứng bắt buộc trong `decision-gate.md`).
 
-> **[R-KI-1 — Bắt buộc]**: Nếu external KI (vd Cursor rules, Antigravity knowledge, etc.) chứa
-> file `factory-rules.md`, `coding-rules.md`, hoặc bất kỳ file nào duplicate nội dung
-> từ `conventions.yaml` / `author-dna.yaml`:
->
-> **Agent PHẢI** (không phải "khuyến nghị"):
-> 1. Trong phiên detect: WARN user ngay trong bootstrap report (PHASE 0.5).
-> 2. Đề xuất action cụ thể: "Replace nội dung `{ki_file}` bằng 1 dòng pointer:
->    `# Xem {{ platform.framework_root }}/knowledge/long-term/conventions.yaml + author-dna.yaml`"
-> 3. Ghi vào AGENT_TRANSPARENCY: "[R-KI-1] KI conflict detected: {path}. Cleanup pending."
-> 4. Nếu user chưa cleanup sau 2 phiên: nhắc lại mỗi bootstrap cho đến khi xử lý.
->
-> **Không được** dùng nội dung từ KI file để code nếu nội dung đó mâu thuẫn với `{{ platform.framework_root }}/knowledge/`.
-> KI external chỉ là pointer; framework knowledge là source of truth.
+> **[R-KI-1 — Bắt buộc]**: External KI (Cursor rules, Antigravity knowledge…) chỉ là pointer —
+> framework knowledge là source of truth. **Không được** dùng nội dung KI mâu thuẫn với
+> `{{ platform.framework_root }}/knowledge/`. Quy trình detect / WARN / đề xuất cleanup: xem `bootstrap.md` PHASE 0.5.
+> Nếu user chưa cleanup sau 2 phiên: nhắc lại mỗi bootstrap cho đến khi xử lý.
 
 ---
 
@@ -194,39 +185,23 @@ Design giả định "1 task tại 1 thời điểm". Ba case sau cần protocol
 Xảy ra khi: User đang làm PROJ-123 (pha 1 hoặc 2) nhưng đột nhiên cần xử lý gấp PROJ-456.
 
 ```
-DETECT: active task = PROJ-123, user request = PROJ-456
-
 PROMPT:
-  "ð¥ Task nóng: PROJ-456 trong khi PROJ-123 đang ở [pha hiện tại].
-
-   Chọn cách xử lý:
-   [H] Hoàn tất nhanh PROJ-123 trước (nếu có thể)
+  "🔥 Task nóng: PROJ-456 trong khi PROJ-123 đang ở [pha hiện tại].
+   [H] Hoàn tất nhanh PROJ-123 đến điểm dừng an toàn rồi stash
    [S] Stash PROJ-123 → xử lý PROJ-456 → resume sau
    [A] Bỏ PROJ-123 luôn, archive và bắt đầu PROJ-456"
 
 IF [S] (Stash):
   1. knowledge-curator.archive_active_context("PROJ-123", status="stashed")
      → ARCHIVE_META.md phải ghi status=stashed (khác với completed)
-  2. reset_active_context()
-  3. Bắt đầu PROJ-456 trên context sạch
-  4. Ghi vào AGENT_TRANSPARENCY của PROJ-456:
+  2. reset_active_context() → bắt đầu PROJ-456 trên context sạch
+  3. Ghi vào AGENT_TRANSPARENCY của PROJ-456:
      "Hot-swap từ PROJ-123 (stashed tại archive/PROJ-123/)"
 
-IF [H] (Hoàn tất nhanh):
-  → Giữ context, tiếp tục PROJ-123 đến điểm dừng an toàn rồi stash
-
-Resume stash sau:
-  context-loader.restore_from_archive("PROJ-123")
-  → Ghi note: "Resumed from stash"
+Resume stash sau: context-loader.restore_from_archive("PROJ-123") + ghi note "Resumed from stash".
 ```
 
-**Stash status trong ARCHIVE_META.md:**
-
-```
-status: stashed          ← chưa hoàn thành, có thể resume
-status: completed        ← đã apply xong
-status: cancelled        ← bỏ giữa chừng, không resume
-```
+**Stash status trong ARCHIVE_META.md:** `stashed` (chưa xong, resume được) | `completed` (đã apply) | `cancelled` (bỏ, không resume).
 
 ---
 
@@ -235,25 +210,14 @@ status: cancelled        ← bỏ giữa chừng, không resume
 Xảy ra khi: User muốn xem lại context của PROJ-100 (archived) trong khi PROJ-200 đang active.
 
 ```
-DETECT: user request = "đọc lại context PROJ-100"
-
 PROMPT:
-  "Đọc bảng so sánh hay restore toàn bộ?
-   [R] Read-only: hiển thị REQUIREMENT + EXPLORE_CONTEXT của PROJ-100 (đang active = PROJ-200)
-   [F] Full restore: dừng PROJ-200, load PROJ-100 vào active/"
-
-IF [R] (Read-only — khuyến nghị):
-  1. Đọc file từ archive/PROJ-100/ nhưng KHÔNG copy vào active/
-  2. Hiển thị inline trong trả lời của agent
-  3. Ghi vào AGENT_TRANSPARENCY (PROJ-200):
-     "Read-only access archive/PROJ-100/ cho mục đích so sánh"
-  4. Active context của PROJ-200 không bị ảnh hưởng
-
-IF [F] (Full restore):
-  → Chạy Stash PROJ-200 trước, rồi restore_from_archive(PROJ-100)
+  "[R] Read-only (khuyến nghị): đọc archive/PROJ-100/ và hiển thị inline, KHÔNG copy vào active/ —
+       PROJ-200 không bị ảnh hưởng. Ghi vào AGENT_TRANSPARENCY (PROJ-200):
+       "Read-only access archive/PROJ-100/ cho mục đích so sánh"
+   [F] Full restore: Stash PROJ-200 trước (Case A), rồi restore_from_archive(PROJ-100)"
 ```
 
-**Rule cứng**: Không bao giờ đồng thời có 2 task `active` trong `active/`. Read-only từ archive là cach duy nhất để xem ticket cũ mà không phá vỡ task đang chạy.
+**Rule cứng**: Không bao giờ đồng thời có 2 task `active` trong `active/`. Read-only từ archive là cách duy nhất để xem ticket cũ mà không phá vỡ task đang chạy.
 
 ---
 
@@ -262,42 +226,23 @@ IF [F] (Full restore):
 Xảy ra khi: Đã chạy `/task spec PROJ-123` xong (Pha 2), nhưng trước khi apply, user muốn quay lại chỉnh REQUIREMENT.
 
 ```
-DETECT: active task = PROJ-123, pha hiện tại = spec-done (chưa apply)
-        user request = sửa lại REQUIREMENT
-
 PROMPT:
-  "â ï¸ Spec của PROJ-123 đã được sinh (Pha 2). Sửa REQUIREMENT sẽ invalidate spec hiện tại.
-
-   [P] Patch nhỏ: Chỉ sửa REQUIREMENT, sinh lại spec từ đầu (Pha 2)
-   [K] Giữ nguyên spec, chỉ ghi note và sửa sau apply
+  "⚠️ Spec của PROJ-123 đã được sinh (Pha 2). Sửa REQUIREMENT sẽ invalidate spec hiện tại.
+   [P] Patch: đánh dấu spec DRAFT-INVALIDATED, cập nhật REQUIREMENT.md, chạy lại /task spec PROJ-123;
+       ghi AGENT_TRANSPARENCY: "Spec invalidated do thay đổi REQUIREMENT tại [timestamp]"
+   [K] Giữ spec: ghi "[PENDING CHANGE] mô tả thay đổi" vào REQUIREMENT.md, tiếp tục apply, xử lý delta sau;
+       ghi AGENT_TRANSPARENCY: "Spec và REQUIREMENT có delta chưa được sync"
    [A] Abort spec hiện tại, quay về Pha 1 toàn bộ"
-
-IF [P] (Patch):
-  1. Ghi vào AGENT_TRANSPARENCY: "Spec invalidated do thay đổi REQUIREMENT tại [timestamp]"
-  2. Đánh dấu spec file hiện tại là DRAFT-INVALIDATED (rename hoặc thêm marker)
-  3. Cập nhật REQUIREMENT.md
-  4. Chạy lại `/task spec PROJ-123`
-
-IF [K] (Giữ spec):
-  1. Ghi note vào REQUIREMENT.md: "[PENDING CHANGE] mô tả thay đổi"
-  2. Ghi vào AGENT_TRANSPARENCY: "Spec và REQUIREMENT có delta chưa được sync"
-  3. Tiếp tục apply, xử lý delta sau
 ```
 
-**Rule cứng**: Khi Pha 2 đã xong mà REQUIREMENT thay đổi, **phải ghi rõ** vào AGENT_TRANSPARENCY rằng spec và requirement có thể lệch. Không được để tình trạng này “am thầm”.
+**Rule cứng**: Khi Pha 2 đã xong mà REQUIREMENT thay đổi, **phải ghi rõ** vào AGENT_TRANSPARENCY rằng spec và requirement có thể lệch. Không được để tình trạng này âm thầm.
 
 ---
 
-## [M2] Knowledge-Index Domain Filtering — superseded bởi JIT slice tại decision-gate
+## [M2] Knowledge-Index Domain Filtering
 
-> Context-loader không nạp full snapshot/conventions/author-dna để filter —
-> chỉ nạp `knowledge-index.yaml` (entry list nhẹ, không cần filter theo size).
-> Việc chọn đúng phần nội dung liên quan domain/artifact hiện tại đã chuyển thành
-> JIT slice pull tại `procedures/decision-gate.md` (entry có `applies_to` khớp artifact-type/domain),
-> không còn là bước riêng ở context-loader.
-
-**Fallback**:
-- Nếu `knowledge-index.yaml` không tồn tại → WARN "knowledge-index.yaml chưa có. Agent dùng generic judgment. Chạy index generator để tạo." (xem Graceful Degradation Rules).
+> Status: SUPERSEDED by `procedures/decision-gate.md` — JIT slice theo `applies_to` (đóng dấu 2026-07-05).
+> Fallback khi `knowledge-index.yaml` không tồn tại: xem Graceful Degradation Rules.
 
 ---
 
@@ -311,6 +256,7 @@ Ngay sau khi nạp tất cả file context (cuối thuật toán định vị), 
 
 ```
 AFTER loading all context files:
+  # estimate_tokens: công thức ước tính trong `token-tracking.md` (1 token ≈ 4 chars EN / 3 chars VI)
   file_estimates = {file: estimate_tokens(content) for file, content in loaded}
   total_estimate = sum(file_estimates.values())
 

@@ -125,7 +125,7 @@ Nạp file theo thứ tự ưu tiên. Logic đầy đủ: `context-loader.md`.
 | P1 | `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md` | Tồn tại + không phải skeleton | status = "empty" |
 | P1 | `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md` | Tồn tại | bỏ qua |
 | P2 | `{{ platform.framework_root }}/knowledge/active/ideation/ideation-*.md` | Tất cả file .md | danh sách rỗng |
-| P2 | `{{ platform.framework_root }}/knowledge/long-term/knowledge-index.yaml` | Luôn nạp nếu tồn tại | **WARN** — chạy knowledge-index generator; gate sẽ kéo slice JIT |
+| P3 | `{{ platform.framework_root }}/knowledge/long-term/knowledge-index.yaml` | Luôn nạp nếu tồn tại | **WARN** — chạy knowledge-index generator; gate sẽ kéo slice JIT |
 | P4 | `{{ platform.framework_root }}/knowledge/archive/` | Chỉ khi P1 trống | đọc metadata của ≤10 ticket gần nhất |
 
 **Skeleton detection**: File là template skeleton nếu chứa `<!-- TODO: fill in -->` hoặc độ dài < 200 ký tự.
