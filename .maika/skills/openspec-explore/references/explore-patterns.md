@@ -24,7 +24,17 @@ Lập bảng so sánh nhỏ và chỉ recommend hướng đi khi đã có đủ 
 
 ## Visualize
 
-Dùng ASCII diagram cho state machine, data flow, architecture sketch, và so sánh dependency.
+Dùng ASCII diagram rộng rãi cho state machine, data flow, architecture sketch, so sánh dependency, và đặc biệt là flow xử lý khi nhận task mới.
+
+Khi user đưa task mới còn nhiều nhánh xử lý, vẽ nhanh:
+
+```text
+input task
+  -> clarify requirement
+  -> UA-first probe nếu chạm code
+  -> map As-is / To-be
+  -> decide: explore thêm | tạo proposal | handoff skill khác
+```
 
 ## Rủi ro và unknown
 

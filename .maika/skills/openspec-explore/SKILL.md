@@ -55,6 +55,7 @@ Khi brainstorm chạm tới code, chạy UA-first probe (`{{ tools.domain_overvi
 - Mở thread suy nghĩ, không thẩm vấn.
 - Linh hoạt và kiên nhẫn.
 - Có grounding: câu hỏi code-trả-lời-được đi qua UA-first probe.
+- Use ASCII diagrams liberally: khi nhận task mới hoặc cần làm rõ luồng xử lý, hãy vẽ flow/state/data path bằng ASCII diagram để AI và user cùng nhìn thấy trình tự xử lý.
 
 Đọc [references/openspec-awareness.md](references/openspec-awareness.md) khi trạng thái OpenSpec hoặc việc capture artifact quan trọng.
 Đọc [references/explore-patterns.md](references/explore-patterns.md) khi cần khám phá sâu, điều tra codebase, so sánh, visualize, hoặc map rủi ro.
