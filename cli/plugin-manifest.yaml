@@ -240,11 +240,29 @@ plugins:
     output: "{{ platform.framework_root }}/workflows/index-source.md"
     requires_capability: code_exploration
 
+  - name: workflow-convention-scan
+    type: workflow
+    source: workflows/convention-scan.md
+    template: false
+    output: "{{ platform.framework_root }}/workflows/convention-scan.md"
+
   - name: workflow-approve-conventions
     type: workflow
     source: workflows/approve-conventions.md
     template: false
     output: "{{ platform.framework_root }}/workflows/approve-conventions.md"
+
+  - name: workflow-dna-scan
+    type: workflow
+    source: workflows/dna-scan.md
+    template: false
+    output: "{{ platform.framework_root }}/workflows/dna-scan.md"
+
+  - name: workflow-approve-dna
+    type: workflow
+    source: workflows/approve-dna.md
+    template: false
+    output: "{{ platform.framework_root }}/workflows/approve-dna.md"
 
   - name: workflow-tdd
     type: workflow

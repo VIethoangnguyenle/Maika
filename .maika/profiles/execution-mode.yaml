@@ -19,8 +19,3 @@ worker_command: ''
 {% endif %}
 max_retries: 2
 worker_timeout_seconds: 900
-gate:
-  # Path to the SP1a generated ruleset at the target project.
-  checkstyle_xml: "{{ platform.framework_root }}/tools/rule-projector/generated/checkstyle.generated.xml"
-  # Command template; {xml} and {files} are substituted. Empty in Maika repo (no Java).
-  command: "checkstyle -c {xml} {files}"

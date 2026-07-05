@@ -36,7 +36,7 @@ Tránh tình trạng agent dùng context cũ của task khác.
 **knowledge-index.yaml — quy tắc nạp:**
 - Luôn nạp nếu tồn tại, cùng lượt P3 (chỉ entry list, không nạp body).
 - Không tồn tại → WARN "knowledge-index.yaml chưa có. Agent dùng generic judgment/naming. Chạy index generator để tạo."
-- Được dùng bởi: `codebase-explorer`, `architecture-reviewer`, `spec-engineer`, `/task apply` — các skill này tự kéo slice JIT tại decision-gate theo `applies_to` khớp artifact-type, KHÔNG còn pre-load toàn bộ conventions/DNA trước khi chạy.
+- Được dùng bởi: `codebase-explorer`, `architecture-reviewer`, `openspec-propose`, `/task apply` — các skill này tự kéo slice JIT tại decision-gate theo `applies_to` khớp artifact-type, KHÔNG còn pre-load toàn bộ conventions/DNA trước khi chạy.
 
 **Artifact-type slice (JIT, tại decision-gate)**:
 

@@ -2,7 +2,7 @@
 description: Lập chỉ mục mã nguồn dự án trên Codebase Memory MCP để có khả năng tìm kiếm ngữ nghĩa và đồ thị phụ thuộc
 ---
 
-Lập chỉ mục mã nguồn dự án trên Codebase Memory MCP. Đây là workflow độc lập, cũng được gọi tự động trong Phase 4 của `/setup-knowledge`.
+Lập chỉ mục mã nguồn dự án trên Codebase Memory MCP. Đây là workflow độc lập; chạy sau khi knowledge graph đã được build bằng `/understand`.
 
 **Đầu vào**: Không cần tham số. Sử dụng thư mục dự án hiện tại.
 
@@ -15,7 +15,7 @@ ls .understand-anything/knowledge-graph.json 2>/dev/null
 ```
 
 Nếu KHÔNG tìm thấy → **DỪNG**:
-> "⚠️ Không tìm thấy knowledge graph. Chạy `/setup-knowledge` trước."
+> "⚠️ Không tìm thấy knowledge graph. Chạy `/understand` trước."
 
 ---
 
@@ -103,7 +103,7 @@ Source giờ có thể tìm kiếm qua công cụ Codebase Memory MCP:
 
 ## Rào chắn
 
-- Local index PHẢI tồn tại trước khi lập chỉ mục Codebase Memory (tiên quyết setupAiIntegration)
+- Local index PHẢI tồn tại trước khi lập chỉ mục Codebase Memory
 - Luôn hỏi trước khi lập chỉ mục lại source đã được index
 - Không được gián đoạn thao tác indexing đang tiến hành
 - Workflow này là chỉ đọc — không sửa đổi mã nguồn hoặc file kiến thức

@@ -5,7 +5,7 @@
 ## Mục lục
 
 - Trigger
-- 3 tầng lọc chất lượng
+- 4 tầng lọc chất lượng
 - Gọi `{{ tools.dynamic_memory_save }}`
 - Hướng dẫn chọn kind
 - Chống trùng (dedup-by-search, KHÔNG upsert)
@@ -18,9 +18,9 @@ Chỉ khi `status == "completed"` (không push cho stashed/cancelled).
 Push tự động ngay từ task hoàn thành đầu tiên — không có giai đoạn làm quen.
 User có thể từ chối push trực tiếp trong phiên (nói rõ trước khi curator chạy).
 
-## 3 tầng lọc chất lượng
+## 4 tầng lọc chất lượng
 
-Trước khi gọi `{{ tools.dynamic_memory_save }}`, curator PHẢI đi qua 3 tầng:
+Trước khi gọi `{{ tools.dynamic_memory_save }}`, curator PHẢI đi qua 4 tầng (Tầng 0–3):
 
 ### Tầng 0 — Pre-check (agent-memory có cấu hình không?)
 

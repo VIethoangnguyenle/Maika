@@ -194,7 +194,7 @@ Sau khi DNA được approve (/approve-dna), regenerate ruleset qua rule-project
 **Sau khi sinh draft:**
 
 ```
-"author-dna.draft.yaml đã được tạo tại {{ platform.framework_root }}/knowledge/templates/.
+"author-dna.draft.yaml đã được tạo tại {{ platform.framework_root }}/knowledge/long-term/.
 Anh mở file, đọc lại toàn bộ — chỉnh trực tiếp nếu cần.
 Khi sẵn sàng: /approve-dna để commit chính thức."
 ```

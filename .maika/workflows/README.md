@@ -13,6 +13,11 @@
 | `/task apply <ticket>` | `{{ platform.framework_root }}/workflows/task.md` | Pha 3: Apply spec vào code |
 | `/idea-to-task` | `{{ platform.framework_root }}/workflows/idea-to-task.md` | Chuyển ideation → draft ticket |
 | `/index-source` | `{{ platform.framework_root }}/workflows/index-source.md` | Lập chỉ mục Codebase Memory |
+| `/tdd <module>` | `{{ platform.framework_root }}/workflows/tdd.md` | Viết Technical Design Document (5 tầng) |
+| `/convention-scan` | `{{ platform.framework_root }}/workflows/convention-scan.md` | Scan codebase → conventions.draft.yaml |
+| `/approve-conventions` | `{{ platform.framework_root }}/workflows/approve-conventions.md` | Duyệt draft → conventions.yaml |
+| `/dna-scan` | `{{ platform.framework_root }}/workflows/dna-scan.md` | Scan phong cách tác giả → author-dna.draft.yaml |
+| `/approve-dna` | `{{ platform.framework_root }}/workflows/approve-dna.md` | Duyệt draft → author-dna.yaml |
 
 ---
 

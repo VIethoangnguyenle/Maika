@@ -1,11 +1,5 @@
 # {{ platform.framework_root }}/knowledge — Working Memory cho Agent
 
-> **Setup note**: Sau khi unzip, chạy lệnh sau để đảm bảo 2 file mới được track bởi git:
-> ```bash
-> git add {{ platform.framework_root }}/knowledge/templates/TOKEN_LOG.tpl.md {{ platform.framework_root }}/procedures/token-tracking.md
-> ```
-
-
 ## Mục đích
 
 `{{ platform.framework_root }}/knowledge` là **bộ nhớ phân tầng (memory hierarchy)** của agent trong flow:
@@ -36,23 +30,19 @@ Bộ nhớ được chia làm 4 tầng:
 │   └── ideation/              ← File ideation cho ý tưởng thô
 ├── long-term/                ← Long-term memory — judgment sống + source-of-truth (không reset)
 │   ├── knowledge-snapshot.md  ← Bản đồ kiến trúc hệ thống (tích luỹ qua nhiều task)
+│   ├── knowledge-index.yaml   ← Entry list cho JIT slice tại decision-gate (generated)
 │   ├── conventions.yaml       ← Convention đặt tên + design pattern (approved)
 │   ├── author-dna.yaml        ← Triết lý code của tác giả (judgment layer)
 │   ├── persona.yaml           ← Phong cách tương tác (local, gitignored)
 │   └── persona.template.yaml  ← Template persona (committed)
 ├── archive/                  ← Episodic memory — context task đã hoàn thành (theo ticket-id)
 │   └── {ticket-id}/
-└── templates/                ← Skeleton tĩnh để clone khi bootstrap (CHỈ template)
-    ├── REQUIREMENT.tpl.md     ← Skeleton cho REQUIREMENT
-    ├── EXPLORE_CONTEXT.tpl.md ← Skeleton cho EXPLORE_CONTEXT
-    ├── AGENT_TRANSPARENCY.tpl.md
-    ├── TOKEN_LOG.tpl.md
-    ├── ARCHIVE_META.tpl.md
-    ├── ideation.tpl.md        ← Template cho file ideation
-    ├── feature.tpl.md         ← Checklist cho task feature
-    ├── fixbug.tpl.md          ← Checklist cho task fixbug
-    ├── refactor.tpl.md        ← Checklist cho task refactor
-    └── changerequest.tpl.md   ← Checklist cho change request
+└── templates/                ← 20 skeleton .tpl.md để clone khi bootstrap (CHỈ template):
+                                context (REQUIREMENT, EXPLORE_CONTEXT, AGENT_TRANSPARENCY, TOKEN_LOG,
+                                ARCHIVE_META), ticket-type (feature, fixbug, refactor, changerequest,
+                                ideation), micro-loop Pha 3 (TASK_HANDOFF, CONTRACT_DAG, CONTRACT_SNAPSHOT,
+                                KNOWLEDGE_PACK, KNOWLEDGE_CHECKPOINT, NODE_CHECKPOINT, CONTEXT_REQUEST,
+                                CONTRACT_CHANGE_REQUEST, INTEGRATION_REQUEST, SESSION_OVERRIDE)
 ```
 
 ---

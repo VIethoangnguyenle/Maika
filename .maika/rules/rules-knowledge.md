@@ -29,9 +29,7 @@
 ### [REFERENCE] R-KL-4: Archive rotation
 
 - Khi archive có hơn 20 tickets: `knowledge-curator.rotate_archive()` được phép chạy.
-- Không xoá archive mà không đã log summary vào `ARCHIVE_LOG.md` trước.
-
----
+- Không xoá archive mà chưa log summary vào `ARCHIVE_LOG.md` trước.
 
 ---
 
@@ -56,8 +54,6 @@ Agent infrastructure (skills, workflows, scripts, rules) nằm ở `{{ platform.
 
 ---
 
----
-
 ## 13. Convention Rules
 
 ### [CRITICAL] R-Conv-1: conventions.yaml là nguồn naming duy nhất
@@ -68,8 +64,9 @@ Agent infrastructure (skills, workflows, scripts, rules) nằm ở `{{ platform.
 ### [CRITICAL] R-Conv-2: Upstream constraints không được override
 
 - Mọi entry trong `upstream_constraints` section của conventions.yaml có `weight: mandatory` là **bất biến**.
-- Agent không được đề xuất thay thế `BaseEntity`, `BaseRepository`, `@DvnhTransactional`, hoặc bất kỳ constraint nào từ `dvnh-common` — kể cả khi user yêu cầu.
-- Nếu bị yêu cầu: ghi rõ "Không thể thực hiện — vi phạm upstream constraint từ dvnh-common (R-Conv-2)" và giải thích lý do kỹ thuật.
+- Agent không được đề xuất thay thế bất kỳ base class/annotation/constraint nào khai trong
+  `upstream_constraints` (vd: một upstream common library của project) — kể cả khi user yêu cầu.
+- Nếu bị yêu cầu: ghi rõ "Không thể thực hiện — vi phạm upstream constraint từ {library} (R-Conv-2)" và giải thích lý do kỹ thuật.
 
 ### [CRITICAL] R-Conv-3: Draft không được dùng cho reasoning
 
@@ -126,7 +123,7 @@ Mỗi file `SKILL.md` trong `{{ platform.framework_root }}/skills/*/` **PHẢI**
   python3 {{ platform.framework_root }}/tools/skill-lint/validate_skills.py
   ```
 - Kết quả phải là `PASS` cho skill đó. `FAIL` = không được merge.
-- Spec doc: `docs/specs/2026-06-17-sp2-skill-standardization-design.md`
+- Spec doc (repo framework): `docs/superpowers/specs/2026-06-17-sp2-skill-standardization-design.md`
 
 ### [CRITICAL] R-Skill-3: Anti-pattern section phải routing chính xác
 

@@ -77,6 +77,11 @@ READ {{ platform.framework_root }}/skills/skill-index.yaml
 READ {{ platform.framework_root }}/workflows/task.md          → /task
 READ {{ platform.framework_root }}/workflows/idea-to-task.md  → /idea-to-task
 READ {{ platform.framework_root }}/workflows/index-source.md  → /index-source (optional)
+READ {{ platform.framework_root }}/workflows/tdd.md           → /tdd
+READ {{ platform.framework_root }}/workflows/convention-scan.md     → /convention-scan
+READ {{ platform.framework_root }}/workflows/approve-conventions.md → /approve-conventions
+READ {{ platform.framework_root }}/workflows/dna-scan.md            → /dna-scan
+READ {{ platform.framework_root }}/workflows/approve-dna.md         → /approve-dna
 ```
 
 ---

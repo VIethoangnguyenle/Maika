@@ -8,20 +8,20 @@
 ## 1. Scope & Priority
 
 - **Scope**: áp dụng cho tất cả agent, tool, skill, workflow trong repo này.
-- **Ưu tiên**:
+- **Ưu tiên** (chuỗi canonical — R-Flow-3 tham chiếu về đây):
   1. Policy tổ chức / luật pháp (nếu có).
   2. Rules trong `RULES.md`.
-  3. Hướng dẫn trong `{{ platform.config_entry_point }}`.
-  4. Hướng dẫn trong từng `SKILL.md`.
-  5. Chat trực tiếp với user.
+  3. Workflow trong `{{ platform.framework_root }}/workflows/*.md` (đặc biệt `[CRITICAL]` block).
+  4. Hướng dẫn trong `{{ platform.config_entry_point }}`.
+  5. Hướng dẫn trong từng `SKILL.md`.
+  6. Chat trực tiếp với user.
+  (Agent runtime defaults — planning mode, artifact convention của runtime — luôn xếp cuối.)
 
 ## Importance Markers
 
 Để tối ưu hóa sự chú ý (attention) của agent, các rule được đánh dấu:
 - `[CRITICAL]`: Core constraint, **không được vi phạm** trong bất kỳ hoàn cảnh nào.
 - `[REFERENCE]`: Context/Background, chỉ dùng để đọc lướt và tham khảo khi cần, không ép buộc hành vi tức thời.
-
----
 
 ---
 

@@ -19,7 +19,7 @@ author-dna.yaml + conventions.yaml
 - **Test**: `python3 -m pytest {{ platform.framework_root }}/tools/rule-projector/tests/ -v`
 - **Cài vào dự án Java**: `{{ platform.framework_root }}/tools/rule-projector/install.sh <project_root> <dna_path> <conv_path>`
 
-Chi tiết: [docs/specs/2026-06-17-sp1a-mechanical-enforcement-design.md](../../docs/specs/2026-06-17-sp1a-mechanical-enforcement-design.md)
+Chi tiết (repo framework): [docs/superpowers/specs/2026-06-17-sp1a-mechanical-enforcement-design.md](../../docs/superpowers/specs/2026-06-17-sp1a-mechanical-enforcement-design.md)
 
 ## microloop-orchestrator/ (SP1b — Coding Micro-loop + Extraction Review)
 
@@ -36,6 +36,27 @@ tasks.md → topo-sort → TASK_QUEUE → per-task: TASK_HANDOFF → executor �
   `fresh-session` (Cursor/Antigravity) · `inline-reload` (fallback, luôn chạy được).
 - **Test**: `python3 -m pytest {{ platform.framework_root }}/tools/microloop-orchestrator/tests/ -v`
 
-Chi tiết: [docs/specs/2026-06-17-sp1b-coding-microloop-design.md](../../docs/specs/2026-06-17-sp1b-coding-microloop-design.md)
+Chi tiết (repo framework): [docs/superpowers/specs/2026-06-17-sp1b-coding-microloop-design.md](../../docs/superpowers/specs/2026-06-17-sp1b-coding-microloop-design.md)
 
-## profiles/ — Execution mode config (SP1b tier)
+## gate-check/ — Evidence gate validators
+
+Kiểm checkpoint artifact bằng token bằng chứng (xem `procedures/decision-gate.md`).
+- **Run**: `python3 {{ platform.framework_root }}/tools/gate-check/cli.py <gate> <file>` — gates: knowledge-checkpoint, handoff-slice, implementation-context, phase-chain, mcp-status, memory-recall, teaching-moment, archive-ready, ac-coverage, integration-coverage…
+- **Test**: `python3 -m pytest {{ platform.framework_root }}/tools/gate-check/tests/ -v`
+
+## skill-lint/ — Skill schema validator (SP2)
+
+Lint mọi `skills/*/SKILL.md` theo Hybrid Schema (R-Skill-1/2).
+- **Run**: `python3 {{ platform.framework_root }}/tools/skill-lint/validate_skills.py`
+
+## knowledge-index/ — Knowledge index generator
+
+Sinh `knowledge/long-term/knowledge-index.yaml` (entry list cho JIT slice tại decision-gate).
+
+## skill-index/ — Skill index generator
+
+Sinh `skills/skill-index.yaml` từ frontmatter các SKILL.md.
+
+## mcp-bridge/ — MCP bridge fallback
+
+`mcp_client.py` — chỉ dùng khi native MCP fail và `maika doctor mcp` đã ghi bridge evidence (xem R-Tool-5 §Bridge fallback).

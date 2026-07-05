@@ -79,7 +79,7 @@ FOR EACH principle trong author-dna.draft.yaml:
 3. Backup draft:
    Tạo author-dna.draft.{YYYYMMDD-HHMMSS}.yaml.bak
    → Giữ trong {{ platform.framework_root }}/knowledge/long-term/ làm audit trail
-   → Không nạp vào context (context-loader bỏ qua *.bak)
+   → Không vào context (context-loader chỉ nạp knowledge-index.yaml từ long-term/, không nạp *.bak)
 ```
 
 ---

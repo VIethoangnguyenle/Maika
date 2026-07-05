@@ -251,7 +251,7 @@ xem [references/altitude-routing.md § Bước 8](references/altitude-routing.md
 
 ## Gotchas
 
-- **[G1] Provider phải sẵn sàng trước**: Luôn gọi `check_availability` trước khi dùng operation khác. Nếu chưa sẵn sàng, gợi ý user setup (index, onboard, v.v.).
+- **[G1] Provider phải sẵn sàng trước**: Luôn gọi `{{ tools.code_status }}` trước khi dùng operation khác. Nếu chưa sẵn sàng, gợi ý user setup (index, onboard, v.v.).
 - **[G2] Identifier consistency**: Dùng cùng loại identifier (node_id hoặc file path) xuyên suốt phiên. Đoán identifier sẽ gây lỗi.
 - **[G3] Provider lag**: Nếu user vừa edit code, provider có thể chưa cập nhật (<5s delay). Khi kết quả cũ cho file mới sửa, yêu cầu provider refresh.
 - **[G4] Null operations**: Khi provider không hỗ trợ operation (mapping = null), không được suy luận kết quả. Ghi hạn chế rõ ràng.

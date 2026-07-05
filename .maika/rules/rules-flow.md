@@ -21,7 +21,7 @@
   "Scope rõ nên bỏ spec" KHÔNG hợp lệ — spec artifact là bắt buộc, không phải phán đoán agent.
   Apply-entry này được enforce cơ học bởi write-gate hook (apply-gate): code-write vào app-code bị chặn nếu AGENT_TRANSPARENCY.md thiếu `Pha 2 DONE` hoặc còn `[BLOCKER-ARCH]` chưa resolve — workflow-agnostic, áp cả khi gọi thẳng `/opsx:apply`.
 - **Completion:** KHÔNG phát "Done" cho tới khi phase-chain self-check pass:
-  `python3 {{ platform.framework_root }}/tools/gate-check/cli.py phase-chain knowledge/active/AGENT_TRANSPARENCY.md`
+  `python3 {{ platform.framework_root }}/tools/gate-check/cli.py phase-chain {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`
   (kiểm marker `Pha 1/2/3 DONE` liên tục từ 1). Build-pass + bookkeeping thuộc sub-spec verify riêng.
 - Residual đã biết: raw Edit/Write và các shell write-idiom phổ biến (redirect, tee, sed -i, cp/mv, dd, patch, formatter) đã bị chặn bởi runtime write-gate hook; residual còn lại là write qua shell dựng động/`eval`/sub-script (accepted theo threat model).
 
@@ -35,7 +35,7 @@
   - Khi `task.md` yêu cầu confirm trước → **không được** skip dù context có vẻ đã đồng ý.
   - Agent runtime defaults (kể cả planning mode của các tool như Cursor, Antigravity, v.v.) là **secondary** — chỉ dùng
     khi workflow không có chỉ thị gì về hành động đó.
-- Thứ tự ưu tiên: `RULES.md` > `workflow/*.md` > `{{ platform.config_entry_point }}` > `SKILL.md` > agent runtime defaults.
+- Thứ tự ưu tiên: xem chuỗi canonical tại `RULES.md` §1 (Scope & Priority); agent runtime defaults luôn xếp cuối.
 
 
 ### [CRITICAL] R-Flow-4: Over-verification hardstop — ghi Assumption, không loop
@@ -73,8 +73,6 @@
 
 ---
 
----
-
 ## 6. Spec & Apply Rules
 
 ### [CRITICAL] R-Spec-1: Spec chỉ dựa trên REQUIREMENT + context
@@ -95,8 +93,6 @@
 
 ---
 
----
-
 ## 11. Bootstrap Rules
 
 ### [CRITICAL] R-Boot-1: Bootstrap bắt buộc mỗi phiên
@@ -106,8 +102,9 @@
 
 ### [REFERENCE] R-Boot-2: Xác nhận load bằng trigger phrase
 
-- Câu đầu tiên trong phiên làm việc PHẢI chứa trigger phrase theo {{ platform.config_entry_point }}.
-- Thiếu trigger phrase → agent coi như chưa bootstrap đúng → cần bootstrap lại.
+- Câu đầu tiên trong phiên chứa greeting từ `persona.yaml` (field `greeting`, fallback `"Ready"`) —
+  cơ chế định nghĩa tại `procedures/bootstrap.md` PHASE 5.
+- Thiếu greeting → dấu hiệu chưa bootstrap đúng → chạy lại bootstrap.
 
 ### [CRITICAL] R-Boot-3: Context conflict resolution
 

@@ -7,7 +7,6 @@
 
 > ⓘ **Đây là skeleton.** Khi `maika init` vào dự án của bạn, file này được seed rỗng;
 > `knowledge-curator` điền dần sau mỗi task. Điền các bảng dưới theo đúng format metadata.
-> Xem ví dụ author-dna đã điền đầy ở `docs/examples/author-dna-cleancode.yaml`.
 
 ---
 

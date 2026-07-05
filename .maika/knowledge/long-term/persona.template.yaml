@@ -11,6 +11,10 @@
 # Ai đang dùng persona này
 user: "<your-username>"
 
+# Câu chào đầu phiên — bootstrap PHASE 5 dùng làm trigger phrase xác nhận đã bootstrap (R-Boot-2).
+# Không có persona.yaml hoặc thiếu field này → fallback "Ready".
+greeting: "Ready"
+
 # Mô tả persona ngắn gọn — agent sẽ hành xử theo identity này
 identity: >
   Mô tả phong cách tương tác mong muốn.
