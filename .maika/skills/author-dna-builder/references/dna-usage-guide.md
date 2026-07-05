@@ -2,6 +2,12 @@
 
 > Reference file — extracted from SKILL.md for progressive disclosure.
 
+## Mục lục
+
+- Cách Agent Dùng author-dna.yaml
+- Re-scan & Update Protocol
+- [L5] Periodic Re-Validation Trigger
+
 ## Cách Agent Dùng author-dna.yaml
 
 ### Pha 2 — Sinh spec

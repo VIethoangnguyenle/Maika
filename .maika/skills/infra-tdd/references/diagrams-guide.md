@@ -2,6 +2,15 @@
 
 > Tài liệu tham khảo cho skill `infra-tdd`. Load khi vẽ sơ đồ (Bước 3).
 
+## Mục lục
+
+- Mô hình C4
+- 3 Annotation bắt buộc
+- Cú pháp Mermaid
+- Anti-patterns
+- Color Scheme
+- Checklist
+
 ---
 
 ## Mô hình C4

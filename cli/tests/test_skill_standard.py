@@ -226,3 +226,25 @@ def test_l7_todo_flagged(tmp_path):
         encoding="utf-8",
     )
     assert any("TODO" in e for e in lint_skill(d))
+
+
+# ---------- Enforce trên skill thật ----------
+
+def _real_skill_dirs():
+    return sorted(
+        d for d in SKILLS_DIR.iterdir()
+        if d.is_dir() and (d / "SKILL.md").exists()
+    )
+
+
+@pytest.mark.parametrize("skill_dir", _real_skill_dirs(), ids=lambda p: p.name)
+def test_skill_meets_standard(skill_dir):
+    errs = lint_skill(skill_dir)
+    assert not errs, "\n".join(errs)
+
+
+def test_skill_index_in_sync():  # L8 (BP-01)
+    index = yaml.safe_load((SKILLS_DIR / "skill-index.yaml").read_text(encoding="utf-8"))
+    indexed = {s["name"] for s in index.get("skills", [])}
+    dirs = {d.name for d in _real_skill_dirs()}
+    assert indexed == dirs, f"index lệch: chỉ-index={indexed - dirs}, chỉ-dir={dirs - indexed}"

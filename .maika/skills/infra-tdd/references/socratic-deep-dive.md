@@ -2,6 +2,15 @@
 
 > Tài liệu tham khảo cho skill `infra-tdd`. Load khi tra vấn quyết định kiến trúc (Bước 4).
 
+## Mục lục
+
+- Mục đích
+- 3 Chế độ thực thi
+- 5 Buckets câu hỏi
+- Workflow Deep-Dive
+- Failure Modes của chính Deep-Dive
+- Ví dụ áp dụng
+
 ---
 
 ## Mục đích
