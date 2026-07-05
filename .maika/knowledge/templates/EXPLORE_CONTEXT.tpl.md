@@ -22,8 +22,18 @@
 ### 2.1 Module/Service liên quan
 
 ```
-<!-- Sơ đồ hoặc danh sách module liên quan đến REQUIREMENT -->
+ASCII diagram bắt buộc khi có flow/state/data path.
+
+<!-- Ví dụ:
+actor/system
+  -> entry point
+  -> service/module
+  -> database / external system
+  -> result / event
+-->
 ```
+
+Danh sách module chỉ đủ khi không có sequence hoặc boundary đáng kể.
 
 ### 2.2 Entry Points
 
