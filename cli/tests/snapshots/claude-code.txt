@@ -223,6 +223,9 @@
 .claude/tools/skill-lint/validate_skills.py
 .claude/workflows/
 .claude/workflows/approve-conventions.md
+.claude/workflows/approve-dna.md
+.claude/workflows/convention-scan.md
+.claude/workflows/dna-scan.md
 .claude/workflows/idea-to-task.md
 .claude/workflows/index-source.md
 .claude/workflows/task.md

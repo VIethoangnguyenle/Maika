@@ -209,6 +209,9 @@
 .maika/tools/skill-lint/validate_skills.py
 .maika/workflows/
 .maika/workflows/approve-conventions.md
+.maika/workflows/approve-dna.md
+.maika/workflows/convention-scan.md
+.maika/workflows/dna-scan.md
 .maika/workflows/idea-to-task.md
 .maika/workflows/task.md
 .maika/workflows/tdd.md
