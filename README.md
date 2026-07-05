@@ -201,7 +201,7 @@ Mỗi pha có artifact riêng:
 | Pha | Mục tiêu | Artifact |
 |---|---|---|
 | Ideation | Biến ý tưởng thô thành phạm vi task | `active/ideation/ideation-*.md` |
-| Requirement | Chuẩn hoá yêu cầu, AC, risk, assumption | `active/REQUIREMENT.md` |
+| Requirement | Chuẩn hoá yêu cầu, AC, risk, assumption, ASCII Flow / State Diagram khi cần | `active/REQUIREMENT.md` |
 | Architecture | Khám phá DB/code/flow, phát hiện rủi ro | `active/EXPLORE_CONTEXT.md` |
 | Spec | Sinh spec kỹ thuật và OpenSpec change | `openspec/changes/<id>/` |
 | Apply | Apply spec vào code có checkpoint và review | code diff + transparency log |
@@ -269,7 +269,7 @@ Maika ship một bộ skill module hoá theo vai trò.
 | Skill | Vai trò | Khi nào dùng |
 |---|---|---|
 | `requirement-analyst` | Chuẩn hoá yêu cầu | Khi nhận ticket/task mới |
-| `spec-extract` | Trích xuất spec từ docs | Khi input là wiki, PRD, Confluence |
+| `spec-extract` | Trích xuất spec từ docs + ASCII Flow / State Diagram khi có flow/state/data path | Khi input là wiki, PRD, Confluence |
 | `db-explorer` | Khám phá DB read-only | Khi task chạm schema, config, data |
 | `codebase-explorer` | Map yêu cầu sang codebase | Sau requirement hoặc DB exploration |
 | `architecture-reviewer` | Review boundary, coupling, risk | Trước khi sinh spec |
