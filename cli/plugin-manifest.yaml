@@ -57,7 +57,7 @@ mcp_capabilities:
 
   agent-memory:
     provides: memory
-    display: "Agent Memory — Kinh nghiệm dài hạn (Qdrant, tham khảo sau task)"
+    display: "Agent Memory — Kinh nghiệm dài hạn (agentmemory, tham khảo sau task)"
 
 # ═══════════════════════════════════════════════════════════
 # Supported Languages

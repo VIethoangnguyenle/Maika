@@ -65,8 +65,8 @@ Bridge không thay native MCP. Bridge không được dùng để gọi tool ghi
 
 ### [CRITICAL] R-Tool-6: Agent Memory MCP — Ranh giới sử dụng
 
-`agent-memory` là **lớp kinh nghiệm dài hạn** — những gì agent đã đúc kết và lưu lên
-Qdrant *sau* các task trước. Dữ liệu mang tính **tham khảo/advisory** ("trước đây TỪNG
+`agent-memory` là **lớp kinh nghiệm dài hạn** — những gì agent đã đúc kết và lưu qua
+backend `agentmemory` *sau* các task trước. Dữ liệu mang tính **tham khảo/advisory** ("trước đây TỪNG
 làm thế nào"), **không phải kiến thức chính** về hệ thống hiện tại.
 Nó bổ sung — không bao giờ thay thế — Bootstrap Protocol, thứ tự ưu tiên context-loader
 P1→P4, hay `knowledge-snapshot.md` với tư cách nguồn sự thật chính thức.
