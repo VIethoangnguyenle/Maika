@@ -11,6 +11,7 @@ def read_text(rel_path: str) -> str:
 
 
 def test_spec_extract_requires_ascii_diagram_capture():
+    readme = read_text("README.md")
     skill = read_text(".maika/skills/spec-extract/SKILL.md")
     detail = read_text(".maika/skills/spec-extract/references/quy-trinh-chi-tiet.md")
     schema = read_text(".maika/skills/spec-extract/references/output-schema.md")
@@ -28,6 +29,8 @@ def test_spec_extract_requires_ascii_diagram_capture():
     assert "Diagram phải đánh dấu `unknown`, `assumption`, hoặc `needs BA/PO confirmation`" in detail
     assert "~~~md" in step_5c_section
     assert "```text" in step_5c_section
+    assert "spec-extract" in readme
+    assert "ASCII Flow / State Diagram" in readme
     assert "#### ASCII Flow / State Diagram" in schema
     assert "## Flow / State Diagram" in requirement_template
     assert "Bắt buộc khi task có flow, state, integration, callback, job, hoặc data path" in requirement_template
