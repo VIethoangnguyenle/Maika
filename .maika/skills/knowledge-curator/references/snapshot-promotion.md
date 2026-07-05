@@ -42,6 +42,8 @@
 
 Viết conventions/DNA ở mức pattern. Tên table/class cụ thể thuộc phần evidence, không nằm trong text rule generic. Nếu một rule chỉ áp dụng cho một table hoặc class, coi đó là snapshot fact.
 
+Sau khi REDIRECT → author-dna được approve và commit, gọi rule-projector regenerate ruleset (SP1a producer contract): `python3 {{ platform.framework_root }}/tools/rule-projector/projector.py --dna <dna> --conventions <conv> --out generated/`. Git pre-commit sync-check là backstop nếu quên.
+
 ## Stale confidence decay
 
 Với mỗi active snapshot entry:

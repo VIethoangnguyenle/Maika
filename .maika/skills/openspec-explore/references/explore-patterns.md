@@ -9,6 +9,7 @@
 - So sánh option
 - Visualize
 - Rủi ro và unknown
+- Kết thúc discovery
 
 ## Không gian vấn đề
 
@@ -39,3 +40,7 @@ input task
 ## Rủi ro và unknown
 
 Nêu rõ điều có thể sai, điều còn unknown, và có cần spike hay không.
+
+## Kết thúc discovery
+
+Không bắt buộc một kiểu kết thúc. Discovery có thể: flow vào proposal ("Ready to start? I can create a change proposal."), cập nhật artifact (design.md), chỉ mang lại clarity, hoặc tiếp tục sau. Khi mọi thứ đang kết tinh, tóm tắt ngắn dạng "What We Figured Out" trước khi chuyển bước.

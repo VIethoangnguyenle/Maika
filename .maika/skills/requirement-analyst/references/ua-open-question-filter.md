@@ -11,7 +11,13 @@ Trước khi viết bất kỳ Open Question nào, phân loại câu hỏi:
 
 ## UA-first probe
 
-Chạy `{{ tools.domain_overview }}` và `{{ tools.domain_flow }}` trước. Dùng Codebase Memory sau khi UA định vị node/flow liên quan.
+Thứ tự nguồn BẮT BUỘC khi trace code:
+
+1. **UA + kinh nghiệm** (agent-memory, knowledge-snapshot) — LUÔN trước; UA là bản đồ node (class/func/domain/flow), dùng để trace/định vị.
+2. **Codebase Memory** — vào SAU khi UA định vị node/flow, để đọc logic trong thân hàm.
+3. **grep** — fallback cuối.
+
+Chạy `{{ tools.domain_overview }}` và `{{ tools.domain_flow }}` trước.
 
 ## Output
 
