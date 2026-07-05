@@ -1,26 +1,26 @@
-# Explore Examples
+# Ví dụ Explore
 
-> Tài liệu tham khảo cho `openspec-explore`. Read only when needing examples of how to conduct explore-mode conversations.
+> Tài liệu tham khảo cho `openspec-explore`. Đọc chỉ khi cần ví dụ về cách dẫn dắt hội thoại explore mode.
 
 ## Mục lục
 
-- Vague idea
-- Specific problem
-- Mid-implementation stuck point
-- Option comparison
+- Ý tưởng mơ hồ
+- Vấn đề cụ thể
+- Đang kẹt giữa implementation
+- So sánh option
 
-## Vague idea
+## Ý tưởng mơ hồ
 
-Use spectrum framing. Example: awareness → coordination → sync for collaboration features.
+Dùng spectrum framing. Ví dụ với collaboration feature: awareness → coordination → sync.
 
-## Specific problem
+## Vấn đề cụ thể
 
-Read code/context first, summarize current flow, then ask which tangle is burning.
+Đọc code/context trước, tóm tắt flow hiện tại, rồi hỏi phần rối nào đang gây đau nhất.
 
-## Mid-implementation stuck point
+## Đang kẹt giữa implementation
 
-Read existing change artifacts, identify the current task, trace involved components, then offer to update design or add a spike.
+Đọc các change artifact hiện có, xác định task hiện tại, trace component liên quan, rồi đề xuất cập nhật design hoặc thêm spike.
 
-## Option comparison
+## So sánh option
 
-Start from context constraints, then compare options. Recommend only when constraints make the answer clear.
+Bắt đầu từ constraint của context, sau đó so sánh option. Chỉ recommend khi constraint làm câu trả lời đủ rõ.

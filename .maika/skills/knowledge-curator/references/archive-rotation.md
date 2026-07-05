@@ -1,28 +1,28 @@
 # Archive Rotation
 
-> Tài liệu tham khảo cho `knowledge-curator`. Read when archive count exceeds the retention threshold or cross-repo snapshot references are needed.
+> Tài liệu tham khảo cho `knowledge-curator`. Đọc khi số archive vượt retention threshold hoặc khi cần cross-repo snapshot reference.
 
 ## Mục lục
 
 - Rotate archive
-- Transparency log rotation
-- Cross-repo snapshot references
+- Rotate transparency log
+- Cross-repo snapshot reference
 - Gotchas
 
 ## Rotate archive
 
-Keep the most recent `keep_n=20` ticket folders. For older folders, append metadata to `ARCHIVE_LOG.md`, then remove the old folder only after the log write succeeds.
+Giữ `keep_n=20` ticket folder gần nhất. Với folder cũ hơn, append metadata vào `ARCHIVE_LOG.md`, rồi chỉ xoá folder cũ sau khi ghi log thành công.
 
-## Transparency log rotation
+## Rotate transparency log
 
-When archive runs, compact repeated bootstrap entries in active AGENT_TRANSPARENCY while preserving the full log in archive.
+Khi archive chạy, compact các bootstrap entry lặp lại trong active AGENT_TRANSPARENCY nhưng vẫn giữ full log trong archive.
 
-## Cross-repo snapshot references
+## Cross-repo snapshot reference
 
-Use relative paths from project root. Do not copy cross-repo snapshot content.
+Dùng relative path từ project root. Không copy nội dung cross-repo snapshot.
 
 ## Gotchas
 
-- Sanitize ticket IDs before folder creation.
-- Regex for bootstrap entries must support old and new formats.
-- Reset must not clear ideation drafts unless explicitly archived or requested.
+- Sanitize ticket ID trước khi tạo folder.
+- Regex cho bootstrap entry phải support cả format cũ và mới.
+- Reset không được clear ideation draft trừ khi đã archive rõ ràng hoặc user yêu cầu.

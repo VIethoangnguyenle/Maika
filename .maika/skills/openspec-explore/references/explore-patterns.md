@@ -1,31 +1,31 @@
-# Explore Patterns
+# Mẫu Explore
 
-> Tài liệu tham khảo cho `openspec-explore`. Read when the conversation needs deeper exploration, option comparison, or risk mapping.
+> Tài liệu tham khảo cho `openspec-explore`. Đọc khi cuộc trò chuyện cần khám phá sâu, so sánh option, hoặc map rủi ro.
 
 ## Mục lục
 
-- Problem space
-- Codebase investigation
-- Compare options
+- Không gian vấn đề
+- Điều tra codebase
+- So sánh option
 - Visualize
-- Risks and unknowns
+- Rủi ro và unknown
 
-## Problem space
+## Không gian vấn đề
 
-Ask clarifying questions that emerge from the user's statement. Challenge assumptions and reframe when useful.
+Hỏi câu làm rõ nảy sinh từ lời user. Challenge assumption và reframe khi hữu ích.
 
-## Codebase investigation
+## Điều tra codebase
 
-If brainstorm touches code, run UA-first probe with `{{ tools.domain_overview }}` or `{{ tools.domain_flow }}` before asking code-answerable questions.
+Nếu brainstorm chạm tới code, chạy UA-first probe với `{{ tools.domain_overview }}` hoặc `{{ tools.domain_flow }}` trước khi hỏi câu mà code có thể trả lời.
 
-## Compare options
+## So sánh option
 
-Build small comparison tables and recommend a path only when enough evidence exists.
+Lập bảng so sánh nhỏ và chỉ recommend hướng đi khi đã có đủ evidence.
 
 ## Visualize
 
-Use ASCII diagrams for state machines, data flow, architecture sketches, and dependency comparisons.
+Dùng ASCII diagram cho state machine, data flow, architecture sketch, và so sánh dependency.
 
-## Risks and unknowns
+## Rủi ro và unknown
 
-Name what could go wrong, what is unknown, and whether a spike is needed.
+Nêu rõ điều có thể sai, điều còn unknown, và có cần spike hay không.

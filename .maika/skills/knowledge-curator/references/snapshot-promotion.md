@@ -1,52 +1,52 @@
 # Snapshot Promotion
 
-> Tài liệu tham khảo cho `knowledge-curator`. Read when updating `knowledge-snapshot.md` after a completed task.
+> Tài liệu tham khảo cho `knowledge-curator`. Đọc khi cập nhật `knowledge-snapshot.md` sau task đã hoàn thành.
 
 ## Mục lục
 
-- Update steps
+- Các bước cập nhật
 - Promotion criteria
-- Store partitioning
+- Phân vùng store
 - Stale confidence decay
 
-## Update steps
+## Các bước cập nhật
 
-1. Read EXPLORE_CONTEXT.md and AGENT_TRANSPARENCY.md for the completed task.
-2. Classify each discovery with the Promotion Criteria table.
-3. Promote reusable code/DB facts into `knowledge-snapshot.md` with metadata:
+1. Đọc EXPLORE_CONTEXT.md và AGENT_TRANSPARENCY.md của task đã hoàn thành.
+2. Phân loại từng discovery bằng bảng Promotion Criteria.
+3. Promote code/DB fact có thể tái sử dụng vào `knowledge-snapshot.md` với metadata:
    `source:{ticket-id} seen:{YYYY-MM} verified:{YYYY-MM} status:active`.
-4. If an older entry covers the same concept:
-   - Same fact: update `verified`.
-   - Contradiction: mark old entry `status:superseded`, add the new entry, and name the superseded source.
-   - Unclear: mark old entry `status:outdated` and require manual verification.
-5. Add a history row with ticket, date, and count of added/updated entries.
+4. Nếu entry cũ đã cover cùng concept:
+   - Cùng fact: cập nhật `verified`.
+   - Mâu thuẫn: đánh dấu entry cũ `status:superseded`, thêm entry mới, và nêu source bị supersede.
+   - Chưa rõ: đánh dấu entry cũ `status:outdated` và yêu cầu verify thủ công.
+5. Thêm history row với ticket, ngày, và số entry thêm/cập nhật.
 
 ## Promotion criteria
 
 | Bucket | Điều kiện | Hành động |
 |---|---|---|
-| PROMOTE -> snapshot | Direct DB/code evidence, reusable across tasks, not ticket-only context, not convention/DNA material | Add to the right snapshot section with metadata |
-| REDIRECT -> conventions | Naming rule, coding style, design pattern boundary, folder/package structure | Propose update to `conventions.yaml` or `conventions.draft.yaml` |
-| REDIRECT -> author-dna | Programming philosophy, reason for choosing a pattern, judgment principle | Propose update to `author-dna.yaml` or `author-dna.draft.yaml` |
-| ARCHIVE only | Ticket-specific workaround, unresolved debate, narrow business-case context | Keep in archive EXPLORE_CONTEXT.md |
-| DISCARD | Pure inference without evidence, duplicate of better snapshot entry, PII/secret | Do not store |
+| PROMOTE -> snapshot | Có DB/code evidence trực tiếp, tái sử dụng được qua nhiều task, không chỉ là context riêng của ticket, không thuộc convention/DNA | Thêm vào đúng section của snapshot cùng metadata |
+| REDIRECT -> conventions | Quy tắc naming, coding style, design pattern boundary, cấu trúc folder/package | Đề xuất cập nhật `conventions.yaml` hoặc `conventions.draft.yaml` |
+| REDIRECT -> author-dna | Triết lý lập trình, lý do chọn pattern, judgment principle | Đề xuất cập nhật `author-dna.yaml` hoặc `author-dna.draft.yaml` |
+| ARCHIVE only | Workaround riêng cho ticket, tranh luận chưa resolve, context business hẹp | Giữ trong archive EXPLORE_CONTEXT.md |
+| DISCARD | Suy luận thuần không có evidence, trùng với snapshot entry tốt hơn, PII/secret | Không lưu |
 
-## Store partitioning
+## Phân vùng store
 
-| Loại nội dung | Store | Example |
+| Loại nội dung | Store | Ví dụ |
 |---|---|---|
-| Sự thật về hệ thống | `knowledge-snapshot.md` | Table has column, module calls module |
-| Quy tắc viết code | `conventions.yaml` | Naming/package/style rule |
-| Triết lý hoặc judgment principle | `author-dna.yaml` | Why a pattern is preferred |
-| Bài học vận hành | agent memory | Incident or fix lesson |
+| Sự thật về hệ thống | `knowledge-snapshot.md` | Table có column, module gọi module |
+| Quy tắc viết code | `conventions.yaml` | Quy tắc naming/package/style |
+| Triết lý hoặc judgment principle | `author-dna.yaml` | Vì sao prefer một pattern |
+| Bài học vận hành | agent memory | Incident hoặc bài học fix |
 
-Write conventions/DNA at pattern level. Concrete table/class names belong in evidence, not generic rule text. If a rule only applies to one table or class, treat it as a snapshot fact.
+Viết conventions/DNA ở mức pattern. Tên table/class cụ thể thuộc phần evidence, không nằm trong text rule generic. Nếu một rule chỉ áp dụng cho một table hoặc class, coi đó là snapshot fact.
 
 ## Stale confidence decay
 
-For each active snapshot entry:
+Với mỗi active snapshot entry:
 
-- If `verified` is older than 90 days and the current task touches that area, update `verified` and keep `confidence:high`.
-- If `verified` is older than 90 days and the current task does not touch that area, mark `confidence:low` without changing status.
-- If `verified` is older than 180 days and confidence is already low, add `<!-- needs-reverify -->`.
-- When using a stale entry, mention the stale status in output and cross-check with Understand-Anything before relying on it.
+- Nếu `verified` cũ hơn 90 ngày và task hiện tại chạm vào khu vực đó, cập nhật `verified` và giữ `confidence:high`.
+- Nếu `verified` cũ hơn 90 ngày và task hiện tại không chạm vào khu vực đó, đánh dấu `confidence:low` nhưng không đổi status.
+- Nếu `verified` cũ hơn 180 ngày và confidence đã low, thêm `<!-- needs-reverify -->`.
+- Khi dùng stale entry, nêu stale status trong output và cross-check bằng Understand-Anything trước khi dựa vào nó.

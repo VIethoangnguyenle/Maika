@@ -65,29 +65,29 @@ Output: cập nhật `EXPLORE_CONTEXT.md` với section `### Đánh giá kiến 
 
 ## UA-first invariant
 
-Boundary/topology/cross-service/async conclusions must use Understand-Anything first:
+Kết luận về boundary/topology/cross-service/async phải dùng Understand-Anything trước:
 
-- Run `{{ tools.domain_relationships }}` for ownership and cross-service dependency.
-- Run `{{ tools.domain_flow }}` for REST/gRPC/Kafka/job topology.
-- Use Codebase Memory only after UA locates the node/flow, to inspect source details.
-- Use grep only as fallback. Codebase Memory failure does not mean UA is unavailable.
+- Chạy `{{ tools.domain_relationships }}` để xác định ownership và dependency xuyên service.
+- Chạy `{{ tools.domain_flow }}` để xác định topology REST/gRPC/Kafka/job.
+- Chỉ dùng Codebase Memory sau khi UA đã định vị node/flow, nhằm đọc chi tiết source.
+- Chỉ dùng grep như fallback. Codebase Memory lỗi không có nghĩa là UA unavailable.
 
-Read [references/ua-boundary-doctrine.md](references/ua-boundary-doctrine.md) before making topology, async, Kafka, gRPC, or cross-service conclusions.
+Đọc [references/ua-boundary-doctrine.md](references/ua-boundary-doctrine.md) trước khi kết luận về topology, async, Kafka, gRPC, hoặc cross-service.
 
 ## Quy trình mỏng
 
-1. Check tool state and set confidence ceiling.
-2. Summarize current architecture from REQUIREMENT, EXPLORE_CONTEXT, snapshot.
-3. Compare As-is / To-be with current architecture.
-4. Review boundary, ownership, topology, and coupling with UA-first.
-5. Review data impact from db-explorer evidence.
-6. Review NFR impact: performance, reliability, observability.
-7. Write architecture assessment and suggested next action.
+1. Kiểm tra trạng thái tool và đặt confidence ceiling.
+2. Tóm tắt kiến trúc hiện tại từ REQUIREMENT, EXPLORE_CONTEXT, snapshot.
+3. So sánh As-is / To-be với kiến trúc hiện tại.
+4. Review boundary, ownership, topology, và coupling theo UA-first.
+5. Review tác động dữ liệu dựa trên evidence từ db-explorer.
+6. Review tác động NFR: performance, reliability, observability.
+7. Ghi đánh giá kiến trúc và đề xuất next action.
 
-Read [references/review-flow-guide.md](references/review-flow-guide.md) when executing the full review flow.
+Đọc [references/review-flow-guide.md](references/review-flow-guide.md) khi cần chạy đầy đủ review flow.
 
-## Optional checks
+## Check tùy chọn
 
-- Read [references/infra-tdd-trigger.md](references/infra-tdd-trigger.md) when review finds HIGH/BLOCKER infrastructure, platform, integration, DB, or contract impact.
-- Read [references/contract-completeness-check.md](references/contract-completeness-check.md) when REQUIREMENT.md has a Technical Design Contract.
-- Read [references/gotchas.md](references/gotchas.md) when confidence, conventions, contract, or upstream-library questions appear.
+- Đọc [references/infra-tdd-trigger.md](references/infra-tdd-trigger.md) khi review phát hiện tác động HIGH/BLOCKER tới infrastructure, platform, integration, DB, hoặc contract.
+- Đọc [references/contract-completeness-check.md](references/contract-completeness-check.md) khi REQUIREMENT.md có Technical Design Contract.
+- Đọc [references/gotchas.md](references/gotchas.md) khi xuất hiện câu hỏi về confidence, conventions, contract, hoặc upstream library.

@@ -31,39 +31,39 @@ Skill này là lifecycle manager. Không sinh requirement, không review kiến 
 - Task chưa hoàn thành và chưa sẵn sàng archive.
 - Cần requirement/spec/architecture review.
 
-## Commands bắt buộc
+## Command bắt buộc
 
-Before archive, run:
+Trước khi archive, chạy:
 
 ```bash
 python3 {{ platform.framework_root }}/tools/gate-check/cli.py archive-ready {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md
 python3 {{ platform.framework_root }}/tools/gate-check/cli.py teaching-moment {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md
 ```
 
-Before reset, run:
+Trước khi reset, chạy:
 
 ```bash
 python3 {{ platform.framework_root }}/tools/gate-check/cli.py reset-ready {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md
 ```
 
-Any non-zero exit aborts the operation and the reason must be shown to the user.
+Exit khác 0 thì abort operation và phải hiển thị lý do cho user.
 
 ## Lifecycle surface
 
 1. `archive_active_context(ticket_id, status="completed")`
-2. `update_knowledge_snapshot(discoveries)` when status is `completed`
-3. `push_to_agent_memory(ticket_id)` after snapshot update and before reset
+2. `update_knowledge_snapshot(discoveries)` khi status là `completed`
+3. `push_to_agent_memory(ticket_id)` sau khi cập nhật snapshot và trước reset
 4. `reset_active_context()`
-5. `restore_from_archive(ticket_id)` when resuming
-6. `rotate_archive(keep_n=20)` when archive grows too large
+5. `restore_from_archive(ticket_id)` khi resume
+6. `rotate_archive(keep_n=20)` khi archive quá lớn
 
-Read [references/archive-active-context.md](references/archive-active-context.md) before archiving.
-Read [references/reset-active-context.md](references/reset-active-context.md) before resetting active context.
-Read [references/snapshot-promotion.md](references/snapshot-promotion.md) before updating knowledge snapshot.
-Read [references/m7-memory-push.md](references/m7-memory-push.md) before pushing task learnings to agent memory.
-Read [references/token-calibration.md](references/token-calibration.md) when calibrating `TOKEN_LOG.md` after archive.
-Read [references/violation-tracking.md](references/violation-tracking.md) when tracking repeated workflow/rule violations from archived tasks.
-Read [references/archive-rotation.md](references/archive-rotation.md) before rotating archive or writing cross-repo snapshot pointers.
+Đọc [references/archive-active-context.md](references/archive-active-context.md) trước khi archive.
+Đọc [references/reset-active-context.md](references/reset-active-context.md) trước khi reset active context.
+Đọc [references/snapshot-promotion.md](references/snapshot-promotion.md) trước khi cập nhật knowledge snapshot.
+Đọc [references/m7-memory-push.md](references/m7-memory-push.md) trước khi đẩy bài học của task vào agent memory.
+Đọc [references/token-calibration.md](references/token-calibration.md) khi calibrate `TOKEN_LOG.md` sau archive.
+Đọc [references/violation-tracking.md](references/violation-tracking.md) khi tracking workflow/rule violation lặp lại từ task đã archive.
+Đọc [references/archive-rotation.md](references/archive-rotation.md) trước khi rotate archive hoặc ghi cross-repo snapshot pointer.
 
 ## Output
 
@@ -78,4 +78,4 @@ Ghi:
 - `[x] knowledge-curator: archive_active_context({ticket_id})`
 - `[x] knowledge-curator: update_knowledge_snapshot`
 - `[x] knowledge-curator: reset_active_context`
-- lỗi hoặc aborted gate nếu có.
+- lỗi hoặc gate bị abort nếu có.

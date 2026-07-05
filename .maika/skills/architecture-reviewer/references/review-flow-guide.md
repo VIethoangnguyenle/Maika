@@ -1,6 +1,6 @@
-# Review Flow Guide
+# Hướng dẫn Review Flow
 
-> Tài liệu tham khảo cho `architecture-reviewer`. Read when executing the detailed 7-step architecture review flow.
+> Tài liệu tham khảo cho `architecture-reviewer`. Đọc khi cần chạy review flow kiến trúc chi tiết 7 bước.
 
 ## Mục lục
 
@@ -22,25 +22,25 @@
 
 1. Đọc `EXPLORE_CONTEXT.md` và `knowledge-snapshot.md`.
 2. Xác định service/module chính, integration, database/schema.
-3. Nếu có identifier, dùng `{{ tools.read_file }}` và `{{ tools.get_dependencies }}` để verify code-fact nội-service.
+3. Nếu có identifier, dùng `{{ tools.read_file }}` và `{{ tools.get_dependencies }}` để xác minh code-fact nội-service.
 
 ## Bước 3 — Đối chiếu As-is / To-be
 
 1. Dựa trên REQUIREMENT.md, map flow hiện tại và flow to-be.
 2. Nếu có identifier, dùng `{{ tools.find_blast_radius }}`, `{{ tools.read_file }}`, `{{ tools.trace_flow }}` cho logic nội-service.
-3. Ghi alignment và mismatch.
+3. Ghi điểm khớp và điểm lệch.
 
 ## Bước 4 — Boundary, ownership, topology, coupling
 
 1. Boundary & ownership: dùng `{{ tools.domain_relationships }}` để xác định domain owner.
 2. Execution topology: dùng `{{ tools.domain_flow }}` để xác định REST/gRPC/Kafka/job.
 3. Layering: đối chiếu `conventions.yaml` và `knowledge-snapshot.md`.
-4. Coupling: flag phụ thuộc mới giữa module/service vốn độc lập.
+4. Coupling: đánh dấu phụ thuộc mới giữa module/service vốn độc lập.
 
 ## Bước 5 — Tác động dữ liệu
 
 1. Dựa trên `db-explorer`, kiểm schema, constraint, migration, lịch sử.
-2. Nếu dữ liệu là trọng tâm mà thiếu db-explorer, flag risk và hạ confidence.
+2. Nếu dữ liệu là trọng tâm mà thiếu db-explorer, đánh dấu risk và hạ confidence.
 
 ## Bước 6 — Non-functional review
 

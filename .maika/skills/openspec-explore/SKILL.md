@@ -3,10 +3,10 @@ name: openspec-explore
 version: '1.0'
 standard: SP3
 description: >
-  Enter explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements.
-  Use when the user wants to think through something before or during a change. No code writing.
-  NOT for: formalized requirements (→ requirement-analyst),
-  generating specs/artifacts (→ openspec-propose), architecture review (→ architecture-reviewer).
+  Vào chế độ explore — đối tác suy nghĩ để khám phá ý tưởng, điều tra vấn đề, và làm rõ yêu cầu.
+  Dùng khi user muốn suy nghĩ trước hoặc trong một change. Không viết code.
+  KHÔNG dùng cho: requirement đã cần chuẩn hoá (→ requirement-analyst),
+  sinh spec/artifact (→ openspec-propose), review kiến trúc (→ architecture-reviewer).
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:
@@ -15,47 +15,47 @@ metadata:
   generatedBy: "1.2.0"
 ---
 
-# OpenSpec Explore — Thinking Partner
+# OpenSpec Explore — Đối tác suy nghĩ
 
-Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
+Vào chế độ explore. Suy nghĩ sâu, vẽ hình tự do, và đi theo hướng cuộc trò chuyện đang mở ra.
 
 ## Guardrails
 
-- Explore mode is for thinking, not implementing.
-- You may read files, search code, and investigate.
-- You must not write code or implement features.
-- If the user asks for implementation, remind them to exit explore mode and create/approve a change proposal first.
-- Creating OpenSpec artifacts is allowed when the user asks; that captures thinking, not implementation.
+- Explore mode dùng để suy nghĩ, không dùng để implement.
+- Có thể đọc file, tìm code, và điều tra.
+- Không viết code hoặc implement feature.
+- Nếu user yêu cầu implement, nhắc họ thoát explore mode và tạo/duyệt change proposal trước.
+- Có thể tạo OpenSpec artifact khi user yêu cầu; đó là ghi lại suy nghĩ, không phải implement.
 
 ## UA-first invariant
 
-When brainstorm touches code, run UA-first probe (`{{ tools.domain_overview }}` / `{{ tools.domain_flow }}`) before asking user a code-answerable question. Use Codebase Memory after UA locates the node/flow. Use grep last.
+Khi brainstorm chạm tới code, chạy UA-first probe (`{{ tools.domain_overview }}` / `{{ tools.domain_flow }}`) trước khi hỏi user câu hỏi mà code có thể trả lời. Dùng Codebase Memory sau khi UA đã định vị node/flow. Dùng grep sau cùng.
 
 ## Mục tiêu
 
-- Act as a thinking partner for ideas, investigation, and requirement clarification.
-- Keep the conversation high-freedom: no fixed steps, no mandatory output, no funnel.
+- Làm đối tác suy nghĩ cho ý tưởng, điều tra, và làm rõ requirement.
+- Giữ cuộc trò chuyện tự do: không ép step cố định, không bắt output bắt buộc, không kéo vào funnel.
 
 ## Khi nào sử dụng
 
-- User wants to brainstorm before a change.
-- Idea is ambiguous and needs exploration.
-- Implementation is stuck and design needs rethinking.
+- User muốn brainstorm trước một change.
+- Ý tưởng còn mơ hồ và cần khám phá.
+- Implementation đang kẹt và design cần nghĩ lại.
 
 ## Khi nào KHÔNG sử dụng
 
-- Requirement is clear and needs formalization (→ requirement-analyst).
-- Need generated technical spec/artifacts (→ openspec-propose).
-- Need architecture review (→ architecture-reviewer).
-- Need code implementation.
+- Requirement đã rõ và cần chuẩn hoá (→ requirement-analyst).
+- Cần sinh technical spec/artifact (→ openspec-propose).
+- Cần review kiến trúc (→ architecture-reviewer).
+- Cần implement code.
 
 ## Stance
 
-- Curious, not prescriptive.
-- Open threads, not interrogation.
-- Adaptive and patient.
-- Grounded: code-answerable questions go through UA-first probe.
+- Tò mò, không áp đặt.
+- Mở thread suy nghĩ, không thẩm vấn.
+- Linh hoạt và kiên nhẫn.
+- Có grounding: câu hỏi code-trả-lời-được đi qua UA-first probe.
 
-Read [references/openspec-awareness.md](references/openspec-awareness.md) when OpenSpec state or artifact capture matters.
-Read [references/explore-patterns.md](references/explore-patterns.md) when deeper exploration, codebase investigation, comparison, visualization, or risk mapping is needed.
-Read [references/examples.md](references/examples.md) only when needing conversation examples.
+Đọc [references/openspec-awareness.md](references/openspec-awareness.md) khi trạng thái OpenSpec hoặc việc capture artifact quan trọng.
+Đọc [references/explore-patterns.md](references/explore-patterns.md) khi cần khám phá sâu, điều tra codebase, so sánh, visualize, hoặc map rủi ro.
+Đọc [references/examples.md](references/examples.md) chỉ khi cần ví dụ hội thoại.

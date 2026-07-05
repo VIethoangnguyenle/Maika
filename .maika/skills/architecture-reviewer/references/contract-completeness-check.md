@@ -1,23 +1,23 @@
 # Contract Completeness Check
 
-> Tài liệu tham khảo cho `architecture-reviewer`. Read after Bước 7 and before final conclusion when REQUIREMENT.md has a Technical Design Contract.
+> Tài liệu tham khảo cho `architecture-reviewer`. Đọc sau Bước 7 và trước kết luận cuối khi REQUIREMENT.md có Technical Design Contract.
 
 ## Mục lục
 
-- Checks
+- Check
 - Output
-- Skip conditions
+- Điều kiện skip
 
-## Checks
+## Check
 
-1. Section exists and has real content.
-2. If `conventions.yaml` exists and is approved, compare selected protocol/pattern with conventions.
-3. Contract has protocol/interface, request/message schema, and response/event schema.
+1. Section tồn tại và có nội dung thật.
+2. Nếu `conventions.yaml` tồn tại và đã approve, so sánh protocol/pattern được chọn với conventions.
+3. Contract có protocol/interface, request/message schema, và response/event schema.
 
 ## Output
 
-All M6 checks are WARN only. Write `[M6] Contract Completeness: {PASS|WARN(n)} — {details}` to `AGENT_TRANSPARENCY.md`.
+Tất cả M6 check chỉ ở mức WARN. Ghi `[M6] Contract Completeness: {PASS|WARN(n)} — {details}` vào `AGENT_TRANSPARENCY.md`.
 
-## Skip conditions
+## Điều kiện skip
 
-Skip when REQUIREMENT.md uses an old template without contract section, or task type is `refactor`.
+Skip khi REQUIREMENT.md dùng template cũ không có contract section, hoặc task type là `refactor`.
