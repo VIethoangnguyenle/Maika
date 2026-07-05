@@ -19,6 +19,8 @@ python3 {{ platform.framework_root }}/tools/gate-check/cli.py teaching-moment {{
 
 Exit khác 0 thì abort archive.
 
+Nếu `TOKEN_LOG.md` không tồn tại hoặc chỉ là skeleton: WARN "TOKEN_LOG.md chưa được ghi — tạo retroactively (estimate từ AGENT_TRANSPARENCY) trước khi archive", ghi `[TOKEN-LOG-MISSING]` vào AGENT_TRANSPARENCY, và vẫn tiếp tục archive (không ABORT) với `token_total_estimate: unknown` trong ARCHIVE_META.
+
 ## Ý nghĩa status
 
 - `completed`: apply xong; cập nhật knowledge snapshot.

@@ -19,6 +19,8 @@
 
 Đọc ticket description, comment, attachment, linked doc, và clarification từ user. Dùng spec-extract cho tài liệu dài.
 
+Skill KHÔNG tự ý bịa thêm requirement ngoài nguồn trên; mọi suy luận phải đánh dấu là giả định.
+
 ## Bước 2 — Xác định loại task
 
 Phân loại theo định nghĩa:

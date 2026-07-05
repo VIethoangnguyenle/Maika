@@ -34,7 +34,7 @@
 
 1. Boundary & ownership: dùng `{{ tools.domain_relationships }}` để xác định domain owner.
 2. Execution topology: dùng `{{ tools.domain_flow }}` để xác định REST/gRPC/Kafka/job.
-3. Layering: đối chiếu `conventions.yaml` và `knowledge-snapshot.md`.
+3. Layering: đối chiếu `conventions.yaml` và `knowledge-snapshot.md`. Skill KHÔNG hardcode bất kỳ pattern nào (CQRS/MVC/Hexagonal…) — luôn đọc constraint từ `conventions.yaml` rồi enforce, bắt lỗi khi Requirement/Spec định đi tắt.
 4. Coupling: đánh dấu phụ thuộc mới giữa module/service vốn độc lập.
 
 ## Bước 5 — Tác động dữ liệu
@@ -51,3 +51,5 @@
 ## Bước 7 — Tổng hợp đánh giá
 
 Ghi section `Đánh giá kiến trúc` vào `EXPLORE_CONTEXT.md` với điểm phù hợp, rủi ro, severity LOW/MEDIUM/HIGH/BLOCKER, hướng xử lý high-level, câu hỏi còn cần trả lời.
+
+Luôn tách bạch: **Fact** (đã thấy từ code/DB/tài liệu), **Nhận định** (đánh giá kiến trúc), **Giả định** (khi thiếu dữ liệu).
