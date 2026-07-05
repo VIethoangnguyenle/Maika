@@ -9,13 +9,14 @@
 - Gọi `{{ tools.dynamic_memory_save }}`
 - Hướng dẫn chọn kind
 - Chống trùng (dedup-by-search, KHÔNG upsert)
-- Triển khai theo giai đoạn (R-Tool-6)
 - Ghi AGENT_TRANSPARENCY
 
 ## Trigger
 
 Gọi SAU `update_knowledge_snapshot` và TRƯỚC `reset_active_context`.
 Chỉ khi `status == "completed"` (không push cho stashed/cancelled).
+Push tự động ngay từ task hoàn thành đầu tiên — không có giai đoạn làm quen.
+User có thể từ chối push trực tiếp trong phiên (nói rõ trước khi curator chạy).
 
 ## 3 tầng lọc chất lượng
 
@@ -100,30 +101,6 @@ NẾU không có record tương tự:
 - `{{ tools.dynamic_memory_save }}` (agentmemory) **append-only** — không có khóa idempotency; mỗi call tạo bản ghi mới.
 - Vì vậy **Tầng 2 (search-before-save) là bắt buộc** — đây là cơ chế chống trùng duy nhất.
 - `ticket_id` chỉ là metadata truy vết nhồi trong `content`/`concepts`, KHÔNG phải primary key.
-
-## Triển khai theo giai đoạn (R-Tool-6)
-
-| Giai đoạn | Hành vi |
-|-----------|--------|
-| Tuần 1 | **Bỏ qua push hoàn toàn** — chỉ đọc, quan sát |
-| Tuần 2 | Push có xác nhận — curator tóm tắt record sẽ lưu, **hỏi user trước khi gọi `{{ tools.dynamic_memory_save }}`** |
-| Tuần 3+ | Push tự động — user giữ quyền từ chối theo phiên |
-
-**Graduation trigger** — tự động đề xuất chuyển stage:
-
-```
-FUNCTION check_m7_graduation():
-  current_stage = đọc từ AGENT_TRANSPARENCY history hoặc conventions.yaml memory_push.stage
-  tasks_completed_at_current_stage = đếm số task archive thành công kể từ stage hiện tại
-
-  IF tasks_completed_at_current_stage >= 5:
-    → SUGGEST: "[M7-GRAD] {n} tasks hoàn thành ở stage {current}.
-               Đề xuất graduate lên stage {next}. Confirm?"
-    → Nếu user đồng ý: ghi stage mới vào AGENT_TRANSPARENCY
-    → Nếu user từ chối: ghi "[M7-GRAD] Declined by user" và reset counter
-
-  Chạy mỗi khi archive_active_context() hoàn thành.
-```
 
 ## Ghi AGENT_TRANSPARENCY
 
