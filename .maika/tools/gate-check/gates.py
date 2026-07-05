@@ -34,6 +34,14 @@ _MEMORY_OK = re.compile(r"agent-memory:?\s*(healthy|ok|ready)\b", re.IGNORECASE)
 _MEMORY_DEGRADE = re.compile(
     r"agent-memory unavailable.{0,15}(skip|recall|save)", re.IGNORECASE
 )
+# Recall evidence (pre-spec hard gate): canonical line is
+#   agent-memory recall — query:"<query>" · results:<N> — ảnh hưởng reasoning
+# Anchors: the literal query:"..." and a numeric results:. The {0,10} bounds
+# between anchors reject rambling prose (same technique as _DEGRADE).
+_MEMORY_RECALL = re.compile(
+    r'agent-memory recall.{0,10}query:"[^"]{1,200}".{0,10}results:\s*\d+',
+    re.IGNORECASE,
+)
 _UA_EVIDENCE = re.compile(
     r"\b(UA evidence|domain_overview|domain_flow|domain_relationships)\b",
     re.IGNORECASE,
@@ -83,6 +91,14 @@ def validate_mcp_status(text: str) -> Result:
     ):
         return Result(True)
     return Result(False, "MCP status lacks probe numbers and degrade line ('Runtime Ready' alone is invalid)")
+
+
+def validate_memory_recall(text: str) -> Result:
+    """Pre-spec recall evidence (R-Tool-6): either a real recall line
+    (query + numeric result count) or the canonical degrade line."""
+    if _MEMORY_RECALL.search(text) or _MEMORY_DEGRADE.search(text):
+        return Result(True)
+    return Result(False, "no agent-memory recall evidence (query+results) or degrade line")
 
 
 def validate_phase_chain(text: str) -> Result:

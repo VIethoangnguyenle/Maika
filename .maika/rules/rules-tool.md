@@ -65,8 +65,8 @@ Bridge không thay native MCP. Bridge không được dùng để gọi tool ghi
 
 ### [CRITICAL] R-Tool-6: Agent Memory MCP — Ranh giới sử dụng
 
-`agent-memory` là **lớp kinh nghiệm dài hạn** — những gì agent đã đúc kết và lưu lên
-Qdrant *sau* các task trước. Dữ liệu mang tính **tham khảo/advisory** ("trước đây TỪNG
+`agent-memory` là **lớp kinh nghiệm dài hạn** — những gì agent đã đúc kết và lưu qua
+backend `agentmemory` *sau* các task trước. Dữ liệu mang tính **tham khảo/advisory** ("trước đây TỪNG
 làm thế nào"), **không phải kiến thức chính** về hệ thống hiện tại.
 Nó bổ sung — không bao giờ thay thế — Bootstrap Protocol, thứ tự ưu tiên context-loader
 P1→P4, hay `knowledge-snapshot.md` với tư cách nguồn sự thật chính thức.
@@ -92,7 +92,11 @@ Khi mâu thuẫn với kiến thức chính (`knowledge-snapshot.md`, db-explore
 #### Ngữ cảnh sử dụng được phép
 
 - **Pha 1 exploration**: agent phát hiện module/table/service trong `REQUIREMENT.md` trùng với archive cũ → đề xuất `{{ tools.dynamic_memory_search }}` trước khi thực thi; ghi tín hiệu trong `AGENT_TRANSPARENCY.md`.
-- **Trước spec (Pre-spec)**: `{{ tools.dynamic_memory_recall }}` để tra cứu quyết định kiến trúc trước đó.
+- **Trước spec (Pre-spec) — BẮT BUỘC (hard gate `memory-recall`)**: `{{ tools.dynamic_memory_recall }}`
+  để tra cứu quyết định kiến trúc trước đó (query prefix tên project). Ghi dòng evidence vào
+  `AGENT_TRANSPARENCY.md`: `agent-memory recall — query:"<query>" · results:<N> — ảnh hưởng reasoning`.
+  Gate-check `memory-recall` phải PASS trước khi gọi OpenSpec ở Pha 2 (xem `workflows/task.md`);
+  không cấu hình / backend chết → dòng degrade chuẩn (mục Degrade bên dưới) cũng pass gate.
 - **Sau task (Pha 3)**: `{{ tools.dynamic_memory_save }}` chỉ qua `knowledge-curator` post-task hook.
 
 > **Phạm vi project khi recall:** `{{ tools.dynamic_memory_search }}` / `{{ tools.dynamic_memory_recall }}`

@@ -1,7 +1,10 @@
 """MCP doctor status and report generation."""
 
 import json
+import os
 import shutil
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -9,6 +12,14 @@ from cli.mcp.adapters import get_mcp_adapter
 from cli.mcp.config import load_mcp_config, redact_mapping, selected_server_matches
 from cli.mcp import ua_setup
 from cli.scaffold import load_resolved_config, load_manifest
+
+AGENTMEMORY_DEFAULT_URL = "http://localhost:3111"
+# Hint shown when the daemon is down. Doctor never starts the daemon itself
+# (provider boundary): the end project owns the agentmemory lifecycle.
+MEMORY_DAEMON_HINT = (
+    "start: npm i -g @agentmemory/agentmemory && agentmemory "
+    "(viewer :3113; deep check: agentmemory doctor)"
+)
 
 
 @dataclass(frozen=True)
@@ -24,6 +35,8 @@ class DoctorStatus:
     recommendation: str
     redacted_servers: dict = field(default_factory=dict)
     setup_reports: dict = field(default_factory=dict)
+    memory_daemon: str = "not-selected"   # not-selected | running | down
+    memory_daemon_url: str = ""
 
 
 def _setup_reports(target: Path, home: Path, maika_root, platform: str,
@@ -47,6 +60,26 @@ def _setup_reports(target: Path, home: Path, maika_root, platform: str,
     return reports
 
 
+def _probe_memory_daemon(url: str, timeout: float = 2.0) -> bool:
+    """Any HTTP response (even 4xx/5xx) counts as alive — no dependency on a
+    specific /health route. Connection refused, timeout, or a malformed URL
+    counts as down."""
+    try:
+        urllib.request.urlopen(url, timeout=timeout)
+        return True
+    except urllib.error.HTTPError:
+        return True
+    except Exception:
+        return False
+
+
+def _memory_daemon_state(selected: list) -> tuple[str, str]:
+    if "agent-memory" not in selected:
+        return "not-selected", ""
+    url = os.environ.get("AGENTMEMORY_URL") or AGENTMEMORY_DEFAULT_URL
+    return ("running" if _probe_memory_daemon(url) else "down"), url
+
+
 def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStatus:
     resolved = load_resolved_config(target)
     if resolved is None:
@@ -55,6 +88,8 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
     framework_root = resolved.get("framework_root", get_mcp_adapter(platform).framework_root)
     selected = list(resolved.get("mcps") or [])
     adapter = get_mcp_adapter(platform)
+
+    memory_daemon, memory_daemon_url = _memory_daemon_state(selected)
 
     best_config = None
     for candidate in adapter.config_candidates(target, home):
@@ -75,6 +110,8 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
             bridge_state="not-probed",
             recommendation="create or link a valid MCP config with maika doctor mcp --fix",
             setup_reports=_setup_reports(target, home, maika_root, platform, selected, []),
+            memory_daemon=memory_daemon,
+            memory_daemon_url=memory_daemon_url,
         )
 
     matched, missing = selected_server_matches(best_config, selected)
@@ -99,6 +136,8 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
         recommendation="run native MCP in the IDE/CLI and inspect tool availability",
         redacted_servers=redacted_servers,
         setup_reports=_setup_reports(target, home, maika_root, platform, selected, matched),
+        memory_daemon=memory_daemon,
+        memory_daemon_url=memory_daemon_url,
     )
 
 
@@ -117,10 +156,19 @@ def render_report(status: DoctorStatus) -> str:
         f"- bridge: {status.bridge_state}\n"
         f"- matched: {matched}\n"
         f"- missing: {missing}\n"
-        f"- Recommendation: {status.recommendation}\n"
+        + _render_memory_daemon(status)
+        + f"- Recommendation: {status.recommendation}\n"
         + _render_setup_reports(status.setup_reports)
         + _render_matched_config(status.redacted_servers)
     )
+
+
+def _render_memory_daemon(status: DoctorStatus) -> str:
+    if status.memory_daemon == "not-selected":
+        return ""
+    if status.memory_daemon == "running":
+        return f"- agent-memory daemon: RUNNING ({status.memory_daemon_url})\n"
+    return f"- agent-memory daemon: DOWN ({status.memory_daemon_url}) — {MEMORY_DAEMON_HINT}\n"
 
 
 def _render_setup_reports(setup_reports: dict) -> str:

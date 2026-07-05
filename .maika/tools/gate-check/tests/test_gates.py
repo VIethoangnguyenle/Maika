@@ -120,6 +120,28 @@ def test_mcp_status_accepts_agent_memory_probe_and_degrade():
     ).ok is False
 
 
+def test_memory_recall_accepts_canonical_recall_or_degrade():
+    recall = ('agent-memory recall — query:"maika refund flow" · results:3 '
+              "— ảnh hưởng reasoning")
+    assert g.validate_memory_recall(recall).ok is True
+    assert g.validate_memory_recall(
+        "agent-memory unavailable — skip recall/save"
+    ).ok is True
+
+
+def test_memory_recall_rejects_missing_or_vague_evidence():
+    assert g.validate_memory_recall("").ok is False
+    assert g.validate_memory_recall("agent-memory recall was considered").ok is False
+    # thiếu số kết quả -> fail
+    assert g.validate_memory_recall(
+        'agent-memory recall — query:"maika refund" · results:unknown'
+    ).ok is False
+    # prose lan man: anchor cách nhau quá bound -> fail
+    rambling = ('agent-memory recall happened, after a long discussion about '
+                'the query:"x" we think that maybe the results: 3 were fine')
+    assert g.validate_memory_recall(rambling).ok is False
+
+
 def test_phase_chain_requires_ordered_markers():
     done = "Pha 1 DONE\nPha 2 DONE (spec: openspec/changes/x/)\nPha 3 DONE"
     skipped = "Pha 1 DONE\nPha 3 DONE"

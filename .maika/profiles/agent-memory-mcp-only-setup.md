@@ -27,27 +27,38 @@ R-Tool-6 degrade). You MUST register the server as exactly `agent-memory`.
 Use the manual `mcpServers` block below (it controls the name) — do not rely on
 the provider's default name.
 
-## Setup (verify package/command against upstream before use — example)
+## Setup (đã xác minh với upstream 2026-07-05)
 
-> Confirm the package name and command at the upstream repo:
-> https://github.com/rohitg00/agentmemory
-
-1. Run the standalone MCP shim (no hooks):
+1. Cài và chạy backend daemon (user tự vận hành — Maika không cài/chạy hộ):
 
    ```
-   npx -y @agentmemory/mcp
+   npm install -g @agentmemory/agentmemory
+   agentmemory          # REST API :3111, viewer :3113
    ```
 
-2. Register the MCP server manually in your platform config — the JSON key MUST be
-   `agent-memory` (this is the server name Maika maps to):
+   Chẩn đoán sâu: `agentmemory doctor`. Dừng: `agentmemory stop`.
+
+2. Register the MCP server manually — JSON key MUST be `agent-memory`:
 
    ```json
    {
      "mcpServers": {
-       "agent-memory": { "command": "npx", "args": ["-y", "@agentmemory/mcp"] }
+       "agent-memory": {
+         "command": "npx",
+         "args": ["-y", "@agentmemory/mcp"],
+         "env": { "AGENTMEMORY_URL": "http://localhost:3111" }
+       }
      }
    }
    ```
+
+## [WARNING] Shim fallback — tool trả lời KHÔNG có nghĩa daemon sống
+
+`@agentmemory/mcp` fallback về 7 core tools cục bộ khi không kết nối được daemon —
+tool vẫn xuất hiện trong tool list nhưng không có persistence thật. Kiểm tra thật:
+`maika doctor mcp` (probe HTTP tới `AGENTMEMORY_URL`) hoặc `agentmemory doctor`.
+Bootstrap probe chỉ được ghi `agent-memory: healthy` khi backend thật trả lời
+(xem `procedures/bootstrap.md` PHASE 5).
 
 ## Do NOT
 
