@@ -124,17 +124,33 @@ def validate_apply_gate(text: str) -> Result:
     return Result(True)
 
 
-def validate_handoff_slice(text: str) -> Result:
+def _foreign_rule_ids(section: str, valid_rule_ids) -> list:
+    """Rule-ids cited in a slice section but absent from the index slice."""
+    return sorted(set(_RULE_ID.findall(section)) - set(valid_rule_ids))
+
+
+def validate_handoff_slice(text: str, valid_rule_ids=None) -> Result:
     m = re.search(r"##\s+Applicable DNA/Conventions[ \t]*\n(.*?)(?=\n##\s|\Z)", text, re.DOTALL)
     if not m or not _RULE_ID.search(m.group(1)):
         return Result(False, "handoff missing non-empty 'Applicable DNA/Conventions' with rule-ids")
+    if valid_rule_ids is not None:
+        foreign = _foreign_rule_ids(m.group(1), valid_rule_ids)
+        if foreign:
+            return Result(False, "handoff cites rule-ids not in knowledge-index slice: " + ", ".join(foreign))
     return Result(True)
 
 
-def validate_implementation_context(text: str) -> Result:
+def validate_implementation_context(text: str, valid_rule_ids=None) -> Result:
     applicable = _section_text(text, "Applicable DNA/Conventions")
     if not applicable or not _RULE_ID.search(applicable):
         return Result(False, "implementation context missing Applicable DNA/Conventions rule-ids")
+    if valid_rule_ids is not None:
+        foreign = _foreign_rule_ids(applicable, valid_rule_ids)
+        if foreign:
+            return Result(
+                False,
+                "implementation context cites rule-ids not in knowledge-index slice: " + ", ".join(foreign),
+            )
     evidence = _section_text(text, "Evidence")
     if not evidence:
         return Result(False, "implementation context missing Evidence section")
