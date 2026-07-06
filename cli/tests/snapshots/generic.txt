@@ -108,6 +108,7 @@
 .maika/skills/requirement-analyst/references/output-schema.md
 .maika/skills/requirement-analyst/references/process-guide.md
 .maika/skills/requirement-analyst/references/ua-open-question-filter.md
+.maika/skills/skill-index.yaml
 .maika/skills/spec-extract/
 .maika/skills/spec-extract/SKILL.md
 .maika/skills/spec-extract/references/
@@ -123,6 +124,7 @@
 .maika/skills/spec-validator/references/post-apply-checks.md
 .maika/skills/spec-validator/references/pre-apply-gate.md
 .maika/tools/
+.maika/tools/README.md
 .maika/tools/gate-check/
 .maika/tools/gate-check/__init__.py
 .maika/tools/gate-check/cli.py

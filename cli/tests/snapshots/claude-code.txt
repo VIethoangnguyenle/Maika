@@ -120,6 +120,7 @@
 .claude/skills/requirement-analyst/references/output-schema.md
 .claude/skills/requirement-analyst/references/process-guide.md
 .claude/skills/requirement-analyst/references/ua-open-question-filter.md
+.claude/skills/skill-index.yaml
 .claude/skills/spec-extract/
 .claude/skills/spec-extract/SKILL.md
 .claude/skills/spec-extract/references/
@@ -135,6 +136,7 @@
 .claude/skills/spec-validator/references/post-apply-checks.md
 .claude/skills/spec-validator/references/pre-apply-gate.md
 .claude/tools/
+.claude/tools/README.md
 .claude/tools/gate-check/
 .claude/tools/gate-check/__init__.py
 .claude/tools/gate-check/cli.py

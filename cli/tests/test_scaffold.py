@@ -532,3 +532,14 @@ def test_manifest_omits_framework_dev_only_tools(maika_root):
     manifest = load_manifest(maika_root)
     by_name = {p["name"]: p for p in manifest["plugins"]}
     assert "skill-lint" not in by_name
+
+
+def test_manifest_ships_skill_index_data_and_tools_readme(maika_root):
+    # Consumers: bootstrap.md READ skills/skill-index.yaml; meta-prompt trỏ tools/README.md (R1).
+    manifest = load_manifest(maika_root)
+    by_name = {p["name"]: p for p in manifest["plugins"]}
+    assert by_name["skill-index-data"]["source"] == "skills/skill-index.yaml"
+    assert by_name["skill-index-data"]["output"] == "{{ platform.framework_root }}/skills/skill-index.yaml"
+    assert not by_name["skill-index-data"].get("copy_dir")
+    assert by_name["tools-readme"]["source"] == "tools/README.md"
+    assert by_name["tools-readme"]["output"] == "{{ platform.framework_root }}/tools/README.md"

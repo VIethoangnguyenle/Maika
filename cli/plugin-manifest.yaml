@@ -220,6 +220,12 @@ plugins:
     output: "{{ platform.framework_root }}/skills/openspec-archive-change/"
     copy_dir: true
 
+  - name: skill-index-data
+    type: skill
+    source: skills/skill-index.yaml
+    template: false
+    output: "{{ platform.framework_root }}/skills/skill-index.yaml"
+
   # ─── WORKFLOWS ───
   - name: workflow-task
     type: workflow
@@ -342,6 +348,12 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/tools/knowledge-index/"
     copy_dir: true
+
+  - name: tools-readme
+    type: tool
+    source: tools/README.md
+    template: false
+    output: "{{ platform.framework_root }}/tools/README.md"
 
   - name: write-gate-core
     type: hook

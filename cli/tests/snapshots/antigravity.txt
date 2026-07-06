@@ -120,6 +120,7 @@
 .agents/skills/requirement-analyst/references/output-schema.md
 .agents/skills/requirement-analyst/references/process-guide.md
 .agents/skills/requirement-analyst/references/ua-open-question-filter.md
+.agents/skills/skill-index.yaml
 .agents/skills/spec-extract/
 .agents/skills/spec-extract/SKILL.md
 .agents/skills/spec-extract/references/
@@ -135,6 +136,7 @@
 .agents/skills/spec-validator/references/post-apply-checks.md
 .agents/skills/spec-validator/references/pre-apply-gate.md
 .agents/tools/
+.agents/tools/README.md
 .agents/tools/gate-check/
 .agents/tools/gate-check/__init__.py
 .agents/tools/gate-check/cli.py

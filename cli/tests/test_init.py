@@ -546,3 +546,18 @@ def test_emit_mcp_setup_files_writes_then_removes_stale(tmp_path):
     wrote2 = emit_mcp_setup_files(tmp_path, platform, "codex", [], manifest, "")
     assert wrote2 is False
     assert not setup_md.exists()
+
+
+def test_init_scaffold_diet_ships_only_consumed_tooling(tmp_path, maika_root):
+    target = tmp_path / "proj"
+    run_init(
+        target_dir=str(target), maika_root=str(maika_root), platform_key="claude-code",
+        selected_mcps=[], language="python", assume_yes=True,
+    )
+    tools = target / ".claude" / "tools"
+    assert (tools / "gate-check" / "cli.py").exists()
+    assert (tools / "README.md").exists()                                  # meta-prompt trỏ tới
+    assert not (tools / "skill-lint").exists()                             # framework-dev only
+    assert not (tools / "gate-check" / "tests").exists()                   # CI framework không ship
+    assert not (target / ".claude" / "hooks" / "write-gate" / "tests").exists()
+    assert (target / ".claude" / "skills" / "skill-index.yaml").exists()   # bootstrap READ
