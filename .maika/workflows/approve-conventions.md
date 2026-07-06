@@ -70,6 +70,9 @@ FOR EACH entry trong conventions.draft.yaml:
    (copy từ conventions.draft.yaml trước khi rename)
    → Giữ trong {{ platform.framework_root }}/knowledge/long-term/ làm audit trail
    → Không vào context (context-loader chỉ nạp knowledge-index.yaml từ long-term/, không nạp *.bak)
+
+4. Regenerate knowledge index (bootstrap/context-loader P3 nạp entry list từ đây):
+   python3 {{ platform.framework_root }}/tools/knowledge-index/generate_index.py {{ platform.framework_root }}/knowledge/long-term
 ```
 
 ---
