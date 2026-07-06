@@ -39,6 +39,7 @@ hard_principles:
       file_path: ""
       description: "Nguyên tắc nền tảng"
     scope: all
+    applies_to: []  # [] = global; thiếu key này thì knowledge-index bỏ qua entry
     exceptions: []
 
 # ─────────────────────────────────────────────────────────────────

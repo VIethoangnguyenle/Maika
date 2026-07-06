@@ -11,7 +11,7 @@ emit `mechanically_checkable: true` + `check_spec`. Supported ir_rules (SP1a):
 | "method must be <= N lines" | (covered by complexity_thresholds.max_lines_per_method) | — |
 | "max N branches/cyclomatic" | (covered by complexity_thresholds.max_method_branches) | — |
 | "javadoc must have @author/@since" | require_javadoc_tag | { tags: [...], scope: [public, protected] } |
-| naming rules | (emit in conventions.yaml naming_patterns) | — |
+| naming rules | KHÔNG emit từ DNA builder — naming thuộc conventions.yaml. Nếu rule là global regex: convention-intelligence-builder ghi vào section `naming_patterns` (machine lane); nếu theo layer/suffix: section `naming` (human lane) | — |
 
 Principles WITHOUT a clean mechanical mapping (CoR, Template Method, Strategy, Factory
 boundary, SOLID, config-driven, extraction) → set `mechanically_checkable: false`.
