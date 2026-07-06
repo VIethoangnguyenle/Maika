@@ -161,8 +161,6 @@
 .maika/tools/rule-projector/ir_schema.json
 .maika/tools/rule-projector/projector.py
 .maika/tools/rule-projector/requirements.txt
-.maika/tools/skill-lint/
-.maika/tools/skill-lint/validate_skills.py
 .maika/workflows/
 .maika/workflows/approve-conventions.md
 .maika/workflows/approve-dna.md

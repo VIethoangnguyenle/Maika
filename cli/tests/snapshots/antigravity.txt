@@ -173,8 +173,6 @@
 .agents/tools/rule-projector/ir_schema.json
 .agents/tools/rule-projector/projector.py
 .agents/tools/rule-projector/requirements.txt
-.agents/tools/skill-lint/
-.agents/tools/skill-lint/validate_skills.py
 .agents/workflows/
 .agents/workflows/approve-conventions.md
 .agents/workflows/approve-dna.md

@@ -524,3 +524,11 @@ def test_generate_resolved_config_sweep_survives_directory_at_candidate(tmp_path
 
     assert (tmp_path / ".agents" / "resolved-config.yaml").exists()  # active written
     assert bogus.is_dir()  # bogus directory left untouched
+
+
+def test_manifest_omits_framework_dev_only_tools(maika_root):
+    # skill-lint là tool authoring của repo framework (R7; skill-lint-pilot
+    # design đã chốt lint không scaffold xuống downstream).
+    manifest = load_manifest(maika_root)
+    by_name = {p["name"]: p for p in manifest["plugins"]}
+    assert "skill-lint" not in by_name

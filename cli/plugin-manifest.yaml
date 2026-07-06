@@ -322,13 +322,6 @@ plugins:
     output: "{{ platform.framework_root }}/tools/microloop-orchestrator/"
     copy_dir: true
 
-  - name: skill-lint
-    type: tool
-    source: tools/skill-lint/
-    template: false
-    output: "{{ platform.framework_root }}/tools/skill-lint/"
-    copy_dir: true
-
   - name: gate-check
     type: tool
     source: tools/gate-check/

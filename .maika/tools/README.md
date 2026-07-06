@@ -44,18 +44,21 @@ Kiểm checkpoint artifact bằng token bằng chứng (xem `procedures/decision
 - **Run**: `python3 {{ platform.framework_root }}/tools/gate-check/cli.py <gate> <file>` — gates: knowledge-checkpoint, handoff-slice, implementation-context, phase-chain, mcp-status, memory-recall, teaching-moment, archive-ready, ac-coverage, integration-coverage…
 - **Test**: `python3 -m pytest {{ platform.framework_root }}/tools/gate-check/tests/ -v`
 
-## skill-lint/ — Skill schema validator (SP2)
+## skill-lint/ — Skill schema validator (SP2) — chỉ repo framework
 
-Lint mọi `skills/*/SKILL.md` theo Hybrid Schema (R-Skill-1/2).
-- **Run**: `python3 {{ platform.framework_root }}/tools/skill-lint/validate_skills.py`
+Lint mọi `skills/*/SKILL.md` theo Hybrid Schema (R-Skill-1/2). Không scaffold sang
+downstream — skill authoring là hoạt động repo framework.
+- **Run** (source repo framework): `python3 .maika/tools/skill-lint/validate_skills.py`
 
 ## knowledge-index/ — Knowledge index generator
 
 Sinh `knowledge/long-term/knowledge-index.yaml` (entry list cho JIT slice tại decision-gate).
+- **Run**: `python3 {{ platform.framework_root }}/tools/knowledge-index/generate_index.py {{ platform.framework_root }}/knowledge/long-term`
 
-## skill-index/ — Skill index generator
+## skill-index/ — Skill index generator — chỉ repo framework
 
-Sinh `skills/skill-index.yaml` từ frontmatter các SKILL.md.
+Sinh `skills/skill-index.yaml` từ frontmatter các SKILL.md. Tool không scaffold sang
+downstream; file output `skills/skill-index.yaml` thì được ship (bootstrap READ nó).
 
 ## mcp-bridge/ — MCP bridge fallback
 

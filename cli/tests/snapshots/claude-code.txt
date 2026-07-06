@@ -173,8 +173,6 @@
 .claude/tools/rule-projector/ir_schema.json
 .claude/tools/rule-projector/projector.py
 .claude/tools/rule-projector/requirements.txt
-.claude/tools/skill-lint/
-.claude/tools/skill-lint/validate_skills.py
 .claude/workflows/
 .claude/workflows/approve-conventions.md
 .claude/workflows/approve-dna.md
