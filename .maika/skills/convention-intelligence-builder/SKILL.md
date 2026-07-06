@@ -111,9 +111,13 @@ FOR EACH pattern category:
 
 ### Bước 4 — Sinh conventions.draft.yaml
 
-Ghi ra `{{ platform.framework_root }}/knowledge/long-term/conventions.draft.yaml` với 7 sections:
-Naming Conventions, Package Structure, Design Patterns, Upstream Constraints,
-Test Conventions, Exceptions & Inconsistencies, Needs Review.
+Ghi ra `{{ platform.framework_root }}/knowledge/long-term/conventions.draft.yaml` với các sections:
+Naming Conventions, Naming Patterns (machine lane — global regex cho rule-projector),
+Package Structure, Design Patterns, Upstream Constraints, Test Conventions,
+Exceptions & Inconsistencies, Needs Review.
+
+Mỗi entry naming/design_patterns PHẢI có `id` + `applies_to` (vocabulary artifact-type
+do project định nghĩa; `[]` = global) — thiếu key `applies_to` thì knowledge-index bỏ qua entry.
 
 ### Bước 5 — Summary Report cho User
 

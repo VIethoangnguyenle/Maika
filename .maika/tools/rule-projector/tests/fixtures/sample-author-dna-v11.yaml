@@ -1,0 +1,28 @@
+# Schema v1.1: hard_principles/style_preferences là Dictionary (key là rule_id)
+meta:
+  author: "sample"
+  status: approved
+complexity_thresholds:
+  max_nesting_depth: 1
+  max_method_branches: 3
+  max_lines_per_method: 30
+  confirmed: true
+hard_principles:
+  HP-6:
+    name: "Zero Nesting"
+    agent_action: REJECT_AND_PROPOSE
+    mechanically_checkable: true
+    check_spec:
+      - ir_rule: max_for_nesting
+        params: { max: 0 }
+  HP-5:
+    name: "Factory boundary"
+    agent_action: FLAG_AND_WARN
+    mechanically_checkable: false
+style_preferences:
+  SP-5:
+    name: "Javadoc tags"
+    mechanically_checkable: true
+    check_spec:
+      - ir_rule: require_javadoc_tag
+        params: { tags: ["@author", "@since"], scope: ["public", "protected"] }

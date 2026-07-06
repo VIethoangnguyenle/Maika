@@ -32,6 +32,15 @@ def test_bare_dna_still_projects_floor():
     assert "naming_regex" in irules
     assert "forbid_else" not in irules
 
+def test_dict_schema_v11_principles_project():
+    """Schema v1.1: hard_principles là dict keyed by rule_id — không được crash."""
+    dna_v11 = HERE / "fixtures" / "sample-author-dna-v11.yaml"
+    ir = projector.build_ir(str(dna_v11), str(CONV))
+    ids = [r["id"] for r in ir["rules"]]
+    assert "HP-6.max_for_nesting" in ids
+    assert "SP-5.require_javadoc_tag" in ids
+    assert not any("HP-5" in i for i in ids)
+
 def test_draft_conventions_skipped():
     import tempfile, textwrap
     draft = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False)

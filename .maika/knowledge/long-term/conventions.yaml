@@ -28,6 +28,12 @@ naming:
   database_naming: {}
 
 # ─────────────────────────────────────────────
+# SECTION 1b: Naming Patterns (machine lane — rule-projector input)
+# Chỉ rule GLOBAL biểu diễn được bằng regex. List of {target, pattern}.
+# ─────────────────────────────────────────────
+naming_patterns: []
+
+# ─────────────────────────────────────────────
 # SECTION 2: Package Structure
 # ─────────────────────────────────────────────
 package_structure:
@@ -60,9 +66,5 @@ exceptions: {}
 # ─────────────────────────────────────────────
 resolved: {}
 
-# ─────────────────────────────────────────────
-# SECTION 7: Coding Philosophy
-# ─────────────────────────────────────────────
-coding_philosophy:
-  core_principle: "Hiểu WHY trước khi áp HOW."
-  rules: {}
+# LƯU Ý: Coding philosophy KHÔNG thuộc file này — ghi vào author-dna.yaml
+# (xem R-DNA-7 Bước 0 trong rules-guard.md).

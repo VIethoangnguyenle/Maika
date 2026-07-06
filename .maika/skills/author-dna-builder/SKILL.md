@@ -114,12 +114,15 @@ trong đầu mà chưa thể hiện rõ trong codebase hiện tại không?
 
 ### Check 1 — Cross-check conventions.yaml (Gap 1)
 
-Trước khi tạo SP/PP entry mới, scan conventions.yaml:
-- Tìm kiếm tên tương đương trong Section 8 (Coding Philosophy) và Section 1 (Naming).
-- Nếu tìm thấy entry tương tự với ≥70% overlap về nội dung:
-  → Không tạo SP/PP mới.
-  → Ghi note vào phiên: "Teaching moment đã cover bởi {CP-XX} trong conventions.yaml."
-  → Chỉ tạo nếu author-dna cần capture WHY/HOW mà conventions chưa có.
+Trước khi tạo SP/PP entry mới, scan **toàn bộ** conventions.yaml (không dựa vào số section — cấu trúc có thể đổi):
+- Nếu tìm thấy entry tương tự với ≥70% overlap về nội dung, phân loại theo R-DNA-7 Bước 0:
+  - Entry đó là **WHAT** (naming/structure/organization) → đúng chỗ ở conventions.
+    Không tạo SP/PP trùng; chỉ tạo nếu author-dna cần capture thêm WHY/HOW mà conventions chưa có.
+  - Entry đó là **WHY/HOW** (philosophy, decision principle — bỏ tên cụ thể vẫn đúng) →
+    entry đang nằm **SAI file**. MIGRATE sang author-dna: tạo SP/PP entry mới ở author-dna,
+    xoá entry khỏi conventions.yaml, ghi note vào phiên:
+    "Migrated {entry-id} conventions → author-dna (philosophy không thuộc conventions)."
+- conventions.yaml KHÔNG BAO GIỜ là nơi hợp lệ cho coding philosophy — chiều migrate chỉ có một: conventions → author-dna.
 
 ### Check 2 — R-DNA-7 Step 0: Phân tách abstraction level (Gap 2)
 
@@ -163,6 +166,10 @@ FOR EACH confirmed hypothesis:
   → Encode vào section phù hợp (hard_principles / style_preferences / creative_overrides)
   → Gắn exemplar node_id thực tế từ evidence scan
   → Ghi confirmed: true + source: "codebase-inferred + author-confirmed"
+  → Gắn applies_to: [<artifact-type tags>] — vocabulary do PROJECT định nghĩa
+    (hỏi author trong interview nếu chưa rõ; principle áp dụng mọi nơi → applies_to: []).
+    BẮT BUỘC có key này: entry thiếu applies_to sẽ KHÔNG được knowledge-index index
+    → không vào gate slice (R-Guard-2).
 
 FOR EACH author-added principle (từ open-ended question):
   → Encode với source: "author-described"

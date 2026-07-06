@@ -40,9 +40,16 @@ def project_thresholds(thresholds):
                            {"max": thresholds["max_lines_per_method"]}, ref))
     return rules
 
+def _normalize_principles(principles):
+    """Schema v1.1: dict keyed by rule_id. Legacy: list of {id: ...}."""
+    if isinstance(principles, dict):
+        return [{**v, "id": v.get("id", k)} for k, v in principles.items()
+                if isinstance(v, dict)]
+    return principles or []
+
 def project_principles(principles):
     rules = []
-    for p in principles or []:
+    for p in _normalize_principles(principles):
         if not p.get("mechanically_checkable"):
             continue
         pid = p.get("id", "UNKNOWN")

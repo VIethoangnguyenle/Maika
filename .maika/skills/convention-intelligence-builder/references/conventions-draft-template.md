@@ -39,6 +39,9 @@ naming:
   class_suffixes:
     # --- Entry mẫu (agent tự sinh từ scan, KHÔNG copy nguyên mẫu) ---
     - suffix: "{Suffix}"          # e.g. "ServiceImpl", "Handler", "Repository"
+      id: "N-{n}"                 # rule_id duy nhất — gate slice tham chiếu theo id này
+      applies_to: []              # artifact-type tags (vocabulary do PROJECT định nghĩa);
+                                  # [] = global. BẮT BUỘC có key — thiếu thì knowledge-index bỏ qua entry
       layer: "{layer_name}"       # e.g. service, handler, repository
       weight: recommended         # mandatory | recommended
       origin: project             # project | upstream
@@ -65,6 +68,16 @@ naming:
         - "{exampleMethod2}"
 
 # ─────────────────────────────────────────────
+# SECTION 1b: Naming Patterns (machine lane — rule-projector input)
+# Chỉ ghi rule GLOBAL biểu diễn được bằng regex (không phụ thuộc layer).
+# rule-projector đọc section này để sinh naming_regex lint rules.
+# Rule theo-layer / theo-suffix ở trên (naming:) là human lane — projector không đọc.
+# ─────────────────────────────────────────────
+naming_patterns:
+  # - target: TypeName            # TypeName | MethodName (checkstyle-compatible target)
+  #   pattern: "^[A-Z][a-zA-Z0-9]*$"
+
+# ─────────────────────────────────────────────
 # SECTION 2: Package Structure
 # ─────────────────────────────────────────────
 package_structure:
@@ -85,6 +98,8 @@ package_structure:
 design_patterns:
   # --- Entry mẫu (agent tự sinh từ scan) ---
   - pattern: "{PatternName}"      # e.g. "Processor Chain", "Factory Interface", "Strategy"
+    id: "DP-{n}"
+    applies_to: []                # như naming — BẮT BUỘC có key để được index
     confidence: high
     origin: project               # project | upstream
     weight: recommended           # mandatory | recommended
