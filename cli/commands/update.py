@@ -21,6 +21,7 @@ from cli.scaffold import (
     sync_tree,
     prune_orphans,
     generate_resolved_config,
+    generate_knowledge_index,
 )
 
 
@@ -83,6 +84,8 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
         print(f"  🗑️  Pruned {len(pruned)} orphaned framework file(s):")
         for p in pruned:
             print(f"     • {p}")
+
+    generate_knowledge_index(maika, target, framework_root)
 
     if reconfigure:
         generate_resolved_config(target, platform, selected_mcps, language, hook_python=effective_hook_python)

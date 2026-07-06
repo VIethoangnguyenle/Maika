@@ -48,3 +48,17 @@ def test_directory_render_excludes_instance_and_build_artifacts(tmp_path, jinja_
     assert not (dst / "persona.yaml").exists()           # dev instance excluded
     assert not (dst / "generated" / "rules.json").exists()
     assert not (dst / "generated" / "checkstyle.generated.xml").exists()
+
+
+def test_directory_render_excludes_framework_test_dirs(tmp_path, jinja_env, claude_context):
+    # Framework CI tests (tools/*/tests, hooks/write-gate/tests) never ship
+    # downstream — no scaffolded file invokes them (scaffold-diet audit 2026-07-06).
+    src = tmp_path / "src"
+    (src / "tests" / "fixtures").mkdir(parents=True)
+    (src / "cli.py").write_text("code\n", encoding="utf-8")
+    (src / "tests" / "test_cli.py").write_text("test\n", encoding="utf-8")
+    (src / "tests" / "fixtures" / "sample.md").write_text("fx\n", encoding="utf-8")
+    dst = tmp_path / "dst"
+    copy_and_render_directory(jinja_env, src, dst, claude_context)
+    assert (dst / "cli.py").exists()
+    assert not (dst / "tests").exists()

@@ -118,10 +118,13 @@ Mỗi file `SKILL.md` trong `{{ platform.framework_root }}/skills/*/` **PHẢI**
 
 ### [CRITICAL] R-Skill-2: Lint gate bắt buộc trước khi merge skill mới/sửa
 
-- Khi tạo skill mới hoặc sửa `SKILL.md`, **PHẢI** chạy lint trước khi commit:
+- Skill authoring là hoạt động **repo framework Maika** — skills downstream là
+  framework-owned, bị `maika update` ghi đè, không sửa tại downstream.
+- Khi tạo skill mới hoặc sửa `SKILL.md` (repo framework), **PHẢI** chạy lint trước khi commit:
   ```
-  python3 {{ platform.framework_root }}/tools/skill-lint/validate_skills.py
+  python3 .maika/tools/skill-lint/validate_skills.py
   ```
+  (chạy trong source repo framework — tool không scaffold sang downstream)
 - Kết quả phải là `PASS` cho skill đó. `FAIL` = không được merge.
 - Spec doc (repo framework): `docs/superpowers/specs/2026-06-17-sp2-skill-standardization-design.md`
 

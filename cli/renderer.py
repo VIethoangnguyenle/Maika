@@ -111,6 +111,8 @@ def copy_and_render_directory(
     """
     exclude = exclude_patterns or [
         "__pycache__", ".pytest_cache", "*.pyc", ".git",
+        # Framework CI artifacts — no scaffolded consumer downstream:
+        "tests",               # tools/*/tests, hooks/write-gate/tests
         # Per-project instance / build artifacts that must never be scaffolded
         # from the framework source (only their templates/seeds ship):
         "persona.yaml",        # ship persona.template.yaml; user creates persona.yaml

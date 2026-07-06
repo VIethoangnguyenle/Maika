@@ -31,11 +31,11 @@ Tránh tình trạng agent dùng context cũ của task khác.
 > KHÔNG được nạp toàn bộ ở context-loader. Context-loader chỉ nạp `knowledge-index.yaml`
 > (entry list nhẹ). Body của từng entry được kéo **just-in-time tại decision-gate**
 > (xem `procedures/decision-gate.md`) khi gate cần bằng chứng cho artifact-type hiện tại.
-> Nếu `knowledge-index.yaml` không tồn tại → WARN "chạy knowledge-index generator; gate sẽ kéo slice JIT" và hạ độ tin cậy kiến trúc.
+> Nếu `knowledge-index.yaml` không tồn tại → WARN "chạy `python3 {{ platform.framework_root }}/tools/knowledge-index/generate_index.py {{ platform.framework_root }}/knowledge/long-term`; gate sẽ kéo slice JIT" và hạ độ tin cậy kiến trúc.
 
 **knowledge-index.yaml — quy tắc nạp:**
 - Luôn nạp nếu tồn tại, cùng lượt P3 (chỉ entry list, không nạp body).
-- Không tồn tại → WARN "knowledge-index.yaml chưa có. Agent dùng generic judgment/naming. Chạy index generator để tạo."
+- Không tồn tại → WARN "knowledge-index.yaml chưa có. Agent dùng generic judgment/naming. Tạo bằng: `python3 {{ platform.framework_root }}/tools/knowledge-index/generate_index.py {{ platform.framework_root }}/knowledge/long-term`."
 - Được dùng bởi: `codebase-explorer`, `architecture-reviewer`, `openspec-propose`, `/task apply` — các skill này tự kéo slice JIT tại decision-gate theo `applies_to` khớp artifact-type, KHÔNG còn pre-load toàn bộ conventions/DNA trước khi chạy.
 
 **Artifact-type slice (JIT, tại decision-gate)**:
