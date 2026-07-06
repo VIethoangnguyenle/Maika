@@ -249,6 +249,7 @@ def test_init_antigravity_uses_agents_as_only_framework_root(tmp_path, maika_roo
     assert (target / ".agents" / "rules" / "RULES.md").exists()
     assert (target / ".agents" / "skills" / "requirement-analyst" / "SKILL.md").exists()
     assert (target / ".agents" / "knowledge" / "long-term" / "author-dna.yaml").exists()
+    assert (target / ".agents" / "knowledge" / "long-term" / "knowledge-index.yaml").exists()
     assert (target / "AGENTS.md").exists()
 
 

@@ -4,6 +4,7 @@ Used by both `maika init` (writes directly to target) and `maika update`
 (writes to a staging dir, then syncs). Contains no input() calls.
 """
 
+import importlib.util
 import shutil
 from pathlib import Path
 from typing import List, Optional
@@ -375,6 +376,30 @@ def verify_no_unresolved(root: Path) -> List[Path]:
         except UnicodeDecodeError:
             continue
     return offenders
+
+
+def generate_knowledge_index(maika_root: Path, target: Path, framework_root: str) -> None:
+    """Generate knowledge-index.yaml in the target project's long-term knowledge dir."""
+    tool_path = maika_root / ".maika" / "tools" / "knowledge-index" / "generate_index.py"
+    if not tool_path.exists():
+        return
+    long_term = target / framework_root / "knowledge" / "long-term"
+    if not long_term.is_dir():
+        return
+    spec = importlib.util.spec_from_file_location("_ki_generate_index", tool_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    entries = mod.build_index(
+        long_term / "author-dna.yaml",
+        long_term / "conventions.yaml",
+        snapshot_path=long_term / "knowledge-snapshot.md",
+    )
+    header = "# TỰ ĐỘNG TẠO BỞI generate_index.py — KHÔNG CHỈNH SỬA THỦ CÔNG\n"
+    (long_term / "knowledge-index.yaml").write_text(
+        header + yaml.safe_dump({"entries": entries}, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    print(f"  ✅ knowledge-index.yaml ({len(entries)} entries)")
 
 
 def sync_tree(src: Path, dst: Path) -> int:
