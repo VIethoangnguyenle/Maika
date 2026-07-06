@@ -170,7 +170,9 @@ implementation preflight:
 `python3 {{ platform.framework_root }}/tools/gate-check/cli.py implementation-context <file> --index {{ platform.framework_root }}/knowledge/long-term/knowledge-index.yaml --artifact-type <artifact-type của node>`
 
 Với `--index`/`--artifact-type`, mọi rule-id trong `## Applicable DNA/Conventions` phải thuộc
-slice của artifact-type đó (hoặc global) — rule-id bịa hoặc sai type → gate FAIL.
+slice của artifact-type đó (hoặc global) — rule-id bịa hoặc sai type → gate FAIL. Áp dụng cho
+cả hai lệnh trên (handoff-slice và implementation-context). Nếu slice rỗng cho artifact-type đó
+(chưa có rule nào áp dụng) → tool WARN và fallback về check legacy (≥1 rule-id là đủ, không strict).
 
 Implementation context phải có `## Evidence` với UA evidence (`domain_overview`,
 `domain_flow`, `domain_relationships`) hoặc explicit UA degrade/override, và
