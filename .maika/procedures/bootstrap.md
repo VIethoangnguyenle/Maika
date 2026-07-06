@@ -172,7 +172,8 @@ Format (Giới hạn dưới 5 dòng):
 > - `knowledge-index.yaml` đã nạp → report ghi `🧠 Knowledge-index: loaded — {n entries}`.
 >   Body của từng entry KHÔNG nạp ở bootstrap; kéo JIT tại decision-gate (xem `procedures/decision-gate.md`).
 > - **MCP probe bắt buộc:** nếu `resolved-config.yaml` khai báo MCP server (vd `understand-anything`) →
->   PHẢI gọi probe thật (`get_graph_stats`/`list_projects`) và ghi dòng `🔌 MCP:` chứa **SỐ THẬT**
+>   PHẢI gọi probe thật (`list_projects` — không cần tham số, trả về node/edge counts thật;
+>   với UA dùng tool stats của chính server) và ghi dòng `🔌 MCP:` chứa **SỐ THẬT**
 >   (nodes/edges/freshness). **Cấm** ghi "Runtime Ready" rỗng. Probe fail/absent → ghi dòng degrade
 >   `KG unavailable — grep fallback, MEDIUM`.
 >   Nếu `resolved-config.yaml` khai báo `agent-memory` → probe `{{ tools.dynamic_memory_health }}` và CHỈ ghi
