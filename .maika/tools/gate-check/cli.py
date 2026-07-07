@@ -1,5 +1,6 @@
 """CLI: gate-check <gate> <file>  → exit 0 (pass) / 1 (fail)."""
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -20,16 +21,21 @@ VALIDATORS = {
     "reset-ready": "validate_reset_ready",
     "ac-coverage": "validate_ac_coverage",
     "integration-coverage": "validate_integration_coverage",
+    "grep-honesty": "validate_grep_honesty",
 }
 
 
-def _load_gates():
+def _load_module(name):
     import importlib.util
-    mod = Path(__file__).resolve().parent / "gates.py"
-    spec = importlib.util.spec_from_file_location("gates", mod)
-    g = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(g)
-    return g
+    mod = Path(__file__).resolve().parent / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, mod)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def _load_gates():
+    return _load_module("gates")
 
 
 def _load_index_rule_ids(index_path, artifact_type=None):
@@ -52,6 +58,7 @@ def main(argv=None):
     parser.add_argument("--against")
     parser.add_argument("--index")
     parser.add_argument("--artifact-type")
+    parser.add_argument("--repo-root", help="repo root for grep-honesty (default: cwd)")
     try:
         args = parser.parse_args(argv)
     except SystemExit:
@@ -69,6 +76,10 @@ def main(argv=None):
             print("FAIL — --against is required for coverage checks")
             return 2
         kwargs["spec_text"] = Path(args.against).read_text(encoding="utf-8")
+    elif args.gate == "grep-honesty":
+        repo_root = args.repo_root or os.getcwd()
+        kwargs["repo_root"] = repo_root
+        kwargs["indexed_projects"] = _load_module("capability").indexed_projects(repo_root)
 
     res = getattr(g, VALIDATORS[args.gate])(text, **kwargs)
     print(("PASS" if res.ok else f"FAIL — {res.reason}"))

@@ -139,6 +139,7 @@
 .agents/tools/README.md
 .agents/tools/gate-check/
 .agents/tools/gate-check/__init__.py
+.agents/tools/gate-check/capability.py
 .agents/tools/gate-check/cli.py
 .agents/tools/gate-check/complexity.py
 .agents/tools/gate-check/gates.py

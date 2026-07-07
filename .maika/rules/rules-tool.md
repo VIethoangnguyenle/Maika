@@ -49,6 +49,11 @@
   - *Identifier trong EXPLORE_CONTEXT* vẫn phân theo fact-type: architecture-facts → UA identifier
     (domain/flow/entry-point); code-facts → `node_id`. (Đây là phân loại *nhãn lưu*, không phải *thứ tự dùng*.)
   - Mâu thuẫn ở code-fact: surface vào `AGENT_TRANSPARENCY`, knowledge chính thắng (R-KL-3), không suppress.
+- **grep-fallback là capability-aware, KHÔNG tự khai** (siết phần "self-asserted" đã hoãn): dòng
+  "grep fallback / `<tool>` unavailable" cho code-fact chỉ HỢP LỆ khi file KHÔNG thuộc project nào đã
+  index. cbm/UA phủ được file (kể cả upstream/downstream — map file→`root_path`) → BẮT BUỘC dùng chúng
+  với `project` đúng, không grep. Enforce cơ học (probe cbm/UA thật, không tin prose):
+  `python3 {{ platform.framework_root }}/tools/gate-check/cli.py grep-honesty <EXPLORE_CONTEXT> --repo-root <repo>` phải PASS.
 - `{{ tools.read_file }}` tuân thủ R-Data-1 (không log raw PII vào context files).
 - Khi ghi `EXPLORE_CONTEXT.md`, luôn kèm identifier cho component quan trọng — `node_id` cho code-facts, hoặc UA identifier (domain/flow/entry-point) cho architecture-facts (`node_id` không bắt buộc với nguồn UA); cho phép downstream `{{ tools.read_file }}(node_id)` hoặc đọc theo identifier UA.
 - KHÔNG bịa kết quả cho tool không khả dụng.
