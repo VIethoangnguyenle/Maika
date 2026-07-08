@@ -16,7 +16,7 @@
         "additionalProperties": true,
         "properties": {
           "id": {"type": "string"},
-          "ir_rule": {"enum": ["max_if_nesting","max_for_nesting","max_method_lines","max_cyclomatic","forbid_else","naming_regex","require_javadoc_tag"]},
+          "ir_rule": {"enum": ["max_if_nesting","max_for_nesting","max_method_lines","max_cyclomatic","forbid_else","naming_regex","require_javadoc_tag","no_unused_imports","no_wildcard_imports","no_redundant_imports"]},
           "severity": {"enum": ["error","warning","info"]},
           "params": {"type": "object"},
           "source_ref": {"type": "string"}

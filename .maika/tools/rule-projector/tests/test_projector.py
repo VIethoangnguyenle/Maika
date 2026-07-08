@@ -54,3 +54,22 @@ def test_draft_conventions_skipped():
     draft.close()
     ir = projector.build_ir(str(DNA), draft.name)
     assert not any(r["ir_rule"] == "naming_regex" for r in ir["rules"])
+
+def test_code_hygiene_projected_with_severity_mapping():
+    conv = {"meta": {"status": "approved"},
+            "code_hygiene": {"java": {
+                "no_unused_imports": {"severity": "mandatory"},
+                "no_wildcard_imports": {"severity": "mandatory"},
+                "no_redundant_imports": {"severity": "recommended"}}}}
+    rules = projector.project_code_hygiene(conv)
+    assert [r["ir_rule"] for r in rules] == [
+        "no_unused_imports", "no_wildcard_imports", "no_redundant_imports"]
+    by_id = {r["id"]: r for r in rules}
+    assert by_id["hygiene.java.no_unused_imports"]["severity"] == "error"
+    assert by_id["hygiene.java.no_redundant_imports"]["severity"] == "warning"
+    assert all(r["source_ref"] == "conventions.yaml#code_hygiene" for r in rules)
+
+def test_code_hygiene_absent_or_empty_projects_nothing():
+    assert projector.project_code_hygiene({}) == []
+    assert projector.project_code_hygiene({"code_hygiene": {}}) == []
+    assert projector.project_code_hygiene({"code_hygiene": {"java": {}}}) == []
