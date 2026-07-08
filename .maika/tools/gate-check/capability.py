@@ -2,9 +2,10 @@
 
 Kept OUT of gates.py so the validators stay deterministic/hermetic. The caller
 (cli.py) runs the probe and passes the result into the pure validator, mirroring
-the existing --index pattern. Fail-open: any probe error → empty list, so a
-missing/broken probe never blocks (the validator treats empty as "nothing to
-use → grep OK").
+the existing --index pattern. Fail-open: most probes return an empty list on error
+so a missing/broken probe never blocks (the validator treats empty as "nothing to
+use → grep OK"). EXCEPTION: `changed_java_files` fails CLOSED (returns None on git
+error) so the code-hygiene gate degrades loudly instead of silently passing.
 """
 import json
 import os

@@ -114,3 +114,35 @@ def test_litmus_cli_no_rules_section_passes(tmp_path):
     j = tmp_path / "Dirty.java"
     j.write_text(DIRTY)
     assert cli.main(["code-hygiene", str(conv), "--java-file", str(j)]) == 0
+
+
+# --- review fixes: cross-task coherence (status parity + unknown-key loud-fail) ---
+
+def test_draft_conventions_do_not_block():
+    conv = ("meta: {status: draft}\n"
+            "code_hygiene:\n  java:\n    no_wildcard_imports: {severity: mandatory}\n")
+    assert g.validate_code_hygiene(conv, java_sources={"A.java": DIRTY}).ok is True
+
+
+def test_stale_conventions_do_not_block():
+    conv = ("meta: {status: stale}\n"
+            "code_hygiene:\n  java:\n    no_wildcard_imports: {severity: mandatory}\n")
+    assert g.validate_code_hygiene(conv, java_sources={"A.java": DIRTY}).ok is True
+
+
+def test_approved_status_still_enforces():
+    conv = ("meta: {status: approved}\n"
+            "code_hygiene:\n  java:\n    no_wildcard_imports: {severity: mandatory}\n")
+    assert g.validate_code_hygiene(conv, java_sources={"A.java": DIRTY}).ok is False
+
+
+def test_missing_status_still_enforces():
+    # CONV has no meta.status → treated as active (test fixtures / minimal files)
+    assert g.validate_code_hygiene(CONV, java_sources={"A.java": DIRTY}).ok is False
+
+
+def test_unknown_rule_key_fails_loudly():
+    conv = ("code_hygiene:\n  java:\n"
+            "    no_unused_import: {severity: mandatory}\n")   # typo: missing 's'
+    res = g.validate_code_hygiene(conv, java_sources={"A.java": CLEAN})
+    assert res.ok is False and "unknown" in res.reason and "no_unused_import" in res.reason

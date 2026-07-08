@@ -450,6 +450,9 @@ def validate_node_checkpoint(text: str) -> Result:
 
 _JAVA_IMPORT = re.compile(r"\s*import\s+(static\s+)?([\w.]+(?:\.\*)?)\s*;")
 _JAVA_NONBODY = re.compile(r"\s*(import|package)\b")
+# Canonical code_hygiene.java rule keys the pure validator understands. A key
+# outside this set silently no-ops (fails open) unless caught → validate loudly.
+_HYGIENE_KEYS = {"no_unused_imports", "no_wildcard_imports", "no_redundant_imports"}
 
 
 def _java_import_violations(path, source, enabled):
@@ -497,13 +500,22 @@ def validate_code_hygiene(text, java_sources=None) -> Result:
     java_sources = {path: content} of changed .java files (resolved by cli.py);
     None = changed-file set undeterminable → degrade LOUDLY (không fail-open).
     Chỉ severity: mandatory mới block (khớp projector mandatory→error);
-    severity khác chỉ sống ở lane Checkstyle warning."""
+    severity khác chỉ sống ở lane Checkstyle warning.
+    Conventions chưa approved (status draft/stale) → gate im (khớp projector
+    _approved: không project rule chưa duyệt). Missing status → coi như active."""
     try:
         conv = yaml.safe_load(text) or {}
     except yaml.YAMLError as exc:
         return Result(False, f"conventions.yaml unparseable: {exc}")
+    status = (conv.get("meta") or {}).get("status")
+    if status is not None and status != "approved":
+        return Result(True)                        # draft/stale → gate quiescent
     java = (conv.get("code_hygiene") or {}).get("java") or {}
     enabled = {k for k, v in java.items() if (v or {}).get("severity") == "mandatory"}
+    unknown = enabled - _HYGIENE_KEYS
+    if unknown:                                    # typo'd rule would silently no-op → fail loud
+        return Result(False, f"unknown code_hygiene.java rule(s) {sorted(unknown)} "
+                             f"— valid: {sorted(_HYGIENE_KEYS)}")
     if not enabled:
         return Result(True)                        # no rules configured → nothing to enforce
     if java_sources is None:
