@@ -144,6 +144,53 @@ def validate_grep_honesty(text, indexed_projects=None, repo_root=None) -> Result
     return Result(True)
 
 
+_CBM_ERROR = re.compile(
+    r"project is required|no projects indexed|not indexed|connection refused|"
+    r"index_status|ECONNREFUSED|codebase-memory-mcp.*error",
+    re.IGNORECASE,
+)
+
+
+def _section(text: str, needle: str) -> str:
+    """Body under the first heading (## / ### / ####) containing needle,
+    up to the next heading. Case-insensitive substring match on the heading."""
+    out, collecting = [], False
+    for line in text.splitlines():
+        s = line.strip()
+        if re.match(r"^#{2,4}\s", s):
+            if collecting:
+                break
+            collecting = needle.lower() in s.lower()
+            continue
+        if collecting:
+            out.append(line)
+    return "\n".join(out)
+
+
+def _parse_node_table(text: str):
+    """node_id (2nd column) of each real row in the §2.3 Key Components table."""
+    ids = []
+    for line in _section(text, "Key Components").splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        nid = cells[1]
+        if not nid or nid == "node_id" or nid == "..." or set(nid) <= set("-"):
+            continue
+        ids.append(nid)
+    return ids
+
+
+def _section_files(text: str, needles):
+    files = set()
+    for needle in needles:
+        files.update(_FILE_PATH.findall(_section(text, needle)))
+    return files
+
+
 def validate_memory_recall(text: str) -> Result:
     """Pre-spec recall evidence (R-Tool-6): either a real recall line
     (query + numeric result count) or the canonical degrade line."""
