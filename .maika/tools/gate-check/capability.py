@@ -63,3 +63,40 @@ def indexed_projects(repo_root: str | None = None, timeout: int = 8):
     known = {p["root_path"] for p in projs}
     ua = [p for p in ua_indexed_projects(roots) if p["root_path"] not in known]
     return projs + ua
+
+
+def _parse_snippet(stdout: str):
+    """Last JSON object line from `get_code_snippet` output, or None."""
+    for line in reversed(stdout.splitlines()):
+        s = line.strip()
+        if not s.startswith("{"):
+            continue
+        try:
+            return json.loads(s)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def verify_nodes(node_ids, timeout: int = 8):
+    """Verify each node_id (a cbm qualified_name) exists in cbm's graph.
+
+    Returns (verified, ok). verified = {node_id: file_path(abs)} for nodes that
+    exist. ok=False if the cbm binary is absent / a probe raises (caller then
+    fail-opens only with an embedded real cbm error). The project for each node
+    is its qualified_name prefix (path->'-' names contain no dots)."""
+    verified = {}
+    for nid in node_ids:
+        project = nid.split(".", 1)[0]
+        try:
+            proc = subprocess.run(
+                ["codebase-memory-mcp", "cli", "get_code_snippet",
+                 json.dumps({"project": project, "qualified_name": nid})],
+                capture_output=True, text=True, timeout=timeout,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return {}, False
+        d = _parse_snippet(proc.stdout)
+        if d and d.get("qualified_name") == nid and d.get("file_path"):
+            verified[nid] = d["file_path"]
+    return verified, True
