@@ -43,6 +43,10 @@ Danh sách module chỉ đủ khi không có sequence hoặc boundary đáng k�
 
 ### 2.3 Key Components (với node_id để downstream skill dùng)
 
+<!-- node_id = qualified_name ĐẦY ĐỦ do cbm trả về (vd
+     home-zane-Desktop-project.cli.scaffold.scaffold_plugin), KHÔNG dùng tên ngắn.
+     gate code-evidence probe cbm verify node tồn tại — tên ngắn/sai/bịa sẽ FAIL. -->
+
 | Component | node_id | Vai trò |
 |-----------|---------|---------|
 | ... | ... | ... |

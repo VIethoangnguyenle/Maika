@@ -50,7 +50,8 @@
     (domain/flow/entry-point); code-facts → `node_id`. (Đây là phân loại *nhãn lưu*, không phải *thứ tự dùng*.)
   - Mâu thuẫn ở code-fact: surface vào `AGENT_TRANSPARENCY`, knowledge chính thắng (R-KL-3), không suppress.
 - **Code-fact BẮT BUỘC có node đã-verify (positive gate, không tự khai)**: mọi component/phát hiện
-  ở §2.2/§2.3/§4 về file thuộc project đã-index phải có `node_id` ở §2.3 mà cbm xác nhận TỒN TẠI.
+  ở §2.2/§2.3/§4 về file thuộc project đã-index phải có `node_id` (= **qualified_name đầy đủ** cbm trả về,
+  không dùng tên ngắn) ở §2.3 mà cbm xác nhận TỒN TẠI.
   grep không đẻ ra node graph hợp lệ; node bịa probe không ra. Enforce cơ học (probe cbm thật):
   `python3 {{ platform.framework_root }}/tools/gate-check/cli.py code-evidence <EXPLORE_CONTEXT> --repo-root <repo>` phải PASS.
   cbm down → chỉ hợp lệ khi nhúng output lỗi cbm thật.
