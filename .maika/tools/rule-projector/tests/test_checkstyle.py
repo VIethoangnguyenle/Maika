@@ -39,3 +39,13 @@ def test_matches_golden_fixture():
     xml = checkstyle.ir_to_checkstyle(ir)
     golden = (HERE / "fixtures" / "expected-checkstyle.xml").read_text()
     assert _norm(xml) == _norm(golden)
+
+def test_hygiene_rules_emit_import_modules():
+    ir = {"version":"1.0","source_hash":"0"*64,"sources":[],"rules":[
+        {"id":"hygiene.java.no_unused_imports","ir_rule":"no_unused_imports","severity":"error","params":{},"source_ref":"conventions.yaml#code_hygiene"},
+        {"id":"hygiene.java.no_wildcard_imports","ir_rule":"no_wildcard_imports","severity":"error","params":{},"source_ref":"conventions.yaml#code_hygiene"},
+        {"id":"hygiene.java.no_redundant_imports","ir_rule":"no_redundant_imports","severity":"warning","params":{},"source_ref":"conventions.yaml#code_hygiene"}]}
+    xml = checkstyle.ir_to_checkstyle(ir)
+    for module in ("UnusedImports", "AvoidStarImport", "RedundantImport"):
+        assert module in xml
+    assert '<property name="severity" value="warning"/>' in _norm(xml)
