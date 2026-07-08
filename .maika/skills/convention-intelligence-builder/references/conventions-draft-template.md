@@ -78,6 +78,17 @@ naming_patterns:
   #   pattern: "^[A-Z][a-zA-Z0-9]*$"
 
 # ─────────────────────────────────────────────
+# SECTION 1c: Code Hygiene (machine lane — rule-projector + gate-check input)
+# Bài học lặp lại kiểm được bằng máy → khai ở đây, KHÔNG dựa trí nhớ agent.
+# severity: mandatory → checkstyle error + gate-check block final (Pha 3).
+# ─────────────────────────────────────────────
+code_hygiene:
+  java:
+    no_unused_imports: {severity: mandatory}
+    no_wildcard_imports: {severity: mandatory}
+    no_redundant_imports: {severity: mandatory}
+
+# ─────────────────────────────────────────────
 # SECTION 2: Package Structure
 # ─────────────────────────────────────────────
 package_structure:
