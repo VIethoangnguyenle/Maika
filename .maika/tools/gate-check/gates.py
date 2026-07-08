@@ -51,11 +51,6 @@ _UA_DEGRADE = re.compile(
     r"UA unavailable.{0,60}(explicit override|override|approved|MEDIUM)",
     re.IGNORECASE,
 )
-# NOTE: this pattern is self-asserted. Capability-aware hardening for the
-# grep-fallback branch is now implemented in validate_grep_honesty (probes cbm/UA
-# via capability.py and rejects a grep excuse when the file belongs to an indexed
-# project). Applying the same probe to this UA-override line is the remaining
-# follow-up (see decision-gates-followups spec).
 _NO_KNOWLEDGE = re.compile(r"no approved (dna|conventions).*low", re.IGNORECASE)
 _SECTION = r"##\s+{name}[ \t]*\n(.*?)(?=\n##\s|\Z)"
 
@@ -97,12 +92,6 @@ def validate_mcp_status(text: str) -> Result:
     return Result(False, "MCP status lacks probe numbers and degrade line ('Runtime Ready' alone is invalid)")
 
 
-# Grep-fallback / knowledge-tool-unavailable claim — the lazy-excuse tell.
-_GREP_DEGRADE = re.compile(
-    r"grep fallback|grep[- ]based|"
-    r"(KG|cbm|UA|codebase[- ]memory|understand[- ]anything)\s+unavailable",
-    re.IGNORECASE,
-)
 # A file path: >=1 slash segment + a filename with an extension. Stops at ':' so
 # "base.py:100" yields "base.py". Matches both repo-relative and absolute paths.
 _FILE_PATH = re.compile(r"/?(?:[\w.-]+/)+[\w.-]+\.[A-Za-z0-9]+")
@@ -112,36 +101,6 @@ def _under(path: str, root: str) -> bool:
     p = os.path.normpath(path)
     r = os.path.normpath(root)
     return p == r or p.startswith(r + os.sep)
-
-
-def validate_grep_honesty(text, indexed_projects=None, repo_root=None) -> Result:
-    """Block lazy grep (capability-aware degrade — the deferred hardening for
-    self-asserted degrade lines; see R-Tool-5).
-
-    If the artifact CLAIMS a grep/knowledge-tool-unavailable fallback but references
-    a file that belongs to an INDEXED project (cbm/UA can serve it), the excuse is
-    invalid — the agent must query that project, not grep. Files are matched to
-    projects by root_path, so upstream/downstream deps resolve to the right project.
-
-    indexed_projects: [{"name","root_path"}] from a cbm/UA probe. The probe is done
-        by the CALLER (keeps this validator deterministic, like the --index pattern).
-        Empty/None → no indexed project can serve → grep is legit → pass.
-    repo_root: absolute path of the current repo, to resolve repo-relative paths.
-    """
-    if not indexed_projects:
-        return Result(True)
-    if not _GREP_DEGRADE.search(text):
-        return Result(True)
-    for raw in _FILE_PATH.findall(text):
-        path = raw if raw.startswith("/") else (os.path.join(repo_root, raw) if repo_root else raw)
-        for proj in indexed_projects:
-            if _under(path, proj["root_path"]):
-                return Result(
-                    False,
-                    f"grep fallback claimed but '{raw}' belongs to indexed project "
-                    f"'{proj['name']}' — query cbm/UA(project={proj['name']}), don't grep",
-                )
-    return Result(True)
 
 
 _CBM_ERROR = re.compile(
@@ -189,6 +148,43 @@ def _section_files(text: str, needles):
     for needle in needles:
         files.update(_FILE_PATH.findall(_section(text, needle)))
     return files
+
+
+def _abs(path: str, repo_root):
+    return path if path.startswith("/") else (os.path.join(repo_root, path) if repo_root else path)
+
+
+def _project_for(path, indexed_projects):
+    for proj in indexed_projects:
+        if _under(path, proj["root_path"]):
+            return proj
+    return None
+
+
+def validate_code_evidence(text, indexed_projects=None, verified_node_files=None,
+                           repo_root=None, probe_ok=True) -> Result:
+    """Positive code-evidence gate (see R-Tool-5). Every section-scoped (§2.2/§2.3/§4)
+    code-fact about a file in an indexed project must be backed by a §2.3 node_id that
+    cbm verifies exists. Catches confessed grep (A), silent grep (B), fabricated node (C)."""
+    verified_node_files = verified_node_files or {}
+    if not indexed_projects:
+        return Result(True)                      # nothing indexed → grep legit
+    if not probe_ok:                             # cbm probe failed → fail-open only with real error
+        if _CBM_ERROR.search(text):
+            return Result(True)
+        return Result(False, "cbm probe failed; embed the real cbm error output to justify degrade")
+    for nid in _parse_node_table(text):          # (C) every §2.3 node must exist
+        if nid not in verified_node_files:
+            return Result(False, f"§2.3 node_id '{nid}' not found in cbm graph (fabricated or wrong project)")
+    verified_abs = {os.path.normpath(_abs(f, repo_root)) for f in verified_node_files.values()}
+    for raw in _section_files(text, ("Entry Points", "Phát hiện")):   # (B) indexed-file facts need a node
+        path = os.path.normpath(_abs(raw, repo_root))
+        proj = _project_for(path, indexed_projects)
+        if not proj:
+            continue                             # un-indexed file → grep legit
+        if path not in verified_abs:
+            return Result(False, f"'{raw}' (indexed project '{proj['name']}') has no verified §2.3 node — trace via cbm, don't grep")
+    return Result(True)
 
 
 def validate_memory_recall(text: str) -> Result:
