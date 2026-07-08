@@ -69,3 +69,23 @@ def test_unknown_changed_files_fails_loudly():
 
 def test_no_changed_java_files_passes():
     assert g.validate_code_hygiene(CONV, java_sources={}).ok is True
+
+
+def test_block_commented_imports_ignored():
+    src = (
+        "package com.example;\n"
+        "/*\n"
+        "import java.util.*;\n"
+        "import java.io.File;\n"
+        "*/\n"
+        "import java.io.File;\n"
+        "class A { File f; }\n"
+    )
+    assert g.validate_code_hygiene(CONV, java_sources={"A.java": src}).ok is True
+
+
+def test_recommended_severity_does_not_block():
+    conv = ("code_hygiene:\n  java:\n"
+            "    no_redundant_imports: {severity: recommended}\n")
+    src = "import java.lang.String;\nclass A { String s; }\n"
+    assert g.validate_code_hygiene(conv, java_sources={"A.java": src}).ok is True

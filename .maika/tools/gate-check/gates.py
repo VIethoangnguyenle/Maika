@@ -457,10 +457,17 @@ def _java_import_violations(path, source, enabled):
     enabled = set of rule keys from conventions code_hygiene.java."""
     lines = source.splitlines()
     imports = []                                   # (lineno, is_static, fqname)
+    in_block = False
     for i, line in enumerate(lines, 1):
+        if in_block:
+            if "*/" in line:
+                in_block = False
+            continue                                  # bỏ qua dòng trong block comment
         m = _JAVA_IMPORT.match(line)
         if m:
             imports.append((i, bool(m.group(1)), m.group(2)))
+        if line.rfind("/*") > line.rfind("*/"):       # mở block chưa đóng trên dòng này
+            in_block = True
     body = "\n".join(l for l in lines if not _JAVA_NONBODY.match(l))
     out, seen = [], set()
     for lineno, is_static, fq in imports:
@@ -488,12 +495,15 @@ def validate_code_hygiene(text, java_sources=None) -> Result:
     """Deterministic import-hygiene gate (post-edit, hook-independent).
     text = conventions.yaml content — code_hygiene.java keys = enabled rules.
     java_sources = {path: content} of changed .java files (resolved by cli.py);
-    None = changed-file set undeterminable → degrade LOUDLY (không fail-open)."""
+    None = changed-file set undeterminable → degrade LOUDLY (không fail-open).
+    Chỉ severity: mandatory mới block (khớp projector mandatory→error);
+    severity khác chỉ sống ở lane Checkstyle warning."""
     try:
         conv = yaml.safe_load(text) or {}
     except yaml.YAMLError as exc:
         return Result(False, f"conventions.yaml unparseable: {exc}")
-    enabled = set((conv.get("code_hygiene") or {}).get("java") or {})
+    java = (conv.get("code_hygiene") or {}).get("java") or {}
+    enabled = {k for k, v in java.items() if (v or {}).get("severity") == "mandatory"}
     if not enabled:
         return Result(True)                        # no rules configured → nothing to enforce
     if java_sources is None:
