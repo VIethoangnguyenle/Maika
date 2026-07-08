@@ -73,3 +73,24 @@ def test_code_hygiene_absent_or_empty_projects_nothing():
     assert projector.project_code_hygiene({}) == []
     assert projector.project_code_hygiene({"code_hygiene": {}}) == []
     assert projector.project_code_hygiene({"code_hygiene": {"java": {}}}) == []
+
+def test_code_hygiene_skipped_for_draft_conventions():
+    import tempfile, textwrap
+    draft = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False)
+    draft.write(textwrap.dedent('''
+        meta:
+          status: draft
+        code_hygiene:
+          java:
+            no_unused_imports:
+              severity: mandatory
+    '''))
+    draft.close()
+    ir = projector.build_ir(str(DNA), draft.name)
+    assert all(not r["id"].startswith("hygiene.") for r in ir["rules"])
+
+def test_code_hygiene_unknown_key_passes_through():
+    # documented: projector KHÔNG tự lọc kind — schema/backend là chốt validate
+    conv = {"code_hygiene": {"java": {"foo_bar": {"severity": "mandatory"}}}}
+    rules = projector.project_code_hygiene(conv)
+    assert [r["ir_rule"] for r in rules] == ["foo_bar"]
