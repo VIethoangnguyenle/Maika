@@ -103,19 +103,31 @@ def verify_nodes(node_ids, timeout: int = 8):
 
 
 def changed_java_files(repo_root, timeout: int = 8):
-    """Changed .java files in repo_root (vs HEAD + untracked), absolute paths.
+    """Changed .java files in the git repo containing repo_root (vs HEAD +
+    untracked), absolute paths. repo_root được chuẩn hoá về git top-level qua
+    rev-parse nên diff (top-relative) và ls-files (cwd-relative) join nhất quán;
+    file đã xóa bị lọc (không thể chứa import thừa).
     Returns None when git cannot answer. DELIBERATELY not fail-open (khác các
     probe trên): code-hygiene gate phải degrade LOUDLY — validator FAILs on None."""
+    try:
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                             cwd=repo_root, capture_output=True, text=True,
+                             timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if top.returncode != 0:
+        return None
+    root = top.stdout.strip()
     collected = []
     for cmd in (["git", "diff", "--name-only", "HEAD"],
                 ["git", "ls-files", "--others", "--exclude-standard"]):
         try:
-            proc = subprocess.run(cmd, cwd=repo_root, capture_output=True,
+            proc = subprocess.run(cmd, cwd=root, capture_output=True,
                                   text=True, timeout=timeout)
         except (OSError, subprocess.SubprocessError):
             return None
         if proc.returncode != 0:
             return None
         collected += [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
-    return sorted({os.path.join(repo_root, f)
-                   for f in collected if f.endswith(".java")})
+    paths = {os.path.join(root, f) for f in collected if f.endswith(".java")}
+    return sorted(p for p in paths if os.path.isfile(p))
