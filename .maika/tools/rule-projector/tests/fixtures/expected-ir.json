@@ -10,6 +10,9 @@
     {"id": "threshold.max_cyclomatic", "ir_rule": "max_cyclomatic", "severity": "warning", "params": {"max": 3}, "source_ref": "author-dna.yaml#complexity_thresholds"},
     {"id": "threshold.max_method_lines", "ir_rule": "max_method_lines", "severity": "warning", "params": {"max": 30}, "source_ref": "author-dna.yaml#complexity_thresholds"},
     {"id": "naming.TypeName", "ir_rule": "naming_regex", "severity": "warning", "params": {"target": "TypeName", "pattern": "^[A-Z][a-zA-Z0-9]*$"}, "source_ref": "conventions.yaml#naming_patterns"},
-    {"id": "naming.MethodName", "ir_rule": "naming_regex", "severity": "warning", "params": {"target": "MethodName", "pattern": "^[a-z][a-zA-Z0-9]*$"}, "source_ref": "conventions.yaml#naming_patterns"}
+    {"id": "naming.MethodName", "ir_rule": "naming_regex", "severity": "warning", "params": {"target": "MethodName", "pattern": "^[a-z][a-zA-Z0-9]*$"}, "source_ref": "conventions.yaml#naming_patterns"},
+    {"id": "hygiene.java.no_unused_imports", "ir_rule": "no_unused_imports", "severity": "error", "params": {}, "source_ref": "conventions.yaml#code_hygiene"},
+    {"id": "hygiene.java.no_wildcard_imports", "ir_rule": "no_wildcard_imports", "severity": "error", "params": {}, "source_ref": "conventions.yaml#code_hygiene"},
+    {"id": "hygiene.java.no_redundant_imports", "ir_rule": "no_redundant_imports", "severity": "error", "params": {}, "source_ref": "conventions.yaml#code_hygiene"}
   ]
 }
