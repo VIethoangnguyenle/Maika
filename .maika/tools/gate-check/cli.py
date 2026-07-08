@@ -22,6 +22,7 @@ VALIDATORS = {
     "ac-coverage": "validate_ac_coverage",
     "integration-coverage": "validate_integration_coverage",
     "code-evidence": "validate_code_evidence",
+    "code-hygiene": "validate_code_hygiene",
 }
 
 
@@ -59,6 +60,8 @@ def main(argv=None):
     parser.add_argument("--index")
     parser.add_argument("--artifact-type")
     parser.add_argument("--repo-root", help="repo root for code-evidence (default: cwd)")
+    parser.add_argument("--java-file", action="append",
+                        help="code-hygiene: explicit changed .java file (bypass git probe)")
     try:
         args = parser.parse_args(argv)
     except SystemExit:
@@ -87,6 +90,20 @@ def main(argv=None):
         kwargs["verified_node_files"] = verified
         kwargs["repo_root"] = repo_root
         kwargs["probe_ok"] = ok
+    elif args.gate == "code-hygiene":
+        repo_root = args.repo_root or os.getcwd()
+        if args.java_file:
+            files = [os.path.abspath(f) for f in args.java_file]
+        else:
+            cap = _load_module("capability")
+            files = cap.changed_java_files(repo_root)
+        if files is None:
+            kwargs["java_sources"] = None
+        else:
+            kwargs["java_sources"] = {
+                f: Path(f).read_text(encoding="utf-8")
+                for f in files if f.endswith(".java")
+            }
 
     res = getattr(g, VALIDATORS[args.gate])(text, **kwargs)
     print(("PASS" if res.ok else f"FAIL — {res.reason}"))

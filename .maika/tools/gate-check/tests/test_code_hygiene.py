@@ -89,3 +89,28 @@ def test_recommended_severity_does_not_block():
             "    no_redundant_imports: {severity: recommended}\n")
     src = "import java.lang.String;\nclass A { String s; }\n"
     assert g.validate_code_hygiene(conv, java_sources={"A.java": src}).ok is True
+
+
+CLI = Path(__file__).resolve().parents[1] / "cli.py"
+cspec = importlib.util.spec_from_file_location("cli", CLI)
+cli = importlib.util.module_from_spec(cspec)
+cspec.loader.exec_module(cli)
+
+
+def test_litmus_cli_dirty_fails_then_clean_passes(tmp_path):
+    """R3 litmus: file .java bẩn (wildcard + unused) → exit != 0; sạch → exit 0."""
+    conv = tmp_path / "conventions.yaml"
+    conv.write_text(CONV)
+    j = tmp_path / "Dirty.java"
+    j.write_text(DIRTY)
+    assert cli.main(["code-hygiene", str(conv), "--java-file", str(j)]) == 1
+    j.write_text(CLEAN)
+    assert cli.main(["code-hygiene", str(conv), "--java-file", str(j)]) == 0
+
+
+def test_litmus_cli_no_rules_section_passes(tmp_path):
+    conv = tmp_path / "conventions.yaml"
+    conv.write_text(NO_RULES)
+    j = tmp_path / "Dirty.java"
+    j.write_text(DIRTY)
+    assert cli.main(["code-hygiene", str(conv), "--java-file", str(j)]) == 0
