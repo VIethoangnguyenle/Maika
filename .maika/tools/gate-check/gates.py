@@ -92,9 +92,19 @@ def validate_mcp_status(text: str) -> Result:
     return Result(False, "MCP status lacks probe numbers and degrade line ('Runtime Ready' alone is invalid)")
 
 
-# A file path: >=1 slash segment + a filename with an extension. Stops at ':' so
-# "base.py:100" yields "base.py". Matches both repo-relative and absolute paths.
-_FILE_PATH = re.compile(r"/?(?:[\w.-]+/)+[\w.-]+\.[A-Za-z0-9]+")
+# A file path: an optional dir prefix + a filename with an extension. Stops at
+# ':' so "base.py:100" yields "base.py". Matches repo-relative, absolute, and
+# bare (no directory) filenames.
+_FILE_PATH = re.compile(r"/?(?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9]+")
+
+_CODE_EXT = {
+    "py", "js", "jsx", "ts", "tsx", "go", "rs", "java", "kt", "rb",
+    "c", "h", "cc", "cpp", "hpp", "cs", "php", "scala", "swift", "m", "mm",
+}
+
+
+def _is_code(path: str) -> bool:
+    return path.rsplit(".", 1)[-1].lower() in _CODE_EXT if "." in path else False
 
 
 def _under(path: str, root: str) -> bool:
@@ -111,15 +121,18 @@ _CBM_ERROR = re.compile(
 
 
 def _section(text: str, needle: str) -> str:
-    """Body under the first heading (## / ### / ####) containing needle,
-    up to the next heading. Case-insensitive substring match on the heading."""
-    out, collecting = [], False
+    """Body under the first heading (## / ### / ####) containing needle, up to the
+    next heading of the SAME OR HIGHER level. Deeper sub-headings do not truncate."""
+    out, collecting, level = [], False, 0
     for line in text.splitlines():
         s = line.strip()
-        if re.match(r"^#{2,4}\s", s):
-            if collecting:
+        m = re.match(r"^(#{2,6})\s", s)
+        if m:
+            h = len(m.group(1))
+            if collecting and h <= level:
                 break
-            collecting = needle.lower() in s.lower()
+            if not collecting and needle.lower() in s.lower():
+                collecting, level = True, h
             continue
         if collecting:
             out.append(line)
@@ -177,13 +190,20 @@ def validate_code_evidence(text, indexed_projects=None, verified_node_files=None
         if nid not in verified_node_files:
             return Result(False, f"§2.3 node_id '{nid}' not found in cbm graph (fabricated or wrong project)")
     verified_abs = {os.path.normpath(_abs(f, repo_root)) for f in verified_node_files.values()}
+    verified_base = {os.path.basename(p) for p in verified_abs}
     for raw in _section_files(text, ("Entry Points", "Phát hiện")):   # (B) indexed-file facts need a node
-        path = os.path.normpath(_abs(raw, repo_root))
-        proj = _project_for(path, indexed_projects)
-        if not proj:
-            continue                             # un-indexed file → grep legit
-        if path not in verified_abs:
-            return Result(False, f"'{raw}' (indexed project '{proj['name']}') has no verified §2.3 node — trace via cbm, don't grep")
+        if not _is_code(raw):
+            continue                              # cbm indexes code symbols, not md/yaml/json/config
+        if "/" in raw:                             # path form: map to a project by root, require exact node file
+            path = os.path.normpath(_abs(raw, repo_root))
+            proj = _project_for(path, indexed_projects)
+            if not proj:
+                continue                           # un-indexed (e.g. upstream not indexed) → grep legit
+            if path not in verified_abs:
+                return Result(False, f"'{raw}' (indexed project '{proj['name']}') has no verified §2.3 node — trace via cbm, don't grep")
+        else:                                      # bare filename: cover by basename against verified nodes
+            if os.path.basename(raw) not in verified_base:
+                return Result(False, f"'{raw}' has no verified §2.3 node (cite full path or add the cbm node) — don't grep")
     return Result(True)
 
 

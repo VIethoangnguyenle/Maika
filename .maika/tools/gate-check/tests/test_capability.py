@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 
 MOD = Path(__file__).resolve().parents[1] / "capability.py"
@@ -50,3 +51,29 @@ def test_parse_snippet_real_node():
 def test_parse_snippet_fabricated_returns_none():
     # cbm prints nothing (or a non-JSON log line) for a nonexistent node.
     assert cap._parse_snippet("level=info msg=x\n") is None
+
+
+class _FakeProc:
+    def __init__(self, stdout):
+        self.stdout = stdout
+
+
+def test_verify_nodes_real_and_fabricated(monkeypatch):
+    def fake_run(cmd, **kw):
+        payload = json.loads(cmd[3])
+        qn = payload["qualified_name"]
+        if qn == "proj.cli.a.Foo":
+            return _FakeProc('{"qualified_name":"proj.cli.a.Foo","file_path":"/repo/cli/a.py"}')
+        return _FakeProc("")  # nonexistent → cbm prints nothing
+    monkeypatch.setattr(cap.subprocess, "run", fake_run)
+    verified, ok = cap.verify_nodes(["proj.cli.a.Foo", "proj.cli.Fake.nope"])
+    assert ok is True
+    assert verified == {"proj.cli.a.Foo": "/repo/cli/a.py"}
+
+
+def test_verify_nodes_probe_unavailable(monkeypatch):
+    def boom(cmd, **kw):
+        raise OSError("binary not found")
+    monkeypatch.setattr(cap.subprocess, "run", boom)
+    verified, ok = cap.verify_nodes(["proj.cli.a.Foo"])
+    assert ok is False and verified == {}

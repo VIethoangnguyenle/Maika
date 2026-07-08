@@ -87,3 +87,28 @@ def test_probe_fail_needs_embedded_cbm_error():
     assert g.validate_code_evidence(art, indexed_projects=IDX, verified_node_files={}, repo_root="/repo", probe_ok=False).ok is False
     art2 = _art(section4="found in cli/base.py:100") + '\nprobe error: "project is required"\n'
     assert g.validate_code_evidence(art2, indexed_projects=IDX, verified_node_files={}, repo_root="/repo", probe_ok=False).ok is True
+
+
+def test_noncode_file_in_finding_passes():
+    # cbm does not index config/yaml/md — must not FAIL an honest artifact citing them
+    art = _art(section4="config in config/settings.yaml and docs in README.md")
+    res = g.validate_code_evidence(art, indexed_projects=IDX, verified_node_files={}, repo_root="/repo", probe_ok=True)
+    assert res.ok is True
+
+
+def test_bare_code_filename_without_node_fails():
+    art = _art(section4="handler defined in base.py:100 (grepped)")
+    res = g.validate_code_evidence(art, indexed_projects=IDX, verified_node_files={}, repo_root="/repo", probe_ok=True)
+    assert res.ok is False
+
+
+def test_bare_code_filename_covered_by_basename_passes():
+    art = _art(node_row=f"| cap | {NODE} | h |", section4="see base.py:10")
+    res = g.validate_code_evidence(art, indexed_projects=IDX, verified_node_files=V, repo_root="/repo", probe_ok=True)
+    assert res.ok is True
+
+
+def test_subheading_in_section4_still_scanned():
+    art = _art() + "#### 4.1 Auth\ngrepped: logic in cli/secret.py:42\n"
+    res = g.validate_code_evidence(art, indexed_projects=IDX, verified_node_files={}, repo_root="/repo", probe_ok=True)
+    assert res.ok is False  # subheading must not hide the finding
