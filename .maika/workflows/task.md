@@ -446,6 +446,9 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
    g. Persist state in `{{ platform.framework_root }}/knowledge/active/microloop/` so Pha 3 can resume after session truncation.
 6. Sau khi micro-loop xong:
    - Chạy `spec-validator.post_apply_verify(spec_path, changed_files)` — ghi kết quả vào AGENT_TRANSPARENCY.
+   - Nếu changed files có `*.java`: chạy gate import-hygiene (deterministic, không phụ thuộc UA/cbm):
+     `python3 {{ platform.framework_root }}/tools/gate-check/cli.py code-hygiene {{ platform.framework_root }}/knowledge/long-term/conventions.yaml`
+     — FAIL ⇒ fix import trong changed files rồi chạy lại tới khi PASS. KHÔNG final khi gate FAIL.
    - Nếu có diff/PR, thông báo lại link hoặc danh sách file thay đổi.
    - Đề nghị bước tiếp theo:
      - Review code.
@@ -477,6 +480,7 @@ Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận v
    - `[ ]` TOKEN_LOG.md đã ghi TỔNG TASK.
    - `[ ]` Không có BLOCKER chưa resolve trong AGENT_TRANSPARENCY.md.
    - `[ ]` spec-validator DNA compliance check (gate #6) đã chạy.
+   - `[ ]` Gate `code-hygiene` PASS (exit 0) nếu có changed `*.java` — lệnh như bước 6.
    - `[ ]` KNOWLEDGE_PACK.md exists and confidence/override status is recorded.
    - `[ ]` CONTRACT_DAG.md has no `pending` / `in_progress` / `blocked` / `stale` nodes.
    - `[ ]` Every leaf node with `contract_ref` uses the current `contract_version`.
