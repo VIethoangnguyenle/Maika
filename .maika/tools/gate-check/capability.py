@@ -100,3 +100,22 @@ def verify_nodes(node_ids, timeout: int = 8):
         if d and d.get("qualified_name") == nid and d.get("file_path"):
             verified[nid] = d["file_path"]
     return verified, True
+
+
+def changed_java_files(repo_root, timeout: int = 8):
+    """Changed .java files in repo_root (vs HEAD + untracked), absolute paths.
+    Returns None when git cannot answer. DELIBERATELY not fail-open (khác các
+    probe trên): code-hygiene gate phải degrade LOUDLY — validator FAILs on None."""
+    collected = []
+    for cmd in (["git", "diff", "--name-only", "HEAD"],
+                ["git", "ls-files", "--others", "--exclude-standard"]):
+        try:
+            proc = subprocess.run(cmd, cwd=repo_root, capture_output=True,
+                                  text=True, timeout=timeout)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if proc.returncode != 0:
+            return None
+        collected += [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+    return sorted({os.path.join(repo_root, f)
+                   for f in collected if f.endswith(".java")})
