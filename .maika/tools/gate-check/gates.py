@@ -446,3 +446,67 @@ def validate_node_checkpoint(text: str) -> Result:
     if not _RULE_ID.search(text):
         return Result(False, "node checkpoint missing rule-id evidence")
     return Result(True)
+
+
+_JAVA_IMPORT = re.compile(r"\s*import\s+(static\s+)?([\w.]+(?:\.\*)?)\s*;")
+_JAVA_NONBODY = re.compile(r"\s*(import|package)\b")
+
+
+def _java_import_violations(path, source, enabled):
+    """Import-hygiene violations for one .java source (pure text analysis).
+    enabled = set of rule keys from conventions code_hygiene.java."""
+    lines = source.splitlines()
+    imports = []                                   # (lineno, is_static, fqname)
+    for i, line in enumerate(lines, 1):
+        m = _JAVA_IMPORT.match(line)
+        if m:
+            imports.append((i, bool(m.group(1)), m.group(2)))
+    body = "\n".join(l for l in lines if not _JAVA_NONBODY.match(l))
+    out, seen = [], set()
+    for lineno, is_static, fq in imports:
+        if fq.endswith(".*"):
+            if "no_wildcard_imports" in enabled:
+                out.append(f"{path}:{lineno} wildcard import '{fq}'")
+            continue
+        if "no_redundant_imports" in enabled:
+            key = (is_static, fq)
+            if key in seen:
+                out.append(f"{path}:{lineno} duplicate import '{fq}'")
+                continue
+            seen.add(key)
+            if not is_static and fq.startswith("java.lang.") and fq.count(".") == 2:
+                out.append(f"{path}:{lineno} redundant java.lang import '{fq}'")
+                continue
+        if "no_unused_imports" in enabled:
+            simple = fq.rsplit(".", 1)[-1]
+            if not re.search(rf"\b{re.escape(simple)}\b", body):
+                out.append(f"{path}:{lineno} unused import '{fq}'")
+    return out
+
+
+def validate_code_hygiene(text, java_sources=None) -> Result:
+    """Deterministic import-hygiene gate (post-edit, hook-independent).
+    text = conventions.yaml content — code_hygiene.java keys = enabled rules.
+    java_sources = {path: content} of changed .java files (resolved by cli.py);
+    None = changed-file set undeterminable → degrade LOUDLY (không fail-open)."""
+    try:
+        conv = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        return Result(False, f"conventions.yaml unparseable: {exc}")
+    enabled = set((conv.get("code_hygiene") or {}).get("java") or {})
+    if not enabled:
+        return Result(True)                        # no rules configured → nothing to enforce
+    if java_sources is None:
+        return Result(False,
+                      "cannot determine changed files (git probe failed) — "
+                      "pass --java-file <path> explicitly or run inside the git repo")
+    if not java_sources:
+        return Result(True)                        # no changed .java files
+    violations = []
+    for path in sorted(java_sources):
+        violations += _java_import_violations(path, java_sources[path], enabled)
+    if violations:
+        shown = "; ".join(violations[:10])
+        more = f" (+{len(violations) - 10} more)" if len(violations) > 10 else ""
+        return Result(False, shown + more)
+    return Result(True)
