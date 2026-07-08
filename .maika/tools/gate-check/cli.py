@@ -21,7 +21,7 @@ VALIDATORS = {
     "reset-ready": "validate_reset_ready",
     "ac-coverage": "validate_ac_coverage",
     "integration-coverage": "validate_integration_coverage",
-    "grep-honesty": "validate_grep_honesty",
+    "code-evidence": "validate_code_evidence",
 }
 
 
@@ -58,7 +58,7 @@ def main(argv=None):
     parser.add_argument("--against")
     parser.add_argument("--index")
     parser.add_argument("--artifact-type")
-    parser.add_argument("--repo-root", help="repo root for grep-honesty (default: cwd)")
+    parser.add_argument("--repo-root", help="repo root for code-evidence (default: cwd)")
     try:
         args = parser.parse_args(argv)
     except SystemExit:
@@ -76,10 +76,17 @@ def main(argv=None):
             print("FAIL — --against is required for coverage checks")
             return 2
         kwargs["spec_text"] = Path(args.against).read_text(encoding="utf-8")
-    elif args.gate == "grep-honesty":
+    elif args.gate == "code-evidence":
         repo_root = args.repo_root or os.getcwd()
+        cap = _load_module("capability")
+        indexed = cap.indexed_projects(repo_root)
+        gates_mod = _load_module("gates")
+        node_ids = gates_mod._parse_node_table(text)
+        verified, ok = cap.verify_nodes(node_ids)
+        kwargs["indexed_projects"] = indexed
+        kwargs["verified_node_files"] = verified
         kwargs["repo_root"] = repo_root
-        kwargs["indexed_projects"] = _load_module("capability").indexed_projects(repo_root)
+        kwargs["probe_ok"] = ok
 
     res = getattr(g, VALIDATORS[args.gate])(text, **kwargs)
     print(("PASS" if res.ok else f"FAIL — {res.reason}"))

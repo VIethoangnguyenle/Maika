@@ -49,11 +49,12 @@
   - *Identifier trong EXPLORE_CONTEXT* vẫn phân theo fact-type: architecture-facts → UA identifier
     (domain/flow/entry-point); code-facts → `node_id`. (Đây là phân loại *nhãn lưu*, không phải *thứ tự dùng*.)
   - Mâu thuẫn ở code-fact: surface vào `AGENT_TRANSPARENCY`, knowledge chính thắng (R-KL-3), không suppress.
-- **grep-fallback là capability-aware, KHÔNG tự khai** (siết phần "self-asserted" đã hoãn): dòng
-  "grep fallback / `<tool>` unavailable" cho code-fact chỉ HỢP LỆ khi file KHÔNG thuộc project nào đã
-  index. cbm/UA phủ được file (kể cả upstream/downstream — map file→`root_path`) → BẮT BUỘC dùng chúng
-  với `project` đúng, không grep. Enforce cơ học (probe cbm/UA thật, không tin prose):
-  `python3 {{ platform.framework_root }}/tools/gate-check/cli.py grep-honesty <EXPLORE_CONTEXT> --repo-root <repo>` phải PASS.
+- **Code-fact BẮT BUỘC có node đã-verify (positive gate, không tự khai)**: mọi component/phát hiện
+  ở §2.2/§2.3/§4 về file thuộc project đã-index phải có `node_id` (= **qualified_name đầy đủ** cbm trả về,
+  không dùng tên ngắn) ở §2.3 mà cbm xác nhận TỒN TẠI.
+  grep không đẻ ra node graph hợp lệ; node bịa probe không ra. Enforce cơ học (probe cbm thật):
+  `python3 {{ platform.framework_root }}/tools/gate-check/cli.py code-evidence <EXPLORE_CONTEXT> --repo-root <repo>` phải PASS.
+  cbm down → chỉ hợp lệ khi nhúng output lỗi cbm thật.
 - `{{ tools.read_file }}` tuân thủ R-Data-1 (không log raw PII vào context files).
 - Khi ghi `EXPLORE_CONTEXT.md`, luôn kèm identifier cho component quan trọng — `node_id` cho code-facts, hoặc UA identifier (domain/flow/entry-point) cho architecture-facts (`node_id` không bắt buộc với nguồn UA); cho phép downstream `{{ tools.read_file }}(node_id)` hoặc đọc theo identifier UA.
 - KHÔNG bịa kết quả cho tool không khả dụng.
