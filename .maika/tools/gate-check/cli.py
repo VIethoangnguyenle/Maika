@@ -25,6 +25,7 @@ VALIDATORS = {
     "vnext-plan": "validate_vnext_plan",
     "vnext-workspace": "validate_change_workspace",
     "brief-integrity": "validate_brief_integrity",
+    "result-contract": "validate_result_contract",
 }
 
 
@@ -105,6 +106,11 @@ def main(argv=None):
         import json
         ws_root = Path(args.file).resolve().parents[1]
         kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+    elif args.gate == "result-contract":
+        import json
+        ws_root = Path(args.file).resolve().parents[1]
+        kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+        kwargs["task_id"] = Path(args.file).stem
 
     res = getattr(g, VALIDATORS[args.gate])(text, **kwargs)
     print(("PASS" if res.ok else f"FAIL — {res.reason}"))

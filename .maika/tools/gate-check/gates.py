@@ -552,3 +552,29 @@ def validate_brief_integrity(text: str, queue_doc=None) -> Result:
     if actual_hash != task_info.get("brief_hash"):
         return Result(False, "brief_hash mismatch: body was edited after plan compilation")
     return Result(True)
+
+
+def validate_result_contract(text: str, queue_doc=None, task_id=None) -> Result:
+    """Gate `result-contract` (v2 §22): Kết quả run khớp files manifest + verification pass."""
+    if not queue_doc or not task_id:
+        return Result(False, "queue_doc and task_id required")
+    try:
+        res = yaml.safe_load(text) or {}
+    except Exception as e:
+        return Result(False, f"bad result format: {e}")
+    if res.get("task_id") != task_id:
+        return Result(False, f"task_id mismatch: expected {task_id}, got {res.get('task_id')}")
+    if res.get("status") != "success":
+        return Result(False, f"task did not report success (status: {res.get('status')})")
+    ver = res.get("verification") or {}
+    if not ver.get("passed"):
+        return Result(False, "verification failed (passed != true)")
+    task_info = next((t for t in queue_doc.get("tasks", []) if t.get("id") == task_id), None)
+    if not task_info:
+        return Result(False, f"task_id {task_id} not in queue")
+    expected_files = task_info.get("files") or {}
+    actual_files = res.get("files") or {}
+    for key in ("create", "modify"):
+        if set(expected_files.get(key) or []) != set(actual_files.get(key) or []):
+            return Result(False, f"files mismatch on {key}")
+    return Result(True)
