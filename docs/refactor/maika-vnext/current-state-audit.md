@@ -126,7 +126,14 @@ Ghi chú CI: `.github/workflows/ci.yml` hiện chỉ chạy `cli/tests/` — 6 s
 
 ## 4. Retro-classification dogfood
 
-(Task 9 điền)
+| PR / merge | Files đụng | Class theo §6 | Lý do | Misfit? |
+|---|---|---|---|---|
+| #39 docs(vnext): W0 plan | 4 files: docs | trivial | Thay đổi thuần docs, không thay đổi behavior (đúng định nghĩa `trivial` - typo, docs, no behavior change). | Không |
+| #37 code-evidence gate | 10 files: gate-check, rules, docs | standard | Multi-file, multi-module (chạm rules, tools, template). Không phải public contract. | Không |
+| #36 grep-honesty gate | 10 files: cli, gate-check, rules | standard | Multi-file, multi-module (chạm cli adapters, tools, rules). | Không |
+
+### Misfit findings
+- 0 misfit — §6 phủ được 3 change gần nhất.
 
 ## 5. Exit criteria
 
