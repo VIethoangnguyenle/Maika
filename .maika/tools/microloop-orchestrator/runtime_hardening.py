@@ -113,6 +113,43 @@ def execute_command(command: dict | str, working_directory: Path, *, allowed_exe
     }
 
 
+def _process_alive(pid: int) -> bool:
+    """Return True iff a process with ``pid`` currently exists.
+
+    Cross-platform and non-destructive: on POSIX this is the classic
+    ``os.kill(pid, 0)`` probe, but on Windows ``os.kill`` with a non-CTRL signal
+    calls ``TerminateProcess`` — so there we query the process handle directly
+    and never signal it.
+    """
+    if pid <= 0:
+        return False
+    if os.name == "nt":  # pragma: no cover - exercised only on Windows CI
+        import ctypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            return False
+        try:
+            code = ctypes.c_ulong()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return False
+            return code.value == STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists but owned by another user
+    except OSError:
+        return False
+    return True
+
+
 class WorkspaceLock:
     def __init__(self, path: Path, task_id: str, recover_orphans: bool = True):
         self.path = Path(path)
@@ -124,15 +161,15 @@ class WorkspaceLock:
     def _orphaned(self) -> bool:
         try:
             data = yaml.safe_load(self.path.read_text(encoding="utf-8")) or {}
-            if data.get("host") != socket.gethostname():
-                return False
+        except (OSError, yaml.YAMLError):
+            return False
+        if data.get("host") != socket.gethostname():
+            return False
+        try:
             pid = int(data.get("pid"))
-            os.kill(pid, 0)
+        except (TypeError, ValueError):
             return False
-        except ProcessLookupError:
-            return True
-        except (OSError, TypeError, ValueError, yaml.YAMLError):
-            return False
+        return not _process_alive(pid)
 
     def acquire(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)

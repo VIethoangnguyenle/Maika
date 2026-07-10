@@ -39,6 +39,16 @@ def test_sensitive_tools_require_explicit_human_confirmation(tmp_path):
         rh.validate_command(command, {"docker"}, human_confirmed=False)
 
 
+def test_process_alive_is_cross_platform_and_non_destructive():
+    # Our own pid is alive; a very high pid is not. The check must never signal
+    # or terminate the target (POSIX os.kill(pid, 0) is a probe, but on Windows
+    # os.kill with a non-CTRL signal calls TerminateProcess).
+    assert rh._process_alive(os.getpid()) is True
+    assert rh._process_alive(99999999) is False
+    assert rh._process_alive(0) is False
+    assert rh._process_alive(-1) is False
+
+
 def test_workspace_lock_prevents_duplicate_apply_and_recovers_orphan(tmp_path):
     lock_path = tmp_path / ".workspace.lock"
     first = rh.WorkspaceLock(lock_path, task_id="TASK-1")

@@ -5,17 +5,24 @@
 #   inline-reload → fallback single-session (LCD; always works)
 {% if platform.name == "antigravity" %}
 execution_mode: fresh-session
-# Lệnh spawn worker dùng-một-lần; {prompt} được thay bằng prompt đã shell-quote.
-worker_command: 'agy --add-dir "$PWD" --dangerously-skip-permissions -p {prompt}'
+# Worker dùng-một-lần. Prompt được truyền qua argv (shell=False, cross-platform);
+# placeholder hợp lệ: {prompt} {prompt_file} {repo_root} {workspace} {task_id}.
+worker:
+  executable: agy
+  args: ["--add-dir", "{repo_root}", "--dangerously-skip-permissions", "-p", "{prompt}"]
 {% elif platform.name == "codex" %}
 execution_mode: fresh-session
-worker_command: 'codex exec --sandbox workspace-write {prompt}'
+worker:
+  executable: codex
+  args: ["exec", "--sandbox", "workspace-write", "{prompt}"]
 {% elif platform.name == "claude-code" %}
 execution_mode: fresh-session
-worker_command: 'claude -p --dangerously-skip-permissions {prompt}'
+worker:
+  executable: claude
+  args: ["-p", "--dangerously-skip-permissions", "{prompt}"]
 {% else %}
 execution_mode: inline-reload
-worker_command: ''
+worker: {}
 {% endif %}
 max_retries: 2
 worker_timeout_seconds: 900

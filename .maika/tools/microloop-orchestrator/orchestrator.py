@@ -8,9 +8,11 @@ JSON queues, YAML results, and markdown reviews.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
-import shlex
+import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -92,31 +94,96 @@ def topo_sort(tasks):
     return ordered
 
 
-def make_worker_runner(worker_command, timeout=900):
-    """Adapt a worker command template into a prompt runner."""
+WORKER_PLACEHOLDERS = ("{prompt}", "{prompt_file}", "{repo_root}", "{workspace}", "{task_id}")
+_PLACEHOLDER_RE = re.compile(r"\{[a-zA-Z_][a-zA-Z0-9_]*\}")
+
+
+def _validate_worker_tokens(tokens):
+    """Reject any token containing a placeholder we do not understand."""
+    allowed = set(WORKER_PLACEHOLDERS)
+    for token in tokens:
+        for found in _PLACEHOLDER_RE.findall(token):
+            if found not in allowed:
+                raise ValueError(f"unknown worker placeholder {found}; allowed: {sorted(allowed)}")
+
+
+def make_worker_runner(worker, ws, repo_root, timeout=900):
+    """Adapt a structured worker config into a prompt runner.
+
+    ``worker`` is ``{"executable": str, "args": [str, ...]}``. Tokens may embed
+    the placeholders in ``WORKER_PLACEHOLDERS``. The prompt is passed to the
+    worker process directly through argv (``shell=False``) — never via a shell
+    string — so it is not subject to shell quoting/expansion and is portable
+    across POSIX and Windows. ``{prompt_file}`` writes the prompt to a temp file
+    under ``<ws>/generated/prompts`` and substitutes its path.
+    """
+    executable = worker["executable"]
+    arg_templates = list(worker.get("args") or [])
+    _validate_worker_tokens([executable, *arg_templates])
+    ws = Path(ws)
+    repo_root = Path(repo_root)
+    context = {
+        "{repo_root}": str(repo_root),
+        "{workspace}": str(ws),
+        "{task_id}": ws.name,
+    }
+    needs_prompt_file = any("{prompt_file}" in tok for tok in [executable, *arg_templates])
+
+    def _render(token, prompt_file_path):
+        rendered = token
+        for key, value in context.items():
+            rendered = rendered.replace(key, value)
+        if prompt_file_path is not None:
+            rendered = rendered.replace("{prompt_file}", prompt_file_path)
+        return rendered
+
     def runner(prompt):
-        command = worker_command.replace("{prompt}", shlex.quote(prompt))
+        prompt_file = None
+        if needs_prompt_file:
+            prompts_dir = ws / "generated" / "prompts"
+            prompts_dir.mkdir(parents=True, exist_ok=True)
+            digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12]
+            prompt_file = prompts_dir / f"dispatch-{os.getpid()}-{digest}.txt"
+            prompt_file.write_text(prompt, encoding="utf-8")
+        prompt_file_path = str(prompt_file) if prompt_file is not None else None
+        argv = []
+        for token in [executable, *arg_templates]:
+            if token == "{prompt}":
+                argv.append(prompt)  # whole, unquoted argv element
+            else:
+                argv.append(_render(token, prompt_file_path))
         try:
             proc = subprocess.run(
-                command,
-                shell=True,
+                argv,
+                shell=False,
+                cwd=str(repo_root),
                 capture_output=True,
                 text=True,
                 timeout=timeout,
             )
         except subprocess.TimeoutExpired:
             return 124, f"worker timeout after {timeout}s"
+        finally:
+            if prompt_file is not None:
+                prompt_file.unlink(missing_ok=True)
         return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
     return runner
 
 
-def _worker_runner(config):
-    worker_command = (config or {}).get("worker_command")
-    if not isinstance(worker_command, str) or not worker_command.strip():
-        print("Refused: worker_command is missing from profiles/execution-mode.local.yaml or execution-mode.yaml")
+def _worker_runner(config, ws, repo_root):
+    worker = (config or {}).get("worker")
+    if not isinstance(worker, dict) or not worker.get("executable") \
+            or not isinstance(worker.get("args"), list):
+        print("Refused: worker config (worker.executable + worker.args) is missing "
+              "from profiles/execution-mode.local.yaml or execution-mode.yaml")
         return None
-    return make_worker_runner(worker_command)
+    timeout = int((config or {}).get("worker_timeout_seconds", 900))
+    try:
+        return make_worker_runner(worker, ws, repo_root, timeout=timeout)
+    except ValueError as exc:
+        print(f"Refused: invalid worker config: {exc}")
+        return None
 
 
 def _add_vnext_commands(sub):
@@ -242,7 +309,7 @@ def main(argv=None):
         if state["state"] != "PLAN_REVIEW":
             print(f"Refused: wrong state {state['state']}")
             return 1
-        runner = _worker_runner(config)
+        runner = _worker_runner(config, ws, args.repo_root)
         if runner is None:
             return 2
         verdict = vd.review_plan(ws, runner)
@@ -357,7 +424,7 @@ def main(argv=None):
                 if state.get("state") != "INTAKE":
                     print(f"Refused: lightweight apply requires INTAKE (found {state.get('state')})")
                     return 1
-                runner = _worker_runner(config)
+                runner = _worker_runner(config, ws, args.repo_root)
                 if runner is None:
                     return 2
                 outcome = ar.execute_lightweight(ws, runner)
@@ -387,7 +454,7 @@ def main(argv=None):
             elif state["state"] != "EXECUTING":
                 print(f"Refused: wrong state {state['state']}")
                 return 1
-            runner = _worker_runner(config)
+            runner = _worker_runner(config, ws, args.repo_root)
             if runner is None:
                 return 2
             out = vd.run_queue(ws, args.repo_root, runner)

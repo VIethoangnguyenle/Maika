@@ -224,7 +224,10 @@ with open(out_path, 'w') as f:
              f"reviewed_commit: {queue['base_commit']}\\nreviewed_plan_hash: sha256:{queue['plan_sha256']}\\n---\\n")
             if "plan-review" in out_path else "stub result")
 """)
-    (prof / "execution-mode.yaml").write_text(f"workflow_engine: vnext\nworker_command: '{sys.executable} {mock_worker} {{prompt}}'\n")
+    (prof / "execution-mode.yaml").write_text(yaml.safe_dump({
+        "workflow_engine": "vnext",
+        "worker": {"executable": sys.executable, "args": [str(mock_worker), "{prompt}"]},
+    }), encoding="utf-8")
     
     ch_root = tmp_path / ".maika" / "changes"
     ch_root.mkdir()
@@ -456,10 +459,10 @@ prompt = sys.argv[1]
 out = Path(re.search(r'^OUTPUT_FILE: (.+)$', prompt, re.M).group(1))
 out.write_text(yaml.safe_dump({'version': 1, 'status': 'success', 'touched_files': ['src/a.py'], 'observed_risk_signals': {}}))
 """, encoding="utf-8")
-    (fw_root / "profiles" / "execution-mode.yaml").write_text(
-        f"workflow_engine: vnext\nworker_command: '{sys.executable} {worker} {{prompt}}'\n",
-        encoding="utf-8",
-    )
+    (fw_root / "profiles" / "execution-mode.yaml").write_text(yaml.safe_dump({
+        "workflow_engine": "vnext",
+        "worker": {"executable": sys.executable, "args": [str(worker), "{prompt}"]},
+    }), encoding="utf-8")
     cli = Path(__file__).resolve().parents[4] / "cli" / "maika.py"
     def public(*args):
         return subprocess.run(
@@ -535,7 +538,7 @@ def test_worker_command_is_required_for_review(tmp_path):
     result = subprocess.run(cmd + ["vnext-review-plan", "--workspace", str(ws), "--repo-root", str(tmp_path)], capture_output=True, text=True)
 
     assert result.returncode == 2
-    assert "worker_command" in result.stdout
+    assert "worker config" in result.stdout
     assert "missing" in result.stdout.lower()
 
 def test_refuse_legacy(tmp_path):
