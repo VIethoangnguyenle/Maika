@@ -60,7 +60,7 @@ class TestParseFrontmatter:
 
 class TestF1Name:
     def test_valid_kebab_case(self):
-        assert check_f1_name({"name": "requirement-analyst"})[0] is True
+        assert check_f1_name({"name": "intent-analysis"})[0] is True
 
     def test_single_word(self):
         assert check_f1_name({"name": "validator"})[0] is True
@@ -143,7 +143,7 @@ class TestF4PreConditions:
                 {
                     "file": ".maika/knowledge/active/REQUIREMENT.md",
                     "condition": "not_skeleton",
-                    "on_fail": "ABORT — chạy requirement-analyst trước",
+                    "on_fail": "ABORT — chạy intent-analysis trước",
                 }
             ]
         }

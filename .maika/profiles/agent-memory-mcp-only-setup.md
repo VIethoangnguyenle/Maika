@@ -63,7 +63,8 @@ Bootstrap probe chỉ được ghi `agent-memory: healthy` khi backend thật tr
 ## Do NOT
 
 - Do **not** run `agentmemory connect --with-hooks` (installs the 12 auto-capture hooks).
-- Do **not** install agentmemory's bundled skills (they overlap `knowledge-curator` / bootstrap).
+- Do **not** install agentmemory's bundled skills (they overlap Maika's canonical
+  knowledge lifecycle).
 - Do **not** commit `~/.agentmemory/` state into the repo (it is user-machine-scoped).
 
 ## Result

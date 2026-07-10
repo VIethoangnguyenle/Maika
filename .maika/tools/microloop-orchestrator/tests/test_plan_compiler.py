@@ -70,8 +70,15 @@ def _setup(tmp_path):
     ws = vs.init_workspace(tmp_path / "changes", "demo", "small", "t")
     (ws / "SPEC.md").write_text("# spec\n", encoding="utf-8")
     plan_text, _ = _mk(tmp_path)
+    evidence_sha = hashlib.sha256(
+        (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_bytes()
+    ).hexdigest()
     plan_text = plan_text.replace(
         "SPECSHA", hashlib.sha256((ws / "SPEC.md").read_bytes()).hexdigest())
+    plan_text = plan_text.replace(
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        evidence_sha,
+    )
     (ws / "IMPLEMENTATION_PLAN.md").write_text(plan_text, encoding="utf-8")
     return ws, tmp_path
 

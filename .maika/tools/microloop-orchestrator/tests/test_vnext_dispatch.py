@@ -20,12 +20,15 @@ def _setup(tmp_path):
     sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path,
                          capture_output=True, text=True).stdout.strip()
     import hashlib
+    evidence_sha = hashlib.sha256(
+        (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_bytes()
+    ).hexdigest()
     plan_text = f"""---
 change_id: demo
 plan_version: 1
 base_commit: {sha}
 spec_hash: sha256:{hashlib.sha256((ws / "SPEC.md").read_bytes()).hexdigest()}
-evidence_hash: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+evidence_hash: sha256:{evidence_sha}
 ---
 
 # Plan

@@ -120,41 +120,82 @@ plugins:
     output: "{{ platform.framework_root }}/rules/rules-guard.md"
 
   # ─── SKILLS ───
-  - name: requirement-analyst
+  - name: intent-analysis
     type: skill
-    source: skills/requirement-analyst/
+    source: skills/intent-analysis/
     template: false
-    output: "{{ platform.framework_root }}/skills/requirement-analyst/"
+    output: "{{ platform.framework_root }}/skills/intent-analysis/"
     copy_dir: true
 
-  - name: spec-extract
+  - name: grounding-explorer
     type: skill
-    source: skills/spec-extract/
+    source: skills/grounding-explorer/
     template: false
-    output: "{{ platform.framework_root }}/skills/spec-extract/"
-    copy_dir: true
-
-  - name: db-explorer
-    type: skill
-    source: skills/db-explorer/
-    template: false
-    output: "{{ platform.framework_root }}/skills/db-explorer/"
-    copy_dir: true
-    requires_capability: db_access
-
-  - name: codebase-explorer
-    type: skill
-    source: skills/codebase-explorer/
-    template: false
-    output: "{{ platform.framework_root }}/skills/codebase-explorer/"
+    output: "{{ platform.framework_root }}/skills/grounding-explorer/"
     copy_dir: true
     requires_capability: code_exploration
 
-  - name: architecture-reviewer
+  - name: architecture-reconciler
     type: skill
-    source: skills/architecture-reviewer/
+    source: skills/architecture-reconciler/
     template: false
-    output: "{{ platform.framework_root }}/skills/architecture-reviewer/"
+    output: "{{ platform.framework_root }}/skills/architecture-reconciler/"
+    copy_dir: true
+
+  - name: grounded-brainstorming
+    type: skill
+    source: skills/grounded-brainstorming/
+    template: false
+    output: "{{ platform.framework_root }}/skills/grounded-brainstorming/"
+    copy_dir: true
+
+  - name: writing-spec
+    type: skill
+    source: skills/writing-spec/
+    template: false
+    output: "{{ platform.framework_root }}/skills/writing-spec/"
+    copy_dir: true
+
+  - name: writing-plan
+    type: skill
+    source: skills/writing-plan/
+    template: false
+    output: "{{ platform.framework_root }}/skills/writing-plan/"
+    copy_dir: true
+
+  - name: validating-plan
+    type: skill
+    source: skills/validating-plan/
+    template: false
+    output: "{{ platform.framework_root }}/skills/validating-plan/"
+    copy_dir: true
+
+  - name: executing-task
+    type: skill
+    source: skills/executing-task/
+    template: false
+    output: "{{ platform.framework_root }}/skills/executing-task/"
+    copy_dir: true
+
+  - name: reviewing-task
+    type: skill
+    source: skills/reviewing-task/
+    template: false
+    output: "{{ platform.framework_root }}/skills/reviewing-task/"
+    copy_dir: true
+
+  - name: reviewing-change
+    type: skill
+    source: skills/reviewing-change/
+    template: false
+    output: "{{ platform.framework_root }}/skills/reviewing-change/"
+    copy_dir: true
+
+  - name: verification-before-completion
+    type: skill
+    source: skills/verification-before-completion/
+    template: false
+    output: "{{ platform.framework_root }}/skills/verification-before-completion/"
     copy_dir: true
 
   - name: knowledge-curator
@@ -164,13 +205,6 @@ plugins:
     output: "{{ platform.framework_root }}/skills/knowledge-curator/"
     copy_dir: true
 
-  - name: convention-intelligence-builder
-    type: skill
-    source: skills/convention-intelligence-builder/
-    template: false
-    output: "{{ platform.framework_root }}/skills/convention-intelligence-builder/"
-    copy_dir: true
-
   - name: author-dna-builder
     type: skill
     source: skills/author-dna-builder/
@@ -178,18 +212,11 @@ plugins:
     output: "{{ platform.framework_root }}/skills/author-dna-builder/"
     copy_dir: true
 
-  - name: spec-validator
+  - name: convention-intelligence-builder
     type: skill
-    source: skills/spec-validator/
+    source: skills/convention-intelligence-builder/
     template: false
-    output: "{{ platform.framework_root }}/skills/spec-validator/"
-    copy_dir: true
-
-  - name: document-writer
-    type: skill
-    source: skills/document-writer/
-    template: false
-    output: "{{ platform.framework_root }}/skills/document-writer/"
+    output: "{{ platform.framework_root }}/skills/convention-intelligence-builder/"
     copy_dir: true
 
   - name: infra-tdd
@@ -197,27 +224,6 @@ plugins:
     source: skills/infra-tdd/
     template: false
     output: "{{ platform.framework_root }}/skills/infra-tdd/"
-    copy_dir: true
-
-  - name: openspec-explore
-    type: skill
-    source: skills/openspec-explore/
-    template: false
-    output: "{{ platform.framework_root }}/skills/openspec-explore/"
-    copy_dir: true
-
-  - name: openspec-propose
-    type: skill
-    source: skills/openspec-propose/
-    template: false
-    output: "{{ platform.framework_root }}/skills/openspec-propose/"
-    copy_dir: true
-
-  - name: openspec-archive-change
-    type: skill
-    source: skills/openspec-archive-change/
-    template: false
-    output: "{{ platform.framework_root }}/skills/openspec-archive-change/"
     copy_dir: true
 
   - name: skill-index-data

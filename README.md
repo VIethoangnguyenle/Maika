@@ -139,7 +139,7 @@ AI coding agent thường fail không phải vì không biết syntax. Nó fail 
 | Quên context phiên trước | Quyết định kiến trúc biến mất sau khi chat reset | `knowledge-snapshot.md` và archive giữ lại tri thức |
 | Code quá sớm | Agent nhảy vào diff khi requirement còn mơ hồ | `/task` buộc đi qua requirement và exploration |
 | Không nhớ convention | Naming và pattern phụ thuộc trí nhớ ngắn hạn | `conventions.yaml` và `author-dna.yaml` làm source of truth |
-| Không biết blast radius | Sửa một file nhưng bỏ qua module phụ thuộc | `codebase-explorer`, KG/MCP và architecture review tạo evidence |
+| Không biết blast radius | Sửa một file nhưng bỏ qua module phụ thuộc | `grounding-explorer` tạo evidence và blast-radius |
 | Không audit được | Không rõ agent đã giả định gì | `AGENT_TRANSPARENCY.md` ghi tool call, confidence, blocker và decision |
 | Dễ làm mất tri thức | Bài học từ review chỉ nằm trong chat | teaching moments được capture vào knowledge layer |
 
@@ -157,7 +157,7 @@ Các file agent đọc để biết phải làm việc thế nào:
 
 - `AGENTS.md`, `CLAUDE.md` hoặc entry point tương ứng platform.
 - `rules/*.md`: flow, tool, data, cost, knowledge, guard rules.
-- `workflows/*.md`: `/task`, `/idea-to-task`, `/convention-scan`, `/dna-scan`, OpenSpec flows.
+- `workflows/*.md`: `/task`, `/tdd`, `/convention-scan`, `/dna-scan`.
 - `skills/*/SKILL.md`: hướng dẫn theo vai trò.
 - `procedures/*.md`: bootstrap, context-loader, context-compressor, token tracking.
 
@@ -189,31 +189,35 @@ Các công cụ hỗ trợ runtime:
 Maika áp dụng một flow bắt buộc cho task thực tế:
 
 ```txt
-Ideation -> Requirement -> Architecture -> Spec -> Apply
-    |            |              |          |       |
- ideation     REQUIREMENT   EXPLORE     OpenSpec  code
- draft        .md           _CONTEXT    change    diff
-                            .md
+Intent -> Grounding -> Reconciliation -> Spec -> Plan -> Run
+   |          |              |           |      |     |
+CHANGE     GROUNDING     RECONCILIATION SPEC   PLAN  queue
+INTENT     EVIDENCE      .md            .md    .md   briefs/results
 ```
 
 Mỗi pha có artifact riêng:
 
 | Pha | Mục tiêu | Artifact |
 |---|---|---|
-| Ideation | Biến ý tưởng thô thành phạm vi task | `active/ideation/ideation-*.md` |
-| Requirement | Chuẩn hoá yêu cầu, AC, risk, assumption, ASCII Flow / State Diagram khi cần | `active/REQUIREMENT.md` |
-| Architecture | Khám phá DB/code/flow, phát hiện rủi ro | `active/EXPLORE_CONTEXT.md` |
-| Spec | Sinh spec kỹ thuật và OpenSpec change | `openspec/changes/<id>/` |
-| Apply | Apply spec vào code có checkpoint và review | code diff + transparency log |
+| Intent | Phân loại change và ghi intent | `CHANGE.yaml`, `INTENT.md` |
+| Grounding | Khám phá codebase/business/conventions | `GROUNDING.yaml`, `EVIDENCE_MANIFEST.yaml` |
+| Reconciliation | So khớp current/desired behavior và approach | `RECONCILIATION.md` |
+| Spec | Sinh contract hành vi | `SPEC.md` |
+| Plan | Sinh plan code-level và queue | `IMPLEMENTATION_PLAN.md`, generated JSON |
+| Run | Chạy brief, result, review, verify | briefs/results/reviews/verification |
 
-Rule quan trọng: `/task apply` chỉ được đi tiếp khi spec đã có, architecture blocker đã resolve, và user đã confirm.
+Rule quan trọng: implementation chỉ đi tiếp khi spec, plan validation, compiled
+brief, result contract, review, and verification gates are satisfied.
 
 Trong flow hiện tại, `/task` là orchestrator mỏng:
 
-- Pha 1 chuẩn hoá requirement có section `Integrations & Field Mapping` để mapper API/DB/event không bị mất khi sang spec.
-- Pha 2 chạy `spec-validator.check_integration_coverage()` để cảnh báo integration có trong requirement nhưng thiếu trong spec.
-- Pha 3 dispatch task con qua subagent hoặc fresh-session worker khi platform hỗ trợ; agent cha chỉ giữ phase state, file path và tóm tắt ngắn.
-- `SESSION-GATE` trong write-gate chặn code write inline trong cùng session đã chạy Pha 1/2, trừ khi có override tường minh bằng `SESSION_OVERRIDE.md`.
+- `intent-analysis` and `grounding-explorer` produce evidence before design.
+- `writing-spec`, `writing-plan`, and `validating-plan` keep spec and plan
+  mechanically tied to evidence.
+- `executing-task`, `reviewing-task`, and `reviewing-change` keep implementation,
+  result, and review contexts isolated.
+- `verification-before-completion` requires fresh command evidence before
+  completion.
 
 ---
 
@@ -268,18 +272,21 @@ Maika ship một bộ skill module hoá theo vai trò.
 
 | Skill | Vai trò | Khi nào dùng |
 |---|---|---|
-| `requirement-analyst` | Chuẩn hoá yêu cầu | Khi nhận ticket/task mới |
-| `spec-extract` | Trích xuất spec từ docs + ASCII Flow / State Diagram khi có flow/state/data path | Khi input là wiki, PRD, Confluence |
-| `db-explorer` | Khám phá DB read-only | Khi task chạm schema, config, data |
-| `codebase-explorer` | Map yêu cầu sang codebase | Sau requirement hoặc DB exploration |
-| `architecture-reviewer` | Review boundary, coupling, risk | Trước khi sinh spec |
+| `intent-analysis` | Chuẩn hoá intent và phân loại change | Khi nhận ticket/task mới |
+| `grounding-explorer` | Tạo grounding ba lens + evidence manifest | Trước khi design |
+| `architecture-reconciler` | Reconcile current/desired behavior, seams, conflicts | Trước brainstorming/spec |
+| `grounded-brainstorming` | So sánh approach dựa trên evidence | Khi có nhiều hướng khả thi |
+| `writing-spec` | Viết SPEC.md + ASCII Flow / State Diagram khi có flow/state/data path | Sau reconciliation |
+| `writing-plan` | Viết implementation plan code-level | Sau SPEC.md |
+| `validating-plan` | Validate plan, AC coverage, hashes, anchors | Trước compile/run |
+| `executing-task` | Chạy một immutable task brief | Khi queue có task pending |
+| `reviewing-task` | Review từng task result | Sau implementation |
+| `reviewing-change` | Review whole change | Trước verification |
+| `verification-before-completion` | Verify completion evidence | Trước archive |
 | `knowledge-curator` | Archive và cập nhật knowledge | Sau task hoặc khi có teaching moment |
 | `convention-intelligence-builder` | Quét convention codebase | Khi onboard hoặc sau refactor lớn |
 | `author-dna-builder` | Encode judgment layer | Khi cần style/philosophy của tác giả |
-| `spec-validator` | Validate spec trước/sau apply | Trước và sau thay đổi code |
 | `infra-tdd` | Technical Design Document 5 tầng | Khi thay đổi ảnh hưởng kiến trúc/hạ tầng |
-| `document-writer` | Viết tài liệu kỹ thuật | README, ADR, architecture docs |
-| `openspec-*` | Tích hợp OpenSpec | Explore, propose, archive change |
 
 ---
 
@@ -513,7 +520,7 @@ Khi agent bắt đầu một session trong repo có Maika, nó bootstrap context
 
 ```txt
 Core: AGENTS.md v3.0 + RULES (manifest + flow/tool/exec/knowledge/guard)
-Skills: requirement-analyst | spec-extract | db-explorer | codebase-explorer | ...
+Skills: intent-analysis | grounding-explorer | architecture-reconciler | writing-spec | ...
 Workflows: /task | /idea-to-task | /index-source | /convention-scan | /dna-scan
 Platform: codex | MCPs: codebase-memory-mcp, db-remote
 Active context: REQUIREMENT empty | EXPLORE_CONTEXT empty
@@ -560,7 +567,8 @@ Dùng platform adapter nếu có. Nếu chưa có adapter, chọn `generic` đ�
 
 ### Làm sao tránh rò rỉ dữ liệu nhạy cảm?
 
-Rules R-Data-1/R-Data-2 cấm log PII, credential, token vào context files. `db-explorer` chỉ được đọc schema/sample data giới hạn và không được thay đổi DB.
+Rules R-Data-1/R-Data-2 cấm log PII, credential, token vào context files.
+Grounding records bounded evidence and must not mutate external systems.
 
 ### Team nhiều người dùng chung được không?
 

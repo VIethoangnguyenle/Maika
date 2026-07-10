@@ -3,10 +3,8 @@ schema: agent-transparency/v1
 ticket_id: "<!-- ticket-id -->"
 updated_at: "<!-- timestamp -->"
 phase_state: bootstrapped
-openspec_state: null
 confidence_level: null
-# phase_state values: bootstrapped | phase-1-in-progress | phase-1-done | phase-2-in-progress | phase-2-done | phase-3-in-progress | blocked-by-arch | blocked-by-data | applying | completed
-# openspec_state values: null | propose_done | apply_done
+# phase_state values: bootstrapped | exploring | reconciling | spec-review | planning | executing | verifying | blocked | completed
 # confidence_level values: null | CAO | TRUNG-BINH | THAP
 ---
 
@@ -14,7 +12,7 @@ confidence_level: null
 > Ticket: <!-- ticket-id -->
 > Cập nhật lần cuối: <!-- timestamp -->
 
-<!-- TODO: fill in — file này là template skeleton, không phải context thực -->
+<!-- Fill this skeleton for the current change; do not preserve old context. -->
 
 ---
 
@@ -26,14 +24,14 @@ phase_state: bootstrapped
 
 <!-- Values (chọn một):
   bootstrapped        ← mới khởi động, chưa vào pha nào
-  phase-1-in-progress ← đang chạy Pha 1
-  phase-1-done        ← Pha 1 hoàn thành (REQUIREMENT + EXPLORE_CONTEXT đã ghi)
-  phase-2-in-progress ← đang chạy Pha 2 (spec)
-  phase-2-done        ← Pha 2 hoàn thành (OpenSpec đã propose)
-  blocked-by-arch     ← architecture-reviewer gửi BLOCKER, chờ user quyết định
-  blocked-by-data     ← thiếu dữ liệu/DB, đang chờ backfill/seed
-  applying            ← đang apply (Pha 3 — micro-loop / /opsx:apply đang chạy)
-  completed           ← apply xong, knowledge-curator đã archive
+  exploring           ← grounding artifacts are being produced
+  reconciling         ← reconciliation is in progress
+  spec-review         ← SPEC.md is being validated
+  planning            ← IMPLEMENTATION_PLAN.md is being produced or validated
+  executing           ← compiled task queue is running
+  verifying           ← completion evidence is being collected
+  blocked             ← waiting on user, environment, capability, or verification
+  completed           ← verified and ready to archive
 -->
 
 ---

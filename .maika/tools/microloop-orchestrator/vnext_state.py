@@ -13,7 +13,7 @@ STATES = [
     "COMPLETED", "ARCHIVED", "BLOCKED", "CANCELLED",
 ]
 CLASSES = {"trivial", "small", "standard", "architectural"}
-BLOCK_REASONS = {"grounding", "stale_plan", "capability", "user_input", "environment"}
+BLOCK_REASONS = {"grounding", "stale_plan", "capability", "user_input", "environment", "verification"}
 
 # W1: chỉ các transition mà slice này dùng + BLOCKED/CANCELLED từ mọi state.
 ALLOWED = {
@@ -49,12 +49,27 @@ def init_workspace(changes_root, change_id, klass, title):
     if klass not in CLASSES:
         raise ValueError(f"bad change class: {klass}")
     ws = Path(changes_root) / change_id
-    for sub in ("generated", "briefs", "results", "reviews"):
+    for sub in ("exploration", "generated", "briefs", "results", "reviews"):
         (ws / sub).mkdir(parents=True, exist_ok=True)
     _dump_yaml({"change_id": change_id, "class": klass, "title": title,
                 "created_at": _now()}, ws / "CHANGE.yaml")
     _dump_yaml({"change_id": change_id, "state": "INTAKE",
                 "updated_at": _now(), "blocked": None}, ws / "STATE.yaml")
+    (ws / "INTENT.md").write_text(
+        f"# Intent\n\nChange: {change_id}\n\nSummary:\n", encoding="utf-8"
+    )
+    _dump_yaml({
+        "version": 1,
+        "codebase": {},
+        "business": {},
+        "conventions": {},
+    }, ws / "exploration" / "GROUNDING.yaml")
+    _dump_yaml({
+        "version": 1,
+        "change_id": change_id,
+        "claims": [],
+    }, ws / "exploration" / "EVIDENCE_MANIFEST.yaml")
+    (ws / "RECONCILIATION.md").write_text("# Reconciliation\n\n", encoding="utf-8")
     return ws
 
 

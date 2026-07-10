@@ -24,6 +24,9 @@ VALIDATORS = {
     "code-evidence": "validate_code_evidence",
     "vnext-plan": "validate_vnext_plan",
     "vnext-workspace": "validate_change_workspace",
+    "intent": "validate_intent",
+    "exploration-evidence": "validate_exploration_evidence",
+    "spec": "validate_vnext_spec",
     "brief-integrity": "validate_brief_integrity",
     "result-contract": "validate_result_contract",
 }
@@ -102,6 +105,22 @@ def main(argv=None):
             import hashlib
             kwargs["spec_sha256"] = hashlib.sha256(
                 Path(args.against).read_bytes()).hexdigest()
+    elif args.gate == "intent":
+        if not args.against:
+            print("FAIL — --against is required for intent gate (CHANGE.yaml)")
+            return 2
+        kwargs["change_text"] = Path(args.against).read_text(encoding="utf-8")
+    elif args.gate == "exploration-evidence":
+        if not args.against:
+            print("FAIL — --against is required for exploration-evidence gate")
+            return 2
+        kwargs["evidence_text"] = Path(args.against).read_text(encoding="utf-8")
+    elif args.gate == "spec":
+        if not args.against:
+            print("FAIL — --against is required for spec gate (CHANGE.yaml)")
+            return 2
+        change_doc = yaml.safe_load(Path(args.against).read_text(encoding="utf-8")) or {}
+        kwargs["change_class"] = change_doc.get("class", "standard")
     elif args.gate == "brief-integrity":
         import json
         ws_root = Path(args.file).resolve().parents[1]

@@ -31,10 +31,16 @@ def compile_plan(ws, repo_root):
     spec_path = ws / "SPEC.md"
     spec_sha = (hashlib.sha256(spec_path.read_bytes()).hexdigest()
                 if spec_path.exists() else None)
+    evidence_path = ws / "exploration" / "EVIDENCE_MANIFEST.yaml"
+    evidence_sha = (hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+                    if evidence_path.exists() else None)
+    spec_text = spec_path.read_text(encoding="utf-8") if spec_path.exists() else None
     try:
         doc = pp.parse_plan(text)
         res = gates.validate_vnext_plan(text, plan_doc=doc, repo_root=str(repo_root),
-                                        spec_sha256=spec_sha)
+                                        spec_sha256=spec_sha,
+                                        evidence_sha256=evidence_sha,
+                                        spec_text=spec_text)
     except ValueError as e:
         res = gates.Result(False, str(e))
         doc = None

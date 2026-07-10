@@ -1,210 +1,105 @@
 # TỰ ĐỘNG TẠO BỞI generate_index.py - KHÔNG CHỈNH SỬA THỦ CÔNG
 skills:
   -
-    name: architecture-reviewer
-    version: '1.1'
+    name: architecture-reconciler
+    version: '1.0'
     description: >
-      Đối chiếu REQUIREMENT với kiến trúc + codebase thực tế (DB + code), phát hiện xung đột và rủi ro.
-      Dùng khi cần đánh giá impact kiến trúc, phát hiện breaking changes, hoặc review contract design.
-      KHÔNG dùng cho: chuẩn hoá yêu cầu (→ requirement-analyst),
-      khám phá code chi tiết (→ codebase-explorer), validate spec đã sinh (→ spec-validator).
-    pre_conditions:
-      - file: "{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md"
-        condition: not_skeleton
-        on_fail: "ABORT — chạy requirement-analyst trước"
-      - file: "{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md"
-        condition: not_skeleton
-        on_fail: "WARN — EXPLORE_CONTEXT thiếu, độ tin cậy kiến trúc sẽ là TRUNG BÌNH — cân nhắc chạy db-explorer / codebase-explorer trước"
-      - file: "{{ platform.framework_root }}/knowledge/long-term/conventions.yaml"
-        condition: exists
-        on_fail: "WARN — conventions.yaml chưa có, đánh giá boundary không đầy đủ"
-        load_scope: full  # override selective loading — arch-reviewer cần toàn bộ design_patterns
-      - file: "{{ platform.framework_root }}/knowledge/long-term/author-dna.yaml"
-        condition: exists
-        on_fail: "WARN — author-dna.yaml chưa có, hard principles không được áp dụng"
-        load_scope: hard_principles+complexity_thresholds  # pattern_preferences không cần ở Pha 1
+      Reconcile current behavior, desired behavior, evidence conflicts, and viable
+      extension seams before Maika vNext brainstorming or specification begins.
   -
     name: author-dna-builder
     version: '1.0'
     description: >
-      Phân tích codebase để infer coding philosophy và style của tác giả,
-      sau đó interview để confirm/bổ sung, encode thành author-dna.yaml.
-      Skill này tạo ra "judgment layer" — lens mà agent dùng khi evaluate design và propose solution.
-      Dùng khi onboard project hoặc cần cập nhật coding DNA sau kiến trúc thay đổi lớn.
-      KHÔNG dùng cho: scan convention (→ convention-intelligence-builder),
-      tra cứu DNA đã có (→ đọc trực tiếp author-dna.yaml), review kiến trúc (→ architecture-reviewer).
-    trigger: /dna-scan
-    approve_trigger: /approve-dna
-  -
-    name: codebase-explorer
-    version: '1.1'
-    standard: SP3
-    description: >
-      Khám phá codebase bằng Understand-Anything (UA, ưu tiên) + Codebase Memory để map REQUIREMENT → module/service/file liên quan.
-      Dùng khi cần tìm module, file, dependency liên quan đến requirement hiện tại.
-      KHÔNG dùng cho: khám phá DB schema (→ db-explorer),
-      review kiến trúc/rủi ro (→ architecture-reviewer), sinh spec (→ openspec-propose).
-    pre_conditions:
-      - file: "{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md"
-        condition: not_skeleton
-        on_fail: "ABORT — chạy requirement-analyst trước"
-      - file: "{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md"
-        condition: exists
-        on_fail: "WARN — EXPLORE_CONTEXT chưa có, tạo skeleton trước khi ghi"
+      Build and maintain Author DNA for Maika vNext by turning recurring confirmed
+      engineering philosophy into durable guidance used by planning and review.
   -
     name: convention-intelligence-builder
     version: '1.0'
     description: >
-      Scan codebase qua UA + Codebase Memory để extract naming conventions, class suffix patterns,
-      và layer-specific design principles. Sinh conventions.draft.yaml để user review trước khi approve.
-      Dùng khi onboard project mới hoặc sau refactor lớn cần cập nhật conventions.
-      KHÔNG dùng cho: viết convention thủ công (→ edit trực tiếp conventions.yaml),
-      review kiến trúc/rủi ro (→ architecture-reviewer), infer coding philosophy (→ author-dna-builder).
+      Build and maintain Maika vNext convention intelligence by extracting recurring
+      concrete naming, structure, testing, and boundary patterns from verified
+      source evidence.
   -
-    name: db-explorer
+    name: executing-task
     version: '1.0'
     description: >
-      Khám phá logic tầng database (SQL + NoSQL) bằng MCP {{ tools.db_query }} để cập nhật EXPLORE_CONTEXT.
-      Dùng khi cần hiểu schema, constraint, data flow ở tầng DB cho task hiện tại.
-      KHÔNG dùng cho: khám phá code/module (→ codebase-explorer),
-      review kiến trúc tổng thể (→ architecture-reviewer), viết tài liệu (→ document-writer).
-    pre_conditions:
-      - file: "{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md"
-        condition: not_skeleton
-        on_fail: "ABORT — chạy requirement-analyst trước"
+      Execute exactly one immutable Maika vNext task brief in a fresh isolated
+      context, producing structured YAML results with commands, changed files,
+      changed symbols, deviations, concerns, and commit evidence.
   -
-    name: document-writer
+    name: grounded-brainstorming
     version: '1.0'
     description: >
-      Khung chuẩn để tạo mới hoặc cập nhật tài liệu kỹ thuật cho nhiều loại tài liệu:
-      README, overview, architecture/design doc, how-to, runbook, ADR, và tài liệu module hạ tầng.
-      Dùng khi cần tạo, viết lại, hoặc cập nhật tài liệu kỹ thuật trong dự án.
-      KHÔNG dùng cho: viết TDD 5 tầng (→ infra-tdd), sinh spec OpenSpec (→ openspec-propose),
-      chuẩn hoá requirement (→ requirement-analyst).
+      Compare grounded solution approaches after reconciliation, using verified
+      evidence and project conventions while avoiding ungrounded implementation
+      detail or provider-specific tool instructions.
+  -
+    name: grounding-explorer
+    version: '1.0'
+    description: >
+      Build the three-lens grounding package for Maika vNext by collecting verified
+      codebase, business, and convention evidence before any final architecture or
+      implementation plan is written.
   -
     name: infra-tdd
     version: '1.0'
     description: >
-      Xây dựng Technical Design Document (TDD) chuẩn hoá theo 5 tầng hybrid:
-      Bối cảnh Nghiệp vụ, Chiến lược, Kiến trúc, Quyết định, và Vận hành.
-      Dùng khi cần thiết kế, viết hoặc review TDD / Design Doc / RFC / ADR cho module infrastructure.
-      KHÔNG dùng cho: README/how-to/runbook (→ document-writer),
-      spec OpenSpec (→ openspec-propose), review kiến trúc (→ architecture-reviewer).
-    license: MIT
-    metadata:
-      author: project-team
-      version: '2.5'
-      language: vi
-      based-on: infra-tdd-template by perplexity-computer
+      Produce infrastructure technical design documents for Maika vNext when a
+      change requires explicit operational architecture, decision records,
+      verification strategy, and rollback planning.
+  -
+    name: intent-analysis
+    version: '1.0'
+    description: >
+      Classify an incoming request into a Maika vNext change class, create or update
+      CHANGE.yaml and INTENT.md, and decide which reasoning phases are required
+      before specification or implementation may proceed.
   -
     name: knowledge-curator
-    version: '1.1'
-    description: >
-      Quản lý vòng đời knowledge — archive context hoàn thành, reset active/, cập nhật knowledge-snapshot sau mỗi task.
-      Dùng khi task hoàn thành cần archive, hoặc cần reset/rotate context.
-      KHÔNG dùng cho: review kiến trúc (→ architecture-reviewer),
-      sinh/validate spec (→ openspec-propose, spec-validator), viết tài liệu (→ document-writer).
-  -
-    name: openspec-archive-change
     version: '1.0'
     description: >
-      Archive a completed change in the experimental workflow. Use when the user wants to finalize and archive a change after implementation is complete.
-      NOT for: archiving knowledge-layer context (→ knowledge-curator),
-      post-apply review/validation (→ spec-validator).
-    license: MIT
-    compatibility: Requires openspec CLI.
-    metadata:
-      author: openspec
-      version: "1.0"
-      generatedBy: "1.2.0"
+      Curate Maika vNext knowledge after verified completion by extracting reusable
+      lessons, updating durable knowledge stores, regenerating indexes, and archiving
+      the change workspace.
   -
-    name: openspec-explore
-    version: '1.0'
-    standard: SP3
-    description: >
-      Vào chế độ explore — đối tác suy nghĩ để khám phá ý tưởng, điều tra vấn đề, và làm rõ yêu cầu.
-      Dùng khi user muốn suy nghĩ trước hoặc trong một change. Không viết code.
-      KHÔNG dùng cho: requirement đã cần chuẩn hoá (→ requirement-analyst),
-      sinh spec/artifact (→ openspec-propose), review kiến trúc (→ architecture-reviewer).
-    license: MIT
-    compatibility: Requires openspec CLI.
-    metadata:
-      author: openspec
-      version: "1.0"
-      generatedBy: "1.2.0"
-  -
-    name: openspec-propose
+    name: reviewing-change
     version: '1.0'
     description: >
-      Propose a new change with all artifacts generated in one step.
-      Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation.
-      NOT for: exploring ideas/brainstorming (→ openspec-explore),
-      validating existing specs (→ spec-validator), writing TDD documents (→ infra-tdd).
-    license: MIT
-    compatibility: Requires openspec CLI.
-    metadata:
-      author: openspec
-      version: "1.0"
-      generatedBy: "1.2.0"
-    pre_conditions:
-      - file: "{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md"
-        condition: not_skeleton
-        on_fail: "ABORT — chạy requirement-analyst trước"
-      - file: "{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md"
-        condition: not_skeleton
-        on_fail: "WARN — EXPLORE_CONTEXT thiếu, spec sẽ có Độ tin cậy THẤP"
-      - phase: pha-1
-        condition: phase_done
-        on_fail: "ABORT — Pha 1 chưa hoàn thành (kiểm tra marker `Pha 1 DONE` trong AGENT_TRANSPARENCY)"
+      Perform final whole-change review for Maika vNext after task reviews complete,
+      checking integration, deleted references, verification evidence, and unresolved
+      findings before completion.
   -
-    name: requirement-analyst
-    version: '1.1'
-    standard: SP3
-    description: >
-      Phân tích ticket/tài liệu thành REQUIREMENT.md chuẩn hoá, rõ scope và Acceptance Criteria.
-      Dùng khi có ticket link hoặc tài liệu PRD rõ ràng cần chuẩn hoá.
-      KHÔNG dùng cho: ideation thô chưa thành ticket (→ openspec-explore),
-      extract từ wiki/Confluence dài nhiều trang (→ spec-extract),
-      review kiến trúc hoặc đánh giá rủi ro (→ architecture-reviewer).
-    pre_conditions:
-      - file: "{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md"
-        condition: exists
-        on_fail: "ABORT — bootstrap chưa chạy, gọi `/task` trước"
-  -
-    name: spec-extract
+    name: reviewing-task
     version: '1.0'
-    standard: SP3
     description: >
-      Trích xuất spec có cấu trúc từ tài liệu (wiki/Confluence/PRD) vào REQUIREMENT.md, kèm đánh giá độ tin cậy.
-      Dùng khi đầu vào là tài liệu dài, wiki nhiều trang, hoặc PRD cần parse.
-      KHÔNG dùng cho: ticket có sẵn đã rõ scope (→ requirement-analyst),
-      ideation/brainstorm (→ openspec-explore), khám phá DB schema (→ db-explorer).
-    pre_conditions:
-      - file: "{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md"
-        condition: exists
-        on_fail: "ABORT — bootstrap chưa chạy, gọi `/task` trước"
+      Review one Maika vNext task result against its immutable brief, changed diff,
+      tests, declared write scope, and structured evidence without modifying
+      application code.
   -
-    name: spec-validator
-    version: '1.1'
+    name: validating-plan
+    version: '1.0'
     description: >
-      Kiểm tra spec (OpenSpec artifacts) trước và sau khi apply — pre-apply gate, AC coverage check, post-apply verify.
-      Dùng khi cần validate spec trước apply hoặc verify kết quả sau apply.
-      KHÔNG dùng cho: sinh spec mới (→ openspec-propose),
-      review kiến trúc (→ architecture-reviewer), chuẩn hoá yêu cầu (→ requirement-analyst).
-    pre_conditions:
-      - file: "{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md"
-        condition: not_skeleton
-        on_fail: "ABORT — không có REQUIREMENT để validate spec"
-      - phase: pha-2
-        condition: phase_done
-        on_fail: "ABORT — spec chưa được sinh (phase_state chưa đạt phase-2-done)"
+      Independently validate Maika vNext IMPLEMENTATION_PLAN.md against SPEC.md,
+      grounding evidence, source anchors, acceptance criteria, and deterministic
+      compilation requirements before execution can begin.
+  -
+    name: verification-before-completion
+    version: '1.0'
+    description: >
+      Verify Maika vNext completion claims with fresh commands, observed output,
+      deleted-reference scans, scaffold checks, and recorded evidence before archive
+      or final status is allowed.
   -
     name: writing-plan
     version: '1.0'
     description: >
-      Sinh IMPLEMENTATION_PLAN.md code-level cho một change vNext: frontmatter máy-đọc
-      (base_commit, spec_hash, evidence_hash), mỗi task một section TASK-NNN với
-      implementation_mode exact|guided|intent, files/symbols/anchors, TDD steps, commands
-      + expected. Dùng khi: SPEC.md đã được duyệt và change ở state PLANNING (mọi class).
-      KHÔNG dùng cho: brainstorm (W2), review plan (planning_dispatch đảm nhiệm),
-      task legacy OpenSpec.
+      Write Maika vNext IMPLEMENTATION_PLAN.md from an approved SPEC.md and evidence
+      manifest, producing deterministic task sections with exact files, anchors,
+      tests, commands, expected results, and write scope.
+  -
+    name: writing-spec
+    version: '1.0'
+    description: >
+      Write class-aware Maika vNext SPEC.md from grounded evidence and reconciliation,
+      including acceptance criteria, evidence references, and required ASCII diagrams
+      for flow, state, integration, callback, job, or data-path changes.

@@ -1,0 +1,63 @@
+version: 1
+wave: W2
+deleted:
+  - path: .maika/skills/architecture-reviewer
+    reason: Superseded by architecture-reconciler and reviewing-change.
+    consumers_moved_to: [architecture-reconciler, reviewing-change]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/codebase-explorer
+    reason: Superseded by grounding-explorer.
+    consumers_moved_to: [grounding-explorer]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/db-explorer
+    reason: Folded into grounding-explorer via capability-based evidence.
+    consumers_moved_to: [grounding-explorer]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/document-writer
+    reason: No target W2 consumer; documentation is handled by task-specific plans and docs.
+    consumers_moved_to: []
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/openspec-archive-change
+    reason: Removed workflow family; archive belongs to canonical task lifecycle.
+    consumers_moved_to: [knowledge-curator]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/openspec-explore
+    reason: Superseded by grounded-brainstorming and canonical W2 artifacts.
+    consumers_moved_to: [grounded-brainstorming]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/openspec-propose
+    reason: Superseded by writing-spec, writing-plan, and validating-plan.
+    consumers_moved_to: [writing-spec, writing-plan, validating-plan]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/requirement-analyst
+    reason: Superseded by intent-analysis and writing-spec.
+    consumers_moved_to: [intent-analysis, writing-spec]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/spec-extract
+    reason: Superseded by writing-spec.
+    consumers_moved_to: [writing-spec]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/spec-validator
+    reason: Superseded by validating-plan and gate-check validators.
+    consumers_moved_to: [validating-plan]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/author-dna-builder/references
+    reason: Orphaned by compact W2 contract skill.
+    consumers_moved_to: [author-dna-builder]
+    verification: cli/tests/test_skill_standard.py
+  - path: .maika/skills/convention-intelligence-builder/references
+    reason: Orphaned by compact W2 contract skill.
+    consumers_moved_to: [convention-intelligence-builder]
+    verification: cli/tests/test_skill_standard.py
+  - path: .maika/skills/infra-tdd/references
+    reason: Orphaned by compact W2 contract skill.
+    consumers_moved_to: [infra-tdd]
+    verification: cli/tests/test_skill_standard.py
+  - path: .maika/skills/infra-tdd/assets
+    reason: Orphaned by compact W2 contract skill and TDD workflow rewrite.
+    consumers_moved_to: [infra-tdd]
+    verification: cli/tests/test_skill_standard.py
+  - path: .maika/skills/knowledge-curator/references
+    reason: Orphaned by compact W2 contract skill.
+    consumers_moved_to: [knowledge-curator]
+    verification: cli/tests/test_skill_standard.py

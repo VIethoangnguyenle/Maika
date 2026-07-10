@@ -657,6 +657,14 @@ def main(argv=None):
     review_parser.add_argument("--workspace", required=True)
     review_parser.add_argument("--repo-root", required=True)
 
+    reasoning_parser = sub.add_parser("vnext-validate-reasoning")
+    reasoning_parser.add_argument("--workspace", required=True)
+    reasoning_parser.add_argument("--repo-root", required=True)
+
+    spec_parser = sub.add_parser("vnext-validate-spec")
+    spec_parser.add_argument("--workspace", required=True)
+    spec_parser.add_argument("--repo-root", required=True)
+
     run_parser = sub.add_parser("vnext-run")
     run_parser.add_argument("--workspace", required=True)
     run_parser.add_argument("--repo-root", required=True)
@@ -701,6 +709,10 @@ def main(argv=None):
             ws = Path(args.workspace)
             st = vs.load_state(ws)
             if st["state"] == "INTAKE":
+                change = yaml.safe_load((ws / "CHANGE.yaml").read_text(encoding="utf-8")) or {}
+                if change.get("class") not in {"trivial", "small"}:
+                    print("Refused: standard/architectural change requires reasoning/spec validation before planning")
+                    return 1
                 vs.transition(ws, "PLANNING")
             elif st["state"] != "PLANNING":
                 print(f"Refused: wrong state {st['state']}")
@@ -721,6 +733,59 @@ def main(argv=None):
             runner = make_worker_runner(conf.get("worker_command", "echo 'VERDICT: APPROVED' > {out}"))
             verdict = vd.review_plan(ws, runner)
             print(f"Plan review verdict: {verdict}")
+            return 0
+
+        elif args.command == "vnext-validate-reasoning":
+            ws = Path(args.workspace)
+            st = vs.load_state(ws)
+            if st["state"] != "EXPLORING":
+                print(f"Refused: wrong state {st['state']}")
+                return 1
+            gates = _load_gate_check()
+            intent_res = gates.validate_intent(
+                (ws / "INTENT.md").read_text(encoding="utf-8"),
+                (ws / "CHANGE.yaml").read_text(encoding="utf-8"),
+            )
+            evidence_res = gates.validate_exploration_evidence(
+                (ws / "exploration" / "GROUNDING.yaml").read_text(encoding="utf-8"),
+                (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_text(encoding="utf-8"),
+            )
+            ok = intent_res.ok and evidence_res.ok
+            (ws / "generated" / "EXPLORATION_VALIDATION.json").write_text(json.dumps({
+                "verdict": "APPROVED" if ok else "REVISE",
+                "checks": [
+                    {"id": "intent", "ok": intent_res.ok, "reason": intent_res.reason},
+                    {"id": "exploration-evidence", "ok": evidence_res.ok, "reason": evidence_res.reason},
+                ],
+            }, ensure_ascii=False, indent=2), encoding="utf-8")
+            if not ok:
+                print("Reasoning validation verdict: REVISE")
+                return 1
+            vs.transition(ws, "RECONCILING")
+            print("Reasoning validation verdict: APPROVED")
+            return 0
+
+        elif args.command == "vnext-validate-spec":
+            ws = Path(args.workspace)
+            st = vs.load_state(ws)
+            if st["state"] != "SPEC_REVIEW":
+                print(f"Refused: wrong state {st['state']}")
+                return 1
+            gates = _load_gate_check()
+            change = yaml.safe_load((ws / "CHANGE.yaml").read_text(encoding="utf-8")) or {}
+            spec_res = gates.validate_vnext_spec(
+                (ws / "SPEC.md").read_text(encoding="utf-8"),
+                change_class=change.get("class", "standard"),
+            )
+            (ws / "generated" / "SPEC_VALIDATION.json").write_text(json.dumps({
+                "verdict": "APPROVED" if spec_res.ok else "REVISE",
+                "checks": [{"id": "spec", "ok": spec_res.ok, "reason": spec_res.reason}],
+            }, ensure_ascii=False, indent=2), encoding="utf-8")
+            if not spec_res.ok:
+                print("Spec validation verdict: REVISE")
+                return 1
+            vs.transition(ws, "PLANNING")
+            print("Spec validation verdict: APPROVED")
             return 0
             
         elif args.command == "vnext-run":

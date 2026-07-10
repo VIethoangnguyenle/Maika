@@ -464,7 +464,113 @@ def validate_change_workspace(text: str) -> Result:
     return Result(True)
 
 
-def validate_vnext_plan(text, plan_doc=None, repo_root=None, spec_sha256=None) -> Result:
+def validate_intent(text: str, change_text: str = "") -> Result:
+    """Gate `intent` — W2 consumer for INTENT.md."""
+    change = yaml.safe_load(change_text) or {}
+    klass = change.get("class", "standard")
+    body = (text or "").strip()
+    summary = _section_text(text or "", "Summary")
+    if not summary:
+        match = re.search(r"(?im)^Summary:\s*(.+)$", text or "")
+        summary = match.group(1).strip() if match else ""
+    if klass in {"standard", "architectural"} and len(body) < 20:
+        return Result(False, "intent summary required for standard/architectural change")
+    if klass in {"standard", "architectural"} and len(summary) < 10:
+        return Result(False, "intent summary content required for standard/architectural change")
+    if klass not in VALID_CHANGE_CLASSES:
+        return Result(False, f"bad change class: {klass}")
+    return Result(True)
+
+
+def validate_exploration_evidence(text: str, evidence_text: str = "") -> Result:
+    """Gate `exploration-evidence` — three-lens grounding + claim manifest."""
+    grounding = yaml.safe_load(text) or {}
+    for lens in ("codebase", "business", "conventions"):
+        if not isinstance(grounding.get(lens), dict) or not grounding[lens]:
+            return Result(False, f"GROUNDING.yaml missing {lens} lens")
+    codebase = grounding["codebase"]
+    for key in ("entry_points", "current_flow", "extension_seams", "related_tests", "blast_radius"):
+        if not codebase.get(key):
+            return Result(False, f"GROUNDING.yaml codebase.{key} required")
+    business = grounding["business"]
+    for key in ("terminology", "actors", "rules", "states_and_transitions", "evidence_sources"):
+        if not business.get(key):
+            return Result(False, f"GROUNDING.yaml business.{key} required")
+    conventions = grounding["conventions"]
+    for key in ("applicable_rule_ids", "architecture_patterns", "naming_patterns", "testing_patterns"):
+        if not conventions.get(key):
+            return Result(False, f"GROUNDING.yaml conventions.{key} required")
+    evidence = yaml.safe_load(evidence_text) or {}
+    claims = evidence.get("claims")
+    if not isinstance(claims, list) or not claims:
+        return Result(False, "EVIDENCE_MANIFEST.yaml claims required")
+    ids = set()
+    for claim in claims:
+        cid = claim.get("id")
+        if not cid:
+            return Result(False, "claim id required")
+        if cid in ids:
+            return Result(False, f"duplicate claim id: {cid}")
+        ids.add(cid)
+        if claim.get("status") not in {"verified", "inferred", "conflicting", "unverified", "stale"}:
+            return Result(False, f"{cid}: invalid status")
+        if claim.get("category") == "exact_code_fact" and claim.get("status") == "verified":
+            sources = claim.get("sources")
+            if not isinstance(sources, list) or not sources:
+                return Result(False, f"{cid}: verified code fact requires sources")
+            for i, source in enumerate(sources, 1):
+                if not source.get("file"):
+                    return Result(False, f"{cid}: source {i} missing file")
+                if not source.get("symbol"):
+                    return Result(False, f"{cid}: source {i} missing symbol")
+                if not _SHA256_FMT.match(str(source.get("file_hash", ""))):
+                    return Result(False, f"{cid}: source {i} missing file_hash")
+    return Result(True)
+
+
+_SMALL_SPEC_SECTIONS = (
+    "Goal", "Current Behavior", "Desired Behavior", "Acceptance Criteria",
+    "Relevant Evidence", "Evidence References",
+)
+_FULL_SPEC_SECTIONS = (
+    "Goal", "Context", "Current Behavior", "Desired Behavior", "Actors",
+    "Functional Requirements", "Business Rules", "States and Transitions",
+    "Architecture", "Components and Boundaries", "Data Flow",
+    "API and Contract Changes", "Persistence Changes", "Event and Async Behavior",
+    "Error Handling", "Security and Authorization", "Observability and Audit",
+    "Migration", "Rollback", "Testing Strategy", "Acceptance Criteria",
+    "Non-goals", "Risks", "Evidence References",
+)
+
+
+def _has_heading(text: str, heading: str) -> bool:
+    return bool(re.search(rf"^##\s+{re.escape(heading)}\s*$", text, re.MULTILINE))
+
+
+def validate_vnext_spec(text: str, change_class: str = "standard") -> Result:
+    """Gate `spec` — class-aware W2 spec contract."""
+    if change_class not in VALID_CHANGE_CLASSES:
+        return Result(False, f"bad change class: {change_class}")
+    if change_class == "trivial":
+        return Result(True)
+    required = _SMALL_SPEC_SECTIONS if change_class == "small" else _FULL_SPEC_SECTIONS
+    missing = [h for h in required if not _has_heading(text, h)]
+    if missing:
+        return Result(False, f"SPEC.md missing sections: {', '.join(missing)}")
+    if not re.search(r"\bAC-\d+\b", _section_text(text, "Acceptance Criteria")):
+        return Result(False, "SPEC.md Acceptance Criteria must include AC ids")
+    if not re.search(r"\b[A-Z]+-\d+\b", _section_text(text, "Evidence References")):
+        return Result(False, "SPEC.md Evidence References must cite claim ids")
+    return Result(True)
+
+
+def _ac_ids(spec_text: str) -> set:
+    return set(re.findall(r"\bAC-\d+\b", _section_text(spec_text or "", "Acceptance Criteria")))
+
+
+def validate_vnext_plan(
+    text, plan_doc=None, repo_root=None, spec_sha256=None, evidence_sha256=None, spec_text=None
+) -> Result:
     """Gate `vnext-plan` — mechanical subset W1 (v2 §26 W1; full §16 là W2+)."""
     if plan_doc is None:
         return Result(False, "plan_doc required (cli parses via plan_parser)")
@@ -473,6 +579,8 @@ def validate_vnext_plan(text, plan_doc=None, repo_root=None, spec_sha256=None) -
     meta, tasks = plan_doc["meta"], plan_doc["tasks"]
     if spec_sha256 is not None and meta.get("spec_hash") != f"sha256:{spec_sha256}":
         return Result(False, "spec_hash mismatch: plan compiled against different SPEC.md")
+    if evidence_sha256 is not None and meta.get("evidence_hash") != f"sha256:{evidence_sha256}":
+        return Result(False, "evidence_hash mismatch: plan compiled against different EVIDENCE_MANIFEST.yaml")
     if not _SHA256_FMT.match(str(meta.get("evidence_hash", ""))):
         return Result(False, "evidence_hash must be sha256:<64hex> (manifest match arrives W2)")
     if repo_root:
@@ -510,6 +618,11 @@ def validate_vnext_plan(text, plan_doc=None, repo_root=None, spec_sha256=None) -
                 for name in names or []:
                     if name not in content:
                         return Result(False, f"{t['id']}: symbol not found: {name} in {path}")
+    if spec_text:
+        plan_body = "\n".join(t["section_text"] for t in tasks)
+        missing_ac = sorted(ac for ac in _ac_ids(spec_text) if ac not in plan_body)
+        if missing_ac:
+            return Result(False, f"acceptance criteria missing from plan tasks: {', '.join(missing_ac)}")
     # acyclic — tái dụng thuật toán contract.py qua cấu trúc nodes tối giản
     indeg = {i: 0 for i in ids}
     for t in tasks:

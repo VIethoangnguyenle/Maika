@@ -5,7 +5,7 @@ from cli.commands.status import run_status
 
 def test_status_reads_skills_from_agents_root(tmp_path, capsys):
     root = tmp_path / ".agents"
-    (root / "skills" / "requirement-analyst").mkdir(parents=True)
+    (root / "skills" / "intent-analysis").mkdir(parents=True)
     (root / "workflows").mkdir(parents=True)
     (root / "workflows" / "task.md").write_text("# task\n", encoding="utf-8")
     (root / "knowledge" / "active").mkdir(parents=True)
@@ -29,7 +29,7 @@ def test_status_reads_skills_from_agents_root(tmp_path, capsys):
 
     out = capsys.readouterr().out
     assert "Platform:  antigravity" in out
-    assert "requirement-analyst" in out
+    assert "intent-analysis" in out
     assert "/task" in out
     assert "Author DNA: approved" in out
 

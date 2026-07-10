@@ -14,7 +14,7 @@ def _interactive(
     """Drive the interactive init/update prompts: the questionary wrappers return
     canned selections, and the remaining input() calls (UA dir, scaffold confirm)
     come from `inputs` (reconfigure has no confirm, so pass inputs=()). Default
-    mcps include codebase-memory-mcp so the codebase-explorer skill is scaffolded."""
+    mcps include codebase-memory-mcp so the grounding-explorer skill is scaffolded."""
     from cli.platforms import get_platform
 
     singles = iter([get_platform(platform_key).display_name, language])
@@ -33,7 +33,7 @@ def test_update_uses_resolved_framework_root(tmp_path, maika_root, monkeypatch):
     _interactive(monkeypatch, "antigravity")
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
-    skill = target / ".agents" / "skills" / "codebase-explorer" / "SKILL.md"
+    skill = target / ".agents" / "skills" / "grounding-explorer" / "SKILL.md"
     skill.write_text("tampered\n", encoding="utf-8")
 
     run_update(target_dir=str(target), maika_root=str(maika_root))
@@ -61,7 +61,7 @@ def test_reconfigure_to_claude_writes_claude_root_and_warns_about_legacy_maika(
     run_update(target_dir=str(target), maika_root=str(maika_root), reconfigure=True)
 
     assert (target / ".claude" / "resolved-config.yaml").exists()
-    assert (target / ".claude" / "skills" / "requirement-analyst" / "SKILL.md").exists()
+    assert (target / ".claude" / "skills" / "intent-analysis" / "SKILL.md").exists()
     assert (target / ".maika").exists()
     assert "legacy .maika" in capsys.readouterr().out
 

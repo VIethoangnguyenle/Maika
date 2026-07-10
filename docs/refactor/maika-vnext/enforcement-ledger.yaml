@@ -236,14 +236,48 @@ entries:
   - id: PROP-002
     mechanism: exploration-evidence
     type: gate
-    status: proposed
+    status: active
+    failure:
+      classification: external_requirement
+      reference: vNext master plan §7, §19, W2
+      summary: Standard and architectural changes require three-lens grounding and evidence.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_reasoning_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/orchestrator.py]
     scheduled_wave: W2
     reviewed_at: 2026-07-10
 
   - id: PROP-003
     mechanism: spec
     type: gate
-    status: proposed
+    status: active
+    failure:
+      classification: external_requirement
+      reference: vNext master plan §12, §19, W2
+      summary: SPEC.md must satisfy the class-aware contract before planning.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_reasoning_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/orchestrator.py]
+    scheduled_wave: W2
+    reviewed_at: 2026-07-10
+
+  - id: PROP-010
+    mechanism: intent
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: vNext master plan §3, §5, W2
+      summary: Standard and architectural work needs recorded intent before grounding.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_reasoning_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/orchestrator.py]
     scheduled_wave: W2
     reviewed_at: 2026-07-10
 

@@ -27,7 +27,7 @@ def _interactive(
     """Drive the interactive init/update prompts: the questionary wrappers return
     canned selections, and the remaining input() calls (UA dir, scaffold confirm)
     come from `inputs`. Default mcps include codebase-memory-mcp so the
-    code_exploration capability (and the codebase-explorer skill) is scaffolded."""
+    code_exploration capability (and the grounding-explorer skill) is scaffolded."""
     from cli.platforms import get_platform
 
     singles = iter([get_platform(platform_key).display_name, language])
@@ -247,7 +247,7 @@ def test_init_antigravity_uses_agents_as_only_framework_root(tmp_path, maika_roo
     assert not (target / ".maika").exists()
     assert (target / ".agents" / "resolved-config.yaml").exists()
     assert (target / ".agents" / "rules" / "RULES.md").exists()
-    assert (target / ".agents" / "skills" / "requirement-analyst" / "SKILL.md").exists()
+    assert (target / ".agents" / "skills" / "intent-analysis" / "SKILL.md").exists()
     assert (target / ".agents" / "knowledge" / "long-term" / "author-dna.yaml").exists()
     assert (target / ".agents" / "knowledge" / "long-term" / "knowledge-index.yaml").exists()
     assert (target / "AGENTS.md").exists()
@@ -261,7 +261,7 @@ def test_init_codex_uses_agents_as_only_framework_root(tmp_path, maika_root, mon
 
     assert not (target / ".maika").exists()
     assert (target / ".agents" / "resolved-config.yaml").exists()
-    assert (target / ".agents" / "skills" / "requirement-analyst" / "SKILL.md").exists()
+    assert (target / ".agents" / "skills" / "intent-analysis" / "SKILL.md").exists()
 
 
 def test_init_claude_uses_claude_as_only_framework_root(tmp_path, maika_root, monkeypatch):
@@ -273,7 +273,7 @@ def test_init_claude_uses_claude_as_only_framework_root(tmp_path, maika_root, mo
     assert not (target / ".maika").exists()
     assert (target / ".claude" / "resolved-config.yaml").exists()
     assert (target / ".claude" / "rules" / "RULES.md").exists()
-    assert (target / ".claude" / "skills" / "requirement-analyst" / "SKILL.md").exists()
+    assert (target / ".claude" / "skills" / "intent-analysis" / "SKILL.md").exists()
     assert (target / "CLAUDE.md").exists()
 
 
@@ -284,7 +284,7 @@ def test_init_generic_keeps_maika_framework_root(tmp_path, maika_root, monkeypat
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
     assert (target / ".maika" / "resolved-config.yaml").exists()
-    assert (target / ".maika" / "skills" / "requirement-analyst" / "SKILL.md").exists()
+    assert (target / ".maika" / "skills" / "intent-analysis" / "SKILL.md").exists()
     assert not (target / ".agents").exists()
     assert not (target / ".claude" / "skills").exists()
 

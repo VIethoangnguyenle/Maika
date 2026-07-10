@@ -50,8 +50,8 @@ def test_has_capability_recognizes_memory(maika_root):
 
 
 def test_resolve_source_path_maps_skills(maika_root):
-    p = resolve_source_path(maika_root, "skills/codebase-explorer/")
-    assert p == maika_root / ".maika/skills/codebase-explorer/"
+    p = resolve_source_path(maika_root, "skills/grounding-explorer/")
+    assert p == maika_root / ".maika/skills/grounding-explorer/"
 
 
 def test_resolve_source_path_maps_meta_prompt(maika_root):
@@ -334,15 +334,15 @@ from cli.scaffold import export_as_flat_command
 def test_export_as_flat_command_strips_frontmatter_and_inlines_pre_conditions():
     skill_md = (
         "---\n"
-        "name: requirement-analyst\n"
-        "description: Standardize tickets into REQUIREMENT.md.\n"
+        "name: intent-analysis\n"
+        "description: Classify requests into canonical change intent.\n"
         "pre_conditions:\n"
         "  - file: .maika/knowledge/active/AGENT_TRANSPARENCY.md\n"
         "    condition: exists\n"
         "    on_fail: \"ABORT - bootstrap hasn't run\"\n"
         "---\n"
         "\n"
-        "# Requirement Analyst\n"
+        "# Intent Analysis\n"
         "\n"
         "Body content here.\n"
     )
@@ -351,8 +351,8 @@ def test_export_as_flat_command_strips_frontmatter_and_inlines_pre_conditions():
 
     assert not output.startswith("---")
     assert "name:" not in output
-    assert "# requirement-analyst" in output
-    assert "Standardize tickets into REQUIREMENT.md." in output
+    assert "# intent-analysis" in output
+    assert "Classify requests into canonical change intent." in output
     assert "ABORT - bootstrap hasn't run" in output
     assert "Body content here." in output
 
@@ -384,8 +384,8 @@ class _FakePlatform:
 
 
 def test_scaffold_native_skill_exports_noop_when_unsupported(tmp_path):
-    plugins = [{"name": "requirement-analyst", "type": "skill", "copy_dir": True,
-                "output": ".maika/skills/requirement-analyst/"}]
+    plugins = [{"name": "intent-analysis", "type": "skill", "copy_dir": True,
+                "output": ".maika/skills/intent-analysis/"}]
     platform = _FakePlatform(None)
 
     stats = scaffold_native_skill_exports(plugins, tmp_path, platform, verbose=False)
@@ -394,19 +394,19 @@ def test_scaffold_native_skill_exports_noop_when_unsupported(tmp_path):
 
 
 def test_scaffold_native_skill_exports_mirrors_skill_verbatim(tmp_path):
-    skill_dir = tmp_path / ".maika" / "skills" / "requirement-analyst"
+    skill_dir = tmp_path / ".maika" / "skills" / "intent-analysis"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(
-        "---\nname: requirement-analyst\ndescription: Standardize tickets.\n---\n\nBody.\n",
+        "---\nname: intent-analysis\ndescription: Classify intent.\n---\n\nBody.\n",
         encoding="utf-8",
     )
-    plugins = [{"name": "requirement-analyst", "type": "skill", "copy_dir": True,
-                "output": ".maika/skills/requirement-analyst/"}]
+    plugins = [{"name": "intent-analysis", "type": "skill", "copy_dir": True,
+                "output": ".maika/skills/intent-analysis/"}]
     platform = _FakePlatform({"dir": ".claude/skills", "strip_frontmatter": False, "flatten": False})
 
     stats = scaffold_native_skill_exports(plugins, tmp_path, platform, verbose=False)
 
-    target = tmp_path / ".claude" / "skills" / "requirement-analyst" / "SKILL.md"
+    target = tmp_path / ".claude" / "skills" / "intent-analysis" / "SKILL.md"
     assert target.exists()
     assert target.read_text(encoding="utf-8") == (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     assert stats == {"exported": 1, "skipped": 0}
@@ -431,22 +431,22 @@ def test_scaffold_native_skill_exports_inserts_name_for_workflow(tmp_path):
 
 
 def test_scaffold_native_skill_exports_flattens_and_strips_for_cursor(tmp_path):
-    skill_dir = tmp_path / ".maika" / "skills" / "requirement-analyst"
+    skill_dir = tmp_path / ".maika" / "skills" / "intent-analysis"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(
-        "---\nname: requirement-analyst\ndescription: Standardize tickets.\n---\n\nBody.\n",
+        "---\nname: intent-analysis\ndescription: Classify intent.\n---\n\nBody.\n",
         encoding="utf-8",
     )
-    plugins = [{"name": "requirement-analyst", "type": "skill", "copy_dir": True,
-                "output": ".maika/skills/requirement-analyst/"}]
+    plugins = [{"name": "intent-analysis", "type": "skill", "copy_dir": True,
+                "output": ".maika/skills/intent-analysis/"}]
     platform = _FakePlatform({"dir": ".cursor/commands", "strip_frontmatter": True, "flatten": True})
 
     scaffold_native_skill_exports(plugins, tmp_path, platform, verbose=False)
 
-    target = tmp_path / ".cursor" / "commands" / "requirement-analyst.md"
+    target = tmp_path / ".cursor" / "commands" / "intent-analysis.md"
     content = target.read_text(encoding="utf-8")
     assert not content.startswith("---")
-    assert "Standardize tickets." in content
+    assert "Classify intent." in content
     assert "Body." in content
 
 

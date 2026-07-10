@@ -2,47 +2,58 @@
 name: writing-plan
 version: '1.0'
 description: >
-  Sinh IMPLEMENTATION_PLAN.md code-level cho một change vNext: frontmatter máy-đọc
-  (base_commit, spec_hash, evidence_hash), mỗi task một section TASK-NNN với
-  implementation_mode exact|guided|intent, files/symbols/anchors, TDD steps, commands
-  + expected. Dùng khi: SPEC.md đã được duyệt và change ở state PLANNING (mọi class).
-  KHÔNG dùng cho: brainstorm (W2), review plan (planning_dispatch đảm nhiệm),
-  task legacy OpenSpec.
+  Write Maika vNext IMPLEMENTATION_PLAN.md from an approved SPEC.md and evidence
+  manifest, producing deterministic task sections with exact files, anchors,
+  tests, commands, expected results, and write scope.
 ---
 
-## Mục tiêu
-Blueprint thực thi được: mọi task tự chứa, verbatim-compilable, đủ evidence.
+# Writing Plan
 
-## Khi nào sử dụng
-SPEC.md đã được duyệt và change ở state PLANNING (mọi class).
+## Purpose
+Create the execution source of truth for a change.
 
-## Khi nào KHÔNG sử dụng
-brainstorm (W2), review plan (planning_dispatch đảm nhiệm), task legacy OpenSpec.
-
-## Quy trình
-Duyệt SPEC.md, tạo plan.
-
+## Triggers
+Use when `SPEC.md` is approved and the change state is `PLANNING`.
 
 ## Inputs
-SPEC.md đã duyệt; codebase hiện tại (capability: exact_source_inspection,
-dependency_analysis, architecture_discovery); conventions (convention_retrieval).
+- `SPEC.md`
+- `exploration/EVIDENCE_MANIFEST.yaml`
+- Current source.
+- Capability IDs: `exact_source_inspection`, `dependency_analysis`,
+  `runtime_verification`.
 
 ## Required outcomes
-IMPLEMENTATION_PLAN.md đúng contract §15: frontmatter đầy đủ; task section
-`### TASK-NNN: <title>` chứa ```yaml task:``` header (id, implementation_mode,
-depends_on, files.create/modify/test, verification.command + expected) + thân
-task TDD từng bước; không dùng placeholder chưa hoàn thiện; line numbers chỉ là hint (anchor > hash > line).
+- `IMPLEMENTATION_PLAN.md` has metadata, global constraints, and `TASK-NNN`
+  sections.
+- Each task declares files, symbols, dependencies, acceptance criteria, test
+  steps, commands, expected failures, expected passes, allowed adaptations, and
+  re-plan triggers.
 
 ## Invariants
-- Mọi file được task đụng phải khai trong files.*; symbol nêu trong plan phải tồn tại
-  ở base_commit (runtime_verification trước khi ghi).
-- Không paraphrase yêu cầu từ SPEC — trích nguyên văn AC vào từng task liên quan.
+- No vague implementation tasks.
+- No unanchored exact code instruction.
+- No undeclared write scope.
+- No placeholder text.
+
+## Evidence requirements
+Every task cites relevant evidence IDs and acceptance criteria. Existing files
+and symbols must be verified against current source before the plan is written.
+
+## Process
+1. Read spec and evidence.
+2. Map acceptance criteria to tasks.
+3. Verify file and symbol anchors.
+4. Write task sections.
+5. Run plan validation.
 
 ## Stop conditions
-Thiếu SPEC duyệt / base_commit bẩn / mâu thuẫn SPEC↔code → dừng, báo NEEDS_CONTEXT.
+- Spec hash or evidence is stale.
+- Required source anchor is missing.
+- A task needs a public-contract or security decision not in the spec.
 
 ## Output contract
-Ghi IMPLEMENTATION_PLAN.md vào workspace change; chuyển state PLANNING→PLAN_REVIEW.
+Write `IMPLEMENTATION_PLAN.md` and return `READY_FOR_PLAN_REVIEW` or
+`NEEDS_CONTEXT`.
 
 ## Next handoff
-planning_dispatch (independent plan review) → gate `plan` → compiler.
+`validating-plan`.
