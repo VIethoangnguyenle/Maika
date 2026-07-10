@@ -287,6 +287,13 @@ def _run_final_review(ws, gates, runner):
     )
     if not final.ok:
         return {"status": "blocked", "reason": final.reason}
+    # W5: the final review must report whole-change knowledge impact.
+    ki_path = Path(ws) / "reviews" / "KNOWLEDGE_IMPACT.yaml"
+    if not ki_path.exists():
+        return {"status": "blocked", "reason": "final review missing reviews/KNOWLEDGE_IMPACT.yaml"}
+    ki = gates.validate_knowledge_impact(ki_path.read_text(encoding="utf-8"))
+    if not ki.ok:
+        return {"status": "blocked", "reason": ki.reason}
     return {"status": "done"}
 
 

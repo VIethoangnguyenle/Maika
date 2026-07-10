@@ -74,15 +74,41 @@ def test_deleted_files_mismatch_fails():
 
 
 def test_task_review_contract_passes():
-    review = "TASK_ID: TASK-001\nVERDICT: APPROVED\n"
+    review = ("TASK_ID: TASK-001\nVERDICT: APPROVED\n\n"
+              "## Counter-evidence\n- src/a.py:10 — behavior confirmed in source\n")
     res = gates.validate_task_review(review, queue_doc=QUEUE_DOC, task_id="TASK-001")
     assert res.ok
+
+
+def test_task_review_approved_requires_counter_evidence():
+    review = "TASK_ID: TASK-001\nVERDICT: APPROVED\n"
+    res = gates.validate_task_review(review, queue_doc=QUEUE_DOC, task_id="TASK-001")
+    assert not res.ok and "Counter-evidence" in res.reason
 
 
 def test_task_review_requires_known_verdict():
     review = "TASK_ID: TASK-001\nVERDICT: LOOKS_FINE\n"
     res = gates.validate_task_review(review, queue_doc=QUEUE_DOC, task_id="TASK-001")
     assert not res.ok and "verdict" in res.reason
+
+
+def test_knowledge_impact_valid():
+    doc = ("stale_entries: [ARCH-004]\nsuperseded_decisions: []\nnew_candidates: []\n"
+           "graph_refresh_required: true\nmemory_updates: [save incident lesson]\n")
+    assert gates.validate_knowledge_impact(doc).ok
+
+
+def test_knowledge_impact_missing_lane_fails():
+    doc = "stale_entries: []\nsuperseded_decisions: []\ngraph_refresh_required: false\n"
+    res = gates.validate_knowledge_impact(doc)
+    assert not res.ok and "missing lanes" in res.reason
+
+
+def test_knowledge_impact_graph_refresh_must_be_bool():
+    doc = ("stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
+           "graph_refresh_required: maybe\nmemory_updates: []\n")
+    res = gates.validate_knowledge_impact(doc)
+    assert not res.ok and "boolean" in res.reason
 
 
 def test_final_review_requires_reviewed_tasks():

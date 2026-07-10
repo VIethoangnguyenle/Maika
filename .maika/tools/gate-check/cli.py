@@ -38,6 +38,7 @@ VALIDATORS = {
     "result-contract": "validate_result_contract",
     "task-review": "validate_task_review",
     "final-review": "validate_final_review",
+    "knowledge-impact": "validate_knowledge_impact",
 }
 
 

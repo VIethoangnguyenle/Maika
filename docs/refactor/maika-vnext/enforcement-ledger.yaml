@@ -616,6 +616,38 @@ entries:
     scope: {change_classes: [standard, architectural]}
     reviewed_at: 2026-07-10
 
+  - id: KN-009
+    mechanism: task-review-counter-evidence
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §8.10 (P9)
+      summary: Task review APPROVED phải có section Counter-evidence với source anchor độc lập.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_result_gate.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/vnext_dispatch.py, .maika/skills/reviewing-task/SKILL.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-010
+    mechanism: knowledge-impact
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §8.11, §11 (final-review)
+      summary: Final review phải phát KNOWLEDGE_IMPACT.yaml đủ lane (stale/superseded/new/graph_refresh/memory).
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_result_gate.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py, .maika/tools/microloop-orchestrator/vnext_dispatch.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/skills/reviewing-change/SKILL.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
 
   # ---- deferred: hoãn có điều kiện kích hoạt (traceability doc §Deferred) ----
   - id: DEF-001

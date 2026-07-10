@@ -112,11 +112,17 @@ def _runner_for_w3(ws, calls, *, first_review="APPROVED"):
             )
         elif dispatch_type == "task_review":
             verdict = review_verdicts.pop(0) if review_verdicts else "APPROVED"
-            output.write_text(
-                f"TASK_ID: {task_id}\nVERDICT: {verdict}\n", encoding="utf-8"
-            )
+            body = f"TASK_ID: {task_id}\nVERDICT: {verdict}\n"
+            if verdict == "APPROVED":
+                body += "\n## Counter-evidence\n- src/b.py:1 — behavior confirmed in current source\n"
+            output.write_text(body, encoding="utf-8")
         elif dispatch_type == "final_review":
             output.write_text("VERDICT: APPROVED\n", encoding="utf-8")
+            (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
+                "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
+                "graph_refresh_required: false\nmemory_updates: []\n",
+                encoding="utf-8",
+            )
         return 0, "ok"
 
     return runner
@@ -179,12 +185,18 @@ verification:
                 encoding="utf-8",
             )
         elif dispatch_type == "task_review":
-            output.write_text(
-                f"TASK_ID: {task_id}\nVERDICT: {review_verdicts.pop(0)}\n",
-                encoding="utf-8",
-            )
+            verdict = review_verdicts.pop(0)
+            body = f"TASK_ID: {task_id}\nVERDICT: {verdict}\n"
+            if verdict == "APPROVED":
+                body += "\n## Counter-evidence\n- src/b.py:1 — confirmed in source\n"
+            output.write_text(body, encoding="utf-8")
         elif dispatch_type == "final_review":
             output.write_text("VERDICT: APPROVED\n", encoding="utf-8")
+            (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
+                "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
+                "graph_refresh_required: false\nmemory_updates: []\n",
+                encoding="utf-8",
+            )
         return 0, "ok"
 
     out = vd.run_queue(ws, root, runner, max_retries=1)
@@ -227,9 +239,18 @@ verification:
         output = Path(markers["OUTPUT_FILE"])
         output.parent.mkdir(parents=True, exist_ok=True)
         if markers["DISPATCH_TYPE"] == "task_review":
-            output.write_text("TASK_ID: TASK-001\nVERDICT: APPROVED\n", encoding="utf-8")
+            output.write_text(
+                "TASK_ID: TASK-001\nVERDICT: APPROVED\n\n"
+                "## Counter-evidence\n- src/b.py:1 — confirmed in source\n",
+                encoding="utf-8",
+            )
         elif markers["DISPATCH_TYPE"] == "final_review":
             output.write_text("VERDICT: APPROVED\n", encoding="utf-8")
+            (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
+                "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
+                "graph_refresh_required: false\nmemory_updates: []\n",
+                encoding="utf-8",
+            )
         return 0, "ok"
 
     out = vd.run_queue(ws, root, runner, max_retries=1)

@@ -734,6 +734,31 @@ def validate_task_review(text: str, queue_doc=None, task_id=None) -> Result:
     verdict = _field_value(text, "VERDICT")
     if verdict not in {"APPROVED", "CHANGES_REQUIRED"}:
         return Result(False, "review verdict must be APPROVED or CHANGES_REQUIRED")
+    if verdict == "APPROVED":
+        # W5: an APPROVED review must show independent counter-evidence — the
+        # reviewer anchored at least one material behavior in current source.
+        counter = _section_text(text, "Counter-evidence")
+        if not _FILE_PATH.search(counter):
+            return Result(False, "APPROVED task review requires a Counter-evidence section with a source anchor")
+    return Result(True)
+
+
+def validate_knowledge_impact(text) -> Result:
+    """Gate `knowledge-impact` — the whole-change review must report knowledge
+    impact: every required lane must be present (empty list = considered, none)."""
+    try:
+        doc = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        return Result(False, f"KNOWLEDGE_IMPACT.yaml is not valid YAML: {exc}")
+    if not isinstance(doc, dict):
+        return Result(False, "KNOWLEDGE_IMPACT.yaml must be a mapping")
+    required = ("stale_entries", "superseded_decisions", "new_candidates",
+                "graph_refresh_required", "memory_updates")
+    missing = [k for k in required if k not in doc]
+    if missing:
+        return Result(False, f"KNOWLEDGE_IMPACT.yaml missing lanes: {', '.join(missing)}")
+    if not isinstance(doc.get("graph_refresh_required"), bool):
+        return Result(False, "graph_refresh_required must be a boolean")
     return Result(True)
 
 
