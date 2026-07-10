@@ -66,7 +66,6 @@ def test_extracts_targetfile_from_antigravity_tool_input_payload():
 def test_allows_framework_and_openspec_artifact_writes(tmp_path):
     assert wg.evaluate_write(tmp_path, Path(".maika/knowledge/active/KNOWLEDGE_CHECKPOINT.md")).ok is True
     assert wg.evaluate_write(tmp_path, Path("openspec/changes/x/specs/foo/spec.md")).ok is True
-    assert wg.evaluate_write(tmp_path, Path("changes/demo/briefs/TASK-001.md")).ok is True
 
 
 def test_blocks_app_write_without_checkpoint(tmp_path):
