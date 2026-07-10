@@ -24,10 +24,10 @@ Một platform / target / variant không **chọn được** qua đường ngư�
 
 ## R3 — Xây cho lỗi đã quan sát, không cho lỗi giả định
 
-Enforcement mới (gate / hook / rule / validator) chỉ được thêm khi có **một bypass đã log** hoặc **một litmus tái hiện được** lỗi đó. Không dựng cơ chế cho rủi ro chưa từng thấy fail.
+Enforcement mới (gate / hook / rule / validator) chỉ được thêm khi có **một bypass đã log**, **một litmus tái hiện được** lỗi đó, **một yêu cầu bên ngoài bắt buộc** (external requirement), hoặc khi nó **bảo vệ safety / destructive-action boundary** (write boundary không chờ sự cố production). Không dựng cơ chế cho rủi ro chưa từng thấy fail.
 
-- **Vì sao:** suýt xây hook+capability+bridge để enforce `pre_conditions` runtime cho một lỗi chưa có fixture nào chứng minh — trong khi litmus P1.1 (thứ sinh bằng chứng thật) đang hoãn.
-- **Cách kiểm:** PR thêm enforcement phải link tới fixture/litmus tái hiện lỗi. Không có ⇒ defer.
+- **Vì sao:** suýt xây hook+capability+bridge để enforce `pre_conditions` runtime cho một lỗi chưa có fixture nào chứng minh — trong khi litmus P1.1 (thứ sinh bằng chứng thật) đang hoãn. Hai ngoại lệ `external_requirement`/`safety_boundary` chuẩn hóa theo enforcement ledger của vNext (Master Plan v2 §5); safety boundary có tiền lệ write-gate.
+- **Cách kiểm:** PR thêm enforcement phải link tới entry trong `docs/refactor/maika-vnext/enforcement-ledger.yaml` có evidence classification hợp lệ (`observed_failure` / `reproducible_litmus` / `external_requirement` / `safety_boundary`). Không có ⇒ defer.
 
 ## R4 — Kiểm trigger/cơ chế có thật trước khi thiết kế lên nó
 
@@ -63,7 +63,7 @@ Thêm file / flag / abstraction phải **biện minh được so với việc x�
 
 - [ ] Mọi field/flag/target mới có consumer cơ học trong cùng PR (R1)
 - [ ] Không file platform/variant nào ngoài registry (R2)
-- [ ] Enforcement mới có fixture/litmus tái hiện lỗi (R3)
+- [ ] Enforcement mới có ledger entry với evidence classification hợp lệ (R3)
 - [ ] Trigger/cơ chế đã verify tồn tại trên mọi platform claim (R4)
 - [ ] Đã check chốt chặn cũ trước khi thêm chốt mới (R5)
 - [ ] Doc/memory bị ghi đè đã đóng dấu superseded (R6)
