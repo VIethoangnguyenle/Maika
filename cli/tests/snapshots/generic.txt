@@ -150,6 +150,7 @@
 .maika/tools/microloop-orchestrator/tiers/fresh_session.py
 .maika/tools/microloop-orchestrator/tiers/inline_reload.py
 .maika/tools/microloop-orchestrator/tiers/subagent.py
+.maika/tools/microloop-orchestrator/vnext_state.py
 .maika/tools/rule-projector/
 .maika/tools/rule-projector/README.md
 .maika/tools/rule-projector/__init__.py

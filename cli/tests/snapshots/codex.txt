@@ -161,6 +161,7 @@
 .agents/tools/microloop-orchestrator/tiers/fresh_session.py
 .agents/tools/microloop-orchestrator/tiers/inline_reload.py
 .agents/tools/microloop-orchestrator/tiers/subagent.py
+.agents/tools/microloop-orchestrator/vnext_state.py
 .agents/tools/rule-projector/
 .agents/tools/rule-projector/README.md
 .agents/tools/rule-projector/__init__.py
