@@ -246,10 +246,14 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 Master Plan v2 §5 (ledger), §26 W0 (matrix, maps). These tests ARE the
 consumers that make the four YAML deliverables legal to exist.
+
+Snapshot vs registry (v2 §26 W0): the consumer map and skill migration map
+are BASELINE SNAPSHOTS pinned to the W0 baseline commit — validated here for
+schema + internal consistency only, NEVER compared against the current tree.
+The ledger and capability matrix are living registries.
 """
 from pathlib import Path
 
-import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -275,6 +279,7 @@ def _load(name: str) -> dict:
 def test_consumer_map_schema():
     data = _load("artifact-consumer-map.yaml")
     assert data["version"] == 1
+    assert data.get("baseline_commit"), "snapshot must pin its baseline commit"
     artifacts = data["artifacts"]
     assert artifacts, "consumer map must not be empty"
     for name, entry in artifacts.items():
@@ -287,20 +292,24 @@ def test_consumer_map_schema():
 def test_skill_migration_map_schema():
     data = _load("skill-migration-map.yaml")
     assert data["version"] == 1
-    entries = {e["skill"]: e for e in data["skills"]}
-    on_disk = {
-        p.name
-        for p in (ROOT / ".maika" / "skills").iterdir()
-        if p.is_dir()
-    }
-    assert set(entries) == on_disk, (
-        f"map vs disk mismatch: only-in-map={set(entries) - on_disk} "
-        f"only-on-disk={on_disk - set(entries)}"
-    )
-    for name, e in entries.items():
-        assert e["classification"] in MIGRATION_CLASSES, name
+    assert data.get("baseline_commit"), "snapshot must pin its baseline commit"
+    skills = data["skills"]
+    names = [e["skill"] for e in skills]
+    assert len(names) == len(set(names)), "duplicate skill entries"
+    cov = data["coverage"]
+    assert cov["mapped_skill_count"] == len(skills)
+    assert cov["expected_skill_count"] == cov["mapped_skill_count"]
+    assert cov["status"] == "complete"
+    for e in skills:
+        assert e["classification"] in MIGRATION_CLASSES, e["skill"]
         if e["classification"] in {"deprecate", "delete"}:
-            assert "consumers" in e, f"{name}: deletion requires consumer evidence"
+            assert "consumers" in e, (
+                f"{e['skill']}: deletion requires consumer evidence"
+            )
+        if e["classification"] in {"merge", "rewrite"}:
+            assert e.get("target"), (
+                f"{e['skill']}: {e['classification']} requires a target"
+            )
 
 
 def test_enforcement_ledger_schema():
@@ -391,6 +400,7 @@ grep -rn 'TASK_QUEUE' .maika cli --include='*.py' --include='*.md' -l
 
 ```yaml
 version: 1
+baseline_commit: <sha main từ Task 1>   # snapshot W0 — CI không so với tree hiện tại
 
 artifacts:
   TASK_QUEUE.md:
@@ -423,7 +433,9 @@ git commit -m "docs(vnext-w0): artifact producer->consumer map
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
 
----### Task 6: skill-migration-map.yaml + tool-coupling-report.md
+---
+
+### Task 6: skill-migration-map.yaml + tool-coupling-report.md
 
 **Files:**
 - Create: `docs/refactor/maika-vnext/skill-migration-map.yaml`
@@ -436,13 +448,19 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - [ ] **Step 1: Xây migration map từ disk + consumer thật**
 
 ```bash
-ls -d .maika/skills/*/            # 14 dir — map phải khớp 1-1 (test enforce)
+ls -d .maika/skills/*/            # đếm skill tại baseline → coverage.expected_skill_count
 grep -rn '<tên-skill>' .maika/workflows .maika/rules .maika/procedures cli/plugin-manifest.yaml -l
 # lặp cho từng skill để điền consumers
 ```
 
 ```yaml
 version: 1
+baseline_commit: <sha main từ Task 1>   # snapshot W0 — CI không so với tree hiện tại
+
+coverage:
+  expected_skill_count: <số dir từ lệnh ls trên>
+  mapped_skill_count: <đúng bằng len(skills) bên dưới>
+  status: complete
 
 skills:
   - skill: codebase-explorer
@@ -458,13 +476,16 @@ skills:
   # ... đủ 14 skill; classification theo v2 §25, lệch phải ghi note lý do
 ```
 
-- [ ] **Step 2: Chạy test**
+- [ ] **Step 2: So khớp disk ↔ map (audit MỘT LẦN của W0, không phải CI) rồi chạy test**
 
 ```bash
+# One-time audit: baseline disk vs map — kết quả ghi vào coverage + audit §3.2
+diff <(ls -d .maika/skills/*/ | xargs -n1 basename | sort) \
+     <(/usr/bin/python3 -c "import yaml; [print(s) for s in sorted(e['skill'] for e in yaml.safe_load(open('docs/refactor/maika-vnext/skill-migration-map.yaml'))['skills'])]")
 /usr/bin/python3 -m pytest cli/tests/test_vnext_w0_artifacts.py::test_skill_migration_map_schema -v
 ```
 
-Expected: PASS (map khớp 1-1 với disk).
+Expected: diff rỗng (lệch → sửa map + cập nhật coverage counts, chạy lại); pytest PASS. Ghi kết quả so khớp vào audit §3.2. **CI vĩnh viễn chỉ validate schema + nhất quán nội bộ của snapshot — không bao giờ so với tree hiện tại** (W1/W2 sẽ thêm/đổi tên skill mà không phá CI).
 
 - [ ] **Step 3: Quét coupling cho report**
 
@@ -589,6 +610,10 @@ entries:
   # ... PROP-002..009 cho: exploration-evidence (W2), spec (W2), plan (W1),
   # brief-integrity (W1), result-contract (W1), task-review (W2),
   # final-review (W3), archive-readiness (W6) — scheduled_wave theo v2 §26.
+  # LƯU Ý (v2 §5): proposed = scheduling record, KHÔNG phải giấy phép implement.
+  # Tại wave của nó, mechanism vẫn phải bổ sung evidence classification hợp lệ
+  # (observed_failure / reproducible_litmus / external_requirement / safety_boundary)
+  # trước khi viết code. Trường `litmus` là optional — bỏ hẳn thay vì để field rỗng.
 
   # ---- deferred: hoãn có điều kiện kích hoạt (traceability doc §Deferred) ----
   - id: DEF-001
@@ -695,7 +720,7 @@ platforms:
     # đủ 5 mechanism; ghi rõ ràng buộc version (hooks chỉ fire từ 2.0.1 + Tools v4.3.5)
 ```
 
-Row nào không xác minh nổi → `supported: false` + evidence là lệnh/lý do đã thử. **Không được để trống evidence** (test enforce).
+Row nào không xác minh nổi → `supported: false` + **negative evidence** (lệnh đã thử + output thật + limitation cụ thể) — tuyệt đối không bịa positive evidence. `model_selection: supported: false` **không chặn W1** — chỉ giới hạn model-tier thành single-tier degradation (v2 §18.6). **Không được để trống evidence** (test enforce). Matrix (cùng với ledger) là living registry, cập nhật qua các wave — khác với 2 map snapshot.
 
 - [ ] **Step 3: Chạy test — toàn bộ module phải xanh**
 
@@ -812,10 +837,15 @@ Expected: PR mở; user duyệt audit → W0 exit.
 - Consumes: v2 §5 note về ngoại lệ R3.
 - Produces: PR độc lập sửa R3, để user quyết tách biệt.
 
-- [ ] **Step 1: Tạo branch từ main**
+- [ ] **Step 1: Kiểm precondition merge-order rồi mới tạo branch**
+
+Task này chỉ chạy **sau khi PR W0 (`refactor/maika-vnext`) đã merge vào `main`** — rule sửa đổi tham chiếu `docs/refactor/maika-vnext/enforcement-ledger.yaml`, file chưa tồn tại trên `main` trước đó. Hai PR **không** merge-order independent; không mở PR này song song.
 
 ```bash
-git checkout main && git checkout -b docs/r3-amendment
+git checkout main && git pull
+test -f docs/refactor/maika-vnext/enforcement-ledger.yaml \
+  || { echo "BLOCKED: W0 chưa merge — dừng Task 11"; exit 1; }
+git checkout -b docs/r3-amendment
 ```
 
 - [ ] **Step 2: Sửa R3 trong `.maika/DEVELOPMENT_RULES.md`**

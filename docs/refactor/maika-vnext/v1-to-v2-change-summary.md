@@ -170,11 +170,15 @@ decisions:
     status: applied
 
   - id: OPENSPEC
-    decision: OpenSpec importer + removal from default workflow, legacy-read preserved during cutover
-    source_section: Design Spec Rev 2 §7 (W6)
+    decision: OpenSpec importer; W6 removes OpenSpec from the vNext path only (legacy
+      path keeps OpenSpec and remains the default engine); the W7 default switch removes
+      OpenSpec from the default execution path; physical deletion only after the
+      compatibility window and consumer-map verification
+    source_section: Design Spec Rev 2 §7 (W6) + PR #39 review correction 2
     v2_sections:
-      - "§24"
+      - "§24 (incl. Timeline)"
       - "§26 W6"
+      - "§26 W7 scope 4"
     status: applied
 
   - id: GATES-9
@@ -184,6 +188,7 @@ decisions:
     v2_sections:
       - "§16 (checks inside plan gate)"
       - "§22 Enforcement architecture"
+      - "§22 Gate applicability by change class"
     status: applied
 
   - id: STATES-14
@@ -261,6 +266,65 @@ decisions:
       - "§2 Non-goals (items 12–15)"
       - "§26 wave preconditions/deferred fields"
       - "§30 criteria 23–24"
+    status: applied
+```
+
+## PR #39 review corrections (2026-07-10)
+
+Focused correction pass sau review; không mở lại kiến trúc.
+
+```yaml
+corrections:
+  - id: REV-1-W0-SNAPSHOT
+    decision: W0 maps là baseline snapshot (baseline_commit + coverage block); CI vĩnh viễn
+      chỉ validate schema + nhất quán nội bộ; so khớp disk là bước audit một lần của W0.
+      Ledger + capability matrix là living registries có chủ đích.
+    applied_to: ["Master Plan §26 W0 (Snapshot vs registry)", "W0 plan Task 4/5/6"]
+    status: applied
+
+  - id: REV-2-W6W7-OPENSPEC
+    decision: W6 gỡ OpenSpec khỏi vNext path, legacy path giữ OpenSpec và vẫn là default;
+      W7 default switch mới gỡ OpenSpec khỏi default execution path; xóa vật lý sau
+      compatibility window + consumer-map verification.
+    applied_to: ["Master Plan §24 Timeline", "§26 W6 objective/scope 5/exit", "§26 W7 scope 4"]
+    status: applied
+
+  - id: REV-3-W1-MODEL-OPTIONAL
+    decision: model_selection là optimization, không phải hard dependency của W1;
+      supported=false chỉ giới hạn tier (single-tier degradation), không chặn wave.
+      W1 preconditions đổi thành dispatch/handoff/result/write-gate evidence.
+    applied_to: ["Master Plan §26 W1 preconditions", "§18.6", "W0 plan Task 8"]
+    status: applied
+
+  - id: REV-4-W0-DOCS-PLUS-TESTS
+    decision: W0 = documentation + schema-validation tests, không đổi runtime behavior;
+      rollback boundary revert cả docs lẫn tests; PR #39 tự nó vẫn docs-only.
+    applied_to: ["Master Plan §26 W0 Deferred/Deliverables/Rollback", "PR #39 body"]
+    status: applied
+
+  - id: REV-5-TASK6-HEADING
+    decision: sửa heading `---### Task 6:` hỏng; scan toàn plan xác nhận Task 1–11
+      mỗi task đúng một heading `### Task <n>:`.
+    applied_to: ["W0 plan Task 6"]
+    status: applied
+
+  - id: REV-6-GATE-APPLICABILITY
+    decision: thêm ma trận class-to-gate (9 gates × 4 class); skipped = verdict
+      NOT_APPLICABLE tường minh do gate-check đọc CHANGE.yaml.class, không silent bypass;
+      state transitions của phase bị bỏ được collapse để không deadlock.
+    applied_to: ["Master Plan §22 Gate applicability", "§9 rule mới", "§6 pointer", "§30 criterion 24"]
+    status: applied
+
+  - id: REV-7-R3-MERGE-ORDER
+    decision: PR sửa R3 chỉ tạo SAU khi PR W0 merge (ledger path phải tồn tại trên main);
+      hai PR không merge-order independent.
+    applied_to: ["Master Plan §5 note", "§26 W0 scope 9", "W0 plan Task 11 Step 1"]
+    status: applied
+
+  - id: REV-8-TRACEABILITY-ACCURACY
+    decision: bỏ hard-coded count trong PR body ("26 decisions" → "toàn bộ decisions Rev 2");
+      traceability cập nhật theo mọi correction ở trên.
+    applied_to: ["PR #39 body", "file này"]
     status: applied
 ```
 
