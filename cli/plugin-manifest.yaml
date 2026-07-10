@@ -148,6 +148,13 @@ plugins:
     copy_dir: true
     requires_capability: code_exploration
 
+  - name: database-explorer
+    type: skill
+    source: skills/database-explorer/
+    template: false
+    output: "{{ platform.framework_root }}/skills/database-explorer/"
+    copy_dir: true
+
   - name: architecture-reconciler
     type: skill
     source: skills/architecture-reconciler/

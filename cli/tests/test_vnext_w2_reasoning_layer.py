@@ -11,6 +11,7 @@ SKILLS = ROOT / ".maika" / "skills"
 TARGET_SKILLS = {
     "intent-analysis",
     "grounding-explorer",
+    "database-explorer",
     "architecture-reconciler",
     "grounded-brainstorming",
     "writing-spec",
@@ -26,17 +27,21 @@ TARGET_SKILLS = {
     "infra-tdd",
 }
 
+# Knowledge-native contract headings (kn-w3): supersedes the old English W2 set.
 REQUIRED_HEADINGS = (
-    "Purpose",
-    "Triggers",
-    "Inputs",
-    "Required outcomes",
-    "Invariants",
-    "Evidence requirements",
-    "Process",
-    "Stop conditions",
-    "Output contract",
-    "Next handoff",
+    "Mục tiêu",
+    "Khi nào sử dụng",
+    "Khi nào KHÔNG sử dụng",
+    "Đầu vào",
+    "Câu hỏi tri thức",
+    "Loại evidence bắt buộc",
+    "Chính sách capability",
+    "Quy trình truy xuất",
+    "Kết quả bắt buộc",
+    "Quy trình",
+    "Điều kiện dừng",
+    "Đầu ra",
+    "Handoff tiếp theo",
 )
 
 REMOVED = [

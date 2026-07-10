@@ -1,53 +1,90 @@
 ---
 name: author-dna-builder
-version: '1.0'
+version: '2.0'
 description: >
-  Build and maintain Author DNA for Maika vNext by turning recurring confirmed
-  engineering philosophy into durable guidance used by planning and review.
+  Dùng khi review lặp lại một triết lý kỹ thuật hoặc user xác nhận nguyên tắc định
+  hướng: quản lý candidate lifecycle của Author DNA với confidence, provenance,
+  positive/counterexample, scope, enforcement mapping, supersession và consumer list.
 ---
 
 # Author DNA Builder
 
-## Purpose
-Capture durable author philosophy that affects engineering judgment.
+## Mục tiêu
+Nắm bắt triết lý tác giả bền vững (thinking lens) ảnh hưởng phán đoán kỹ thuật, quản lý
+theo candidate lifecycle với đủ metadata để planning/review áp dụng và enforce.
 
-## Triggers
-Use during onboarding, after repeated review findings, or when the user confirms
-a recurring philosophy that should guide future changes.
+## Khi nào sử dụng
+Dùng khi onboarding, khi review finding lặp lại, hoặc khi user xác nhận một triết lý
+định hướng change tương lai.
 
-## Inputs
-- Existing `knowledge/long-term/author-dna.yaml`.
-- Verified examples from source or reviews.
-- Capability IDs: `exact_source_inspection`, `convention_retrieval`.
+## Khi nào KHÔNG sử dụng
+- Bài học là convention cụ thể (đưa sang convention-intelligence-builder).
+- Preference one-off chưa lặp lại.
 
-## Required outcomes
-- Draft Author DNA entries with scope, intent, enforcement, and evidence.
-- Confirmed entries are marked durable.
-- Rejected hypotheses are recorded when useful.
+## Đầu vào
+- `knowledge/long-term/author-dna.yaml` hiện có.
+- Verified example từ source/review; teaching moment đã confirm.
 
-## Invariants
-- Do not infer philosophy from code alone.
-- Do not duplicate concrete conventions.
-- Do not add one-off preferences.
+## Câu hỏi tri thức
+- Nguyên tắc còn đúng khi bỏ hết tên cụ thể (table/class/method) không? (thinking lens)
+- Có positive example + counterexample từ source không?
+- Nguyên tắc mechanically checkable (map sang enforcement) không?
 
-## Evidence requirements
-Confirmed entries cite user confirmation and at least one source or review
-example when available.
+## Loại evidence bắt buộc
+- `author_dna_rule` (entry hiện có), `exact_code_fact` (positive/counterexample).
+- `review_pattern` (finding lặp lại).
 
-## Process
-1. Collect candidate recurring principles.
-2. Separate philosophy from convention.
-3. Ask for confirmation when needed.
-4. Write or update Author DNA.
-5. Regenerate knowledge index.
+## Chính sách capability
+Capability IDs: `exact_source_inspection`, `convention_retrieval`,
+  `historical_context_retrieval`.
+Không suy diễn triết lý chỉ từ code; cần user confirm.
 
-## Stop conditions
-- The principle is not recurring.
-- The user has not confirmed a philosophy claim.
-- The entry belongs in conventions instead.
+## Quy trình truy xuất
+1. Thu candidate principle từ teaching moment/review lặp lại.
+2. Tách philosophy khỏi convention (bỏ tên cụ thể còn đúng → DNA).
 
-## Output contract
-Write `knowledge/long-term/author-dna.yaml` updates and index changes.
+## Thứ tự authority và precedence
+user confirmation > review pattern lặp lại > source example > inference. DNA chưa
+confirm không được enforce.
 
-## Next handoff
-`convention-intelligence-builder` when concrete conventions are discovered.
+## Kết quả bắt buộc
+Entry Author DNA với: candidate lifecycle (candidate→confirmed→superseded), confidence,
+provenance, positive examples, counterexamples, scope, enforcement mapping (ir_rule nếu
+checkable), supersession, consumer list.
+
+## Bất biến
+- Không suy diễn triết lý chỉ từ code.
+- Không trùng lặp convention cụ thể.
+- Không thêm preference one-off.
+
+## Yêu cầu evidence
+Entry confirmed cite user confirmation + ≥1 source/review example khi có. Entry
+checkable ghi `mechanically_checkable: true` + `check_spec`.
+
+## Freshness và confidence
+Ghi confidence + `source: author-described (<date>)`. Entry cũ bị thay ghi `superseded_by`.
+
+## Quy trình degradation
+Chưa có confirm của user → giữ ở `candidate`, không enforce; ghi WARN để nhắc capture
+sau (R-DNA-7).
+
+## Quy trình
+1. Thu candidate + tách philosophy/convention.
+2. Xin confirm khi cần.
+3. Ghi/cập nhật `author-dna.yaml` (đủ metadata).
+4. Regenerate knowledge index; emit ruleset nếu checkable.
+
+## Điều kiện dừng
+- Nguyên tắc không lặp lại.
+- User chưa confirm claim philosophy.
+- Entry thuộc về conventions.
+
+## Tác động lên knowledge
+Author DNA là judgment layer, consumer là planning/review; enforce qua rule-projector
+khi checkable.
+
+## Đầu ra
+`knowledge/long-term/author-dna.yaml` + thay đổi index.
+
+## Handoff tiếp theo
+`convention-intelligence-builder` khi phát hiện convention cụ thể.

@@ -1,55 +1,87 @@
 ---
 name: reviewing-task
-version: '1.0'
+version: '2.0'
 description: >
-  Review one Maika vNext task result against its immutable brief, changed diff,
-  tests, declared write scope, and structured evidence without modifying
-  application code.
+  Dùng khi một task result qua result-contract gate: review độc lập tìm
+  counter-evidence — kiểm ít nhất một source anchor cho mỗi material behavior,
+  public contract, deleted file, persistence/async/security boundary, incident, convention.
 ---
 
 # Reviewing Task
 
-## Purpose
-Accept or reject one implemented task.
+## Mục tiêu
+Chấp nhận/từ chối một task đã implement bằng cách **tìm counter-evidence độc lập**,
+không tin planner/implementer mù quáng.
 
-## Triggers
-Use after a task result passes the result-contract gate.
+## Khi nào sử dụng
+Dùng sau khi một task result qua `result-contract` gate.
 
-## Inputs
-- `briefs/TASK-NNN.md`
-- `results/TASK-NNN.yaml`
-- Diff package for the task.
-- Capability IDs: `exact_source_inspection`, `runtime_verification`,
-  `review_dispatch`.
+## Khi nào KHÔNG sử dụng
+- Result schema chưa hợp lệ.
+- Để sửa application code (reviewer không sửa code).
 
-## Required outcomes
-- `reviews/TASK-NNN.md` records spec compliance and quality verdicts.
-- Critical and Important findings are actionable.
-- Minor findings are recorded for final review.
+## Đầu vào
+- `briefs/TASK-NNN.md` + capsule, `results/TASK-NNN.yaml`, diff package của task.
 
-## Invariants
-- Reviewers do not modify application code.
-- Do not re-plan silently.
-- Do not approve missing verification evidence.
+## Câu hỏi tri thức
+- Mỗi material behavior có ít nhất một source anchor xác nhận không?
+- Public contract/persistence/async/security boundary có bị chạm không?
+- Incident lịch sử liên quan có tái xuất hiện không?
 
-## Evidence requirements
-Check changed files, deleted files, changed symbols, commands, observed output,
-brief hash, allowed files, and acceptance criteria.
+## Loại evidence bắt buộc
+- `exact_code_fact` (≥1 anchor / material behavior).
+- `incident_reference`, `convention_rule`, `database_object` (nếu persistence).
 
-## Process
-1. Read the brief and result.
-2. Inspect the diff package.
-3. Compare implementation to the task requirements.
-4. Classify findings as CRITICAL, IMPORTANT, MINOR, or NOTE.
-5. Return verdict.
+## Chính sách capability
+Capability IDs: `exact_source_inspection`, `dependency_analysis`,
+  `historical_context_retrieval`, `runtime_verification`, `review_dispatch`.
+Reviewer tự đọc source, không dựa claim của brief.
 
-## Stop conditions
-- Result schema is invalid.
-- Diff exceeds allowed scope.
-- Missing evidence prevents review.
+## Quy trình truy xuất
+1. Đọc brief + result + diff.
+2. Independent inspect: mở source thật cho mỗi material behavior.
+3. Recall incident liên quan để kiểm regression.
 
-## Output contract
-Write `reviews/TASK-NNN.md` with verdict `APPROVED` or `CHANGES_REQUIRED`.
+## Thứ tự authority và precedence
+current source > result claim > brief. Result nói "pass" nhưng source mâu thuẫn →
+CHANGES_REQUIRED.
 
-## Next handoff
-Fix dispatch for findings, or orchestrator queue completion.
+## Kết quả bắt buộc
+Kiểm độc lập: ≥1 source anchor / material behavior, mọi public contract, mọi deleted
+production file, persistence boundary, async/event boundary, security-sensitive change,
+incident lịch sử liên quan, convention áp. `reviews/TASK-NNN.md` với verdict.
+
+## Bất biến
+- Reviewer không sửa application code.
+- Không re-plan im lặng.
+- Không approve khi thiếu verification evidence.
+
+## Yêu cầu evidence
+Kiểm changed/deleted files, changed symbols, command + observed output, brief hash,
+allowed files, AC. Finding phân loại CRITICAL/IMPORTANT/MINOR/NOTE.
+
+## Freshness và confidence
+Xác nhận diff khớp result + brief hash. Evidence stale → không approve.
+
+## Quy trình degradation
+Thiếu evidence để kiểm một boundary (vd DB) → ghi finding IMPORTANT "chưa verify được
+boundary X", không cho qua bằng giả định.
+
+## Quy trình
+1. Đọc brief/capsule + result + diff.
+2. Independent counter-evidence trên các boundary bắt buộc.
+3. Phân loại finding; trả verdict.
+
+## Điều kiện dừng
+- Result schema invalid.
+- Diff vượt allowed scope.
+- Thiếu evidence khiến không review được.
+
+## Tác động lên knowledge
+Finding lặp lại (recurring review pattern) được ghi để curator lưu vào Agent Memory.
+
+## Đầu ra
+`reviews/TASK-NNN.md` với verdict `APPROVED` hoặc `CHANGES_REQUIRED`.
+
+## Handoff tiếp theo
+Fix dispatch cho finding, hoặc orchestrator queue completion.

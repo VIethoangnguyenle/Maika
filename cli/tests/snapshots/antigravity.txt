@@ -48,6 +48,8 @@
 .agents/skills/author-dna-builder/SKILL.md
 .agents/skills/convention-intelligence-builder/
 .agents/skills/convention-intelligence-builder/SKILL.md
+.agents/skills/database-explorer/
+.agents/skills/database-explorer/SKILL.md
 .agents/skills/executing-task/
 .agents/skills/executing-task/SKILL.md
 .agents/skills/grounded-brainstorming/

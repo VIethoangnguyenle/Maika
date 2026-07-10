@@ -1,62 +1,88 @@
 ---
 name: architecture-reconciler
-version: '1.0'
+version: '2.0'
 description: >
-  Reconcile current behavior, desired behavior, evidence conflicts, and viable
-  extension seams before Maika vNext brainstorming or specification begins.
+  Dùng khi gói grounding đã có evidence đa nguồn cần đối chiếu: dựng claim matrix
+  giữa UA/CBM/source/memory/DB/durable knowledge, phân loại và giải quyết conflict
+  theo thứ tự authority trước khi brainstorming/spec.
 ---
 
 # Architecture Reconciler
 
-## Purpose
-Convert grounding into `RECONCILIATION.md`: current behavior, desired behavior,
-extension seam, alternatives, contradictions, user decisions, and readiness.
+## Mục tiêu
+Đối chiếu evidence (không chỉ tóm tắt): dựng claim matrix đa nguồn, phân loại
+conflict, resolve theo thứ tự authority, chốt `CONFLICTS.yaml` + `RECONCILIATION.md`
+trước khi thiết kế.
 
-## Triggers
-Use after `grounding-explorer` passes, when evidence conflicts, or when planning
-discovers an ungrounded architecture assumption.
+## Khi nào sử dụng
+Dùng khi `grounding-explorer` trả gói grounding cho change standard/architectural và
+tồn tại evidence từ nhiều nguồn cần đối chiếu.
 
-## Inputs
-- `CHANGE.yaml`
-- `INTENT.md`
-- `exploration/GROUNDING.yaml`
-- `exploration/EVIDENCE_MANIFEST.yaml`
-- Capability IDs: `architecture_discovery`, `dependency_analysis`,
-  `convention_retrieval`.
+## Khi nào KHÔNG sử dụng
+- Change nhỏ, một nguồn evidence, không có conflict.
+- Để đề xuất approach (đó là brainstorming).
 
-## Required outcomes
-- Current and desired behavior are separated.
-- Alternatives and tradeoffs are grounded in evidence IDs.
-- Contradictions and user-only decisions are explicit.
-- Readiness for brainstorming or spec is recorded.
+## Đầu vào
+- `GROUNDING.yaml`, `EVIDENCE_MANIFEST.yaml`, `CONFLICTS.yaml`, `TOOL_HEALTH.yaml`.
+- Current source (trọng tài exact fact), `DATABASE_CONTEXT.yaml` (nếu có).
 
-## Invariants
-- Do not choose an architecture without evidence.
-- Do not implement or edit application code.
-- Do not hide unresolved conflicts.
+## Câu hỏi tri thức
+- Các nguồn có đồng thuận về cùng một claim không?
+- Nếu lệch: do stale graph, stale memory, source drift, database drift, business
+  ambiguity, convention conflict, hay mâu thuẫn kiến trúc thật?
 
-## Evidence requirements
-Every significant recommendation cites claim IDs from
-`EVIDENCE_MANIFEST.yaml`. Inferences are labeled as such.
+## Loại evidence bắt buộc
+- Claim từ ≥2 nguồn cho mỗi material fact khi có thể.
+- `exact_code_fact` (verify), `database_object` (nếu persistence).
 
-## Process
-1. Read all grounding claims.
-2. Summarize current behavior.
-3. Summarize desired behavior from `INTENT.md`.
-4. Identify extension seams and alternatives.
-5. Record contradictions, risks, and required user decisions.
-6. Write readiness verdict.
+## Chính sách capability
+Capability IDs: `exact_source_inspection`, `dependency_analysis`,
+  `architecture_discovery`, `historical_context_retrieval`.
+Dùng để re-probe khi cần xác nhận claim mâu thuẫn.
 
-## Stop conditions
-- Evidence conflicts block design.
-- A required public-contract, security, persistence, or destructive decision is
-  uncovered.
-- The desired behavior cannot be separated from implementation strategy.
+## Quy trình truy xuất
+1. Dựng claim matrix: hàng = claim, cột = UA/CBM/source/memory/DB/durable.
+2. Với claim lệch, re-fetch node detail + verify bằng current source.
 
-## Output contract
-Write `RECONCILIATION.md` with a readiness verdict: `READY`, `NEEDS_CONTEXT`, or
-`BLOCKED`.
+## Thứ tự authority và precedence
+live runtime/DB state > current source > business contract hiện hành > fresh graph >
+durable knowledge > historical memory > inference (R-Know-2).
 
-## Next handoff
-`grounded-brainstorming` for standard and architectural changes, or
-`writing-spec` when the change is already sufficiently constrained.
+## Kết quả bắt buộc
+- Mọi conflict material được phân loại + resolved/deferred-có-lý-do.
+- `CONFLICTS.yaml` không còn conflict `open` material.
+
+## Bất biến
+- Không resolve conflict bằng cách chọn nguồn tiện nhất — theo authority.
+- Không thiết kế giải pháp.
+
+## Yêu cầu evidence
+Mỗi resolution ghi `resolved_by` (claim thắng) + lý do. Conflict deferred ghi lý do +
+điều kiện xử lý.
+
+## Freshness và confidence
+Stale graph/memory bị hạ dưới current source. Confidence của claim đã reconcile ghi
+theo số nguồn đồng thuận sau khi loại nguồn stale.
+
+## Quy trình degradation
+Nếu không verify được bằng source (tool health kém) → đánh dấu claim `unverified`, ghi
+degradation, và không dùng claim đó làm nền quyết định high-risk.
+
+## Quy trình
+1. Dựng claim matrix.
+2. Phân loại từng conflict.
+3. Resolve theo authority; ghi `CONFLICTS.yaml` + `RECONCILIATION.md`.
+4. Chạy gate `conflicts`.
+
+## Điều kiện dừng
+- Mâu thuẫn kiến trúc thật làm thay đổi target architecture → dừng, báo.
+- Business ambiguity chỉ user/BA chốt.
+
+## Tác động lên knowledge
+Đánh dấu stale graph/memory để refresh; đề xuất supersede claim sai (curator xử lý).
+
+## Đầu ra
+`exploration/CONFLICTS.yaml` (resolved) + `RECONCILIATION.md`.
+
+## Handoff tiếp theo
+`grounded-brainstorming`.

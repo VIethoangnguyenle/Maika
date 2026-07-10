@@ -1,65 +1,107 @@
 ---
 name: grounding-explorer
-version: '1.0'
+version: '2.0'
 description: >
-  Build the three-lens grounding package for Maika vNext by collecting verified
-  codebase, business, and convention evidence before any final architecture or
-  implementation plan is written.
+  Dùng khi một change hạng standard/architectural cần thu thập bằng chứng trước
+  thiết kế: điều phối truy xuất đa nguồn (kiến trúc, dependency, source, lịch sử,
+  DB, convention), ghi evidence có provenance, phát hiện conflict và trả readiness.
 ---
 
 # Grounding Explorer
 
-## Purpose
-Produce `exploration/GROUNDING.yaml` and `exploration/EVIDENCE_MANIFEST.yaml`
-from the current repository, business knowledge, and project conventions.
+## Mục tiêu
+Là trung tâm điều phối truy xuất của Maika: biến `QUERY_PLAN.yaml` thành gói
+grounding thật (`GROUNDING.yaml` + `EVIDENCE_MANIFEST.yaml` + `TOOL_HEALTH.yaml`
++ `CONFLICTS.yaml` + `COVERAGE.yaml`), evidence có provenance và readiness verdict.
 
-## Triggers
-Use after `intent-analysis` for standard or architectural changes, or when a
-planner reports missing evidence.
+## Khi nào sử dụng
+Dùng khi `intent-analysis` phân loại change là standard hoặc architectural, hoặc
+khi planner báo thiếu evidence (targeted re-grounding).
 
-## Inputs
-- `CHANGE.yaml`
-- `INTENT.md`
-- Current repository source.
-- Knowledge stores under `knowledge/long-term/`.
-- Capability IDs: `architecture_discovery`, `exact_source_inspection`,
-  `dependency_analysis`, `business_knowledge_retrieval`,
-  `convention_retrieval`, `runtime_verification`.
+## Khi nào KHÔNG sử dụng
+- Change trivial/small không cần gói grounding đầy đủ.
+- Khi chưa có `QUERY_PLAN.yaml` (chạy intent-analysis trước).
+- Để thiết kế giải pháp cuối — đó là brainstorming/spec.
 
-## Required outcomes
-- `GROUNDING.yaml` has non-empty `codebase`, `business`, and `conventions`
-  lenses.
-- `EVIDENCE_MANIFEST.yaml` lists claim IDs, statuses, categories, and sources.
-- Conflicting or missing mandatory evidence is explicit.
+## Đầu vào
+- `CHANGE.yaml`, `INTENT.md`, `exploration/QUERY_PLAN.yaml`.
+- Current repository source (authority cho exact code fact).
+- Durable knowledge trong `knowledge/long-term/`.
 
-## Invariants
-- Source files are authoritative for exact code facts.
-- Graph or memory evidence supports source, never replaces it.
-- Every inference is labeled.
-- Do not design the final solution.
+## Câu hỏi tri thức
+- Flow hiện tại lắp ráp ở đâu? (architecture_discovery, exact_source_inspection)
+- Ai own contract? Blast radius tới đâu? (dependency_analysis)
+- Change này từng gây incident chưa? (historical_context_retrieval)
+- Business rule/convention nào áp? (business_knowledge_retrieval, convention_retrieval)
+- DB object nào tham gia? (database_schema_inspection)
 
-## Evidence requirements
-Verified code claims need file paths, symbols where applicable, and file hashes.
-Business claims need a source or an `inferred` status. Convention claims cite
-rule IDs, examples, or approved knowledge entries.
+## Loại evidence bắt buộc
+- `architecture_node`, `relationship_edge` (kiến trúc).
+- `dependency_path`, `blast_radius` (phụ thuộc).
+- `file_symbol`, `exact_code_fact` (source — bắt buộc verify).
+- `incident_reference` (lịch sử; zero-result hợp lệ).
+- `convention_rule`, `author_dna_rule`; `database_object` (khi persistence-sensitive).
 
-## Process
-1. Inspect source entry points and related tests.
-2. Trace dependencies and blast radius.
-3. Collect business terms, actors, rules, states, and unresolved questions.
-4. Collect applicable conventions and conflicts.
-5. Emit claim IDs and source records.
-6. Run the `exploration-evidence` gate.
+## Chính sách capability
+Capability IDs: `architecture_discovery`, `exact_source_inspection`,
+  `dependency_analysis`, `historical_context_retrieval`,
+  `business_knowledge_retrieval`, `convention_retrieval`,
+  `database_schema_inspection`, `runtime_verification`.
+Provider ưu tiên theo `rules-tool.md`; skill chỉ gọi capability, không gọi provider.
 
-## Stop conditions
-- A mandatory lens is empty.
-- Evidence conflicts materially.
-- Tool health prevents exact source inspection.
-- A user-only business or contract decision is discovered.
+## Quy trình truy xuất
+1. Đọc `QUERY_PLAN.yaml`; mỗi câu hỏi → resolve capability từ required_evidence_types.
+2. Probe provider → ghi `TOOL_HEALTH.yaml` (probe thật, observed, freshness).
+3. UA cho kiến trúc/domain; CBM cho dependency/blast radius; source verify exact fact;
+   Agent Memory cho lịch sử; dispatch `database-explorer` khi cần DB.
+4. Ghi claim + provenance vào `EVIDENCE_MANIFEST.yaml`.
+5. Ghi conflict vào `CONFLICTS.yaml`; ghi coverage vào `COVERAGE.yaml`.
 
-## Output contract
-Write `exploration/GROUNDING.yaml`, `exploration/EVIDENCE_MANIFEST.yaml`, and
-tool-health notes if needed. Return a readiness verdict.
+## Thứ tự authority và precedence
+live DB state > current source > business contract hiện hành > fresh graph >
+durable knowledge > historical memory > inference (xem `rules-knowledge.md` R-Know-2).
 
-## Next handoff
+## Kết quả bắt buộc
+- 3 lens `codebase/business/conventions` không rỗng.
+- Mọi câu hỏi query-plan: answered hoặc blocked-có-lý-do.
+- Preferred provider khỏe không bị skip im lặng (hoặc có degradation record).
+
+## Bất biến
+- Source authoritative cho exact code fact; graph/memory hỗ trợ, không thay thế.
+- Mọi inference được gắn nhãn. Không thiết kế giải pháp cuối.
+
+## Yêu cầu evidence
+Verified code claim cần file + symbol + file_hash (sha256). Business claim cần source
+hoặc status `inferred`. Convention claim cite rule ID/example/approved entry.
+
+## Freshness và confidence
+Graph ghi `indexed_commit`; lệch HEAD → stale → degrade. Confidence high chỉ khi ≥2
+nguồn độc lập + verify bằng source (R-Know-5).
+
+## Quy trình degradation
+Provider stale/absent → ghi degradation record có cấu trúc (provider, probe, observed,
+freshness, fallback, missing evidence, confidence impact) vào `TOOL_HEALTH.yaml`.
+Không degrade lặng lẽ.
+
+## Quy trình
+1. Chạy Quy trình truy xuất ở trên.
+2. Reconcile sơ bộ; đánh dấu conflict material.
+3. Chạy gate `query-plan`, `tool-health`, `exploration-evidence`, `conflicts`, `coverage`.
+4. Trả readiness verdict (READY / NEEDS_CONTEXT / BLOCKED).
+
+## Điều kiện dừng
+- Một lens bắt buộc rỗng.
+- Conflict material chưa resolve.
+- Tool health chặn exact source inspection.
+- Phát hiện quyết định chỉ user/BA chốt (public contract/business).
+
+## Tác động lên knowledge
+Ghi evidence + conflict mới; đánh dấu stale claim. Không promote (promotion ở
+`knowledge-curator` sau verified completion).
+
+## Đầu ra
+`exploration/GROUNDING.yaml`, `EVIDENCE_MANIFEST.yaml`, `TOOL_HEALTH.yaml`,
+`CONFLICTS.yaml`, `COVERAGE.yaml` + readiness verdict.
+
+## Handoff tiếp theo
 `architecture-reconciler`.

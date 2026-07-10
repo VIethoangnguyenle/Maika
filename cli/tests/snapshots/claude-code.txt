@@ -48,6 +48,8 @@
 .claude/skills/author-dna-builder/SKILL.md
 .claude/skills/convention-intelligence-builder/
 .claude/skills/convention-intelligence-builder/SKILL.md
+.claude/skills/database-explorer/
+.claude/skills/database-explorer/SKILL.md
 .claude/skills/executing-task/
 .claude/skills/executing-task/SKILL.md
 .claude/skills/grounded-brainstorming/

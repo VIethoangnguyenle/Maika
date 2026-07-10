@@ -1,62 +1,97 @@
 ---
 name: intent-analysis
-version: '1.0'
+version: '2.0'
 description: >
-  Classify an incoming request into a Maika vNext change class, create or update
-  CHANGE.yaml and INTENT.md, and decide which reasoning phases are required
-  before specification or implementation may proceed.
+  Dùng khi một request/ticket mới vào hoặc workspace resume thiếu INTENT.md:
+  recall lịch sử, tra Author DNA/convention, tìm source touchpoint, nhận diện tín
+  hiệu rủi ro, phân loại change và sinh QUERY_PLAN.yaml trước khi thiết kế.
 ---
 
 # Intent Analysis
 
-## Purpose
-Turn a raw request into a concrete change record. Capture the user's intent,
-classification, title, known constraints, and stop conditions without designing
-the solution.
+## Mục tiêu
+Biến request thô thành change record cụ thể (`CHANGE.yaml`, `INTENT.md`) và sinh
+`QUERY_PLAN.yaml` — classification có confidence, dựa trên recall lịch sử và tín
+hiệu source/rủi ro, không thiết kế giải pháp.
 
-## Triggers
-Use when a new `/task` request starts, when a resumed workspace lacks
-`INTENT.md`, or when implementation discovers scope that may reclassify a
-change.
+## Khi nào sử dụng
+Dùng khi một `/task` mới bắt đầu, khi workspace resume thiếu `INTENT.md`, hoặc khi
+implementation phát hiện scope có thể reclassify change.
 
-## Inputs
-- User request or ticket text.
-- Existing `CHANGE.yaml`, if resuming.
-- Existing `INTENT.md`, if present.
-- Capability IDs: `business_knowledge_retrieval`, `convention_retrieval`.
+## Khi nào KHÔNG sử dụng
+- Khi đã có `INTENT.md` + `QUERY_PLAN.yaml` hợp lệ cho change hiện tại.
+- Để đề xuất kiến trúc hay viết application code.
 
-## Required outcomes
-- `CHANGE.yaml` records `change_id`, `class`, `title`, and timestamp.
-- `INTENT.md` contains the request summary, class rationale, non-goals, and
-  known blockers.
-- Standard and architectural changes are routed to grounding before design.
+## Đầu vào
+- Text request/ticket.
+- `CHANGE.yaml`/`INTENT.md` hiện có (nếu resume).
+- Durable knowledge (`knowledge/long-term/`), current source (touchpoint).
 
-## Invariants
-- Do not propose architecture.
-- Do not write application code.
-- Do not downgrade public contract, persistence, security, or migration risk.
+## Câu hỏi tri thức
+- Change tương tự từng làm/từng fail chưa? (historical_context_retrieval)
+- Author DNA/convention nào liên quan sớm? (convention_retrieval)
+- Request chạm module/file nào đầu tiên? (exact_source_inspection)
+- Có tín hiệu persistence/async/security/public-contract không?
 
-## Evidence requirements
-Classification must cite exact request text or an explicit inference. Ambiguous
-class, security, persistence, public contract, or destructive behavior stops for
-user decision.
+## Loại evidence bắt buộc
+- `incident_reference`, `decision_reference` (zero-result hợp lệ).
+- `author_dna_rule`, `convention_rule`.
+- `file_symbol` (touchpoint ban đầu).
 
-## Process
-1. Read the request and any existing workspace files.
-2. Assign `trivial`, `small`, `standard`, or `architectural`.
-3. Record the reason in `INTENT.md`.
-4. List unresolved public-contract or safety decisions.
-5. Hand off to `grounding-explorer` unless the class explicitly skips grounding.
+## Chính sách capability
+Capability IDs: `historical_context_retrieval`, `convention_retrieval`,
+  `business_knowledge_retrieval`, `exact_source_inspection`.
+Recall lịch sử là bắt buộc cho change standard and architectural trước khi chốt class.
 
-## Stop conditions
-- The request lacks enough detail to classify.
-- A public contract, database, security, or destructive decision is uncovered.
-- The requested class conflicts with observed scope.
+## Quy trình truy xuất
+1. Recall Agent Memory theo từ khoá request (history-first).
+2. Tra Author DNA/convention liên quan.
+3. Trace touchpoint source ban đầu để ước lượng blast radius.
+4. Tổng hợp tín hiệu rủi ro.
 
-## Output contract
-Write or update `CHANGE.yaml` and `INTENT.md`. Return `DONE`,
-`NEEDS_CONTEXT`, or `BLOCKED` with the workspace path.
+## Thứ tự authority và precedence
+current source > business contract hiện hành > durable knowledge > historical memory
+> inference. Memory nâng risk lên, không hạ xuống.
 
-## Next handoff
-`grounding-explorer` for standard and architectural changes; `writing-spec` for
-small changes; mini-plan execution for trivial changes.
+## Kết quả bắt buộc
+- `CHANGE.yaml`: `change_id`, `class` ∈ {trivial,small,standard,architectural}, `title`, `created_at`.
+- `INTENT.md`: summary, lý do class, non-goals, blocker đã biết, confidence.
+- `QUERY_PLAN.yaml`: câu hỏi + required_capabilities + required_evidence_types.
+- Change standard and architectural được route sang `grounding-explorer`.
+
+## Bất biến
+- Không đề xuất kiến trúc. Không viết application code.
+- Không hạ thấp rủi ro public contract/persistence/security/migration.
+
+## Yêu cầu evidence
+Classification cite text request chính xác hoặc inference tường minh. Nếu memory hoặc
+source cho thấy blast radius lớn hơn → **tăng** class.
+
+## Freshness và confidence
+Ghi confidence của classification. Recall rỗng nhưng provider khỏe = evidence hợp lệ,
+ghi lại; không coi là "không có rủi ro".
+
+## Quy trình degradation
+Nếu Agent Memory/knowledge không khỏe → ghi degradation trong `INTENT.md`, hạ
+confidence, và mặc định phân loại thận trọng (không hạ class).
+
+## Quy trình
+1. Recall + tra DNA/convention + tìm touchpoint (Quy trình truy xuất).
+2. Nhận diện tín hiệu persistence/async/security/public-contract.
+3. Phân loại + ghi confidence.
+4. Sinh `CHANGE.yaml`, `INTENT.md`, `QUERY_PLAN.yaml`.
+5. Chạy gate `intent` (+ `query-plan` khi standard/architectural).
+
+## Điều kiện dừng
+- Request mâu thuẫn/thiếu tới mức không phân loại được → hỏi user/BA.
+- Phát hiện quyết định public-contract/security chỉ user chốt.
+
+## Tác động lên knowledge
+Không ghi durable knowledge; chỉ tạo change record + query plan. Ghi lại recall đã
+chạy (kể cả zero-result) để reviewer kiểm.
+
+## Đầu ra
+`CHANGE.yaml`, `INTENT.md`, `exploration/QUERY_PLAN.yaml`.
+
+## Handoff tiếp theo
+`grounding-explorer` (standard/architectural) hoặc `writing-plan` (small).

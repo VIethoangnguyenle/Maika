@@ -2,104 +2,113 @@
 skills:
   -
     name: architecture-reconciler
-    version: '1.0'
+    version: '2.0'
     description: >
-      Reconcile current behavior, desired behavior, evidence conflicts, and viable
-      extension seams before Maika vNext brainstorming or specification begins.
+      Dùng khi gói grounding đã có evidence đa nguồn cần đối chiếu: dựng claim matrix
+      giữa UA/CBM/source/memory/DB/durable knowledge, phân loại và giải quyết conflict
+      theo thứ tự authority trước khi brainstorming/spec.
   -
     name: author-dna-builder
-    version: '1.0'
+    version: '2.0'
     description: >
-      Build and maintain Author DNA for Maika vNext by turning recurring confirmed
-      engineering philosophy into durable guidance used by planning and review.
+      Dùng khi review lặp lại một triết lý kỹ thuật hoặc user xác nhận nguyên tắc định
+      hướng: quản lý candidate lifecycle của Author DNA với confidence, provenance,
+      positive/counterexample, scope, enforcement mapping, supersession và consumer list.
   -
     name: convention-intelligence-builder
+    version: '2.0'
+    description: >
+      Dùng khi onboarding, sau refactor lớn, hoặc khi review lộ convention gap: trích
+      convention cụ thể (naming/structure/testing/boundary) từ verified source với evidence
+      threshold, examples/counterexamples, applies-to tags, scope matcher, enforcement type.
+  -
+    name: database-explorer
     version: '1.0'
     description: >
-      Build and maintain Maika vNext convention intelligence by extracting recurring
-      concrete naming, structure, testing, and boundary patterns from verified
-      source evidence.
+      Dùng khi change chạm persistence (entity, repository, native SQL, table, column,
+      index, constraint, package, procedure, migration, transaction, locking, job/outbox,
+      audit): probe DB read-only và phát ra DATABASE_CONTEXT.yaml có evidence hoặc degradation.
   -
     name: executing-task
-    version: '1.0'
+    version: '2.0'
     description: >
-      Execute exactly one immutable Maika vNext task brief in a fresh isolated
-      context, producing structured YAML results with commands, changed files,
-      changed symbols, deviations, concerns, and commit evidence.
+      Dùng khi một task PENDING trong TASK_QUEUE.json sẵn sàng chạy: đọc brief +
+      knowledge capsule, verify freshness, re-read source anchor, chỉ implement scope
+      đã khai, và request re-grounding khi source khác evidence.
   -
     name: grounded-brainstorming
-    version: '1.0'
+    version: '2.0'
     description: >
-      Compare grounded solution approaches after reconciliation, using verified
-      evidence and project conventions while avoiding ungrounded implementation
-      detail or provider-specific tool instructions.
+      Dùng khi reconciliation READY và change có nhiều thiết kế khả dĩ: so sánh các
+      approach dựa trên evidence đã reconcile, mỗi approach kèm extension seam, blast
+      radius, convention, historical failure, DB/migration/security impact và lý do loại.
   -
     name: grounding-explorer
-    version: '1.0'
+    version: '2.0'
     description: >
-      Build the three-lens grounding package for Maika vNext by collecting verified
-      codebase, business, and convention evidence before any final architecture or
-      implementation plan is written.
+      Dùng khi một change hạng standard/architectural cần thu thập bằng chứng trước
+      thiết kế: điều phối truy xuất đa nguồn (kiến trúc, dependency, source, lịch sử,
+      DB, convention), ghi evidence có provenance, phát hiện conflict và trả readiness.
   -
     name: infra-tdd
-    version: '1.0'
+    version: '2.0'
     description: >
-      Produce infrastructure technical design documents for Maika vNext when a
-      change requires explicit operational architecture, decision records,
-      verification strategy, and rollback planning.
+      Dùng khi CHANGE.yaml class architectural và change cần operational architecture:
+      thu infra evidence (K8s topology, deployment manifest, service graph, Kafka
+      topic/group, DB capacity/index, log/metric, incident memory, rollout/rollback command).
   -
     name: intent-analysis
-    version: '1.0'
+    version: '2.0'
     description: >
-      Classify an incoming request into a Maika vNext change class, create or update
-      CHANGE.yaml and INTENT.md, and decide which reasoning phases are required
-      before specification or implementation may proceed.
+      Dùng khi một request/ticket mới vào hoặc workspace resume thiếu INTENT.md:
+      recall lịch sử, tra Author DNA/convention, tìm source touchpoint, nhận diện tín
+      hiệu rủi ro, phân loại change và sinh QUERY_PLAN.yaml trước khi thiết kế.
   -
     name: knowledge-curator
-    version: '1.0'
+    version: '2.0'
     description: >
-      Curate Maika vNext knowledge after verified completion by extracting reusable
-      lessons, updating durable knowledge stores, regenerating indexes, and archiving
-      the change workspace.
+      Dùng khi cần vận hành vòng đời tri thức (trước/trong/sau implementation) theo bốn
+      mode retrieve/record/reconcile/curate: promote verified knowledge, supersede stale,
+      save episodic memory, update DNA/convention, regenerate index, trigger graph refresh.
   -
     name: reviewing-change
-    version: '1.0'
+    version: '2.0'
     description: >
-      Perform final whole-change review for Maika vNext after task reviews complete,
-      checking integration, deleted references, verification evidence, and unresolved
-      findings before completion.
+      Dùng khi mọi task review đã pass và trước verification: review toàn change, kiểm
+      integration/deleted-reference/verification, và ghi KNOWLEDGE_IMPACT.yaml (stale
+      knowledge, superseded decision, new candidate, graph refresh, memory save).
   -
     name: reviewing-task
-    version: '1.0'
+    version: '2.0'
     description: >
-      Review one Maika vNext task result against its immutable brief, changed diff,
-      tests, declared write scope, and structured evidence without modifying
-      application code.
+      Dùng khi một task result qua result-contract gate: review độc lập tìm
+      counter-evidence — kiểm ít nhất một source anchor cho mỗi material behavior,
+      public contract, deleted file, persistence/async/security boundary, incident, convention.
   -
     name: validating-plan
-    version: '1.0'
+    version: '2.0'
     description: >
-      Independently validate Maika vNext IMPLEMENTATION_PLAN.md against SPEC.md,
-      grounding evidence, source anchors, acceptance criteria, and deterministic
-      compilation requirements before execution can begin.
+      Dùng khi writing-plan tạo IMPLEMENTATION_PLAN.md và trước khi compile/dispatch:
+      kiểm hai tầng — mechanical (metadata/hash/anchor/DAG/AC/write-scope/capsule) và
+      knowledge integrity (freshness/provider obligation/DNA/convention/incident/DB/conflict).
   -
     name: verification-before-completion
-    version: '1.0'
+    version: '2.0'
     description: >
-      Verify Maika vNext completion claims with fresh commands, observed output,
-      deleted-reference scans, scaffold checks, and recorded evidence before archive
-      or final status is allowed.
+      Dùng khi sắp tuyên bố hoàn thành task/wave/change hoặc trước archive: chạy lệnh thật
+      (build/test/static/contract/migration/smoke/deleted-scan/hash/freshness/DB), ghi
+      command+expected+observed+exit+timestamp+interpretation, không complete bằng marker.
   -
     name: writing-plan
-    version: '1.0'
+    version: '2.0'
     description: >
-      Write Maika vNext IMPLEMENTATION_PLAN.md from an approved SPEC.md and evidence
-      manifest, producing deterministic task sections with exact files, anchors,
-      tests, commands, expected results, and write scope.
+      Dùng khi SPEC.md đã duyệt và state là PLANNING: kiểm precondition, targeted
+      re-grounding, dựng implementation graph (contract→producer→consumer→migration→
+      verification→cleanup), phân rã task có write scope + evidence + AC + knowledge capsule.
   -
     name: writing-spec
-    version: '1.0'
+    version: '2.0'
     description: >
-      Write class-aware Maika vNext SPEC.md from grounded evidence and reconciliation,
-      including acceptance criteria, evidence references, and required ASCII diagrams
-      for flow, state, integration, callback, job, or data-path changes.
+      Dùng khi reconciliation/brainstorming đã xong và cần SPEC.md class-aware: map
+      requirement→evidence, delta current→desired, behavior/state model, contract
+      ownership, persistence/async/security impact, AC test được và evidence coverage.

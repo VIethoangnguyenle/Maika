@@ -42,6 +42,8 @@
 .maika/skills/author-dna-builder/SKILL.md
 .maika/skills/convention-intelligence-builder/
 .maika/skills/convention-intelligence-builder/SKILL.md
+.maika/skills/database-explorer/
+.maika/skills/database-explorer/SKILL.md
 .maika/skills/executing-task/
 .maika/skills/executing-task/SKILL.md
 .maika/skills/grounded-brainstorming/
