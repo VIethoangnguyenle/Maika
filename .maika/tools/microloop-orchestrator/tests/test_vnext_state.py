@@ -1,5 +1,12 @@
 # .maika/tools/microloop-orchestrator/tests/test_vnext_state.py
+import sys
+from pathlib import Path
+
 import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
 import vnext_state as vs
 
 

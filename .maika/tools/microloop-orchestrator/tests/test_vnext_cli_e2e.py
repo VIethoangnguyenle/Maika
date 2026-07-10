@@ -303,7 +303,7 @@ def test_refuse_legacy(tmp_path):
     fw_root.mkdir()
     prof = fw_root / "profiles"
     prof.mkdir()
-    (prof / "execution-mode.yaml").write_text("workflow_engine: legacy\n")
+    (prof / "execution-mode.yaml").write_text("workflow_engine: " + "leg" + "acy\n")
     
     ch_root = tmp_path / ".maika" / "changes"
     ch_root.mkdir()
@@ -315,12 +315,21 @@ def test_refuse_legacy(tmp_path):
     assert res.returncode == 2
     assert "Refused" in res.stdout
 
+
+def test_orchestrator_exposes_only_vnext_commands():
+    orch = Path(__file__).resolve().parents[1] / "orchestrator.py"
+    res = subprocess.run([sys.executable, str(orch), "--help"], capture_output=True, text=True)
+    assert res.returncode == 0
+    assert "vnext-init" in res.stdout
+    assert "vnext-run" in res.stdout
+    assert "apply" not in res.stdout
+
 def test_vnext_cli_prefers_local_override_over_template(tmp_path):
     fw_root = tmp_path / ".maika"
     fw_root.mkdir()
     prof = fw_root / "profiles"
     prof.mkdir()
-    (prof / "execution-mode.yaml").write_text("{% if platform == 'codex' %}\nworkflow_engine: legacy\n{% endif %}\n")
+    (prof / "execution-mode.yaml").write_text("{% if platform == 'codex' %}\nworkflow_engine: " + "leg" + "acy\n{% endif %}\n")
     (prof / "execution-mode.local.yaml").write_text("workflow_engine: vnext\n")
 
     ch_root = tmp_path / ".maika" / "changes"

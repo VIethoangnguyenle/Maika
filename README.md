@@ -154,7 +154,7 @@ Các file agent đọc để biết phải làm việc thế nào:
 
 - `AGENTS.md`, `CLAUDE.md` hoặc entry point tương ứng platform.
 - `rules/*.md`: flow, tool, data, cost, knowledge, guard rules.
-- `workflows/*.md`: `maika task`, `/tdd`.
+- `workflows/task.md`: `maika task`.
 - `skills/*/SKILL.md`: hướng dẫn theo vai trò.
 - `procedures/*.md`: bootstrap, context-loader, context-compressor, token tracking.
 
@@ -299,7 +299,6 @@ Maika ship một bộ skill module hoá theo vai trò.
 | `maika task apply --id <id>` | Dispatch implementation, task review, fixes, final review |
 | `maika task status [--id <id>]` | Xem state và task queue |
 | `maika task cancel --id <id>` | Huỷ workspace |
-| `/tdd <module>` | Sinh Technical Design Document |
 
 ---
 
@@ -358,8 +357,8 @@ Doctor không sửa config trừ khi bạn chạy:
 
 ## 📊 Dashboard Control Tower
 
-Maika có dashboard local để quan sát agent chính, micro-loop và subagent theo thời gian thực.
-Dashboard đọc các runtime artifact trong `knowledge/active/` và serve UI qua SSE, bind local
+Maika có dashboard local để quan sát task vNext theo thời gian thực.
+Dashboard đọc các runtime artifact trong `changes/<change-id>/` và serve UI qua SSE, bind local
 ở `127.0.0.1`.
 
 ### Chạy dashboard
@@ -416,12 +415,13 @@ không đè `PARENT_BRAIN.md` hiện có.
 
 | Artifact | Vai trò |
 |---|---|
-| `AGENT_TRANSPARENCY.md` | phase, ticket, confidence, trạng thái tổng |
 | `PARENT_BRAIN.md` | context trực quan của agent cha từ IDE brain/conversation |
-| `microloop/TASK_QUEUE.md` | task list, status, progress `x/N` |
-| `TASK_HANDOFF.*.md` | prompt/handoff từng subagent nhận |
-| `microloop/TASK_RESULT.*.md` | kết quả từng subagent hoặc node |
-| `microloop/ACTIVITY_LOG.jsonl` | timeline append-only cho parent và subagent |
+| `changes/<id>/STATE.yaml` | state hiện tại của task |
+| `changes/<id>/generated/TASK_QUEUE.json` | task list, status, progress `x/N` |
+| `changes/<id>/briefs/TASK-*.md` | immutable brief từng worker nhận |
+| `changes/<id>/results/TASK-*.yaml` | kết quả từng task |
+| `changes/<id>/reviews/*.md` | task/final review |
+| `changes/<id>/generated/DISPATCH_LOG.jsonl` | timeline append-only cho dispatch |
 
 Dashboard chỉ đọc các file này khi serve. Việc sync parent brain là một command explicit riêng.
 
@@ -429,13 +429,13 @@ Dashboard chỉ đọc các file này khi serve. Việc sync parent brain là m�
 
 **Vì sao progress là 0%?**
 
-Nếu chưa có `microloop/TASK_QUEUE.md`, dashboard không có mẫu số `N` để tính progress. Trong
-trạng thái này UI sẽ hiển thị phase-only hoặc `waiting for microloop TASK_QUEUE`.
+Nếu chưa có `generated/TASK_QUEUE.json`, dashboard không có mẫu số `N` để tính progress. Trong
+trạng thái này UI sẽ hiển thị phase-only hoặc `waiting for TASK_QUEUE.json`.
 
 **Vì sao thấy subagent nhưng không thấy progress?**
 
-Có `TASK_HANDOFF.*.md` nhưng chưa có `TASK_QUEUE.md`. Đây là handoff-only transitional state.
-Pha 3 chuẩn phải tạo queue trước khi dispatch subagent.
+Có brief nhưng chưa có `TASK_QUEUE.json`. Hãy chạy `maika task plan --id <id>` để tạo queue
+trước khi dispatch worker.
 
 **Vì sao parent brain trống?**
 
@@ -445,8 +445,8 @@ brain artifact.
 
 **Vì sao dashboard đánh dấu stale?**
 
-Một artifact bị malformed, ví dụ YAML lỗi trong `TASK_QUEUE.md` hoặc JSONL lỗi trong
-`ACTIVITY_LOG.jsonl`. UI vẫn render project khác và hiển thị path lỗi.
+Một artifact bị malformed, ví dụ JSON lỗi trong `TASK_QUEUE.json` hoặc JSONL lỗi trong
+`DISPATCH_LOG.jsonl`. UI vẫn render project khác và hiển thị path lỗi.
 
 **Làm sao verify SSE?**
 
@@ -464,8 +464,8 @@ Message đầu tiên phải bắt đầu bằng `data: [` và chứa snapshot hi
 - `/api/runs` trả JSON snapshot.
 - `/events` gửi snapshot đầu tiên ngay khi connect.
 - Project không có active run hiển thị idle.
-- Project có `TASK_QUEUE.md` hiển thị progress thật `x/N`.
-- Subagent card hiển thị prompt và result drawer khi artifact tồn tại.
+- Project có `TASK_QUEUE.json` hiển thị progress thật `x/N`.
+- Task card hiển thị brief, result, và review drawer khi artifact tồn tại.
 - Parent brain panel hiển thị khi có `PARENT_BRAIN.md`.
 - Malformed queue/log không làm sập dashboard; UI hiển thị stale/error.
 
@@ -515,7 +515,7 @@ Khi agent bắt đầu một session trong repo có Maika, nó bootstrap context
 ```txt
 Core: AGENTS.md v3.0 + RULES (manifest + flow/tool/exec/knowledge/guard)
 Skills: intent-analysis | grounding-explorer | architecture-reconciler | writing-spec | ...
-Workflows: maika task | /tdd
+Workflows: maika task
 Platform: codex | MCPs: codebase-memory-mcp, db-remote
 Active context: REQUIREMENT empty | EXPLORE_CONTEXT empty
 Author DNA: approved

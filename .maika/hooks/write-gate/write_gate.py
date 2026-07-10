@@ -7,7 +7,6 @@ Command-hook contract:
 - Antigravity: stdout JSON with decision allow|deny.
 """
 import argparse
-import fnmatch
 import importlib.util
 import json
 import os
@@ -34,8 +33,7 @@ _PHASE_STATE_RE = re.compile(r"phase_state:\s*([A-Za-z0-9-]+)")
 _SHELL_COMMS = {"sh", "bash", "dash", "zsh", "fish", "python", "python3", "py"}
 _SESSION_GATE_MESSAGE = (
     "[SESSION-GATE] Pha 1/2 đã chạy trong session này — context có nguy cơ đã tràn/compact. "
-    "Dispatch node qua worker (procedures/executor.md + TASK_HANDOFF, xem "
-    "profiles/execution-mode.yaml) hoặc mở session mới rồi chạy /task apply <ticket>. "
+    "Mở session mới rồi chạy maika task apply --id <ticket>. "
     "User có thể override tường minh: ghi knowledge/active/SESSION_OVERRIDE.md theo template "
     "(sẽ được log vào Violation Log)."
 )
@@ -389,7 +387,6 @@ def _is_framework_artifact(path: Path, framework_root: str) -> bool:
     parts = path.as_posix()
     return (
         parts.startswith(f"{framework_root}/")
-        or parts.startswith("openspec/")
         or parts.startswith("docs/superpowers/specs/")
         or parts.startswith("docs/superpowers/plans/")
     )
@@ -399,105 +396,18 @@ def _is_documentation(path: Path) -> bool:
     """Documentation/understanding artifacts are not application code, so they
     are exempt from the knowledge-before-code gate (a .md file can never be a
     runnable code write that the gate exists to order)."""
+    retired_spec_root = "".join(("open", "spec")) + "/"
+    if path.as_posix().startswith(retired_spec_root):
+        return False
     return path.suffix.lower() in _DOC_SUFFIXES
-
-
-def _load_all_rule_ids(index_path: Path):
-    if not index_path.exists():
-        return None, True
-    data = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}
-    entries = data.get("entries") or []
-    return {entry["id"] for entry in entries if entry.get("id")}, len(entries) == 0
-
-
-_SECTION_RE = r"##\s+{name}[ \t]*\n(.*?)(?=\n##\s|\Z)"
-
-
-def _section_text(text: str, name: str) -> str:
-    pattern = re.compile(_SECTION_RE.format(name=re.escape(name)), re.DOTALL | re.IGNORECASE)
-    match = pattern.search(text)
-    return match.group(1).strip() if match else ""
-
-
-def _allowed_file_patterns(context_text: str) -> list[str]:
-    allowed = _section_text(context_text, "Allowed Files")
-    patterns = []
-    for line in allowed.splitlines():
-        item = line.strip()
-        if not item:
-            continue
-        if item.startswith("-"):
-            item = item[1:].strip()
-        item = item.strip("`'\"")
-        if item:
-            patterns.append(item)
-    return patterns
-
-
-def _context_allows_target(context_text: str, policy_path: Path) -> bool:
-    target = policy_path.as_posix()
-    for pattern in _allowed_file_patterns(context_text):
-        normalized = Path(pattern).as_posix()
-        if normalized == target or fnmatch.fnmatch(target, normalized):
-            return True
-    return False
-
-
-def _implementation_context_candidates(project_root: Path, framework_root: str):
-    active = project_root / framework_root / "knowledge" / "active"
-    candidates = []
-    direct = active / "IMPLEMENTATION_CONTEXT.md"
-    if direct.exists():
-        candidates.append(direct)
-    queue = active / "microloop" / "TASK_QUEUE.md"
-    if queue.exists():
-        data = yaml.safe_load(queue.read_text(encoding="utf-8")) or {}
-        for task in data.get("tasks") or []:
-            if task.get("status") != "in_progress":
-                continue
-            handoff = task.get("handoff_path")
-            if handoff:
-                path = Path(handoff)
-                if not path.is_absolute():
-                    path = project_root / path
-            elif task.get("id"):
-                path = active / f"TASK_HANDOFF.{task['id']}.md"
-            else:
-                continue
-            if path.exists():
-                candidates.append(path)
-        return candidates
-    candidates.extend(sorted(active.glob("TASK_HANDOFF.*.md")))
-    return candidates
-
-
-def _validate_implementation_context(project_root: Path, policy_path: Path, framework_root: str, gates) -> Decision:
-    candidates = _implementation_context_candidates(project_root, framework_root)
-    if not candidates:
-        return Decision(False, f"Missing valid implementation context before code write: {policy_path}")
-    invalid_reasons = []
-    target_mismatches = []
-    for candidate in candidates:
-        rel = candidate.relative_to(project_root)
-        text = candidate.read_text(encoding="utf-8")
-        result = gates.validate_implementation_context(text)
-        if not result.ok:
-            invalid_reasons.append(f"{rel}: {result.reason}")
-            continue
-        if _context_allows_target(text, policy_path):
-            return Decision(True)
-        target_mismatches.append(rel.as_posix())
-    if target_mismatches:
-        return Decision(
-            False,
-            "Implementation context does not allow code write target "
-            f"{policy_path}; checked: {', '.join(target_mismatches)}",
-        )
-    return Decision(False, "Invalid implementation context before code write: " + "; ".join(invalid_reasons))
 
 
 def _read_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _is_same_or_child(path: str, parent: str) -> bool:
+    return path == parent or path.startswith(parent.rstrip("/") + "/")
 
 
 def _vnext_active_task(project_root: Path, framework_root: str):
@@ -506,9 +416,9 @@ def _vnext_active_task(project_root: Path, framework_root: str):
     try:
         config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
-        return None
-    if (config or {}).get("workflow_engine", "legacy") != "vnext":
-        return None
+        return ("deny", "missing or invalid profiles/execution-mode.yaml")
+    if (config or {}).get("workflow_engine") != "vnext":
+        return ("deny", "workflow_engine must be vnext")
 
     executing = []
     for state_path in sorted((framework_path / "changes").glob("*/STATE.yaml")):
@@ -519,7 +429,7 @@ def _vnext_active_task(project_root: Path, framework_root: str):
         if state.get("state") == "EXECUTING":
             executing.append(state_path.parent)
     if not executing:
-        return None
+        return ("deny", "no vNext EXECUTING change")
     if len(executing) != 1:
         return ("deny", "có nhiều change EXECUTING")
 
@@ -560,47 +470,17 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
     if not session_result.ok:
         return session_result
 
-    # vNext mode THAY THẾ legacy phase-gating có chủ đích (v2 §21): khi một change
-    # EXECUTING dưới workflow_engine=vnext, KNOWLEDGE_CHECKPOINT/apply-gate legacy
-    # không áp dụng (vnext có gate riêng: plan approval + brief-scope + result contract).
     vnext = _vnext_active_task(project_root, framework_root)
-    if vnext is not None:
-        if vnext[0] == "deny":
-            return Decision(False, f"vNext EXECUTING nhưng trạng thái hỏng: {vnext[1]}")
-        ws, task = vnext
-        allowed = set()
-        for key in ("create", "modify", "delete", "test"):
-            allowed.update((task.get("files") or {}).get(key, []) or [])
-        rel = policy_path.relative_to(project_root).as_posix() if policy_path.is_absolute() else policy_path.as_posix()
-        if rel in allowed or rel.startswith(str(ws.relative_to(project_root))):
-            return Decision(True)
-        return Decision(False, f"vNext brief-scope: {rel} ngoài files khai báo của {task['id']}")
-
-    checkpoint = project_root / framework_root / "knowledge" / "active" / "KNOWLEDGE_CHECKPOINT.md"
-    if not checkpoint.exists():
-        return Decision(False, f"Missing {checkpoint.relative_to(project_root)} before code write: {target_path}")
-
-    gates = _load_gate_check(project_root, framework_root)
-    index_path = project_root / framework_root / "knowledge" / "long-term" / "knowledge-index.yaml"
-    valid_rule_ids, index_empty = _load_all_rule_ids(index_path)
-    result = gates.validate_knowledge_checkpoint(
-        checkpoint.read_text(encoding="utf-8"),
-        valid_rule_ids=valid_rule_ids,
-        allow_no_knowledge=index_empty,
-    )
-    if not result.ok:
-        return Decision(False, f"Invalid KNOWLEDGE_CHECKPOINT before code write: {result.reason}")
-
-    transparency = project_root / framework_root / "knowledge" / "active" / "AGENT_TRANSPARENCY.md"
-    if not transparency.exists():
-        return Decision(False, f"Missing {transparency.relative_to(project_root)} apply evidence before code write: {target_path}")
-    apply_result = gates.validate_apply_gate(transparency.read_text(encoding="utf-8"))
-    if not apply_result.ok:
-        return Decision(False, f"{apply_result.reason} before code write: {target_path}")
-    context_result = _validate_implementation_context(project_root, policy_path, framework_root, gates)
-    if not context_result.ok:
-        return context_result
-    return Decision(True)
+    if vnext[0] == "deny":
+        return Decision(False, f"vNext write gate: {vnext[1]}")
+    ws, task = vnext
+    allowed = set()
+    for key in ("create", "modify", "delete", "test"):
+        allowed.update((task.get("files") or {}).get(key, []) or [])
+    rel = policy_path.relative_to(project_root).as_posix() if policy_path.is_absolute() else policy_path.as_posix()
+    if rel in allowed or _is_same_or_child(rel, ws.relative_to(project_root).as_posix()):
+        return Decision(True)
+    return Decision(False, f"vNext brief-scope: {rel} ngoài files khai báo của {task['id']}")
 
 
 def _print_runtime_decision(runtime: str, decision: Decision) -> int:

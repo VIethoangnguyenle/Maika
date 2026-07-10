@@ -37,12 +37,10 @@ Bộ nhớ được chia làm 4 tầng:
 │   └── persona.template.yaml  ← Template persona (committed)
 ├── archive/                  ← Episodic memory — context task đã hoàn thành (theo ticket-id)
 │   └── {ticket-id}/
-└── templates/                ← 20 skeleton .tpl.md để clone khi bootstrap (CHỈ template):
+└── templates/                ← skeleton .tpl.md để clone khi bootstrap (CHỈ template):
                                 context (REQUIREMENT, EXPLORE_CONTEXT, AGENT_TRANSPARENCY, TOKEN_LOG,
                                 ARCHIVE_META), ticket-type (feature, fixbug, refactor, changerequest,
-                                ideation), micro-loop Pha 3 (TASK_HANDOFF, CONTRACT_DAG, CONTRACT_SNAPSHOT,
-                                KNOWLEDGE_PACK, KNOWLEDGE_CHECKPOINT, NODE_CHECKPOINT, CONTEXT_REQUEST,
-                                CONTRACT_CHANGE_REQUEST, INTEGRATION_REQUEST, SESSION_OVERRIDE)
+                                SESSION_OVERRIDE)
 ```
 
 ---

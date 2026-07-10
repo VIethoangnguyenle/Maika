@@ -441,6 +441,51 @@ entries:
     scheduled_wave: W6
     reviewed_at: 2026-07-10
 
+  - id: ENF-020
+    mechanism: vnext-default-engine
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: The repository must default to the vNext workflow engine after W7.
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_vnext_w2_reasoning_layer.py::test_vnext_is_default_workflow_engine -q
+    implementation:
+      files: [.maika/profiles/execution-mode.yaml]
+      consumers: [.maika/workflows/task.md, .maika/hooks/write-gate/write_gate.py]
+    scheduled_wave: W7
+    reviewed_at: 2026-07-10
+
+  - id: ENF-021
+    mechanism: vnext-only-write-gate
+    type: hook
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: Code writes must be scoped by exactly one EXECUTING vNext workspace and its generated task queue.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/hooks/write-gate/tests -q
+    implementation:
+      files: [.maika/hooks/write-gate/write_gate.py]
+      consumers: [.maika/hooks/claude-code/, .maika/hooks/codex/, .maika/hooks/antigravity/]
+    scheduled_wave: W7
+    reviewed_at: 2026-07-10
+
+  - id: ENF-022
+    mechanism: vnext-only-orchestrator
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: The orchestrator CLI must expose only vNext runtime commands after W7.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/microloop-orchestrator/tests/test_vnext_cli_e2e.py::test_orchestrator_exposes_only_vnext_commands -q
+    implementation:
+      files: [.maika/tools/microloop-orchestrator/orchestrator.py]
+      consumers: [cli/commands/task.py, .maika/workflows/task.md]
+    scheduled_wave: W7
+    reviewed_at: 2026-07-10
+
 
   # ---- deferred: hoãn có điều kiện kích hoạt (traceability doc §Deferred) ----
   - id: DEF-001

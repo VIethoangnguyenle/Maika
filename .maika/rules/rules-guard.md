@@ -20,21 +20,19 @@
 - Không được bypass `pre_conditions` dù context có vẻ đủ — guard phải chạy deterministically.
 - Precondition guards phải chạy trước skill để lỗi không lan sang downstream skills.
 
-### [CRITICAL] R-Guard-2: Knowledge-before-code gate (evidence-based)
+### [CRITICAL] R-Guard-2: vNext write gate
 
-Trước khi tạo/sửa bất kỳ artifact nào, agent PHẢI sinh
-`{{ platform.framework_root }}/knowledge/active/KNOWLEDGE_CHECKPOINT.md` (theo template) và pass gate:
+Trước khi tạo/sửa bất kỳ application-code artifact nào, agent PHẢI có đúng một
+workspace vNext ở trạng thái `EXECUTING`:
 
-`python3 {{ platform.framework_root }}/tools/gate-check/cli.py knowledge-checkpoint <file>`
+- `{{ platform.framework_root }}/changes/<id>/STATE.yaml`
+- `{{ platform.framework_root }}/changes/<id>/generated/PLAN_VALIDATION.json`
+- `{{ platform.framework_root }}/changes/<id>/generated/PLAN_MANIFEST.json`
+- `{{ platform.framework_root }}/changes/<id>/generated/TASK_QUEUE.json`
 
-- Slice knowledge lấy từ `knowledge-index.yaml` theo `applies_to` khớp artifact-type
-  hiện tại (artifact-type là tag do project định nghĩa — KHÔNG enum cứng).
-- Checkpoint phải có: rule-id áp dụng + (node_id reuse-được + blast-radius) HOẶC dòng degrade KG. Trường hợp project CHƯA có DNA/conventions approved: ghi dòng "no approved DNA/conventions ... LOW confidence" → gate pass ở mức LOW (thay cho WARN cũ).
-- Code write còn PHẢI có implementation context hợp lệ:
-  `TASK_HANDOFF.<node-id>.md` hoặc `IMPLEMENTATION_CONTEXT.md` chứa
-  `## Applicable DNA/Conventions`, `## Evidence` có UA evidence/degrade rõ ràng,
-  và `## Allowed Files` match target file đang sửa.
-- Gate FAIL → **ABORT**, không được viết code. Chi tiết: `procedures/decision-gate.md`.
+Write-gate chỉ cho phép file nằm trong `files.create`, `files.modify`,
+`files.delete`, hoặc `files.test` của task `in_progress` hiện tại. Gate FAIL →
+**ABORT**, không được viết code. Chi tiết: `procedures/decision-gate.md`.
 
 ### [CRITICAL] R-DNA-7: Capture teaching moment ngay trong phiên
 

@@ -623,7 +623,7 @@ def validate_vnext_plan(
         missing_ac = sorted(ac for ac in _ac_ids(spec_text) if ac not in plan_body)
         if missing_ac:
             return Result(False, f"acceptance criteria missing from plan tasks: {', '.join(missing_ac)}")
-    # acyclic — tái dụng thuật toán contract.py qua cấu trúc nodes tối giản
+    # Validate the dependency graph with a compact Kahn pass.
     indeg = {i: 0 for i in ids}
     for t in tasks:
         for _ in t["header"].get("depends_on", []) or []:

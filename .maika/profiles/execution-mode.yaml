@@ -20,5 +20,5 @@ worker_command: ''
 max_retries: 2
 worker_timeout_seconds: 900
 
-# vNext W1: engine flag — vnext là opt-in; legacy là mặc định (Master Plan v2 §26 W1)
-workflow_engine: legacy
+# vNext W7: canonical engine; legacy execution paths are no longer scaffold defaults.
+workflow_engine: vnext

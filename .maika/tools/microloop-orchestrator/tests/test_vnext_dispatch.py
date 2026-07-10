@@ -1,7 +1,11 @@
 # tests/test_vnext_dispatch.py
 import json
 import subprocess
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 import vnext_dispatch as vd
 import vnext_state as vs

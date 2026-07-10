@@ -55,8 +55,9 @@
 - Nội dung thô khối lượng lớn — trang tài liệu (Confluence/wiki/PRD), quét code diện rộng,
   log dài — phải được tiêu thụ trong worker context (subagent / worker_command theo
   `{{ platform.framework_root }}/profiles/execution-mode.yaml`) và persist kết quả ra file knowledge.
-- Parent chỉ đọc lại file kết quả (REQUIREMENT, EXPLORE_CONTEXT, TASK_RESULT…), không đọc nguồn thô.
-- Pha 3 tier fresh-session: vòng lặp node do driver `orchestrator.py apply` chạy (task.md §3 bước 5.c) — parent không vận hành loop thủ công.
+- Parent chỉ đọc lại file kết quả trong workspace (`results/*.yaml`, `reviews/*.md`), không đọc nguồn thô.
+- Execution chạy qua `maika task apply --id <id>` và `generated/TASK_QUEUE.json`;
+  parent không vận hành loop thủ công.
 - Lý do: context tràn/compact làm mất rules/DNA đã đọc lúc bootstrap → agent code cảm tính
   (observed failure 2026-07-03, downstream Antigravity).
 

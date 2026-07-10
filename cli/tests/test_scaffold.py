@@ -464,16 +464,16 @@ def test_scaffold_native_skill_exports_flattens_and_strips_for_cursor(tmp_path):
 
 
 def test_scaffold_native_skill_exports_skips_missing_frontmatter(tmp_path):
-    workflow_path = tmp_path / ".maika" / "workflows" / "tdd.md"
+    workflow_path = tmp_path / ".maika" / "workflows" / "task.md"
     workflow_path.parent.mkdir(parents=True)
-    workflow_path.write_text("# /tdd\n\nNo frontmatter here.\n", encoding="utf-8")
-    plugins = [{"name": "workflow-tdd", "type": "workflow", "output": ".maika/workflows/tdd.md"}]
+    workflow_path.write_text("# maika task\n\nNo frontmatter here.\n", encoding="utf-8")
+    plugins = [{"name": "workflow-task", "type": "workflow", "output": ".maika/workflows/task.md"}]
     platform = _FakePlatform({"dir": ".claude/skills", "strip_frontmatter": False, "flatten": False})
 
     stats = scaffold_native_skill_exports(plugins, tmp_path, platform, verbose=False)
 
     assert stats == {"exported": 0, "skipped": 1}
-    assert not (tmp_path / ".claude" / "skills" / "tdd").exists()
+    assert not (tmp_path / ".claude" / "skills" / "task").exists()
 
 
 def test_scaffold_native_skill_exports_ignores_non_skill_workflow_plugins(tmp_path):

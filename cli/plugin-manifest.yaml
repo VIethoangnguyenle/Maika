@@ -252,12 +252,6 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/workflows/task.md"
 
-  - name: workflow-tdd
-    type: workflow
-    source: workflows/tdd.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/tdd.md"
-
   # ─── PROCEDURES ───
   - name: bootstrap
     type: procedure
@@ -282,12 +276,6 @@ plugins:
     source: procedures/token-tracking.md
     template: false
     output: "{{ platform.framework_root }}/procedures/token-tracking.md"
-
-  - name: executor
-    type: procedure
-    source: procedures/executor.md
-    template: false
-    output: "{{ platform.framework_root }}/procedures/executor.md"
 
   - name: reviewer
     type: procedure

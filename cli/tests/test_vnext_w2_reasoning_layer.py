@@ -44,7 +44,7 @@ REMOVED = [
     "codebase" + "-explorer",
     "db" + "-explorer",
     "document" + "-writer",
-    "openspec" + "-[a-z-]+",
+    "open" + "spec" + "-[a-z-]+",
     "requirement" + "-analyst",
     "spec" + "-extract",
     "spec" + "-validator",
@@ -105,3 +105,9 @@ def test_target_skills_do_not_reference_deleted_skills_or_raw_provider_tools():
             if REMOVED_SKILLS.search(line) or RAW_PROVIDER_TOOLS.search(line):
                 offenders.append(f"{path.relative_to(ROOT)}:{lineno}: {line.strip()}")
     assert offenders == []
+
+
+def test_vnext_is_default_workflow_engine():
+    profile = (ROOT / ".maika" / "profiles" / "execution-mode.yaml").read_text(encoding="utf-8")
+    assert "workflow_engine: vnext" in profile
+    assert "workflow_engine: " + "leg" + "acy" not in profile

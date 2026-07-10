@@ -75,7 +75,6 @@ READ {{ platform.framework_root }}/skills/skill-index.yaml
 
 ```
 READ {{ platform.framework_root }}/workflows/task.md          → /task
-READ {{ platform.framework_root }}/workflows/tdd.md           → /tdd
 ```
 
 ---
