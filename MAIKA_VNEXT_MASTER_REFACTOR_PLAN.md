@@ -248,13 +248,15 @@ Otherwise its status must remain `deferred`. Every `deferred` entry must state i
 
 The ledger schema itself is validated by gate-check; that validator's own ledger entry uses classification `reproducible_litmus` (schema fixture tests).
 
-Note relative to `DEVELOPMENT_RULES.md` R3: `external_requirement` and `safety_boundary` are a deliberate extension of R3's literal wording (observed failure / litmus only). W0 must propose the corresponding `DEVELOPMENT_RULES.md` amendment in its own PR (R6 — no silent override).
+Note relative to `DEVELOPMENT_RULES.md` R3: `external_requirement` and `safety_boundary` are a deliberate extension of R3's literal wording (observed failure / litmus only). W0 must propose the corresponding `DEVELOPMENT_RULES.md` amendment in its own PR (R6 — no silent override), created only **after** the W0 PR merges so the ledger path the amended rule references exists on `main`.
+
+`proposed` entries are scheduling records, not implementation permission: at its scheduled wave, a proposed mechanism still needs an eligible evidence classification added before any code is written. The `litmus` block is optional — omit it rather than shipping empty fields.
 
 ---
 
 ## 6. Change classification
 
-Every change is classified at INTAKE and the class is recorded in `CHANGE.yaml`. Gates read the class to determine which artifacts are mandatory.
+Every change is classified at INTAKE and the class is recorded in `CHANGE.yaml`. Gates read the class to determine which artifacts are mandatory; the class-to-gate applicability contract is in §22.
 
 | Class | Example | Pipeline |
 |---|---|---|
@@ -441,6 +443,7 @@ Rules:
   (v1's `GROUNDING_BLOCKED` and `STALE` collapse into this.)
 - Readiness to execute is a gate-validated transition (`PLAN_REVIEW → EXECUTING`), not a state. (v1's `READY` is removed.)
 - Per-task progress (including task review status) lives in `TASK_QUEUE.json` as task-level statuses, not in the change-level state machine. (v1's `TASK_REVIEW` state is removed.)
+- Classes traverse a subset of states (§6): phases a class skips are collapsed transitions, and their guarding gates return an explicit `NOT_APPLICABLE` verdict (§22) rather than blocking — e.g. a `trivial` change moves INTAKE → PLANNING directly.
 - State transitions are owned by the orchestrator and validated by gates.
 - A markdown marker may remain for human readability, but it must not be the only source of workflow truth.
 
@@ -1010,7 +1013,7 @@ Model selection is expressed as abstract tiers:
 mechanical | standard | reasoning | highest-review
 ```
 
-Platform adapters map tiers to concrete models. Tier activation on a platform requires the W0 capability matrix to prove that the platform's dispatch mechanism supports model selection; where it does not, the adapter declares a single-tier degradation.
+Platform adapters map tiers to concrete models. Tier activation on a platform requires the W0 capability matrix to prove that the platform's dispatch mechanism supports model selection; where it does not, the adapter declares a single-tier degradation. Model selection is an optimization, never a hard wave dependency: a `model_selection: supported: false` matrix row limits tier behavior on that platform — it does not block any wave.
 
 Use: mechanical for exact-code transcription and isolated one-file tasks; standard for multi-file integration with a detailed plan; reasoning for debugging or plan deviation; highest-review for architecture, planning, and final branch review.
 
@@ -1107,6 +1110,28 @@ Rules:
 - Existing gates (code-evidence, memory-recall, implementation-context, handoff-slice, code hygiene) are integrated as internal checks of the gates above rather than invoked as unrelated checks; their ledger entries carry their existing observed-failure references.
 - A degraded exploration pass (`PASS_WITH_DEGRADATION`) must be visible in the spec and the plan.
 
+### Gate applicability by change class
+
+The nine gates apply proportionally per §6. Gate-check evaluates applicability from `CHANGE.yaml.class`:
+
+| Gate | `trivial` | `small` | `standard` | `architectural` |
+|---|---|---|---|---|
+| `change-workspace` | required (minimal workspace) | required | required | required |
+| `exploration-evidence` | not applicable | light-grounding variant | required | required |
+| `spec` | not applicable | short-spec variant (§14) | required | required |
+| `plan` | mini-plan variant (1 task) | required | required | required |
+| `brief-integrity` | required | required | required | required |
+| `result-contract` | required | required | required | required |
+| `task-review` | risk-based; may combine with verification | required | required | required |
+| `final-review` | aliased to task review | aliased to task review when single-task; otherwise required | required | required |
+| `archive-readiness` | required if workspace archived | required | required | required |
+
+Rules:
+
+- "Not applicable" is an **explicit verdict** the gate records (`NOT_APPLICABLE`), never a silent bypass.
+- Skipped phases collapse the corresponding state transitions (§9); gates guarding a skipped phase return `NOT_APPLICABLE`, so the lifecycle cannot deadlock waiting for a phase that never occurs.
+- `trivial` is never forced through explorer or SPEC; `small` uses the shortened variants.
+
 ---
 
 ## 23. Workflow and command surface
@@ -1162,6 +1187,12 @@ Do not require user confirmation between routine implementation tasks.
 - duplicate phase state
 - OpenSpec task checklist as execution input
 - Apply-time conversion from vague tasks into a strategy
+
+### Timeline
+
+- **W6:** OpenSpec is removed from the **vNext path only**; the legacy path keeps OpenSpec and remains the default engine.
+- **W7 default switch:** OpenSpec leaves the default execution path; legacy/OpenSpec stays available only as fallback/import compatibility for the declared compatibility period.
+- **Post-W7:** physical deletion of legacy runtime files only after consumer-map verification and the rollback window (§31).
 
 ### Compatibility adapter
 
@@ -1247,11 +1278,13 @@ Eight waves. Every wave produces its own repository-verified implementation plan
 6. Identify concrete MCP names embedded outside adapters/tool docs.
 7. Initialize `docs/refactor/maika-vnext/enforcement-ledger.yaml` (§5): one entry per existing gate/hook/validator with its known observed-failure reference; one `proposed`/`deferred` entry per mechanism this plan introduces, each with an activation condition.
 8. Produce the **platform capability matrix** (`docs/refactor/maika-vnext/platform-capability-matrix.yaml`): for Claude Code, Codex, Antigravity — subagent/fresh-session spawn mechanism, hook events that actually fire, model selection support — each row with `file:line` or command evidence. No cross-platform behavior may be claimed anywhere in vNext before its matrix row exists.
-9. Propose the `DEVELOPMENT_RULES.md` R3 amendment for `external_requirement`/`safety_boundary` (own PR, R6).
+9. Propose the `DEVELOPMENT_RULES.md` R3 amendment for `external_requirement`/`safety_boundary` (own PR, R6). **Merge order:** the amendment PR is created only after the W0 PR merges, because the amended rule references `docs/refactor/maika-vnext/enforcement-ledger.yaml`, which does not exist on `main` until then.
 
-**Deferred:** everything implementational.
+**Deferred:** everything implementational beyond the schema-validation tests below.
 
-**Deliverables:** `current-state-audit.md`, `artifact-consumer-map.yaml`, `skill-migration-map.yaml`, `tool-coupling-report.md`, `enforcement-ledger.yaml`, `platform-capability-matrix.yaml`.
+**Deliverables:** `current-state-audit.md`, `artifact-consumer-map.yaml`, `skill-migration-map.yaml`, `tool-coupling-report.md`, `enforcement-ledger.yaml`, `platform-capability-matrix.yaml`, plus `cli/tests/test_vnext_w0_artifacts.py` (schema-validation tests — the R1 mechanical consumer of the four YAML artifacts, and the only non-documentation change in W0). W0 changes documentation and schema-validation tests only; it does not change runtime behavior.
+
+**Snapshot vs registry:** `current-state-audit.md`, `artifact-consumer-map.yaml`, and `skill-migration-map.yaml` are **baseline snapshots** pinned to the W0 baseline commit — permanent CI validates their schema and internal consistency only and never compares them against the current tree (disk-coverage comparison is a one-time W0 audit step recorded in the artifact). `enforcement-ledger.yaml` and `platform-capability-matrix.yaml` are **living registries** by design, updated across waves.
 
 **Dogfood checkpoint:** retroactively classify the three most recently merged real changes with §6 rules and check the ledger/matrix explain them; record any misfit.
 
@@ -1259,7 +1292,7 @@ Eight waves. Every wave produces its own repository-verified implementation plan
 
 **Exit criteria:** baseline commit recorded; conflicting branches resolved; every planned deletion has known consumers; audit approved; ledger and matrix exist and validate.
 
-**Rollback boundary:** documentation-only; revert = delete docs.
+**Rollback boundary:** revert W0 documentation and its schema-validation tests; no runtime behavior change to undo.
 
 **Input to next wave:** ledger + matrix + consumer map feed W1's implementation plan.
 
@@ -1283,7 +1316,7 @@ detailed plan
 
 **Value:** User-visible — a real change can run through the vNext pipeline (`workflow_engine: vnext`, opt-in).
 
-**Preconditions:** W0 complete; matrix row proving Claude Code subagent dispatch and its model-selection capability.
+**Preconditions:** W0 complete; matrix rows proving, for Claude Code: fresh subagent / isolated task dispatch; file-based artifact handoff; structured result/report collection; the write-gate mechanism W1 extends. **Model selection is optional, never blocking:** if the matrix proves it, W1 uses abstract tiers (§18.6); if `model_selection` is `supported: false`, W1 declares a single-tier degradation and proceeds.
 
 **Scope:**
 
@@ -1439,7 +1472,7 @@ detailed plan
 
 ### W6 — Workflow cutover and OpenSpec migration
 
-**Objective:** Expose vNext through the user-facing task workflow; remove OpenSpec from the default path with a compatibility importer.
+**Objective:** Expose vNext through the user-facing task workflow; make the vNext path OpenSpec-free and introduce the compatibility importer, while the legacy path (with OpenSpec) remains the default until W7.
 
 **Value:** User-visible — `/task` commands drive the vNext state machine; legacy changes importable.
 
@@ -1451,7 +1484,7 @@ detailed plan
 2. `/task status`, `/task resume` (crash-safe resume from `STATE.yaml` + queue).
 3. Update bootstrap, meta-prompt, plugin manifest, scaffold snapshots.
 4. `maika migrate-openspec` importer (§24); migration warnings on OpenSpec commands; legacy-read compatibility preserved during cutover.
-5. Remove OpenSpec invocation from the default workflow (default engine still `legacy` until W7).
+5. Remove OpenSpec invocation from the **vNext workflow path** while preserving the legacy OpenSpec path until the W7 default switch. The default engine remains `legacy`; OpenSpec is not yet removed from the repository or from the legacy fallback path.
 
 **Deferred:** default switch (W7); deletion of legacy runtime files (post-W7, consumer-map verified).
 
@@ -1461,7 +1494,7 @@ detailed plan
 
 **Evidence to record:** resume correctness after interruption; importer fidelity; command-surface gaps.
 
-**Exit criteria:** vNext end-to-end via commands on all platforms; legacy workflow still functional; no hidden command required; archived legacy changes readable.
+**Exit criteria:** vNext end-to-end via commands on all platforms; the vNext path invokes no OpenSpec; legacy workflow (including its OpenSpec usage) still functional and still the default; no hidden command required; archived legacy changes readable.
 
 **Rollback boundary:** flag still defaults `legacy`; cutover is opt-in until W7.
 
@@ -1482,7 +1515,7 @@ detailed plan
 1. Expanded dogfood on real changes from the Maika repo and the downstream project (covering at minimum, as they genuinely arise: one-file bug, multi-file feature, contract-sensitive change, incident-driven debug).
 2. Metrics: tokens by phase/role; tool calls; exploration degradation; plan revisions; stale-plan incidents; task retries; out-of-plan file changes; first-pass compile/test rate; reviewer findings; escaped defects; parent-context growth; time/cost by tier.
 3. Ledger review: activate any deferred mechanism whose activation condition was met (e.g., parallelism, dashboard expansion); everything else stays deferred.
-4. Default-switch gate.
+4. Default-switch gate: the default engine may switch to `vnext` only after the gate passes. At the switch, OpenSpec leaves the **default execution path**; legacy/OpenSpec remains temporarily available only as fallback and import compatibility for the declared compatibility period; physical deletion of legacy runtime files happens only after consumer-map verification and the rollback window (§31).
 
 **Deferred:** parallel execution remains deferred unless its ledger condition was met during dogfood; dashboard expansion likewise.
 
@@ -1624,7 +1657,7 @@ The refactor is complete only when all are true:
 21. The system passes dogfood on representative real changes (Maika repository + real downstream Java project).
 22. Documentation and scaffold snapshots match runtime behavior.
 23. Every enforcement mechanism has an eligible enforcement-ledger entry; every deferred mechanism has an activation condition.
-24. Change classification keeps `trivial`/`small` pipelines proportional (no full-pipeline overhead, no unnecessary user interaction).
+24. Change classification keeps `trivial`/`small` pipelines proportional (no full-pipeline overhead, no unnecessary user interaction); gate applicability is evaluated from `CHANGE.yaml.class` with explicit `NOT_APPLICABLE` verdicts, never silent bypasses.
 
 ---
 
