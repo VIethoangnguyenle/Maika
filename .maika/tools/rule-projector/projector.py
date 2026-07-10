@@ -70,6 +70,20 @@ def project_naming(conventions):
                           "conventions.yaml#naming_patterns"))
     return rules
 
+def project_code_hygiene(conventions):
+    """code_hygiene.java (machine lane) -> IR. Key = ir_rule 1:1; backend/schema
+    là chốt validate kind (như naming: projector không tự lọc)."""
+    rules = []
+    java = (conventions.get("code_hygiene") or {}).get("java") or {}
+    # Bẫy latent: _dedupe key = (ir_rule, params.target) — key hygiene trùng tên
+    # ir_rule hệ thống (vd max_if_nesting) sẽ bị dedupe nuốt lặng. Vocabulary hợp lệ
+    # giữ trong ir_schema.json enum; đừng đặt key trùng kind hệ thống.
+    for key, spec in java.items():
+        sev = "error" if (spec or {}).get("severity") == "mandatory" else "warning"
+        rules.append(_rule(f"hygiene.java.{key}", key, sev, {},
+                           "conventions.yaml#code_hygiene"))
+    return rules
+
 def _dedupe(rules):
     seen, out = set(), []
     for r in rules:
@@ -95,6 +109,7 @@ def build_ir(dna_path, conventions_path):
     rules += project_thresholds(dna.get("complexity_thresholds"))
     if _approved(conv):
         rules += project_naming(conv)
+        rules += project_code_hygiene(conv)
     rules = _dedupe(rules)
     return {
         "version": IR_VERSION,

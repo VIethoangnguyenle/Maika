@@ -2,9 +2,10 @@
 
 Kept OUT of gates.py so the validators stay deterministic/hermetic. The caller
 (cli.py) runs the probe and passes the result into the pure validator, mirroring
-the existing --index pattern. Fail-open: any probe error → empty list, so a
-missing/broken probe never blocks (the validator treats empty as "nothing to
-use → grep OK").
+the existing --index pattern. Fail-open: most probes return an empty list on error
+so a missing/broken probe never blocks (the validator treats empty as "nothing to
+use → grep OK"). EXCEPTION: `changed_java_files` fails CLOSED (returns None on git
+error) so the code-hygiene gate degrades loudly instead of silently passing.
 """
 import json
 import os
@@ -100,3 +101,34 @@ def verify_nodes(node_ids, timeout: int = 8):
         if d and d.get("qualified_name") == nid and d.get("file_path"):
             verified[nid] = d["file_path"]
     return verified, True
+
+
+def changed_java_files(repo_root, timeout: int = 8):
+    """Changed .java files in the git repo containing repo_root (vs HEAD +
+    untracked), absolute paths. repo_root được chuẩn hoá về git top-level qua
+    rev-parse nên diff (top-relative) và ls-files (cwd-relative) join nhất quán;
+    file đã xóa bị lọc (không thể chứa import thừa).
+    Returns None when git cannot answer. DELIBERATELY not fail-open (khác các
+    probe trên): code-hygiene gate phải degrade LOUDLY — validator FAILs on None."""
+    try:
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                             cwd=repo_root, capture_output=True, text=True,
+                             timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if top.returncode != 0:
+        return None
+    root = top.stdout.strip()
+    collected = []
+    for cmd in (["git", "diff", "--name-only", "HEAD"],
+                ["git", "ls-files", "--others", "--exclude-standard"]):
+        try:
+            proc = subprocess.run(cmd, cwd=root, capture_output=True,
+                                  text=True, timeout=timeout)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if proc.returncode != 0:
+            return None
+        collected += [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+    paths = {os.path.join(root, f) for f in collected if f.endswith(".java")}
+    return sorted(p for p in paths if os.path.isfile(p))

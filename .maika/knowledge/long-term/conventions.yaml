@@ -34,6 +34,15 @@ naming:
 naming_patterns: []
 
 # ─────────────────────────────────────────────
+# SECTION 1c: Code Hygiene (machine lane — rule-projector + gate-check input)
+# Key dưới mỗi ngôn ngữ = rule id (vd java: no_unused_imports | no_wildcard_imports
+# | no_redundant_imports). severity: mandatory → checkstyle error + gate block.
+# Consumers: rule-projector (project_code_hygiene) + gate-check `code-hygiene`.
+# Repo này là Python → rỗng; project Java điền như ví dụ trong template.
+# ─────────────────────────────────────────────
+code_hygiene: {}
+
+# ─────────────────────────────────────────────
 # SECTION 2: Package Structure
 # ─────────────────────────────────────────────
 package_structure:

@@ -446,3 +446,89 @@ def validate_node_checkpoint(text: str) -> Result:
     if not _RULE_ID.search(text):
         return Result(False, "node checkpoint missing rule-id evidence")
     return Result(True)
+
+
+_JAVA_IMPORT = re.compile(r"\s*import\s+(static\s+)?([\w.]+(?:\.\*)?)\s*;")
+_JAVA_NONBODY = re.compile(r"\s*(import|package)\b")
+# Canonical code_hygiene.java rule keys the pure validator understands. A key
+# outside this set silently no-ops (fails open) unless caught → validate loudly.
+_HYGIENE_KEYS = {"no_unused_imports", "no_wildcard_imports", "no_redundant_imports"}
+
+
+def _java_import_violations(path, source, enabled):
+    """Import-hygiene violations for one .java source (pure text analysis).
+    enabled = set of rule keys from conventions code_hygiene.java."""
+    lines = source.splitlines()
+    imports = []                                   # (lineno, is_static, fqname)
+    in_block = False
+    for i, line in enumerate(lines, 1):
+        if in_block:
+            if "*/" in line:
+                in_block = False
+            continue                                  # bỏ qua dòng trong block comment
+        m = _JAVA_IMPORT.match(line)
+        if m:
+            imports.append((i, bool(m.group(1)), m.group(2)))
+        if line.rfind("/*") > line.rfind("*/"):       # mở block chưa đóng trên dòng này
+            in_block = True
+    body = "\n".join(l for l in lines if not _JAVA_NONBODY.match(l))
+    out, seen = [], set()
+    for lineno, is_static, fq in imports:
+        if fq.endswith(".*"):
+            if "no_wildcard_imports" in enabled:
+                out.append(f"{path}:{lineno} wildcard import '{fq}'")
+            continue
+        if "no_redundant_imports" in enabled:
+            key = (is_static, fq)
+            if key in seen:
+                out.append(f"{path}:{lineno} duplicate import '{fq}'")
+                continue
+            seen.add(key)
+            if not is_static and fq.startswith("java.lang.") and fq.count(".") == 2:
+                out.append(f"{path}:{lineno} redundant java.lang import '{fq}'")
+                continue
+        if "no_unused_imports" in enabled:
+            simple = fq.rsplit(".", 1)[-1]
+            if not re.search(rf"\b{re.escape(simple)}\b", body):
+                out.append(f"{path}:{lineno} unused import '{fq}'")
+    return out
+
+
+def validate_code_hygiene(text, java_sources=None) -> Result:
+    """Deterministic import-hygiene gate (post-edit, hook-independent).
+    text = conventions.yaml content — code_hygiene.java keys = enabled rules.
+    java_sources = {path: content} of changed .java files (resolved by cli.py);
+    None = changed-file set undeterminable → degrade LOUDLY (không fail-open).
+    Chỉ severity: mandatory mới block (khớp projector mandatory→error);
+    severity khác chỉ sống ở lane Checkstyle warning.
+    Conventions chưa approved (status draft/stale) → gate im (khớp projector
+    _approved: không project rule chưa duyệt). Missing status → coi như active."""
+    try:
+        conv = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        return Result(False, f"conventions.yaml unparseable: {exc}")
+    status = (conv.get("meta") or {}).get("status")
+    if status is not None and status != "approved":
+        return Result(True)                        # draft/stale → gate quiescent
+    java = (conv.get("code_hygiene") or {}).get("java") or {}
+    enabled = {k for k, v in java.items() if (v or {}).get("severity") == "mandatory"}
+    unknown = enabled - _HYGIENE_KEYS
+    if unknown:                                    # typo'd rule would silently no-op → fail loud
+        return Result(False, f"unknown code_hygiene.java rule(s) {sorted(unknown)} "
+                             f"— valid: {sorted(_HYGIENE_KEYS)}")
+    if not enabled:
+        return Result(True)                        # no rules configured → nothing to enforce
+    if java_sources is None:
+        return Result(False,
+                      "cannot determine changed files (git probe failed) — "
+                      "pass --java-file <path> explicitly or run inside the git repo")
+    if not java_sources:
+        return Result(True)                        # no changed .java files
+    violations = []
+    for path in sorted(java_sources):
+        violations += _java_import_violations(path, java_sources[path], enabled)
+    if violations:
+        shown = "; ".join(violations[:10])
+        more = f" (+{len(violations) - 10} more)" if len(violations) > 10 else ""
+        return Result(False, shown + more)
+    return Result(True)

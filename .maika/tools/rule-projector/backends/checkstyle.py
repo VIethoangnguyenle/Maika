@@ -35,6 +35,12 @@ def _emit_rule(tw, rule):
     elif ir == "require_javadoc_tag":
         for tag in p.get("tags", []):
             m = _module(tw, "Regexp"); _prop(m, "format", tag); _prop(m, "illegalPattern", "false"); _prop(m, "severity", sev)
+    elif ir == "no_unused_imports":
+        m = _module(tw, "UnusedImports"); _prop(m, "severity", sev)
+    elif ir == "no_wildcard_imports":
+        m = _module(tw, "AvoidStarImport"); _prop(m, "severity", sev)
+    elif ir == "no_redundant_imports":
+        m = _module(tw, "RedundantImport"); _prop(m, "severity", sev)
     else:
         raise ValueError(f"Unsupported ir_rule for checkstyle backend: {ir}")
 

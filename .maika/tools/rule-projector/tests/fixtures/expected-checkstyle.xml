@@ -51,6 +51,18 @@
       <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
       <property name="severity" value="warning"/>
     </module>
+    <!-- from: conventions.yaml#code_hygiene (hygiene.java.no_unused_imports) -->
+    <module name="UnusedImports">
+      <property name="severity" value="error"/>
+    </module>
+    <!-- from: conventions.yaml#code_hygiene (hygiene.java.no_wildcard_imports) -->
+    <module name="AvoidStarImport">
+      <property name="severity" value="error"/>
+    </module>
+    <!-- from: conventions.yaml#code_hygiene (hygiene.java.no_redundant_imports) -->
+    <module name="RedundantImport">
+      <property name="severity" value="error"/>
+    </module>
   </module>
 </module>
 

@@ -5,3 +5,8 @@ naming_patterns:
     pattern: "^[A-Z][a-zA-Z0-9]*$"
   - target: MethodName
     pattern: "^[a-z][a-zA-Z0-9]*$"
+code_hygiene:
+  java:
+    no_unused_imports: {severity: mandatory}
+    no_wildcard_imports: {severity: mandatory}
+    no_redundant_imports: {severity: mandatory}
