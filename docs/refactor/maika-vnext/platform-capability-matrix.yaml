@@ -1,0 +1,66 @@
+version: 1
+
+platforms:
+  claude-code:
+    subagent_spawn:
+      supported: true
+      evidence: ".maika/profiles/execution-mode.yaml:3 — tier `subagent` (Claude); Task tool"
+      verified_at: 2026-07-10
+    fresh_session:
+      supported: false
+      evidence: "Claude Code CLI không có flag tương đương worker_command cô lập session."
+      verified_at: 2026-07-10
+    hook_pre_tool_use:
+      supported: true
+      evidence: ".maika/hooks/claude-code/settings.json:1"
+      verified_at: 2026-07-10
+    hook_session_start:
+      supported: false
+      evidence: "Không thấy hook session_start trong .maika/hooks/claude-code/settings.json"
+      verified_at: 2026-07-10
+    model_selection:
+      supported: false
+      evidence: "Không tìm thấy parameter model cho claude_code.py qua grep."
+      verified_at: 2026-07-10
+  codex:
+    subagent_spawn:
+      supported: false
+      evidence: "Codex exec không hỗ trợ invoke_subagent tool."
+      verified_at: 2026-07-10
+    fresh_session:
+      supported: true
+      evidence: ".maika/profiles/execution-mode.yaml:4"
+      verified_at: 2026-07-10
+    hook_pre_tool_use:
+      supported: true
+      evidence: ".maika/hooks/codex/hooks.json:1"
+      verified_at: 2026-07-10
+    hook_session_start:
+      supported: false
+      evidence: "Không tìm thấy session_start trong .maika/hooks/codex/hooks.json"
+      verified_at: 2026-07-10
+    model_selection:
+      supported: true
+      evidence: "codex exec --help hiển thị `-m, --model <MODEL>`"
+      verified_at: 2026-07-10
+  antigravity:
+    subagent_spawn:
+      supported: true
+      evidence: "Hỗ trợ qua invoke_subagent tool."
+      verified_at: 2026-07-10
+    fresh_session:
+      supported: true
+      evidence: ".maika/profiles/execution-mode.yaml:4"
+      verified_at: 2026-07-10
+    hook_pre_tool_use:
+      supported: true
+      evidence: ".maika/hooks/antigravity/hooks.json:5 — ghi rõ ràng buộc version (hooks chỉ fire từ 2.0.1 + Tools v4.3.5)"
+      verified_at: 2026-07-10
+    hook_session_start:
+      supported: false
+      evidence: "Không tìm thấy trong .maika/hooks/antigravity/hooks.json"
+      verified_at: 2026-07-10
+    model_selection:
+      supported: true
+      evidence: "agy --help hiển thị `--model`"
+      verified_at: 2026-07-10
