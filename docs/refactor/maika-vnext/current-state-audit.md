@@ -135,6 +135,10 @@ Ghi chú CI: `.github/workflows/ci.yml` hiện chỉ chạy `cli/tests/` — 6 s
 ### Misfit findings
 - 0 misfit — §6 phủ được 3 change gần nhất.
 
-## 5. Exit criteria
+## 5. Exit criteria (v2 §26 W0)
 
-(Task 10 điền)
+- [x] Baseline commit recorded: `a31dc30` (§2)
+- [x] Conflicting branches resolved/stacked: quyết định tại §1 (chờ user duyệt)
+- [x] Every planned deletion has known consumers: skill-migration-map.yaml + artifact-consumer-map.yaml
+- [ ] Current-state audit approved: **chờ user**
+- [x] Ledger + matrix exist and validate: `pytest cli/tests/test_vnext_w0_artifacts.py` → 4 passed
