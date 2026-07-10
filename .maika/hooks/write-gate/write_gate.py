@@ -381,6 +381,7 @@ def _is_framework_artifact(path: Path, framework_root: str) -> bool:
     parts = path.as_posix()
     return (
         parts.startswith(f"{framework_root}/")
+        or parts.startswith("changes/")
         or parts.startswith("openspec/")
         or parts.startswith("docs/superpowers/specs/")
         or parts.startswith("docs/superpowers/plans/")
