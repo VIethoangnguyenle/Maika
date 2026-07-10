@@ -1,0 +1,313 @@
+version: 1
+
+entries:
+  # ---- active: cơ chế đang chạy ----
+  - id: ENF-001
+    mechanism: code-evidence
+    type: gate
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
+      summary: Agent bịa/khai khống grep evidence thay vì probe node thật (PR #37 lineage).
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/workflows/task.md, .maika/rules/rules-tool.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-002
+    mechanism: write-gate
+    type: hook
+    status: active
+    failure:
+      classification: safety_boundary
+      reference: .maika/hooks/write-gate/write_gate.py
+      summary: >-
+        Write boundary — đủ điều kiện theo ngoại lệ v2 §5. Bổ sung:
+        observed bypass trên Antigravity IDE 1.23.2 (hooks không load,
+        đã fix bằng Antigravity 2.0.1 + Tools v4.3.5).
+    implementation:
+      files: [.maika/hooks/write-gate/write_gate.py]
+      consumers: [.maika/hooks/claude-code/, .maika/hooks/codex/, .maika/hooks/antigravity/]
+    scope: {change_classes: [trivial, small, standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-003
+    mechanism: skill-lint
+    type: validator
+    status: active
+    failure:
+      classification: observed_failure
+      reference: .maika/tools/skill-lint/tests/test_sp3_doctrine_litmus.py
+      summary: Skill migration kiểu rewrite âm thầm làm rơi guidance; lint schema bắt cấu trúc.
+    implementation:
+      files: [.maika/tools/skill-lint/validate_skills.py]
+      consumers: [.maika/skills/skill-index.yaml]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-004
+    mechanism: rule-projector
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      reference: .maika/tools/rule-projector/tests/test_sync_check.py
+      summary: Luật mất đồng bộ.
+    implementation:
+      files: [.maika/tools/rule-projector/projector.py]
+      consumers: [.maika/rules/rules-guard.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-005
+    mechanism: knowledge-checkpoint
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
+      summary: Bắt buộc tuân thủ.
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/workflows/task.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-006
+    mechanism: handoff-slice
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
+      summary: Bắt buộc tuân thủ.
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/workflows/task.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-007
+    mechanism: implementation-context
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
+      summary: Bắt buộc tuân thủ.
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/workflows/task.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-008
+    mechanism: phase-chain
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
+      summary: Bắt buộc tuân thủ.
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/workflows/task.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-009
+    mechanism: mcp-status
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
+      summary: Bắt buộc tuân thủ.
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/workflows/task.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-010
+    mechanism: memory-recall
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
+      summary: Bắt buộc tuân thủ.
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/workflows/task.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-011
+    mechanism: teaching-moment
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
+      summary: Bắt buộc tuân thủ.
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/workflows/task.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-012
+    mechanism: archive-ready
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
+      summary: Bắt buộc tuân thủ.
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/workflows/task.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-013
+    mechanism: ac-coverage
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
+      summary: Bắt buộc tuân thủ.
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/workflows/task.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-014
+    mechanism: integration-coverage
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
+      summary: Bắt buộc tuân thủ.
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/workflows/task.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-015
+    mechanism: cbm-doctrine-guard
+    type: hook
+    status: active
+    failure:
+      classification: observed_failure
+      reference: .maika/rules/rules-guard.md
+      summary: cbm cài rule đè UA-first doctrine.
+    implementation:
+      files: [.maika/rules/rules-guard.md]
+      consumers: [.maika/rules/rules-guard.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+
+  # ---- proposed: 9 lifecycle gates của v2 §22 ----
+  - id: PROP-001
+    mechanism: change-workspace
+    type: gate
+    status: proposed
+    scheduled_wave: W1
+    reviewed_at: 2026-07-10
+
+  - id: PROP-002
+    mechanism: exploration-evidence
+    type: gate
+    status: proposed
+    scheduled_wave: W2
+    reviewed_at: 2026-07-10
+
+  - id: PROP-003
+    mechanism: spec
+    type: gate
+    status: proposed
+    scheduled_wave: W2
+    reviewed_at: 2026-07-10
+
+  - id: PROP-004
+    mechanism: plan
+    type: gate
+    status: proposed
+    scheduled_wave: W1
+    reviewed_at: 2026-07-10
+
+  - id: PROP-005
+    mechanism: brief-integrity
+    type: gate
+    status: proposed
+    scheduled_wave: W1
+    reviewed_at: 2026-07-10
+
+  - id: PROP-006
+    mechanism: result-contract
+    type: gate
+    status: proposed
+    scheduled_wave: W1
+    reviewed_at: 2026-07-10
+
+  - id: PROP-007
+    mechanism: task-review
+    type: gate
+    status: proposed
+    scheduled_wave: W2
+    reviewed_at: 2026-07-10
+
+  - id: PROP-008
+    mechanism: final-review
+    type: gate
+    status: proposed
+    scheduled_wave: W3
+    reviewed_at: 2026-07-10
+
+  - id: PROP-009
+    mechanism: archive-readiness
+    type: gate
+    status: proposed
+    scheduled_wave: W6
+    reviewed_at: 2026-07-10
+
+
+  # ---- deferred: hoãn có điều kiện kích hoạt (traceability doc §Deferred) ----
+  - id: DEF-001
+    mechanism: parallel-execution-file-locks
+    type: gate
+    status: deferred
+    activation_condition: >-
+      Wall-clock bottleneck ghi nhận ở >=2 dogfood changes trong ledger.
+    reviewed_at: 2026-07-10
+
+  - id: DEF-002
+    mechanism: claim-level-evidence-hash
+    type: validator
+    status: deferred
+    activation_condition: >-
+      Một staleness false negative mà file-level hash bỏ lọt, có ghi nhận.
+    reviewed_at: 2026-07-10
+
+  - id: DEF-003
+    mechanism: routing-cost-risk-sensitivity
+    type: validator
+    status: deferred
+    activation_condition: Observed misrouting failure do thiếu dimension.
+    reviewed_at: 2026-07-10
+
+  - id: DEF-004
+    mechanism: dashboard-expansion
+    type: validator
+    status: deferred
+    activation_condition: Dogfood ghi nhận thiếu hụt observability cụ thể.
+    reviewed_at: 2026-07-10

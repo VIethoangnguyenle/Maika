@@ -1,0 +1,107 @@
+version: 1
+baseline_commit: a31dc30
+
+coverage:
+  expected_skill_count: 14
+  mapped_skill_count: 14
+  status: complete
+
+skills:
+  - skill: codebase-explorer
+    classification: rewrite
+    target: grounding-explorer
+    consumers:
+      - path: .maika/workflows/task.md
+      - path: .maika/rules/rules-exec.md
+      - path: .maika/rules/rules-knowledge.md
+      - path: .maika/rules/rules-tool.md
+      - path: .maika/procedures/context-loader.md
+      - path: .maika/procedures/token-tracking.md
+      - path: cli/plugin-manifest.yaml
+  - skill: openspec-propose
+    classification: delete
+    consumers:
+      - path: .maika/workflows/task.md
+      - path: .maika/rules/rules-knowledge.md
+      - path: .maika/procedures/context-loader.md
+      - path: cli/plugin-manifest.yaml
+  - skill: architecture-reviewer
+    classification: retain
+    consumers:
+      - path: .maika/workflows/task.md
+      - path: .maika/rules/rules-exec.md
+      - path: .maika/rules/rules-knowledge.md
+      - path: .maika/procedures/context-loader.md
+      - path: .maika/procedures/token-tracking.md
+      - path: cli/plugin-manifest.yaml
+  - skill: author-dna-builder
+    classification: retain
+    consumers:
+      - path: .maika/workflows/dna-scan.md
+      - path: .maika/rules/rules-guard.md
+      - path: .maika/procedures/context-loader.md
+      - path: cli/plugin-manifest.yaml
+  - skill: convention-intelligence-builder
+    classification: retain
+    consumers:
+      - path: .maika/workflows/convention-scan.md
+      - path: .maika/procedures/context-loader.md
+      - path: cli/plugin-manifest.yaml
+  - skill: db-explorer
+    classification: retain
+    consumers:
+      - path: .maika/workflows/tdd.md
+      - path: .maika/workflows/task.md
+      - path: .maika/rules/rules-exec.md
+      - path: .maika/rules/rules-knowledge.md
+      - path: .maika/rules/rules-tool.md
+      - path: .maika/procedures/token-tracking.md
+      - path: cli/plugin-manifest.yaml
+  - skill: document-writer
+    classification: retain
+    consumers:
+      - path: cli/plugin-manifest.yaml
+  - skill: infra-tdd
+    classification: retain
+    consumers:
+      - path: .maika/workflows/tdd.md
+      - path: cli/plugin-manifest.yaml
+  - skill: knowledge-curator
+    classification: retain
+    consumers:
+      - path: .maika/workflows/task.md
+      - path: .maika/workflows/idea-to-task.md
+      - path: .maika/rules/rules-exec.md
+      - path: .maika/rules/rules-knowledge.md
+      - path: .maika/rules/rules-tool.md
+      - path: .maika/procedures/context-loader.md
+      - path: .maika/procedures/token-tracking.md
+      - path: .maika/procedures/bootstrap.md
+      - path: cli/plugin-manifest.yaml
+  - skill: openspec-archive-change
+    classification: delete
+    consumers:
+      - path: cli/plugin-manifest.yaml
+  - skill: openspec-explore
+    classification: delete
+    consumers:
+      - path: cli/plugin-manifest.yaml
+  - skill: requirement-analyst
+    classification: retain
+    consumers:
+      - path: .maika/workflows/task.md
+      - path: .maika/rules/rules-knowledge.md
+      - path: .maika/procedures/token-tracking.md
+      - path: cli/plugin-manifest.yaml
+  - skill: spec-extract
+    classification: retain
+    consumers:
+      - path: .maika/workflows/task.md
+      - path: .maika/rules/rules-knowledge.md
+      - path: cli/plugin-manifest.yaml
+  - skill: spec-validator
+    classification: retain
+    consumers:
+      - path: .maika/workflows/task.md
+      - path: .maika/procedures/reviewer.md
+      - path: cli/plugin-manifest.yaml
