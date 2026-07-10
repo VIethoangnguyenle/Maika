@@ -33,6 +33,26 @@ def test_dangerous_commands_are_denied(command, tmp_path):
         rh.execute_command(command, tmp_path, allowed_executables={"rm", "sh"})
 
 
+def test_validate_command_accepts_windows_executable_extension():
+    # On Windows sys.executable's basename is "python.exe"; it must match the
+    # "python" allowlist entry so verification commands are not denied there.
+    spec = rh.validate_command(
+        {"version": 1, "executable": "python.exe", "args": ["-c", "print(1)"], "category": "test"},
+        allowed_executables={"python"},
+    )
+    assert spec["executable"] == "python.exe"
+
+
+def test_validate_command_does_not_strip_non_executable_extension():
+    # Only known executable extensions (.exe/.bat/.cmd/.com) are stripped; a
+    # ".py" file must not be able to masquerade as an allowlisted interpreter.
+    with pytest.raises(rh.CommandDenied):
+        rh.validate_command(
+            {"version": 1, "executable": "python.py", "args": [], "category": "test"},
+            allowed_executables={"python"},
+        )
+
+
 def test_sensitive_tools_require_explicit_human_confirmation(tmp_path):
     command = {"version": 1, "executable": "docker", "args": ["ps"], "category": "build"}
     with pytest.raises(rh.HumanConfirmationRequired):

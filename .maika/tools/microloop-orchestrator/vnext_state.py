@@ -61,7 +61,10 @@ def _dump_yaml(doc, path):
     payload = yaml.safe_dump(doc, sort_keys=False, allow_unicode=True)
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        # newline="" -> no OS newline translation, so artifacts are byte-identical
+        # (LF) on POSIX and Windows. Content hashes (read_bytes) then match
+        # read_text-based hashes cross-platform.
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())

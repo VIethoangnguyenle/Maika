@@ -106,7 +106,11 @@ def test_review_plan_approved(tmp_path):
         # Extract output file path from a marker or similar logic in real implementation
         out = ws / "review_output.txt"
         out.write_text(_review(
-            ws, "plan", body=f"## Counter-evidence\n- {ws / 'IMPLEMENTATION_PLAN.md'}\n" + REVIEW_TRACE
+            ws, "plan",
+            # repo-relative POSIX anchor (matches the other review bodies); an
+            # absolute OS path here would embed Windows backslashes and fail the
+            # posix _FILE_PATH anchor extraction on Windows.
+            body="## Counter-evidence\n- src/a.py:1 — confirmed in current source\n" + REVIEW_TRACE,
         ))
         return 0, ""
     assert vd.review_plan(ws, runner, output_path=ws / "review_output.txt") == "APPROVED"

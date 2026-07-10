@@ -69,9 +69,17 @@ def validate_command(command: dict | str, allowed_executables=None, human_confir
     spec = normalize_command(command)
     executable = spec["executable"]
     allowed = set(allowed_executables or DEFAULT_ALLOWED_EXECUTABLES)
-    identity = executable if executable in allowed else Path(executable).name
     allowed_identities = allowed | {Path(item).name for item in allowed}
-    if identity not in allowed_identities:
+    name = Path(executable).name
+    # On Windows an interpreter's basename carries an extension (python.exe);
+    # match the stem too, but only for real executable extensions so a
+    # "python.py" file cannot masquerade as the "python" interpreter.
+    candidates = {executable, name}
+    low = name.lower()
+    for ext in (".exe", ".bat", ".cmd", ".com"):
+        if low.endswith(ext):
+            candidates.add(name[: -len(ext)])
+    if not (candidates & allowed_identities):
         raise CommandDenied(f"executable is not allowlisted: {executable}")
     rendered = " ".join([executable, *spec["args"]]).lower()
     if any(token in rendered for token in DENIED_TOKENS):
