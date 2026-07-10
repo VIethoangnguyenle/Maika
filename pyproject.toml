@@ -31,6 +31,15 @@ dependencies = [
     "questionary>=2.0,<3",
 ]
 
+[project.optional-dependencies]
+# Test-only deps. `jsonschema` is imported by
+# .maika/tools/rule-projector/tests/test_schema.py and must be present for CI
+# collection; it is NOT a runtime dependency.
+test = [
+    "pytest",
+    "jsonschema>=4.0",
+]
+
 [project.scripts]
 maika = "cli.maika:main"
 

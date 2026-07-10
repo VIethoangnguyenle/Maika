@@ -106,10 +106,18 @@ def test_compile_writes_queue_and_briefs(tmp_path):
     q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text())
     assert [t["id"] for t in q["tasks"]] == ["TASK-001", "TASK-002"]
     assert all(t["status"] == "pending" for t in q["tasks"])
-    brief = (ws / "briefs" / "TASK-001.md").read_text()
+    # read with the same encoding the brief was written with (utf-8); the default
+    # locale encoding (cp1252 on Windows) would corrupt the non-ASCII body and
+    # break the hash comparison below.
+    brief = (ws / "briefs" / "TASK-001.md").read_text(encoding="utf-8")
     head, _, body = brief.partition("\n---\n")
-    assert hashlib.sha256(body.encode()).hexdigest() == q["tasks"][0]["brief_hash"]
+    assert hashlib.sha256(body.encode("utf-8")).hexdigest() == q["tasks"][0]["brief_hash"]
     assert "Thân task 1." in body                 # verbatim
+    # stored artifact paths must be POSIX so the write-gate (which compares
+    # as_posix() strings) matches on Windows too.
+    for t in q["tasks"]:
+        for key in ("brief_path", "capsule_path", "context_package_path", "result_path"):
+            assert "\\" not in t[key], f"{key} must be POSIX: {t[key]!r}"
 
 
 def test_compile_deterministic(tmp_path):
