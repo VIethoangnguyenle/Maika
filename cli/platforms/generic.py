@@ -68,6 +68,10 @@ class GenericPlatform(BasePlatform):
         "subagent": False,
         "artifacts": False,
         "browser": False,
+        "fresh_session": False,
+        "task_dispatch": False,
+        "review_dispatch": False,
+        "model_selection": False,
         "write_gate_hook": False,
     }
 

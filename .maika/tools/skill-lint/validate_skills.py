@@ -194,6 +194,11 @@ def check_s2_flowchart(fm: dict, body: str) -> tuple[bool | None, str]:
 
 
 SP3_CORE_MAX_LINES = 200
+PROVIDER_NAME = re.compile(
+    r"\b(agent-memory|codebase-memory|understand-anything|mcp__|mcp_)\b",
+    re.IGNORECASE,
+)
+CAPABILITY_ID = re.compile(r"`([a-z][a-z0-9_]+)`")
 
 
 def check_s3_core_budget(fm: dict, body: str) -> tuple[str, str]:
@@ -213,6 +218,43 @@ def check_body_section(body: str, section_id: str) -> tuple[bool, str]:
         if re.search(pattern, body, re.IGNORECASE):
             return True, ""
     return False, f"thiếu section '## {section['label']}'"
+
+
+def load_known_capability_ids() -> set[str]:
+    registry = Path(__file__).resolve().parents[2] / "profiles" / "capability-registry.yaml"
+    data = yaml.safe_load(registry.read_text(encoding="utf-8")) or {}
+    return set((data.get("capabilities") or {}).keys())
+
+
+def _capability_ids_in_body(body: str) -> set[str]:
+    ids = set()
+    lines = body.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if "Capability IDs:" not in line:
+            i += 1
+            continue
+        ids.update(CAPABILITY_ID.findall(line))
+        i += 1
+        while i < len(lines) and lines[i].startswith((" ", "\t")):
+            ids.update(CAPABILITY_ID.findall(lines[i]))
+            i += 1
+    return ids
+
+
+def check_w4_capability_boundary(
+    body: str, known_capability_ids: set[str] | None = None
+) -> tuple[bool, str]:
+    """[W4] Canonical skills use capability IDs, never provider names."""
+    provider = PROVIDER_NAME.search(body)
+    if provider:
+        return False, f"canonical skill contains provider name: {provider.group(0)}"
+    known = known_capability_ids if known_capability_ids is not None else load_known_capability_ids()
+    unknown = sorted(_capability_ids_in_body(body) - known)
+    if unknown:
+        return False, f"unknown capability IDs: {', '.join(unknown)}"
+    return True, ""
 
 
 # ─── Orchestrator ─────────────────────────────────────────────────────
@@ -238,6 +280,7 @@ def validate_skill(skill_path: Path) -> dict:
         results["S1"] = check_s1_reflex_upfront(fm, body)
         results["S2"] = check_s2_flowchart(fm, body)
         results["S3"] = check_s3_core_budget(fm, body)
+        results["W4"] = check_w4_capability_boundary(body)
 
     for section_id in REQUIRED_SECTIONS:
         results[section_id] = check_body_section(body, section_id)
@@ -280,7 +323,7 @@ def validate_all(skills_dir: Path) -> dict[str, dict]:
 
 # ─── Report Formatter ─────────────────────────────────────────────────
 
-CHECK_IDS = ["F1", "F2", "F3", "F4", "F5", "S1", "S2", "B1", "B2", "B3", "B4", "B5"]
+CHECK_IDS = ["F1", "F2", "F3", "F4", "F5", "S1", "S2", "W4", "B1", "B2", "B3", "B4", "B5"]
 
 
 def format_status(result: tuple[bool | None, str]) -> str:

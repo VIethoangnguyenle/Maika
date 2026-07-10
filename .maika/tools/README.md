@@ -9,5 +9,8 @@
 - `rule-projector/`: generated rule projections.
 - `mcp-bridge/`: platform MCP setup support.
 
+Capability routing lives in the scaffolded profiles (`profiles/capabilities.md`
+and `profiles/capability-registry.yaml`) plus the CLI adapter runtime.
+
 Framework-development-only tools are not scaffolded unless a manifest consumer
 declares them.

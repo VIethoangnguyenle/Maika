@@ -24,6 +24,7 @@ from validate_skills import (
 from validate_skills import check_s1_reflex_upfront
 from validate_skills import check_s2_flowchart
 from validate_skills import check_s3_core_budget, SP3_CORE_MAX_LINES
+from validate_skills import check_w4_capability_boundary
 
 
 # ─── Frontmatter Parser ──────────────────────────────────────────────
@@ -128,6 +129,30 @@ class TestF3Version:
         assert passed is False
         passed, _ = check_f3_version({"version": "1.0.0"})
         assert passed is False
+
+
+# ─── W4: Capability Boundary ─────────────────────────────────────────
+
+class TestW4CapabilityBoundary:
+    def test_known_capability_ids_pass(self):
+        body = "- Capability IDs: `runtime_verification`, `review_dispatch`.\n"
+        passed, msg = check_w4_capability_boundary(
+            body, {"runtime_verification", "review_dispatch"}
+        )
+        assert passed is True
+        assert msg == ""
+
+    def test_provider_name_fails(self):
+        body = "Use agent-memory directly.\n"
+        passed, msg = check_w4_capability_boundary(body, {"runtime_verification"})
+        assert passed is False
+        assert "provider name" in msg
+
+    def test_unknown_capability_id_fails(self):
+        body = "- Capability IDs: `runtime_verification`, `telepathy`.\n"
+        passed, msg = check_w4_capability_boundary(body, {"runtime_verification"})
+        assert passed is False
+        assert "telepathy" in msg
 
 
 # ─── F4: Pre-conditions ──────────────────────────────────────────────

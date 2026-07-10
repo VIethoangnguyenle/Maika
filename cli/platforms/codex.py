@@ -65,6 +65,10 @@ class CodexPlatform(BasePlatform):
         "subagent": False,
         "artifacts": False,
         "browser": False,
+        "fresh_session": True,
+        "task_dispatch": True,
+        "review_dispatch": True,
+        "model_selection": True,
         "write_gate_hook": True,
     }
 

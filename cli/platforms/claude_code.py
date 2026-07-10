@@ -70,6 +70,10 @@ class ClaudeCodePlatform(BasePlatform):
         "subagent": True,       # Claude Code has Task tool
         "artifacts": False,     # No artifact system like Antigravity
         "browser": False,
+        "fresh_session": True,
+        "task_dispatch": True,
+        "review_dispatch": True,
+        "model_selection": True,
         "write_gate_hook": True,
     }
 

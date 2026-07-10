@@ -215,6 +215,38 @@ entries:
     scope: {change_classes: [standard, architectural]}
     reviewed_at: 2026-07-10
 
+  - id: ENF-016
+    mechanism: capability-router
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      reference: vNext master plan §11.2, §11.3, W4
+      summary: Capability routing must expose ready/degraded/unsupported status from one registry.
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_capability_runtime.py -q
+    implementation:
+      files: [cli/capability_runtime.py, .maika/profiles/capability-registry.yaml]
+      consumers: [cli/platforms/base.py]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-017
+    mechanism: capability-skill-lint
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      reference: vNext master plan §10, §11, W4
+      summary: Canonical skills may cite capability IDs, not concrete provider names.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/skill-lint/tests/test_validate_skills.py -q
+    implementation:
+      files: [.maika/tools/skill-lint/validate_skills.py]
+      consumers: [.maika/skills]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
 
   # ---- proposed: 9 lifecycle gates của v2 §22 ----
   - id: PROP-001

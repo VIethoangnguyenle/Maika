@@ -119,6 +119,19 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/rules/rules-guard.md"
 
+  # ─── PROFILES ───
+  - name: capabilities-profile
+    type: profile
+    source: profiles/capabilities.md
+    template: false
+    output: "{{ platform.framework_root }}/profiles/capabilities.md"
+
+  - name: capability-registry
+    type: profile
+    source: profiles/capability-registry.yaml
+    template: false
+    output: "{{ platform.framework_root }}/profiles/capability-registry.yaml"
+
   # ─── SKILLS ───
   - name: intent-analysis
     type: skill

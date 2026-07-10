@@ -37,6 +37,16 @@ def test_write_gate_hook_capability_matrix():
     assert get_platform("generic").capabilities["write_gate_hook"] is False
 
 
+def test_dispatch_capability_matrix():
+    for key in ("claude-code", "codex", "antigravity"):
+        caps = get_platform(key).capabilities
+        assert caps["fresh_session"] is True
+        assert caps["task_dispatch"] is True
+        assert caps["review_dispatch"] is True
+    assert get_platform("generic").capabilities["task_dispatch"] is False
+    assert get_platform("generic").capabilities["review_dispatch"] is False
+
+
 def test_cursor_is_out_of_scope_for_platform_selection():
     assert "cursor" not in PLATFORMS
 

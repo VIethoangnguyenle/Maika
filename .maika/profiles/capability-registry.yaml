@@ -1,0 +1,33 @@
+version: 1
+capabilities:
+  architecture_discovery:
+    description: Discover modules, boundaries, and architectural flows.
+    tools: [search_code, graph_stats, index_code]
+    freshness: [code_index]
+  exact_source_inspection:
+    description: Read current source or symbols authoritatively.
+    tools: [get_symbol, read_file]
+    freshness: [code_index]
+  dependency_analysis:
+    description: Trace dependency paths and blast radius.
+    tools: [trace_flow, get_dependencies]
+    freshness: [code_index]
+  business_knowledge_retrieval:
+    description: Retrieve product, domain, document, or memory context.
+    tools: [search_docs, dynamic_memory_recall]
+    health: [dynamic_memory]
+  convention_retrieval:
+    description: Retrieve author DNA, conventions, and rule IDs.
+    tools: [read_file, search_text]
+  runtime_verification:
+    description: Run build, test, lint, or verification commands and inspect output.
+    tools: [run_command, command_status]
+  version_control:
+    description: Inspect and record version-control evidence.
+    tools: [run_command]
+  task_dispatch:
+    description: Dispatch one implementation task through the canonical worker contract.
+    platform_capability: task_dispatch
+  review_dispatch:
+    description: Dispatch task or final review through the canonical reviewer contract.
+    platform_capability: review_dispatch

@@ -9,5 +9,9 @@ provider mappings / adapters / tool docs / capability matrix:
 - `business_knowledge_retrieval` — tri thức nghiệp vụ, tài liệu, memory.
 - `convention_retrieval` — Author DNA, conventions, rule IDs.
 - `runtime_verification` — chạy lệnh build/test và đọc output thật.
+- `version_control` — đọc/ghi bằng chứng git, commit SHA, diff, và trạng thái.
+- `task_dispatch` — dispatch một task implementation theo contract chung.
+- `review_dispatch` — dispatch task review hoặc final review theo contract chung.
 
-W1→W4: compliance giữ bởi plan review; W4 thêm skill-lint rule cấm provider-name.
+W4 runtime source of truth: `profiles/capability-registry.yaml`.
+Skill-lint rejects unknown capability IDs and provider names in canonical skills.

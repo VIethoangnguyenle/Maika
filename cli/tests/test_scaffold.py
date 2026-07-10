@@ -207,6 +207,19 @@ def test_manifest_declares_mcp_bridge_plugin(maika_root):
     assert by_name["mcp-bridge"]["copy_dir"] is True
 
 
+def test_manifest_ships_capability_profiles(maika_root):
+    manifest = load_manifest(maika_root)
+    by_name = {p["name"]: p for p in manifest["plugins"]}
+    assert by_name["capabilities-profile"]["source"] == "profiles/capabilities.md"
+    assert by_name["capabilities-profile"]["output"] == (
+        "{{ platform.framework_root }}/profiles/capabilities.md"
+    )
+    assert by_name["capability-registry"]["source"] == "profiles/capability-registry.yaml"
+    assert by_name["capability-registry"]["output"] == (
+        "{{ platform.framework_root }}/profiles/capability-registry.yaml"
+    )
+
+
 def _write_resolved_config(target, content):
     config_path = target / ".maika" / "resolved-config.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)

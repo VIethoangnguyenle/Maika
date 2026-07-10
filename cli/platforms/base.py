@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Set
 import platform as _platform
 
 from cli import FRAMEWORK_VERSION
+from cli.capability_runtime import build_capability_routes, load_capability_registry
 
 
 REQUIRED_TOOL_KEYS = frozenset({
@@ -103,6 +104,10 @@ class BasePlatform(ABC):
             "subagent": False,
             "artifacts": False,
             "browser": False,
+            "fresh_session": False,
+            "task_dispatch": False,
+            "review_dispatch": False,
+            "model_selection": False,
             "write_gate_hook": False,
         }
 
@@ -193,6 +198,8 @@ class BasePlatform(ABC):
             },
             "tools": self.tool_mapping,
             "capabilities": self.capabilities,
+            "capability_registry": load_capability_registry(),
+            "capability_routes": build_capability_routes(self),
             "mcps": mcps,
             "language": language,
             "framework_version": FRAMEWORK_VERSION,
