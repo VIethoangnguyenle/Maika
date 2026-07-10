@@ -29,7 +29,7 @@ def _setup_vnext_workspace(
     framework = root / ".maika"
     profiles = framework / "profiles"
     profiles.mkdir(parents=True, exist_ok=True)
-    (profiles / "execution-mode.yaml").write_text(
+    (profiles / "execution-mode.local.yaml").write_text(
         yaml.safe_dump({"workflow_engine": engine}, sort_keys=False),
         encoding="utf-8",
     )
@@ -74,6 +74,19 @@ def test_legacy_flag_falls_through_to_legacy_gate(tmp_path):
 
 def test_vnext_executing_approved_fresh_allowed_file_allows(tmp_path):
     _setup_vnext_workspace(tmp_path)
+
+    result = wg.evaluate_write(tmp_path, Path("src/App.py"), framework_root=".maika")
+
+    assert result.ok is True
+
+
+def test_vnext_executing_prefers_local_override_over_template(tmp_path):
+    _setup_vnext_workspace(tmp_path)
+    profiles = tmp_path / ".maika" / "profiles"
+    (profiles / "execution-mode.yaml").write_text(
+        "{% if platform == 'codex' %}\nworkflow_engine: legacy\n{% endif %}\n",
+        encoding="utf-8",
+    )
 
     result = wg.evaluate_write(tmp_path, Path("src/App.py"), framework_root=".maika")
 

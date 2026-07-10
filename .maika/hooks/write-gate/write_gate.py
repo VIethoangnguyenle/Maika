@@ -61,6 +61,14 @@ def _load_gate_check(project_root: Path, framework_root: str):
     raise FileNotFoundError(f"Cannot locate gate-check/gates.py under {framework_root}")
 
 
+def _execution_config_path(framework_path: Path) -> Path:
+    profiles = framework_path / "profiles"
+    local = profiles / "execution-mode.local.yaml"
+    if local.exists():
+        return local
+    return profiles / "execution-mode.yaml"
+
+
 def _path_from_value(value):
     if isinstance(value, str) and value.strip():
         return Path(value.strip())
@@ -494,7 +502,7 @@ def _read_json(path: Path):
 
 def _vnext_active_task(project_root: Path, framework_root: str):
     framework_path = project_root / framework_root
-    config_path = framework_path / "profiles" / "execution-mode.yaml"
+    config_path = _execution_config_path(framework_path)
     try:
         config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
