@@ -17,7 +17,7 @@
 - Mọi module mới đặt trong `.maika/tools/microloop-orchestrator/` hoặc `gate-check/` — không tool dir mới (R5).
 - Đường dẫn trong `.maika/**` giữ template placeholder `{{ platform.framework_root }}` nếu file là template scaffold; code Python dùng đường dẫn tương đối runtime (như code hiện có).
 - Sau MỖI task: chạy suite của tool bị sửa + `cli/tests/` để canh snapshot scaffold (`/usr/bin/python3 -m pytest cli/tests/ -q`); snapshot lệch vì file mới trong `.maika/` → cập nhật fixture snapshot trong CÙNG commit, ghi rõ trong message.
-- Ledger: 3 gate mới đã có PROP entries (PROP plan/brief-integrity/result-contract, scheduled W1); Task 12 chuyển `active` kèm litmus. Không thêm enforcement ngoài danh sách này (P2).
+- Ledger (P2, thứ tự đúng): mỗi gate activate ledger entry của nó (PROP → `active` + litmus = lệnh pytest của test gate đó) **trong CÙNG commit** với validator — Task 4 (vnext-plan + vnext-workspace), Task 6 (vnext-brief), Task 7 (vnext-result). Task 12 chỉ kiểm consistency cuối. Không thêm enforcement ngoài danh sách này.
 
 ## Thuật ngữ artifact (v2 §8, §15, §17, §18.4)
 
@@ -31,12 +31,20 @@
 ├── generated/PLAN_VALIDATION.json  {verdict, checks:[{id, ok, reason}]}
 ├── generated/PLAN_MANIFEST.json    {change_id, base_commit, plan_sha256, spec_sha256, compiled_at}
 ├── generated/TASK_QUEUE.json      {change_id, plan_sha256, tasks:[{id, depends_on, status, brief_path, brief_hash, result_path, files}]}
-├── briefs/task-NNN.md   (header YAML + "\n---\n" + verbatim plan section)
-├── results/task-NNN.yaml (schema §18.4)
-└── reviews/plan-review.md, reviews/task-NNN.md
+├── briefs/TASK-NNN.md   (header YAML + "\n---\n" + verbatim plan section)
+├── results/TASK-NNN.yaml (schema §18.4 ĐẦY ĐỦ field)
+└── reviews/plan-review.md, reviews/TASK-NNN.md
 ```
 
 `brief_hash` = sha256 hex của **verbatim section text** (sau `---`), không gồm header.
+Naming thống nhất: mọi file per-task dùng đúng task id (`TASK-001`), không tiền tố `task-` lặp.
+
+> **Rev 2 (2026-07-10):** đã áp 10 findings từ independent plan review (codex): symbol
+> grounding + spec-hash match vào gate plan; write-gate kiểm approval/staleness; result
+> contract đủ §18.4; state transitions tường minh per CLI; gate change-workspace minimal;
+> ledger activate cùng commit với gate (P2); test Task 4/7/8 viết đủ code; skill có trigger;
+> naming chuẩn hóa. Phần review đòi full §16 (AC coverage/anchors/compatibility) bị bác:
+> Master Plan v2 §26 W1 quy định "mechanical subset" — các check đó thuộc W2+.
 
 ---
 
@@ -245,8 +253,9 @@ description: >
   Sinh IMPLEMENTATION_PLAN.md code-level cho một change vNext: frontmatter máy-đọc
   (base_commit, spec_hash, evidence_hash), mỗi task một section TASK-NNN với
   implementation_mode exact|guided|intent, files/symbols/anchors, TDD steps, commands
-  + expected. Dùng SAU khi SPEC.md được duyệt. KHÔNG dùng cho: brainstorm (W2),
-  review plan (planning_dispatch đảm nhiệm).
+  + expected. Dùng khi: SPEC.md đã được duyệt và change ở state PLANNING (mọi class).
+  KHÔNG dùng cho: brainstorm (W2), review plan (planning_dispatch đảm nhiệm),
+  task legacy OpenSpec.
 ---
 
 ## Mục tiêu
@@ -422,26 +431,26 @@ def parse_plan(text):
 
 ---
 
-### Task 4: Gate `plan` (mechanical subset §16)
+### Task 4: Gate `vnext-plan` (mechanical subset §16) + gate `vnext-workspace`
 
 **Files:**
-- Modify: `.maika/tools/gate-check/gates.py` (thêm validator cuối file)
+- Modify: `.maika/tools/gate-check/gates.py` (2 validator cuối file)
 - Modify: `.maika/tools/gate-check/cli.py` (VALIDATORS + kwargs)
 - Create: `.maika/tools/gate-check/tests/test_vnext_plan_gate.py`
+- Modify: `docs/refactor/maika-vnext/enforcement-ledger.yaml` (PROP plan + PROP change-workspace → active, cùng commit)
 
 **Interfaces:**
-- Produces: `validate_vnext_plan(text, repo_root=None) -> Result` — checks W1: frontmatter đủ; base_commit resolve được (`git cat-file -t <sha>` trong repo_root); task ID duy nhất + khớp heading; deps tồn tại + acyclic; mỗi task có `verification.command` + `expected`; files.modify/test tồn tại trên disk (files.create thì KHÔNG cần); không `TODO`/`TBD`/`FIXME` trong section; `implementation_mode` hợp lệ. CLI: gate name `vnext-plan`, flag `--repo-root` (tái dụng pattern code-evidence).
-- Consumes: `plan_parser.parse_plan` (import qua `_load_module` pattern? gates.py không import cross-tool — **copy logic parse tối thiểu KHÔNG được phép**; thay vào đó cli.py load plan_parser bằng `importlib` từ đường dẫn microloop-orchestrator như orchestrator `_load_gate_check` làm ngược lại, rồi truyền `doc` đã parse vào validator qua kwargs `plan_doc`).
+- Produces: `validate_vnext_plan(text, plan_doc=None, repo_root=None, spec_sha256=None) -> Result` — subset W1 §26 (KHÔNG phải full §16 — phần còn lại W2+): frontmatter đủ; `spec_hash == "sha256:"+spec_sha256` khi spec_sha256 truyền vào; `evidence_hash` đúng format `sha256:...` (đối chiếu manifest là W2); base_commit resolve được (`git cat-file -t`); task ID duy nhất + khớp heading; deps tồn tại + acyclic; mỗi task có `verification.command` + `expected`; files.modify/test tồn tại (files.create KHÔNG cần); **symbol grounding**: header có `symbols: {<path>: [<name>...]}` thì mỗi name phải xuất hiện (substring) trong file đó; không `TODO`/`TBD`/`FIXME`; `implementation_mode` hợp lệ.
+- Produces: `validate_change_workspace(text) -> Result` — text = CHANGE.yaml: đủ key `change_id/class/title/created_at`, class hợp lệ (ledger PROP-001 scheduled W1 — đóng đúng hạn).
+- Consumes: `plan_parser.parse_plan` — cli.py load plan_parser bằng `importlib` (pattern `_load_gate_check` đảo chiều), truyền `plan_doc` vào validator qua kwargs.
 
-- [ ] **Step 1: Failing tests** (fixture PLAN tái dùng từ test_plan_parser, thêm biến thể lỗi):
+- [ ] **Step 1: Failing tests** (code ĐẦY ĐỦ, chạy được ngay):
 
 ```python
 # .maika/tools/gate-check/tests/test_vnext_plan_gate.py
 import importlib.util
 import subprocess
 from pathlib import Path
-
-import pytest
 
 _G = Path(__file__).resolve().parents[1] / "gates.py"
 spec = importlib.util.spec_from_file_location("gates", _G)
@@ -451,11 +460,55 @@ _PP = Path(__file__).resolve().parents[2] / "microloop-orchestrator" / "plan_par
 spec2 = importlib.util.spec_from_file_location("plan_parser", _PP)
 pp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(pp)
 
-PLAN_OK = """---(nguyên văn fixture PLAN của test_plan_parser, đổi files sang
-tmp fixture tạo trong test — xem _mk bên dưới)---"""
+PLAN_TPL = """---
+change_id: demo
+plan_version: 1
+base_commit: BASESHA
+spec_hash: sha256:SPECSHA
+evidence_hash: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+---
+
+# Plan
+
+### TASK-001: Tạo module A
+
+```yaml
+task:
+  id: TASK-001
+  implementation_mode: exact
+  depends_on: []
+  files:
+    create: [src/b.py]
+    test: [tests/test_a.py]
+  verification:
+    command: pytest tests/test_a.py -q
+    expected: "1 passed"
+```
+
+Thân task 1.
+
+### TASK-002: Dùng A
+
+```yaml
+task:
+  id: TASK-002
+  implementation_mode: guided
+  depends_on: [TASK-001]
+  files:
+    modify: [src/a.py]
+    test: [tests/test_a.py]
+  symbols:
+    src/a.py: [A]
+  verification:
+    command: pytest tests/ -q
+    expected: "2 passed"
+```
+
+Thân task 2.
+"""
 
 
-def _mk(tmp_path, plan_text):
+def _mk(tmp_path):
     (tmp_path / "src").mkdir(); (tmp_path / "tests").mkdir()
     (tmp_path / "src" / "a.py").write_text("A = 1\n")
     (tmp_path / "tests" / "test_a.py").write_text("def test_a():\n    assert True\n")
@@ -465,28 +518,69 @@ def _mk(tmp_path, plan_text):
                     "commit", "-qm", "base"], cwd=tmp_path, check=True)
     sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path,
                          capture_output=True, text=True).stdout.strip()
-    return plan_text.replace("abc123", sha)
+    return PLAN_TPL.replace("BASESHA", sha), sha
+
+
+def _check(tmp_path, text, spec_sha256="SPECSHA"):
+    return gates.validate_vnext_plan(
+        text, plan_doc=pp.parse_plan(text), repo_root=str(tmp_path),
+        spec_sha256=spec_sha256)
 
 
 def test_plan_ok_passes(tmp_path):
-    text = _mk(tmp_path, PLAN_OK)
-    res = gates.validate_vnext_plan(text, plan_doc=pp.parse_plan(text), repo_root=str(tmp_path))
+    text, _ = _mk(tmp_path)
+    res = _check(tmp_path, text)
     assert res.ok, res.reason
 
 
 def test_unresolvable_base_commit_fails(tmp_path):
-    text = _mk(tmp_path, PLAN_OK).replace(
-        gates_sha := text_sha(tmp_path), "deadbeef" * 5)  # thay bằng biến sha thật khi viết
-    ...
+    text, sha = _mk(tmp_path)
+    res = _check(tmp_path, text.replace(sha, "deadbeef" * 5))
+    assert not res.ok and "base_commit" in res.reason
 
 
-def test_missing_verification_fails(tmp_path): ...
-def test_todo_marker_fails(tmp_path): ...
-def test_cyclic_deps_fails(tmp_path): ...
-def test_modify_file_missing_fails(tmp_path): ...
+def test_spec_hash_mismatch_fails(tmp_path):
+    text, _ = _mk(tmp_path)
+    res = _check(tmp_path, text, spec_sha256="khac_sha")
+    assert not res.ok and "spec_hash" in res.reason
+
+
+def test_missing_verification_fails(tmp_path):
+    text, _ = _mk(tmp_path)
+    res = _check(tmp_path, text.replace('    expected: "1 passed"\n', ""))
+    assert not res.ok and "verification" in res.reason
+
+
+def test_todo_marker_fails(tmp_path):
+    text, _ = _mk(tmp_path)
+    res = _check(tmp_path, text.replace("Thân task 1.", "Thân task 1. TODO: fix"))
+    assert not res.ok and "placeholder" in res.reason
+
+
+def test_cyclic_deps_fails(tmp_path):
+    text, _ = _mk(tmp_path)
+    res = _check(tmp_path, text.replace("depends_on: []", "depends_on: [TASK-002]"))
+    assert not res.ok and "cycle" in res.reason
+
+
+def test_modify_file_missing_fails(tmp_path):
+    text, _ = _mk(tmp_path)
+    res = _check(tmp_path, text.replace("modify: [src/a.py]", "modify: [src/missing.py]"))
+    assert not res.ok and "missing" in res.reason
+
+
+def test_symbol_not_found_fails(tmp_path):
+    text, _ = _mk(tmp_path)
+    res = _check(tmp_path, text.replace("src/a.py: [A]", "src/a.py: [KhongTonTai]"))
+    assert not res.ok and "symbol" in res.reason
+
+
+def test_change_workspace_gate():
+    ok = "change_id: demo\nclass: small\ntitle: t\ncreated_at: 2026-07-10\n"
+    assert gates.validate_change_workspace(ok).ok
+    assert not gates.validate_change_workspace(ok.replace("small", "gigantic")).ok
+    assert not gates.validate_change_workspace("change_id: demo\n").ok
 ```
-
-(Executor viết đủ 6 test theo cùng pattern `_mk`; mỗi test một biến thể hỏng của fixture — thay `verification:` bằng rỗng, chèn `TODO`, đảo deps thành vòng, đổi files.modify sang `src/khong_ton_tai.py`. Không test nào được để `...` khi hoàn thành.)
 
 - [ ] **Step 2: Run fail** — `AttributeError: gates has no validate_vnext_plan`.
 
@@ -495,14 +589,31 @@ def test_modify_file_missing_fails(tmp_path): ...
 ```python
 _PLACEHOLDER = re.compile(r"\b(TODO|TBD|FIXME)\b")
 _VALID_MODES = {"exact", "guided", "intent"}
+_SHA256_FMT = re.compile(r"^sha256:[0-9a-f]{64}$")
+VALID_CHANGE_CLASSES = {"trivial", "small", "standard", "architectural"}
 
 
-def validate_vnext_plan(text, plan_doc=None, repo_root=None) -> Result:
-    """Gate `plan` — mechanical subset W1 (Master Plan v2 §16, §22)."""
+def validate_change_workspace(text: str) -> Result:
+    """Gate `vnext-workspace` (v2 §22 change-workspace, minimal W1)."""
+    doc = yaml.safe_load(text) or {}
+    for key in ("change_id", "class", "title", "created_at"):
+        if not doc.get(key):
+            return Result(False, f"CHANGE.yaml missing {key}")
+    if doc["class"] not in VALID_CHANGE_CLASSES:
+        return Result(False, f"bad change class: {doc['class']}")
+    return Result(True)
+
+
+def validate_vnext_plan(text, plan_doc=None, repo_root=None, spec_sha256=None) -> Result:
+    """Gate `vnext-plan` — mechanical subset W1 (v2 §26 W1; full §16 là W2+)."""
     if plan_doc is None:
         return Result(False, "plan_doc required (cli parses via plan_parser)")
     import subprocess
     meta, tasks = plan_doc["meta"], plan_doc["tasks"]
+    if spec_sha256 is not None and meta.get("spec_hash") != f"sha256:{spec_sha256}":
+        return Result(False, "spec_hash mismatch: plan compiled against different SPEC.md")
+    if not _SHA256_FMT.match(str(meta.get("evidence_hash", ""))):
+        return Result(False, "evidence_hash must be sha256:<64hex> (manifest match arrives W2)")
     if repo_root:
         probe = subprocess.run(["git", "cat-file", "-t", str(meta["base_commit"])],
                                cwd=repo_root, capture_output=True, text=True)
@@ -530,6 +641,14 @@ def validate_vnext_plan(text, plan_doc=None, repo_root=None) -> Result:
                 for p in files.get(key, []) or []:
                     if not (Path(repo_root) / p).exists():
                         return Result(False, f"{t['id']}: files.{key} missing on disk: {p}")
+            for path, names in (h.get("symbols") or {}).items():
+                target = Path(repo_root) / path
+                if not target.exists():
+                    return Result(False, f"{t['id']}: symbol file missing: {path}")
+                content = target.read_text(encoding="utf-8", errors="replace")
+                for name in names or []:
+                    if name not in content:
+                        return Result(False, f"{t['id']}: symbol not found: {name} in {path}")
     # acyclic — tái dụng thuật toán contract.py qua cấu trúc nodes tối giản
     indeg = {i: 0 for i in ids}
     for t in tasks:
@@ -552,7 +671,7 @@ def validate_vnext_plan(text, plan_doc=None, repo_root=None) -> Result:
 
 (`from pathlib import Path` đã có sẵn? gates.py hiện import `os, re, yaml` — thêm `from pathlib import Path` đầu file nếu chưa có.)
 
-- [ ] **Step 4: Wire cli.py** — thêm `"vnext-plan": "validate_vnext_plan"` vào `VALIDATORS`; trong `main()` thêm nhánh:
+- [ ] **Step 4: Wire cli.py** — thêm `"vnext-plan": "validate_vnext_plan"` và `"vnext-workspace": "validate_change_workspace"` vào `VALIDATORS`; trong `main()` thêm nhánh:
 
 ```python
     elif args.gate == "vnext-plan":
@@ -561,12 +680,18 @@ def validate_vnext_plan(text, plan_doc=None, repo_root=None) -> Result:
         pp = importlib.util.module_from_spec(spec_pp); spec_pp.loader.exec_module(pp)
         kwargs["plan_doc"] = pp.parse_plan(text)
         kwargs["repo_root"] = args.repo_root or os.getcwd()
+        if args.against:                     # --against SPEC.md → spec-hash freshness
+            import hashlib
+            kwargs["spec_sha256"] = hashlib.sha256(
+                Path(args.against).read_bytes()).hexdigest()
 ```
 
 (`import importlib.util` đưa lên đầu `main` giống `_load_module` pattern.)
 
-- [ ] **Step 5: Run pass** — `cd .maika/tools/gate-check && /usr/bin/python3 -m pytest tests/test_vnext_plan_gate.py -q` → 6 passed; toàn suite gate-check PASS.
-- [ ] **Step 6: Commit** — `feat(vnext-w1): gate vnext-plan (mechanical validation subset)`
+- [ ] **Step 5: Ledger (P2 — cùng commit):** trong `enforcement-ledger.yaml`, PROP entry của `plan` → `mechanism: vnext-plan`, `status: active`, `failure.classification: reproducible_litmus`, `litmus.command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_plan_gate.py -q`, `implementation.files: [.maika/tools/gate-check/gates.py]`, `consumers: [.maika/tools/microloop-orchestrator/plan_compiler.py]`; PROP-001 `change-workspace` → `mechanism: vnext-workspace`, `status: active`, litmus = cùng file test (`test_change_workspace_gate`), consumers: orchestrator vnext-init (Task 11). Chạy `/usr/bin/python3 -m pytest cli/tests/test_vnext_w0_artifacts.py -q` → 4 passed.
+
+- [ ] **Step 6: Run pass** — `cd .maika/tools/gate-check && /usr/bin/python3 -m pytest tests/test_vnext_plan_gate.py -q` → 9 passed; toàn suite gate-check PASS.
+- [ ] **Step 7: Commit** — `feat(vnext-w1): gates vnext-plan + vnext-workspace (+ ledger activation)`
 
 ---
 
@@ -591,16 +716,18 @@ from pathlib import Path
 import plan_compiler as pc
 import vnext_state as vs
 
-# PLAN fixture: tái dùng nguyên văn PLAN của test_plan_parser (import từ file test đó
-# hoặc dán lại nguyên văn — dán lại để test độc lập), files trỏ vào fixture repo _mk
-# giống test_vnext_plan_gate (dựng git repo tmp, thay abc123 = sha thật).
+# PLAN fixture: copy verbatim PLAN_TPL + _mk từ test_vnext_plan_gate (Task 4) vào
+# file này để test độc lập; _setup thay SPECSHA bằng sha256 của SPEC.md thật.
 
 
 def _setup(tmp_path):
+    import hashlib
     ws = vs.init_workspace(tmp_path / "changes", "demo", "small", "t")
-    plan_text = _mk_repo_and_plan(tmp_path)      # helper như Task 4
-    (ws / "IMPLEMENTATION_PLAN.md").write_text(plan_text, encoding="utf-8")
     (ws / "SPEC.md").write_text("# spec\n", encoding="utf-8")
+    plan_text, _ = _mk(tmp_path)                 # helper copy verbatim từ test_vnext_plan_gate
+    plan_text = plan_text.replace(
+        "SPECSHA", hashlib.sha256((ws / "SPEC.md").read_bytes()).hexdigest())
+    (ws / "IMPLEMENTATION_PLAN.md").write_text(plan_text, encoding="utf-8")
     return ws, tmp_path
 
 
@@ -610,7 +737,7 @@ def test_compile_writes_queue_and_briefs(tmp_path):
     q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text())
     assert [t["id"] for t in q["tasks"]] == ["TASK-001", "TASK-002"]
     assert all(t["status"] == "pending" for t in q["tasks"])
-    brief = (ws / "briefs" / "task-TASK-001.md").read_text()
+    brief = (ws / "briefs" / "TASK-001.md").read_text()
     head, _, body = brief.partition("\n---\n")
     assert hashlib.sha256(body.encode()).hexdigest() == q["tasks"][0]["brief_hash"]
     assert "Thân task 1." in body                 # verbatim
@@ -677,9 +804,13 @@ def compile_plan(ws, repo_root):
     gates = _load("gates", "gate-check/gates.py")
     text = (ws / "IMPLEMENTATION_PLAN.md").read_text(encoding="utf-8")
     gen = ws / "generated"
+    spec_path = ws / "SPEC.md"
+    spec_sha = (hashlib.sha256(spec_path.read_bytes()).hexdigest()
+                if spec_path.exists() else None)
     try:
         doc = pp.parse_plan(text)
-        res = gates.validate_vnext_plan(text, plan_doc=doc, repo_root=str(repo_root))
+        res = gates.validate_vnext_plan(text, plan_doc=doc, repo_root=str(repo_root),
+                                        spec_sha256=spec_sha)
     except ValueError as e:
         res = gates.Result(False, str(e))
         doc = None
@@ -691,12 +822,11 @@ def compile_plan(ws, repo_root):
     if verdict != "APPROVED":
         return {"verdict": verdict, "reason": res.reason}
     plan_sha = _sha(text)
-    spec_path = ws / "SPEC.md"
     manifest = {
         "change_id": doc["meta"]["change_id"],
         "base_commit": doc["meta"]["base_commit"],
         "plan_sha256": plan_sha,
-        "spec_sha256": _sha(spec_path.read_text(encoding="utf-8")) if spec_path.exists() else None,
+        "spec_sha256": spec_sha,
     }
     (gen / "PLAN_MANIFEST.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -709,7 +839,7 @@ def compile_plan(ws, repo_root):
         t = by_id[tid]
         body = t["section_text"]
         brief_hash = _sha(body)
-        brief_path = ws / "briefs" / f"task-{tid}.md"
+        brief_path = ws / "briefs" / f"{tid}.md"
         header = yaml.safe_dump({"change_id": manifest["change_id"], "task_id": tid,
                                  "brief_hash": brief_hash, "plan_sha256": plan_sha},
                                 sort_keys=False)
@@ -719,7 +849,7 @@ def compile_plan(ws, repo_root):
             "status": "pending",
             "brief_path": str(brief_path.relative_to(ws)),
             "brief_hash": brief_hash,
-            "result_path": f"results/task-{tid}.yaml",
+            "result_path": f"results/{tid}.yaml",
             "files": t["header"].get("files") or {},
         })
     (gen / "TASK_QUEUE.json").write_text(json.dumps(
@@ -773,22 +903,94 @@ def validate_brief_integrity(text, queue_doc=None) -> Result:
 
 cli.py: `"vnext-brief": "validate_brief_integrity"`; nhánh kwargs: `kwargs["queue_doc"] = json.loads(Path(args.against).read_text())` (thêm `import json` đầu file, yêu cầu `--against`).
 
-- [ ] **Step 4: Run pass → commit** — `feat(vnext-w1): gate vnext-brief (verbatim traceability + staleness)`
+- [ ] **Step 4: Ledger (P2 — cùng commit):** PROP `brief-integrity` → `mechanism: vnext-brief`, `status: active`, `reproducible_litmus`, litmus = pytest file test này; consumers: `vnext_dispatch.py`. Verify: `pytest cli/tests/test_vnext_w0_artifacts.py -q` → 4 passed.
+- [ ] **Step 5: Run pass → commit** — `feat(vnext-w1): gate vnext-brief (verbatim traceability + staleness, + ledger)`
 
 ---
 
-### Task 7: Gate `result-contract`
+### Task 7: Gate `result-contract` (đủ field §18.4)
 
 **Files:**
 - Modify: `.maika/tools/gate-check/gates.py`, `cli.py`
 - Create: `.maika/tools/gate-check/tests/test_vnext_result_gate.py`
+- Modify: `docs/refactor/maika-vnext/enforcement-ledger.yaml` (cùng commit)
 
 **Interfaces:**
-- Produces: `validate_result_contract(text, allowed_files=None) -> Result` — text = results/task-NNN.yaml; required fields (§18.4): `status ∈ {DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT, BLOCKED, STALE_PLAN, FAILED_VERIFICATION}`, `task_id`, `brief_hash`, `base_commit`, `changed_files` (list), `commands` (list ≥1, mỗi cái có `command`/`exit_code`/`expected`/`observed`), `tests`; nếu status DONE*: mỗi command `observed` non-empty (exit code alone không đủ) và `changed_files ⊆ allowed_files` khi allowed_files truyền vào. CLI gate `vnext-result`, `--against <brief-or-queue-entry.json>` tùy chọn → allowed_files.
+- Produces: `validate_result_contract(text, allowed_files=None) -> Result`. Required keys (TOÀN BỘ §18.4, key phải CÓ MẶT — được phép rỗng theo rule dưới): `status`, `task_id`, `brief_hash`, `base_commit`, `changed_files`, `changed_symbols`, `commands`, `tests`, `concerns`, `deviations`, `evidence`, `commit_sha`. Rules:
+  - `status ∈ {DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT, BLOCKED, STALE_PLAN, FAILED_VERIFICATION}`.
+  - Status `DONE`/`DONE_WITH_CONCERNS`: `commands` ≥1 và mỗi command đủ `command/exit_code/expected/observed` với `observed` non-empty (exit code alone không đủ); `commit_sha` non-empty; `changed_files ⊆ allowed_files` khi allowed_files truyền.
+  - Status khác (BLOCKED/NEEDS_CONTEXT/STALE_PLAN/FAILED_VERIFICATION): `concerns` phải non-empty (ghi lý do); commands được phép rỗng; `commit_sha` được phép null.
+  - CLI gate `vnext-result`, `--against <queue-entry.json>` tùy chọn → allowed_files (union files.create/modify/test).
 
-- [ ] **Step 1: Failing tests** — 5 test: hợp lệ DONE pass; thiếu `observed` → FAIL; status lạ → FAIL; changed_files ngoài allowed → FAIL "undeclared file"; BLOCKED không cần commands non-empty (pass với commands rỗng + concerns ghi lý do).
-- [ ] **Step 2 fail → Step 3 implement** (theo đúng spec trên, style Result như hai gate trước — executor viết, ~35 dòng).
-- [ ] **Step 4 pass → commit** — `feat(vnext-w1): gate vnext-result (structured result, exit-code-not-sufficient)`
+- [ ] **Step 1: Failing tests** (đầy đủ, chạy được):
+
+```python
+# .maika/tools/gate-check/tests/test_vnext_result_gate.py
+import importlib.util
+from pathlib import Path
+
+import yaml
+
+_G = Path(__file__).resolve().parents[1] / "gates.py"
+spec = importlib.util.spec_from_file_location("gates", _G)
+gates = importlib.util.module_from_spec(spec); spec.loader.exec_module(gates)
+
+BASE = {
+    "status": "DONE", "task_id": "TASK-001", "brief_hash": "h" * 64,
+    "base_commit": "abc123", "changed_files": ["src/a.py"],
+    "changed_symbols": ["A"], "tests": ["tests/test_a.py"],
+    "concerns": [], "deviations": [], "evidence": [], "commit_sha": "def456",
+    "commands": [{"command": "pytest -q", "exit_code": 0,
+                  "expected": "1 passed", "observed": "1 passed in 0.1s"}],
+}
+
+
+def _res(**over):
+    doc = dict(BASE, **over)
+    return gates.validate_result_contract(yaml.safe_dump(doc), allowed_files=["src/a.py", "tests/test_a.py"])
+
+
+def test_done_valid_passes():
+    assert _res().ok
+
+
+def test_missing_key_fails():
+    doc = dict(BASE); doc.pop("changed_symbols")
+    r = gates.validate_result_contract(yaml.safe_dump(doc))
+    assert not r.ok and "changed_symbols" in r.reason
+
+
+def test_done_without_observed_fails():
+    r = _res(commands=[{"command": "pytest", "exit_code": 0,
+                        "expected": "1 passed", "observed": ""}])
+    assert not r.ok and "observed" in r.reason
+
+
+def test_unknown_status_fails():
+    r = _res(status="FINISHED")
+    assert not r.ok and "status" in r.reason
+
+
+def test_undeclared_file_fails():
+    r = _res(changed_files=["src/khac.py"])
+    assert not r.ok and "undeclared" in r.reason
+
+
+def test_done_without_commit_sha_fails():
+    r = _res(commit_sha=None)
+    assert not r.ok and "commit_sha" in r.reason
+
+
+def test_blocked_requires_concerns_allows_empty_commands():
+    r = _res(status="BLOCKED", commands=[], commit_sha=None, concerns=["thiếu context X"])
+    assert r.ok
+    r2 = _res(status="BLOCKED", commands=[], commit_sha=None, concerns=[])
+    assert not r2.ok and "concerns" in r2.reason
+```
+
+- [ ] **Step 2 fail** (`AttributeError`) → **Step 3 implement** theo đúng rules trên, style `Result` (~40 dòng, executor viết khớp từng assert của test).
+- [ ] **Step 4: Ledger (P2 — cùng commit):** PROP `result-contract` → `mechanism: vnext-result`, `status: active`, `reproducible_litmus`, litmus = pytest file này; consumers: `vnext_dispatch.py`. Verify 4 schema test W0 pass.
+- [ ] **Step 5 pass → commit** — `feat(vnext-w1): gate vnext-result (full §18.4, exit-code-not-sufficient, + ledger)`
 
 ---
 
@@ -804,31 +1006,160 @@ cli.py: `"vnext-brief": "validate_brief_integrity"`; nhánh kwargs: `kwargs["que
   - `run_queue(ws, repo_root, runner, max_retries=2) -> dict` — vòng lặp sequential: mỗi task pending theo thứ tự queue: gate `vnext-brief` (gọi validator trực tiếp qua `_load gates`) → `implementation` dispatch (qua `orchestrator.dispatch_worker` với runner inject) → result file phải tồn tại + `validate_result_contract` (allowed_files từ queue entry) → nếu DONE: `task_review` dispatch ghi `reviews/task-NNN.md`; review verdict dòng đầu `VERDICT: APPROVED|FINDINGS`; FINDINGS → re-dispatch implementation kèm đường dẫn review (1 lần) → re-review; hết retry → task blocked, return. Status queue per task: pending→in_progress→done|blocked (ghi TASK_QUEUE.json mỗi bước — crash-safe resume giống apply_command). STALE_PLAN trong result → dừng toàn queue, STATE → BLOCKED(reason=stale_plan).
 - Consumes: `orchestrator.dispatch_worker`, `make_worker_runner`, gates task 6/7, `vnext_state.transition`.
 
-- [ ] **Step 1: Failing tests** — dùng **stub runner** (không subprocess): runner nhận prompt, tự ghi result file + review file dựa trên kịch bản:
+**Quy ước prompt (để stub + worker parse máy được):** mọi prompt của `build_prompt` bắt đầu bằng 4 dòng marker:
 
-```python
-# tests/test_vnext_dispatch.py — kịch bản chính (executor viết đủ):
-def test_happy_path_two_tasks(tmp_path):     # 2 task DONE + review APPROVED → status done x2
-def test_result_missing_blocks(tmp_path):    # runner exit 0 nhưng không ghi result → blocked (exit code not sufficient)
-def test_result_contract_violation_blocks(tmp_path):  # changed_files ngoài allowed → blocked
-def test_findings_then_fix_then_approved(tmp_path):   # review FINDINGS lần 1, APPROVED lần 2 → done, 2 lần implementation dispatch
-def test_stale_plan_stops_queue(tmp_path):   # result status STALE_PLAN → return status stale_plan, STATE BLOCKED reason stale_plan
-def test_resume_skips_done(tmp_path):        # chạy lại run_queue → không re-dispatch task done
+```text
+ROLE: implementation|task_review|planning
+TASK_ID: TASK-001
+BRIEF_FILE: <abs path>
+OUTPUT_FILE: <abs path>
 ```
 
-Stub runner mẫu cho happy path (các test khác biến thể):
+- [ ] **Step 1: Failing tests** — dùng **stub runner** (không subprocess), code ĐẦY ĐỦ:
 
 ```python
-def make_stub(ws, script):
-    """script: dict task_id -> list các hành vi mỗi lần gọi ('ok','no_result','findings',...)."""
-    calls = {"n": 0, "prompts": []}
+# tests/test_vnext_dispatch.py
+import json
+import re
+from pathlib import Path
+
+import yaml
+
+import plan_compiler as pc
+import vnext_dispatch as vd
+import vnext_state as vs
+
+# Fixture plan: tái dùng nguyên văn PLAN_TPL + _mk của test_vnext_plan_gate
+# (dán lại 2 helper đó vào file này để test độc lập — executor copy verbatim).
+
+
+def _setup(tmp_path):
+    ws = vs.init_workspace(tmp_path / "changes", "demo", "small", "t")
+    plan_text, _ = _mk(tmp_path)           # helper copy từ test_vnext_plan_gate
+    (ws / "SPEC.md").write_text("# spec\n", encoding="utf-8")
+    # spec_hash phải khớp SPEC.md thật (xem Task 5): thay SPECSHA bằng sha256 của SPEC.md
+    import hashlib
+    plan_text = plan_text.replace("SPECSHA", hashlib.sha256((ws / "SPEC.md").read_bytes()).hexdigest())
+    (ws / "IMPLEMENTATION_PLAN.md").write_text(plan_text, encoding="utf-8")
+    out = pc.compile_plan(ws, repo_root=tmp_path)
+    assert out["verdict"] == "APPROVED"
+    vs.transition(ws, "PLANNING"); vs.transition(ws, "PLAN_REVIEW"); vs.transition(ws, "EXECUTING")
+    return ws
+
+
+def _marker(prompt, key):
+    return re.search(rf"^{key}: (.+)$", prompt, re.M).group(1)
+
+
+def _valid_result(ws, task_id, status="DONE", changed=None):
+    q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text())
+    entry = next(t for t in q["tasks"] if t["id"] == task_id)
+    files = entry["files"]
+    allowed = (files.get("create") or []) + (files.get("modify") or []) + (files.get("test") or [])
+    done = status in ("DONE", "DONE_WITH_CONCERNS")
+    return {
+        "status": status, "task_id": task_id, "brief_hash": entry["brief_hash"],
+        "base_commit": q.get("plan_sha256", "x")[:12], "changed_files": changed or allowed[:1],
+        "changed_symbols": [], "tests": [],
+        "concerns": [] if done else ["stub reason"],
+        "deviations": [], "evidence": [],
+        "commit_sha": "stubsha" if done else None,
+        "commands": ([{"command": "pytest -q", "exit_code": 0,
+                       "expected": "pass", "observed": "1 passed"}] if done else []),
+    }
+
+
+def make_stub(ws, behaviors):
+    """behaviors: list hành vi pop theo thứ tự call. Mỗi hành vi:
+    ('result', status) | ('result_badfile',) | ('no_result',) | ('review', verdict)."""
+    calls = []
+
     def runner(prompt):
-        calls["prompts"].append(prompt)
-        ...  # đọc task_id từ prompt, pop hành vi, ghi results/reviews tương ứng rồi return (0, "ok")
+        role = _marker(prompt, "ROLE")
+        task_id = _marker(prompt, "TASK_ID")
+        out = Path(_marker(prompt, "OUTPUT_FILE"))
+        b = behaviors.pop(0)
+        calls.append((role, task_id, b))
+        if b[0] == "result":
+            out.write_text(yaml.safe_dump(_valid_result(ws, task_id, status=b[1])))
+        elif b[0] == "result_badfile":
+            out.write_text(yaml.safe_dump(_valid_result(ws, task_id, changed=["src/ngoai_scope.py"])))
+        elif b[0] == "no_result":
+            pass
+        elif b[0] == "review":
+            out.write_text(f"VERDICT: {b[1]}\n- nhận xét stub\n")
+        return 0, "ok"
+
     return runner, calls
+
+
+def _statuses(ws):
+    q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text())
+    return {t["id"]: t["status"] for t in q["tasks"]}
+
+
+def test_happy_path_two_tasks(tmp_path):
+    ws = _setup(tmp_path)
+    runner, calls = make_stub(ws, [
+        ("result", "DONE"), ("review", "APPROVED"),
+        ("result", "DONE"), ("review", "APPROVED"),
+    ])
+    out = vd.run_queue(ws, tmp_path, runner)
+    assert out["status"] == "done"
+    assert _statuses(ws) == {"TASK-001": "done", "TASK-002": "done"}
+    assert [c[0] for c in calls] == ["implementation", "task_review"] * 2
+
+
+def test_result_missing_blocks(tmp_path):
+    ws = _setup(tmp_path)
+    runner, _ = make_stub(ws, [("no_result",), ("no_result",), ("no_result",)])
+    out = vd.run_queue(ws, tmp_path, runner, max_retries=2)
+    assert out["status"] == "blocked"        # exit 0 nhưng không có result ≠ done
+    assert _statuses(ws)["TASK-001"] == "blocked"
+
+
+def test_result_contract_violation_blocks(tmp_path):
+    ws = _setup(tmp_path)
+    runner, _ = make_stub(ws, [("result_badfile",), ("result_badfile",), ("result_badfile",)])
+    out = vd.run_queue(ws, tmp_path, runner, max_retries=2)
+    assert out["status"] == "blocked" and "undeclared" in out["reason"]
+
+
+def test_findings_then_fix_then_approved(tmp_path):
+    ws = _setup(tmp_path)
+    runner, calls = make_stub(ws, [
+        ("result", "DONE"), ("review", "FINDINGS"),
+        ("result", "DONE"), ("review", "APPROVED"),      # fix re-dispatch + re-review
+        ("result", "DONE"), ("review", "APPROVED"),
+    ])
+    out = vd.run_queue(ws, tmp_path, runner)
+    assert out["status"] == "done"
+    assert [c[0] for c in calls][:4] == ["implementation", "task_review",
+                                          "implementation", "task_review"]
+
+
+def test_stale_plan_stops_queue(tmp_path):
+    ws = _setup(tmp_path)
+    runner, _ = make_stub(ws, [("result", "STALE_PLAN")])
+    out = vd.run_queue(ws, tmp_path, runner)
+    assert out["status"] == "stale_plan"
+    assert vs.load_state(ws)["state"] == "BLOCKED"
+    assert vs.load_state(ws)["blocked"]["reason"] == "stale_plan"
+
+
+def test_resume_skips_done(tmp_path):
+    ws = _setup(tmp_path)
+    runner, calls = make_stub(ws, [
+        ("result", "DONE"), ("review", "APPROVED"),
+        ("result", "DONE"), ("review", "APPROVED"),
+    ])
+    vd.run_queue(ws, tmp_path, runner)
+    runner2, calls2 = make_stub(ws, [])
+    out = vd.run_queue(ws, tmp_path, runner2)  # không còn task pending
+    assert out["status"] == "done" and calls2 == []
 ```
 
-- [ ] **Step 2 fail → Step 3 implement.** Prompt template (nguyên văn, dùng cho cả 3 class, khác role block):
+- [ ] **Step 2 fail → Step 3 implement.** `build_prompt` LUÔN mở đầu bằng 4 dòng marker (ROLE/TASK_ID/BRIEF_FILE/OUTPUT_FILE — quy ước ở trên, cả stub lẫn worker thật parse được), sau đó role block:
 
 ```python
 _ROLES = {
@@ -871,11 +1202,16 @@ _ROLES = {
 - Create/Modify: `.maika/hooks/write-gate/tests/test_vnext_brief_scope.py`
 
 **Interfaces:**
-- Produces: `_vnext_active_task(project_root, framework_root) -> (ws, task)|None` — quét `<framework_root>/changes/*/STATE.yaml` state==EXECUTING (flag `workflow_engine==vnext` đọc từ `<framework_root>/profiles/execution-mode.yaml` rendered; template chưa render/parse lỗi → None, không chặn); task = entry in_progress trong TASK_QUEUE.json. Trong `evaluate_write` (write_gate.py:491), chèn **sau** `check_session_gate`, **trước** check KNOWLEDGE_CHECKPOINT:
+- Produces: `_vnext_active_task(project_root, framework_root) -> (ws, task)|None` — quét `<framework_root>/changes/*/STATE.yaml` state==EXECUTING (flag `workflow_engine==vnext` đọc từ `<framework_root>/profiles/execution-mode.yaml` rendered; template chưa render/parse lỗi → None, không chặn). Trả `(ws, task)` chỉ khi ĐỦ: `generated/PLAN_VALIDATION.json` verdict `APPROVED`; `generated/TASK_QUEUE.json.plan_sha256 == PLAN_MANIFEST.json.plan_sha256` (không stale); có đúng một task `in_progress`. EXECUTING mà thiếu một trong ba → trả `("deny", reason)` sentinel để evaluate_write DENY tường minh (không fallthrough legacy — trạng thái hỏng phải chặn, fail-closed). Trong `evaluate_write` (write_gate.py:491), chèn **sau** `check_session_gate`, **trước** check KNOWLEDGE_CHECKPOINT:
 
 ```python
+    # vNext mode THAY THẾ legacy phase-gating có chủ đích (v2 §21): khi một change
+    # EXECUTING dưới workflow_engine=vnext, KNOWLEDGE_CHECKPOINT/apply-gate legacy
+    # không áp dụng (vnext có gate riêng: plan approval + brief-scope + result contract).
     vnext = _vnext_active_task(project_root, framework_root)
     if vnext is not None:
+        if vnext[0] == "deny":
+            return Decision(False, f"vNext EXECUTING nhưng trạng thái hỏng: {vnext[1]}")
         ws, task = vnext
         allowed = set()
         for key in ("create", "modify", "test"):
@@ -888,7 +1224,7 @@ _ROLES = {
 
 (yaml.safe_load lỗi vì template Jinja → treat as legacy: bọc try/except trả None. Đây là điểm dogfood-trên-repo-template đã biết.)
 
-- [ ] Tests (5): flag legacy → None (không đổi hành vi — regression toàn suite write-gate pass); flag vnext + EXECUTING + file trong allowed → ALLOW; ngoài allowed → DENY kèm task id; ghi vào chính workspace change → ALLOW; không có change EXECUTING → fallthrough legacy. Fixture: tmp project_root với profiles rendered + changes/demo/{STATE.yaml,generated/TASK_QUEUE.json} tự dựng.
+- [ ] Tests (8): flag legacy → None (regression toàn suite write-gate pass nguyên trạng); flag vnext + EXECUTING + đủ approval/fresh + file trong allowed → ALLOW; ngoài allowed → DENY kèm task id; ghi vào chính workspace change → ALLOW; không có change EXECUTING → fallthrough legacy; **EXECUTING nhưng PLAN_VALIDATION ≠ APPROVED → DENY**; **plan_sha256 queue ≠ manifest → DENY (stale)**; **không có task in_progress → DENY**. Fixture: tmp project_root với profiles rendered + changes/demo/{STATE.yaml, generated/{PLAN_VALIDATION.json,PLAN_MANIFEST.json,TASK_QUEUE.json}} tự dựng.
 - [ ] Run: `cd .maika/hooks/write-gate && /usr/bin/python3 -m pytest tests/ -q` → toàn suite PASS. Commit — `feat(vnext-w1): write-gate brief-scope (vnext EXECUTING)`
 
 ---
@@ -900,14 +1236,19 @@ _ROLES = {
 - Create: `.maika/tools/microloop-orchestrator/tests/test_vnext_cli_e2e.py`
 
 **Interfaces:**
-- Produces subcommands (đều yêu cầu `workflow_engine == vnext` từ config, ngược lại refuse exit 2 — R1 consumer của flag):
-  - `vnext-init --changes-root <dir> --id <id> --class <c> --title <t>`
-  - `vnext-compile --workspace <ws> --repo-root <root>` (compile + in verdict)
-  - `vnext-review-plan --workspace <ws>` (planning dispatch qua worker_command config)
-  - `vnext-run --workspace <ws> --repo-root <root>` (chỉ chạy khi STATE==EXECUTING; PLAN_VALIDATION APPROVED + plan-review APPROVED mới cho transition PLAN_REVIEW→EXECUTING trong lệnh này)
-  - `vnext-status --workspace <ws>` (in state + bảng task status)
-- [ ] E2E test với config stub (`workflow_engine: vnext`, runner stub từ Task 8): init → ghi plan fixture → compile APPROVED → review stub APPROVED → run 2 task DONE → status COMPLETED-ready (EXECUTING→VERIFYING transition khi queue done). Thêm test refuse khi flag legacy.
-- [ ] Run toàn suite microloop + gate-check + write-gate + cli/tests → PASS hết. Commit — `feat(vnext-w1): vnext CLI subcommands + e2e (flag-gated)`
+- Produces subcommands (đều yêu cầu `workflow_engine == vnext` từ config, ngược lại refuse exit 2 — R1 consumer của flag). **State transition tường minh per lệnh (fix finding F5):**
+
+| Lệnh | Yêu cầu state trước | Làm gì | State sau |
+|---|---|---|---|
+| `vnext-init --changes-root <dir> --id <id> --class <c> --title <t>` | (chưa có ws) | init_workspace + gate `vnext-workspace` trên CHANGE.yaml vừa tạo | `INTAKE` |
+| `vnext-compile --workspace <ws> --repo-root <root>` | `INTAKE` hoặc `PLANNING` (INTAKE → tự transition PLANNING trước khi compile — hợp lệ ALLOWED map) | compile_plan | verdict APPROVED → `PLAN_REVIEW`; REVISE → giữ `PLANNING` |
+| `vnext-review-plan --workspace <ws>` | `PLAN_REVIEW` | planning dispatch (worker_command config) → reviews/plan-review.md | giữ `PLAN_REVIEW` (verdict ghi file) |
+| `vnext-run --workspace <ws> --repo-root <root>` | `PLAN_REVIEW` với PLAN_VALIDATION==APPROVED **và** plan-review VERDICT: APPROVED → transition `EXECUTING` rồi run_queue; hoặc `EXECUTING` (resume) | run_queue | queue done → `VERIFYING`; blocked → giữ EXECUTING (task blocked); stale_plan → `BLOCKED(stale_plan)` |
+| `vnext-status --workspace <ws>` | bất kỳ | in state + bảng task | không đổi |
+
+- [ ] E2E test với config stub (`workflow_engine: vnext`, runner stub từ Task 8) — **assert state sau MỖI lệnh**: init→`INTAKE` → compile→`PLAN_REVIEW` → review-plan (stub APPROVED)→`PLAN_REVIEW` → run→2 task done→`VERIFYING`. Test refuse khi flag legacy (exit 2, không side-effect). Test compile verdict REVISE giữ `PLANNING`.
+- [ ] **Legacy-compat test (fix finding F3):** cùng một fixture project có CẢ legacy `knowledge/active/microloop/TASK_QUEUE.md` (dựng bằng `initialize_runtime_queue`) LẪN vnext workspace: (a) `load_runtime_queue` vẫn đọc đúng queue markdown; (b) `vnext-run` không đọc/ghi artifact legacy; (c) toàn suite microloop cũ pass nguyên trạng — chứng minh compatibility reader legacy còn nguyên trong opt-in period (v2 §17).
+- [ ] Run toàn suite microloop + gate-check + write-gate + cli/tests → PASS hết. Commit — `feat(vnext-w1): vnext CLI subcommands + e2e (flag-gated, state-explicit, legacy-compat)`
 
 ---
 
@@ -919,7 +1260,7 @@ _ROLES = {
 
 **Interfaces:** không code.
 
-- [ ] PROP entries `plan`/`brief-integrity`/`result-contract` → mechanism `vnext-plan`/`vnext-brief`/`vnext-result`, `status: active`, `failure.classification: reproducible_litmus`, `litmus.command` = lệnh pytest file test tương ứng, `implementation.files/consumers` điền thật. `change-workspace` PROP giữ proposed (W1 chưa có gate riêng — workspace validate trong vnext-init).
+- [ ] Kiểm consistency ledger: 4 entry đã activate ở Task 4/6/7 (vnext-plan, vnext-workspace, vnext-brief, vnext-result) đủ litmus + consumers thật; không entry nào còn `proposed` với `scheduled_wave: W1`.
 - [ ] Chạy lại 4 schema test W0: `/usr/bin/python3 -m pytest cli/tests/test_vnext_w0_artifacts.py -q` → 4 passed.
 - [ ] Final verify — chạy đủ 7 suite như W0 Task 2, dán số vào commit message.
 - [ ] Commit — `docs(vnext-w1): activate 3 gate ledger entries + tool docs`; push branch; mở PR `feat/vnext-w1-vertical-slice → main` (body: link Master Plan v2 §26 W1 + bảng exit criteria).
@@ -933,8 +1274,9 @@ _ROLES = {
 - Brief verbatim traceable (gate vnext-brief + test_verbatim_roundtrip).
 - Legacy untouched & default (flag legacy + regression suites xanh).
 
-## Self-review (đã chạy khi viết plan)
+## Self-review (rev 2 — sau independent plan review)
 
-1. **Spec coverage:** v2 §26 W1 scope 1→7: workspace+schemas (T1), vocabulary+skill (T2), writing-plan skill + plan gate + independent review (T2/T4/T9), compiler+compat (T5 — compat = không đụng contract markdown, load_runtime_queue giữ nguyên), dispatch+result+gates (T6/T7/T8), write-gate (T10), flag (T1+T11). Must-not-depend: không task nào đụng registry/router/parallel/locks/platform khác.
-2. **Placeholder scan:** các `...`/"executor viết đủ" chỉ ở test-variant lặp pattern đã cho đầy đủ ở test đầu cùng nhóm + spec hành vi liệt kê từng case — không có bước "implement later" thiếu định nghĩa.
-3. **Type consistency:** tên module/hàm thống nhất giữa các task (vnext_state.init_workspace/transition; plan_parser.parse_plan; validate_vnext_plan/validate_brief_integrity/validate_result_contract; plan_compiler.compile_plan; vnext_dispatch.build_prompt/run_queue/review_plan); brief format header+`\n---\n`+body dùng chung ở T5/T6/T8/T10.
+1. **Spec coverage:** v2 §26 W1 scope 1→7: workspace+schemas+fixtures (T1+T4 gate vnext-workspace), vocabulary+skill (T2), plan gate + independent review (T4/T9), compiler + legacy-compat test tường minh (T5+T11), dispatch+result đủ §18.4 (T6/T7/T8), write-gate có approval/staleness/fail-closed (T10), flag + state-transition map per lệnh (T1+T11). Must-not-depend: không task nào đụng registry/router/parallel/locks/platform khác.
+2. **Placeholder scan:** Task 4/7/8 test code viết đầy đủ chạy được (fix F8); chỗ duy nhất còn "executor viết" là body validator T7 (~40 dòng) và run_queue T8 (~90 dòng) — cả hai có spec hành vi khớp 1-1 với từng assert của test đã viết sẵn, không có tự do thiết kế.
+3. **Type consistency:** naming per-task file thống nhất `TASK-NNN` (briefs/TASK-001.md, results/TASK-001.yaml — fix F10); marker prompt ROLE/TASK_ID/BRIEF_FILE/OUTPUT_FILE dùng chung T8 stub + role templates; brief format header+`\n---\n`+body dùng chung T5/T6/T8/T10; PLAN_TPL fixture + `_mk` dùng chung T4/T5/T8 (copy verbatim mỗi file test để độc lập).
+4. **Findings disposition (codex review 2026-07-10):** áp F2(partial)/F3/F4/F5/F6/F7/F8/F9(partial)/F10 + phần hợp lệ của F1 (symbol grounding, spec-hash match); bác phần F1 đòi full §16 tại W1 (trái Master Plan v2 §26 W1 "mechanical subset" — thuộc W2+) và bác việc giữ KNOWLEDGE_CHECKPOINT legacy trong vnext mode (thay thế có chủ đích, đã ghi comment trong code T10).
