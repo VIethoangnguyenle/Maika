@@ -1,8 +1,8 @@
-# Execution Rules
+# Rules thực thi (Execution Rules)
 
-- No implementer derives strategy from a vague request.
-- Implementation starts from approved `IMPLEMENTATION_PLAN.md`, compiled queue,
-  and immutable brief.
-- Each task writes a structured result and receives independent review.
-- Exit code alone never completes a task.
-- Undeclared writes are blocked by the write gate.
+- Không implementer nào suy ra strategy từ một request mơ hồ.
+- Implementation bắt đầu từ `IMPLEMENTATION_PLAN.md` đã duyệt, queue đã compile,
+  và brief bất biến.
+- Mỗi task ghi một structured result và nhận review độc lập.
+- Exit code đơn lẻ không bao giờ hoàn thành một task.
+- Write không khai báo bị chặn bởi write gate.
