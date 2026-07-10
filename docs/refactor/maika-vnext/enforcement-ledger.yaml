@@ -218,9 +218,18 @@ entries:
 
   # ---- proposed: 9 lifecycle gates của v2 §22 ----
   - id: PROP-001
-    mechanism: change-workspace
+    mechanism: vnext-workspace
     type: gate
-    status: proposed
+    status: active
+    failure:
+      classification: reproducible_litmus
+      reference: v2 §22
+      summary: Workspace gate
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_plan_gate.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/orchestrator.py]
     scheduled_wave: W1
     reviewed_at: 2026-07-10
 
@@ -239,9 +248,18 @@ entries:
     reviewed_at: 2026-07-10
 
   - id: PROP-004
-    mechanism: plan
+    mechanism: vnext-plan
     type: gate
-    status: proposed
+    status: active
+    failure:
+      classification: reproducible_litmus
+      reference: v2 §26
+      summary: Plan gate
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_plan_gate.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/plan_compiler.py]
     scheduled_wave: W1
     reviewed_at: 2026-07-10
 

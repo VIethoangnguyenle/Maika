@@ -446,3 +446,85 @@ def validate_node_checkpoint(text: str) -> Result:
     if not _RULE_ID.search(text):
         return Result(False, "node checkpoint missing rule-id evidence")
     return Result(True)
+
+_PLACEHOLDER = re.compile(r"\b(TODO|TBD|FIXME)\b")
+_VALID_MODES = {"exact", "guided", "intent"}
+_SHA256_FMT = re.compile(r"^sha256:[0-9a-f]{64}$")
+VALID_CHANGE_CLASSES = {"trivial", "small", "standard", "architectural"}
+
+
+def validate_change_workspace(text: str) -> Result:
+    """Gate `vnext-workspace` (v2 §22 change-workspace, minimal W1)."""
+    doc = yaml.safe_load(text) or {}
+    for key in ("change_id", "class", "title", "created_at"):
+        if not doc.get(key):
+            return Result(False, f"CHANGE.yaml missing {key}")
+    if doc["class"] not in VALID_CHANGE_CLASSES:
+        return Result(False, f"bad change class: {doc['class']}")
+    return Result(True)
+
+
+def validate_vnext_plan(text, plan_doc=None, repo_root=None, spec_sha256=None) -> Result:
+    """Gate `vnext-plan` — mechanical subset W1 (v2 §26 W1; full §16 là W2+)."""
+    if plan_doc is None:
+        return Result(False, "plan_doc required (cli parses via plan_parser)")
+    import subprocess
+    from pathlib import Path
+    meta, tasks = plan_doc["meta"], plan_doc["tasks"]
+    if spec_sha256 is not None and meta.get("spec_hash") != f"sha256:{spec_sha256}":
+        return Result(False, "spec_hash mismatch: plan compiled against different SPEC.md")
+    if not _SHA256_FMT.match(str(meta.get("evidence_hash", ""))):
+        return Result(False, "evidence_hash must be sha256:<64hex> (manifest match arrives W2)")
+    if repo_root:
+        probe = subprocess.run(["git", "cat-file", "-t", str(meta["base_commit"])],
+                               cwd=repo_root, capture_output=True, text=True)
+        if probe.returncode != 0 or probe.stdout.strip() != "commit":
+            return Result(False, f"base_commit not resolvable: {meta['base_commit']}")
+    ids = [t["id"] for t in tasks]
+    if len(ids) != len(set(ids)):
+        return Result(False, "duplicate task ids")
+    known = set(ids)
+    for t in tasks:
+        h = t["header"]
+        if h.get("implementation_mode") not in _VALID_MODES:
+            return Result(False, f"{t['id']}: bad implementation_mode")
+        for dep in h.get("depends_on", []) or []:
+            if dep not in known:
+                return Result(False, f"{t['id']}: unknown dep {dep}")
+        ver = h.get("verification") or {}
+        if not ver.get("command") or not ver.get("expected"):
+            return Result(False, f"{t['id']}: verification.command/expected required")
+        if _PLACEHOLDER.search(t["section_text"]):
+            return Result(False, f"{t['id']}: placeholder TODO/TBD/FIXME in section")
+        files = h.get("files") or {}
+        if repo_root:
+            for key in ("modify", "test"):
+                for p in files.get(key, []) or []:
+                    if not (Path(repo_root) / p).exists():
+                        return Result(False, f"{t['id']}: files.{key} missing on disk: {p}")
+            for path, names in (h.get("symbols") or {}).items():
+                target = Path(repo_root) / path
+                if not target.exists():
+                    return Result(False, f"{t['id']}: symbol file missing: {path}")
+                content = target.read_text(encoding="utf-8", errors="replace")
+                for name in names or []:
+                    if name not in content:
+                        return Result(False, f"{t['id']}: symbol not found: {name} in {path}")
+    # acyclic — tái dụng thuật toán contract.py qua cấu trúc nodes tối giản
+    indeg = {i: 0 for i in ids}
+    for t in tasks:
+        for _ in t["header"].get("depends_on", []) or []:
+            indeg[t["id"]] += 1
+    ready = [i for i, d in indeg.items() if d == 0]
+    seen = 0
+    while ready:
+        cur = ready.pop()
+        seen += 1
+        for t in tasks:
+            if cur in (t["header"].get("depends_on") or []):
+                indeg[t["id"]] -= 1
+                if indeg[t["id"]] == 0:
+                    ready.append(t["id"])
+    if seen != len(ids):
+        return Result(False, "dependency cycle in tasks")
+    return Result(True)
