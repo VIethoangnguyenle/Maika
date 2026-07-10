@@ -125,3 +125,58 @@ def test_plan_edit_invalidates_hash(tmp_path):
     p.write_text(p.read_text() + "\n<!-- edit -->\n", encoding="utf-8")
     m2 = pc.compile_plan(ws, repo_root=root)["plan_sha256"]
     assert m1 != m2
+
+
+# ── W4: task knowledge capsule ──────────────────────────────────────────────
+
+def test_compile_writes_knowledge_capsule(tmp_path):
+    import hashlib as _h
+    import yaml as _yaml
+    ws, root = _setup(tmp_path)
+    pc.compile_plan(ws, repo_root=root)
+    q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text())
+    cap_path = ws / "briefs" / "TASK-001.knowledge.yaml"
+    assert cap_path.exists()
+    cap = _yaml.safe_load(cap_path.read_text())
+    assert cap["task_id"] == "TASK-001"
+    assert set(cap["knowledge_slice"]) >= {
+        "author_dna", "conventions", "code_evidence", "business_rules",
+        "historical_context", "database_evidence",
+    }
+    assert "forbidden_patterns" in cap and "assumptions" in cap
+    # capsule hash recorded in queue matches the file
+    assert _h.sha256(cap_path.read_text(encoding="utf-8").encode("utf-8")).hexdigest() == q["tasks"][0]["capsule_hash"]
+    assert q["tasks"][0]["capsule_path"] == "briefs/TASK-001.knowledge.yaml"
+
+
+def test_capsule_freshness_matches_evidence(tmp_path):
+    import hashlib as _h
+    import yaml as _yaml
+    ws, root = _setup(tmp_path)
+    pc.compile_plan(ws, repo_root=root)
+    cap = _yaml.safe_load((ws / "briefs" / "TASK-001.knowledge.yaml").read_text())
+    ev_sha = _h.sha256((ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_bytes()).hexdigest()
+    assert cap["freshness"]["evidence_manifest_hash"] == "sha256:" + ev_sha
+    assert cap["freshness"]["repository_commit"]
+
+
+def test_capsule_carries_declared_slice(tmp_path):
+    import yaml as _yaml
+    ws, root = _setup(tmp_path)
+    # inject a knowledge block into TASK-001's header
+    p = ws / "IMPLEMENTATION_PLAN.md"
+    p.write_text(
+        p.read_text().replace(
+            "  implementation_mode: exact\n",
+            "  implementation_mode: exact\n"
+            "  knowledge:\n    code_evidence: [CODE-001]\n    conventions: [CONV-1]\n"
+            "  forbidden_patterns: [duplicate validation]\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    pc.compile_plan(ws, repo_root=root)
+    cap = _yaml.safe_load((ws / "briefs" / "TASK-001.knowledge.yaml").read_text())
+    assert cap["knowledge_slice"]["code_evidence"] == ["CODE-001"]
+    assert cap["knowledge_slice"]["conventions"] == ["CONV-1"]
+    assert cap["forbidden_patterns"] == ["duplicate validation"]

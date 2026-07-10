@@ -140,10 +140,26 @@ def _validate_brief(ws, gates, task, queue_doc):
     brief_path = Path(ws) / task["brief_path"]
     if not brief_path.exists():
         return gates.Result(False, f"missing brief: {task['brief_path']}")
-    return gates.validate_brief_integrity(
+    brief = gates.validate_brief_integrity(
         brief_path.read_text(encoding="utf-8"),
         queue_doc=queue_doc,
     )
+    if not brief.ok:
+        return brief
+    # W4: Task Knowledge Capsule must be immutable + fresh before dispatch.
+    capsule_path = task.get("capsule_path")
+    if capsule_path:
+        cap_file = Path(ws) / capsule_path
+        if not cap_file.exists():
+            return gates.Result(False, f"missing capsule: {capsule_path}")
+        ev = Path(ws) / "exploration" / "EVIDENCE_MANIFEST.yaml"
+        return gates.validate_capsule_integrity(
+            cap_file.read_text(encoding="utf-8"),
+            queue_doc=queue_doc,
+            task_id=task["id"],
+            evidence_manifest_text=ev.read_text(encoding="utf-8") if ev.exists() else None,
+        )
+    return brief
 
 
 def _run_implementation_or_fix(ws, gates, task, runner, max_retries, dispatch_type,

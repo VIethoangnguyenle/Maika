@@ -64,6 +64,9 @@ def compile_plan(ws, repo_root):
                   for t in doc["tasks"]]
     order = [t["id"] for t in orch.topo_sort(topo_input)]
     by_id = {t["id"]: t for t in doc["tasks"]}
+    evidence_manifest_hash = ("sha256:" + evidence_sha) if evidence_sha else None
+    slice_keys = ("author_dna", "conventions", "code_evidence", "business_rules",
+                  "historical_context", "database_evidence")
     queue_tasks = []
     for tid in order:
         t = by_id[tid]
@@ -74,11 +77,29 @@ def compile_plan(ws, repo_root):
                                  "brief_hash": brief_hash, "plan_sha256": plan_sha},
                                 sort_keys=False)
         brief_path.write_text(header + "\n---\n" + body, encoding="utf-8")
+        # W4: Task Knowledge Capsule — smallest relevant knowledge slice + freshness.
+        kn = t["header"].get("knowledge") or {}
+        capsule = {
+            "task_id": tid,
+            "knowledge_slice": {k: (kn.get(k) or []) for k in slice_keys},
+            "forbidden_patterns": t["header"].get("forbidden_patterns") or [],
+            "assumptions": t["header"].get("assumptions") or [],
+            "freshness": {
+                "repository_commit": manifest["base_commit"],
+                "evidence_manifest_hash": evidence_manifest_hash,
+            },
+            "confidence": t["header"].get("confidence") or "medium",
+        }
+        capsule_text = yaml.safe_dump(capsule, sort_keys=False, allow_unicode=True)
+        capsule_path = ws / "briefs" / f"{tid}.knowledge.yaml"
+        capsule_path.write_text(capsule_text, encoding="utf-8")
         queue_tasks.append({
             "id": tid, "depends_on": t["header"].get("depends_on") or [],
             "status": "pending",
             "brief_path": str(brief_path.relative_to(ws)),
             "brief_hash": brief_hash,
+            "capsule_path": str(capsule_path.relative_to(ws)),
+            "capsule_hash": _sha(capsule_text),
             "result_path": f"results/{tid}.yaml",
             "files": t["header"].get("files") or {},
         })

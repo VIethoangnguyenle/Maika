@@ -33,6 +33,8 @@ VALIDATORS = {
     "database-context": "validate_database_context",
     "spec": "validate_vnext_spec",
     "brief-integrity": "validate_brief_integrity",
+    "capsule-integrity": "validate_capsule_integrity",
+    "evidence-update-request": "validate_evidence_update_request",
     "result-contract": "validate_result_contract",
     "task-review": "validate_task_review",
     "final-review": "validate_final_review",
@@ -144,6 +146,14 @@ def main(argv=None):
         import json
         ws_root = Path(args.file).resolve().parents[1]
         kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+    elif args.gate == "capsule-integrity":
+        import json
+        ws_root = Path(args.file).resolve().parents[1]
+        kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+        kwargs["task_id"] = Path(args.file).name.split(".")[0]
+        ev = ws_root / "exploration" / "EVIDENCE_MANIFEST.yaml"
+        if ev.exists():
+            kwargs["evidence_manifest_text"] = ev.read_text(encoding="utf-8")
     elif args.gate == "result-contract":
         import json
         ws_root = Path(args.file).resolve().parents[1]

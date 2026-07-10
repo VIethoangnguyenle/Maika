@@ -890,3 +890,62 @@ def validate_database_context(text) -> Result:
     if not objects and not (isinstance(degradation, dict) and degradation):
         return Result(False, "DATABASE_CONTEXT.yaml requires DB objects or a structured degradation record")
     return Result(True)
+
+
+# ── W4: task knowledge capsule integrity + executor re-grounding request ─────
+
+def validate_capsule_integrity(text, queue_doc=None, task_id=None,
+                               evidence_manifest_text=None) -> Result:
+    """Gate `capsule-integrity` — the Task Knowledge Capsule must match the queue
+    hash (immutable after dispatch) and stay fresh against the current evidence
+    manifest (stale knowledge blocks dispatch)."""
+    if not queue_doc or not task_id:
+        return Result(False, "queue_doc and task_id required")
+    import hashlib
+    try:
+        cap = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        return Result(False, f"bad capsule format: {exc}")
+    if not isinstance(cap, dict):
+        return Result(False, "capsule must be a mapping")
+    if cap.get("task_id") != task_id:
+        return Result(False, f"capsule task_id mismatch: {cap.get('task_id')} != {task_id}")
+    task_info = next((t for t in queue_doc.get("tasks", []) if t.get("id") == task_id), None)
+    if not task_info:
+        return Result(False, f"task_id {task_id} not in queue")
+    if hashlib.sha256(text.encode("utf-8")).hexdigest() != task_info.get("capsule_hash"):
+        return Result(False, "capsule_hash mismatch: capsule edited after compilation")
+    fr = cap.get("freshness") or {}
+    if not fr.get("repository_commit"):
+        return Result(False, "capsule missing freshness.repository_commit")
+    if evidence_manifest_text is not None:
+        current = "sha256:" + hashlib.sha256(evidence_manifest_text.encode("utf-8")).hexdigest()
+        if fr.get("evidence_manifest_hash") != current:
+            return Result(False, "stale capsule: evidence_manifest_hash != current EVIDENCE_MANIFEST")
+    return Result(True)
+
+
+_REGROUND_STATUSES = {"NEEDS_REGROUNDING", "EVIDENCE_CONFLICT", "STALE_KNOWLEDGE"}
+
+
+def validate_evidence_update_request(text) -> Result:
+    """Gate `evidence-update-request` — an executor's re-grounding request
+    (`results/TASK-NNN.EVIDENCE_UPDATE_REQUEST.yaml`) must name the task, a valid
+    re-grounding status, a reason, and the affected evidence."""
+    try:
+        doc = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        return Result(False, f"evidence update request is not valid YAML: {exc}")
+    if not isinstance(doc, dict):
+        return Result(False, "evidence update request must be a mapping")
+    if not doc.get("task_id"):
+        return Result(False, "evidence update request missing task_id")
+    status = doc.get("status")
+    if status not in _REGROUND_STATUSES:
+        return Result(False, f"invalid status '{status}' (need one of {sorted(_REGROUND_STATUSES)})")
+    if not str(doc.get("reason") or "").strip():
+        return Result(False, "evidence update request must explain reason")
+    affected = doc.get("affected_evidence")
+    if not isinstance(affected, list) or not affected:
+        return Result(False, "evidence update request must list non-empty affected_evidence")
+    return Result(True)

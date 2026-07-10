@@ -197,3 +197,60 @@ def test_database_context_empty_without_degradation_fails():
     doc = {"read_only": True, "objects": []}
     res = gates.validate_database_context(yaml.safe_dump(doc))
     assert not res.ok
+
+
+# ── W4: capsule-integrity + evidence-update-request ─────────────────────────
+
+def _capsule_and_queue(ev_text="claims: []\n"):
+    import hashlib
+    ev_hash = "sha256:" + hashlib.sha256(ev_text.encode("utf-8")).hexdigest()
+    capsule = yaml.safe_dump({
+        "task_id": "TASK-001",
+        "knowledge_slice": {"code_evidence": ["CODE-001"], "conventions": [],
+                            "author_dna": [], "business_rules": [],
+                            "historical_context": [], "database_evidence": []},
+        "forbidden_patterns": [], "assumptions": [],
+        "freshness": {"repository_commit": "abc123", "evidence_manifest_hash": ev_hash},
+        "confidence": "medium",
+    }, sort_keys=False)
+    chash = hashlib.sha256(capsule.encode("utf-8")).hexdigest()
+    queue = {"tasks": [{"id": "TASK-001", "capsule_hash": chash}]}
+    return capsule, queue, ev_text
+
+
+def test_capsule_integrity_valid():
+    capsule, queue, ev = _capsule_and_queue()
+    assert gates.validate_capsule_integrity(capsule, queue_doc=queue, task_id="TASK-001",
+                                            evidence_manifest_text=ev).ok
+
+
+def test_capsule_integrity_hash_tamper_fails():
+    capsule, queue, ev = _capsule_and_queue()
+    res = gates.validate_capsule_integrity(capsule + "\n# edit\n", queue_doc=queue,
+                                           task_id="TASK-001", evidence_manifest_text=ev)
+    assert not res.ok and "capsule_hash" in res.reason
+
+
+def test_capsule_integrity_stale_evidence_fails():
+    capsule, queue, ev = _capsule_and_queue()
+    res = gates.validate_capsule_integrity(capsule, queue_doc=queue, task_id="TASK-001",
+                                           evidence_manifest_text="claims: [changed]\n")
+    assert not res.ok and "stale" in res.reason.lower()
+
+
+def test_evidence_update_request_valid():
+    doc = yaml.safe_dump({"task_id": "TASK-003", "status": "NEEDS_REGROUNDING",
+                          "reason": "source diverges from capsule", "affected_evidence": ["CODE-014"]})
+    assert gates.validate_evidence_update_request(doc).ok
+
+
+def test_evidence_update_request_bad_status():
+    doc = yaml.safe_dump({"task_id": "T", "status": "WHATEVER", "reason": "x",
+                          "affected_evidence": ["A"]})
+    res = gates.validate_evidence_update_request(doc)
+    assert not res.ok and "status" in res.reason
+
+
+def test_evidence_update_request_requires_reason_and_evidence():
+    doc = yaml.safe_dump({"task_id": "T", "status": "STALE_KNOWLEDGE"})
+    assert not gates.validate_evidence_update_request(doc).ok

@@ -584,6 +584,38 @@ entries:
     scope: {change_classes: [standard, architectural]}
     reviewed_at: 2026-07-10
 
+  - id: KN-007
+    mechanism: capsule-integrity
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §6, §8.9 (P8)
+      summary: Task Knowledge Capsule phải khớp hash queue (immutable sau dispatch) và fresh với EVIDENCE_MANIFEST (stale → block).
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py, .maika/tools/microloop-orchestrator/plan_compiler.py, .maika/tools/microloop-orchestrator/vnext_dispatch.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/skills/executing-task/SKILL.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-008
+    mechanism: evidence-update-request
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §8.9
+      summary: Executor re-grounding request phải khai task_id + status (NEEDS_REGROUNDING/EVIDENCE_CONFLICT/STALE_KNOWLEDGE) + reason + affected_evidence.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/skills/executing-task/SKILL.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
 
   # ---- deferred: hoãn có điều kiện kích hoạt (traceability doc §Deferred) ----
   - id: DEF-001
