@@ -22,8 +22,11 @@ def test_rtool8_dispatch_gate():
 
 def test_rflow_phase_gate():
     text = (RULES / "rules-flow.md").read_text(encoding="utf-8")
-    assert "phase-chain" in text                         # completion gate validator
-    assert "phase_done(spec)" in text or "phase_done: spec" in text
+    assert "maika task apply" in text                    # public W5 entry point
+    assert "PLAN_VALIDATION.json" in text                # plan gate validator
+    assert "reviews/plan-review.md" in text              # review gate artifact
+    assert "TASK_QUEUE.json" in text                     # canonical queue contract
+    assert "final review" in text                        # completion review gate
 
 
 def test_rtool_mcp_probe_collapse():

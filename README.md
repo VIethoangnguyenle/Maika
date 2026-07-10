@@ -95,21 +95,18 @@ cp .maika/knowledge/long-term/persona.template.yaml .maika/knowledge/long-term/p
 
 Sau đó sửa `persona.yaml` theo phong cách tương tác mong muốn. File này là per-developer và được gitignore.
 
-### 3. Onboard codebase hiện có
+### 3. Start a vNext task
 
-Trong AI agent đã đọc Maika runtime:
+Tạo workspace cho thay đổi đầu tiên:
 
 ```txt
-/convention-scan
-/approve-conventions
-
-/dna-scan
-/approve-dna
+maika task start --id daily-limit --class standard --title "Daily transaction limits"
+maika task status --id daily-limit
 ```
 
-Hai flow này tạo:
-
-- `conventions.yaml`: naming, structure, upstream constraints và design patterns đã được approve.
+Author DNA và conventions được quản lý bởi các skill `author-dna-builder` và
+`convention-intelligence-builder` trong workflow chính, không còn qua workflow
+riêng.
 - `author-dna.yaml`: judgment layer về triết lý code của tác giả hoặc team.
 
 Muốn xem một `author-dna.yaml` đã điền đầy trông thế nào, xem [docs/examples/author-dna-cleancode.yaml](docs/examples/author-dna-cleancode.yaml).
@@ -157,7 +154,7 @@ Các file agent đọc để biết phải làm việc thế nào:
 
 - `AGENTS.md`, `CLAUDE.md` hoặc entry point tương ứng platform.
 - `rules/*.md`: flow, tool, data, cost, knowledge, guard rules.
-- `workflows/*.md`: `/task`, `/tdd`, `/convention-scan`, `/dna-scan`.
+- `workflows/*.md`: `maika task`, `/tdd`.
 - `skills/*/SKILL.md`: hướng dẫn theo vai trò.
 - `procedures/*.md`: bootstrap, context-loader, context-compressor, token tracking.
 
@@ -294,20 +291,15 @@ Maika ship một bộ skill module hoá theo vai trò.
 
 | Command | Mục đích |
 |---|---|
-| `/task <input>` | Pha 1: hiểu vấn đề, chuẩn hoá requirement, explore context |
-| `/task spec <ticket>` | Pha 2: sinh spec kỹ thuật |
-| `/task apply <ticket>` | Pha 3: apply spec vào code |
-| `/idea-to-task` | Chuyển ideation thành draft ticket |
-| `/index-source` | Index codebase cho semantic search |
-| `/convention-scan` | Quét convention codebase |
-| `/approve-conventions` | Promote `conventions.draft.yaml` thành `conventions.yaml` |
-| `/dna-scan` | Quét và encode author DNA |
-| `/approve-dna` | Promote `author-dna.draft.yaml` thành `author-dna.yaml` |
+| `maika task start --id <id> --title <title>` | Tạo workspace vNext |
+| `maika task explore --id <id>` | Validate intent + grounding evidence |
+| `maika task spec --id <id>` | Validate `SPEC.md` |
+| `maika task plan --id <id>` | Compile `IMPLEMENTATION_PLAN.md` |
+| `maika task review --id <id>` | Dispatch independent plan review |
+| `maika task apply --id <id>` | Dispatch implementation, task review, fixes, final review |
+| `maika task status [--id <id>]` | Xem state và task queue |
+| `maika task cancel --id <id>` | Huỷ workspace |
 | `/tdd <module>` | Sinh Technical Design Document |
-| `/opsx-explore` | OpenSpec explore mode |
-| `/opsx-propose` | Tạo proposal/design/tasks/spec delta |
-| `/opsx-apply` | Implement từ OpenSpec change |
-| `/opsx-archive` | Archive OpenSpec change đã xong |
 
 ---
 
@@ -521,7 +513,7 @@ Khi agent bắt đầu một session trong repo có Maika, nó bootstrap context
 ```txt
 Core: AGENTS.md v3.0 + RULES (manifest + flow/tool/exec/knowledge/guard)
 Skills: intent-analysis | grounding-explorer | architecture-reconciler | writing-spec | ...
-Workflows: /task | /idea-to-task | /index-source | /convention-scan | /dna-scan
+Workflows: maika task | /tdd
 Platform: codex | MCPs: codebase-memory-mcp, db-remote
 Active context: REQUIREMENT empty | EXPLORE_CONTEXT empty
 Author DNA: approved
@@ -576,15 +568,16 @@ Có. Knowledge chung như `knowledge-snapshot.md`, `conventions.yaml`, `author-d
 
 ### Dự án mới tinh, chưa có code thì sao?
 
-Vẫn dùng được. Chọn platform và MCP bạn có. Khi codebase bắt đầu hình thành, chạy `/index-source`, `/convention-scan`, và `/dna-scan` để enrich knowledge layer.
+Vẫn dùng được. Chọn platform và MCP bạn có. Khi codebase bắt đầu hình thành, chạy `maika task start ...`; grounding và convention/DNA skills sẽ lấy bằng chứng khi task yêu cầu.
 
 ### Có thêm platform custom được không?
 
 Có. Thêm platform trong `cli/platforms/`, implement `BasePlatform`, rồi đăng ký trong `cli/platforms/__init__.py`.
 
-### Maika có bắt buộc dùng OpenSpec không?
+### Maika có bắt buộc dùng external spec systems không?
 
-Runtime hiện có tích hợp OpenSpec cho propose/apply/archive. Các workflow Maika vẫn tách rõ requirement, exploration, architecture review và knowledge lifecycle để giữ context trước khi đi vào OpenSpec change.
+Không. vNext dùng workspace canonical (`CHANGE.yaml`, `SPEC.md`,
+`IMPLEMENTATION_PLAN.md`, queue, results, reviews) trong đường chạy mặc định.
 
 ---
 

@@ -34,7 +34,6 @@
 .claude/knowledge/templates/changerequest.tpl.md
 .claude/knowledge/templates/feature.tpl.md
 .claude/knowledge/templates/fixbug.tpl.md
-.claude/knowledge/templates/ideation.tpl.md
 .claude/knowledge/templates/refactor.tpl.md
 .claude/procedures/
 .claude/procedures/bootstrap.md
@@ -130,12 +129,6 @@
 .claude/tools/rule-projector/projector.py
 .claude/tools/rule-projector/requirements.txt
 .claude/workflows/
-.claude/workflows/approve-conventions.md
-.claude/workflows/approve-dna.md
-.claude/workflows/convention-scan.md
-.claude/workflows/dna-scan.md
-.claude/workflows/idea-to-task.md
-.claude/workflows/index-source.md
 .claude/workflows/task.md
 .claude/workflows/tdd.md
 CLAUDE.md

@@ -75,13 +75,7 @@ READ {{ platform.framework_root }}/skills/skill-index.yaml
 
 ```
 READ {{ platform.framework_root }}/workflows/task.md          → /task
-READ {{ platform.framework_root }}/workflows/idea-to-task.md  → /idea-to-task
-READ {{ platform.framework_root }}/workflows/index-source.md  → /index-source (optional)
 READ {{ platform.framework_root }}/workflows/tdd.md           → /tdd
-READ {{ platform.framework_root }}/workflows/convention-scan.md     → /convention-scan
-READ {{ platform.framework_root }}/workflows/approve-conventions.md → /approve-conventions
-READ {{ platform.framework_root }}/workflows/dna-scan.md            → /dna-scan
-READ {{ platform.framework_root }}/workflows/approve-dna.md         → /approve-dna
 ```
 
 ---
@@ -99,12 +93,12 @@ DETECT resume context:
 
 IF RESUME:
   1. BẮT BUỘC re-read {{ platform.framework_root }}/workflows/task.md để nạp lại toàn bộ CRITICAL blocks
-     (đặc biệt: CRITICAL block ở đầu Section 2 — OpenSpec requirement)
+     (đặc biệt: canonical state/command contract)
   2. Xác định pha hiện tại từ AGENT_TRANSPARENCY (tìm dòng "Pha X DONE" trong section "Lịch sử pha"):
-     - Có `Pha 1 DONE`, chưa có `Pha 2 DONE` → đang chờ `/task spec`
-       → CRITICAL: phải dùng OpenSpec. **Không re-trigger Pha 1** dù ticket ID có vẻ thiếu.
-     - Có `Pha 2 DONE`, chưa có `Pha 3 DONE` → đang chờ `/task apply`
-       → CRITICAL: phải xác nhận spec path là `openspec/changes/<id>/`.
+     - `INTAKE` hoặc `EXPLORING` → đang ở `/task explore`
+     - `SPEC_REVIEW` → đang ở `/task spec`
+     - `PLANNING` hoặc `PLAN_REVIEW` → đang ở `/task plan` hoặc `/task review`
+     - `EXECUTING` → đang ở `/task apply`
      - Không có marker nào → Pha 1 chưa chạy → task mới bình thường
   3. Ghi vào bootstrap report:
      ⚠️ Resume phiên: task {ticket_id} đang ở {pha hiện tại} — đã re-read workflow constraints

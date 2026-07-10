@@ -29,7 +29,6 @@
 .maika/knowledge/templates/changerequest.tpl.md
 .maika/knowledge/templates/feature.tpl.md
 .maika/knowledge/templates/fixbug.tpl.md
-.maika/knowledge/templates/ideation.tpl.md
 .maika/knowledge/templates/refactor.tpl.md
 .maika/procedures/
 .maika/procedures/bootstrap.md
@@ -122,11 +121,6 @@
 .maika/tools/rule-projector/projector.py
 .maika/tools/rule-projector/requirements.txt
 .maika/workflows/
-.maika/workflows/approve-conventions.md
-.maika/workflows/approve-dna.md
-.maika/workflows/convention-scan.md
-.maika/workflows/dna-scan.md
-.maika/workflows/idea-to-task.md
 .maika/workflows/task.md
 .maika/workflows/tdd.md
 AGENTS.md

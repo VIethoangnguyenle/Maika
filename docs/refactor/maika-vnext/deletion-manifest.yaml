@@ -68,3 +68,37 @@ subsequent_waves:
         reason: Superseded by W3 run_queue implementation/fix/task-review/final-review dispatcher.
         consumers_moved_to: [vnext_dispatch.py::run_queue]
         verification: rg run_dispatch plus microloop-orchestrator tests
+  - wave: W5
+    deleted:
+      - path: .maika/workflows/idea-to-task.md
+        reason: Superseded by canonical `maika task start` workspace creation.
+        consumers_moved_to: [cli/commands/task.py, .maika/workflows/task.md]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/index-source.md
+        reason: Capability freshness and grounding now live in vNext task flow.
+        consumers_moved_to: [.maika/skills/grounding-explorer, cli/capability_runtime.py]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/convention-scan.md
+        reason: Folded into convention-intelligence-builder in canonical task lifecycle.
+        consumers_moved_to: [.maika/skills/convention-intelligence-builder]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/approve-conventions.md
+        reason: Folded into convention-intelligence-builder output contract.
+        consumers_moved_to: [.maika/skills/convention-intelligence-builder]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/dna-scan.md
+        reason: Folded into author-dna-builder in canonical task lifecycle.
+        consumers_moved_to: [.maika/skills/author-dna-builder]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/approve-dna.md
+        reason: Folded into author-dna-builder output contract.
+        consumers_moved_to: [.maika/skills/author-dna-builder]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/README.md
+        reason: Obsolete workflow index replaced by final task workflow and README command docs.
+        consumers_moved_to: [.maika/workflows/task.md, README.md]
+        verification: cli snapshot tests
+      - path: .maika/knowledge/templates/ideation.tpl.md
+        reason: Orphaned by deletion of idea-to-task workflow.
+        consumers_moved_to: []
+        verification: cli snapshot tests

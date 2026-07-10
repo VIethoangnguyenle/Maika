@@ -376,7 +376,7 @@ def test_export_as_flat_command_without_pre_conditions_omits_checklist():
         "description: Approve and commit.\n"
         "---\n"
         "\n"
-        "# /approve-conventions\n"
+        "# /task\n"
         "\n"
         "Body.\n"
     )

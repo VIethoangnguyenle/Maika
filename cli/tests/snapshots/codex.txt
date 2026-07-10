@@ -34,7 +34,6 @@
 .agents/knowledge/templates/changerequest.tpl.md
 .agents/knowledge/templates/feature.tpl.md
 .agents/knowledge/templates/fixbug.tpl.md
-.agents/knowledge/templates/ideation.tpl.md
 .agents/knowledge/templates/refactor.tpl.md
 .agents/procedures/
 .agents/procedures/bootstrap.md
@@ -129,12 +128,6 @@
 .agents/tools/rule-projector/projector.py
 .agents/tools/rule-projector/requirements.txt
 .agents/workflows/
-.agents/workflows/approve-conventions.md
-.agents/workflows/approve-dna.md
-.agents/workflows/convention-scan.md
-.agents/workflows/dna-scan.md
-.agents/workflows/idea-to-task.md
-.agents/workflows/index-source.md
 .agents/workflows/task.md
 .agents/workflows/tdd.md
 .codex/

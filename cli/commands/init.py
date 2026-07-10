@@ -262,8 +262,8 @@ def run_init(
     print(f"{'═' * 50}")
     print("\n  Next steps:")
     print(f"  1. Customize {platform.framework_root}/knowledge/long-term/persona.yaml")
-    print("  2. Run /dna-scan to build author DNA")
-    print("  3. Start your first task: /task <ticket-or-idea>\n")
+    print("  2. Start your first task: maika task start --id <id> --title '<title>'")
+    print("  3. Continue with: maika task status --id <id>\n")
     if selected_mcps:
         print(f"  4. Run MCP diagnostics: maika doctor mcp --target {target}\n")
     if UA_MCP_KEY in selected_mcps:

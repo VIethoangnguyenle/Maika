@@ -5,6 +5,7 @@ Usage:
     maika init [--target DIR] [--source DIR]
     maika update [--target DIR] [--source DIR] [--reconfigure]
     maika status [--target DIR]
+    maika task <action> [--target DIR] [--id ID]
     maika --version
     maika --help
 
@@ -12,6 +13,7 @@ Commands:
     init      Scaffold Maika framework into a target project
     update    Re-render framework files, preserving user-owned files
     status    Show current Maika configuration in a project
+    task      Run public vNext task workflow commands
 """
 
 import argparse
@@ -96,6 +98,24 @@ def main():
         default=".",
         help="Project directory to check (default: current directory)",
     )
+
+    # ─── task ───
+    task_parser = subparsers.add_parser(
+        "task",
+        help="Run public vNext task workflow commands",
+    )
+    task_parser.add_argument(
+        "action",
+        choices=[
+            "start", "explore", "reconcile", "brainstorm", "spec", "plan",
+            "validate-plan", "apply", "review", "verify", "archive", "status",
+            "resume", "cancel",
+        ],
+    )
+    task_parser.add_argument("--target", default=".")
+    task_parser.add_argument("--id", dest="change_id", default=None)
+    task_parser.add_argument("--class", dest="klass", default="small")
+    task_parser.add_argument("--title", default=None)
 
     # ─── update ───
     update_parser = subparsers.add_parser(
@@ -189,6 +209,16 @@ def main():
     elif args.command == "status":
         from cli.commands.status import run_status
         run_status(target_dir=args.target)
+    elif args.command == "task":
+        from cli.commands.task import run_task
+        rc = run_task(
+            action=args.action,
+            target_dir=args.target,
+            change_id=args.change_id,
+            klass=args.klass,
+            title=args.title,
+        )
+        sys.exit(rc)
     elif args.command == "dashboard":
         from cli.commands.dashboard import run_dashboard
         run_dashboard(

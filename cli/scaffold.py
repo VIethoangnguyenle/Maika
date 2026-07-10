@@ -420,7 +420,7 @@ def prune_orphans(staging: Path, target: Path, framework_root: str) -> List[Path
     """Delete framework files removed from the manifest but still in target.
 
     sync_tree only adds/overwrites; a plugin dropped from the manifest leaves
-    its stale output behind downstream (e.g. deleted opsx-* workflows). The
+    its stale output behind downstream (e.g. deleted legacy workflow files). The
     staging tree is the authoritative set of framework files for this update,
     so any file in a staged directory that is absent from staging is an orphan.
 

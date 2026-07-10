@@ -21,22 +21,25 @@ intent-analysis
 → knowledge-curator
 ```
 
-## Current W3 Commands
+## Public Commands
 
-The W3 runtime is exposed through the vNext CLI slice:
+The target scaffold exposes the canonical workflow through `maika task`:
 
-- `vnext-init` creates `CHANGE.yaml`, `INTENT.md`, and `STATE.yaml`.
-- `vnext-validate-reasoning` validates `INTENT.md`, `GROUNDING.yaml`, and
-  `EVIDENCE_MANIFEST.yaml`.
-- `vnext-validate-spec` validates `SPEC.md`.
-- `vnext-compile` validates and compiles `IMPLEMENTATION_PLAN.md`.
-- `vnext-review-plan` records independent plan review.
-- `vnext-run` dispatches implementation, fix, task-review, and final-review
-  workers through fresh prompts and validates their written artifacts.
-- `vnext-status` reads canonical workspace state.
+- `maika task start --id <change-id> --class <class> --title <title>`
+- `maika task explore --id <change-id>`
+- `maika task reconcile --id <change-id>`
+- `maika task brainstorm --id <change-id>`
+- `maika task spec --id <change-id>`
+- `maika task plan --id <change-id>`
+- `maika task validate-plan --id <change-id>`
+- `maika task review --id <change-id>`
+- `maika task apply --id <change-id>`
+- `maika task status [--id <change-id>]`
+- `maika task resume --id <change-id>`
+- `maika task cancel --id <change-id>`
 
-The public `/task start|explore|reconcile|brainstorm|spec|plan|validate-plan|apply|review|verify|archive|status|resume|cancel`
-surface is the W5 cutover target, not a completed W3 command registry.
+`maika task verify` and `maika task archive` are reserved for the W6
+verification/archive cutover and refuse with an explicit message until then.
 
 ## Artifact Order
 

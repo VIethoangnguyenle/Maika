@@ -247,6 +247,22 @@ entries:
     scope: {change_classes: [standard, architectural]}
     reviewed_at: 2026-07-10
 
+  - id: ENF-018
+    mechanism: public-task-cli
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      reference: vNext master plan §23, W5
+      summary: Public task commands must call the canonical vNext runtime, not legacy workflows.
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_task_command.py -q
+    implementation:
+      files: [cli/commands/task.py, cli/maika.py]
+      consumers: [.maika/workflows/task.md, README.md]
+    scope: {change_classes: [trivial, small, standard, architectural]}
+    reviewed_at: 2026-07-10
+
 
   # ---- proposed: 9 lifecycle gates của v2 §22 ----
   - id: PROP-001

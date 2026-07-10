@@ -8,21 +8,18 @@
 
 ### [CRITICAL] R-Flow-1: Không bỏ qua `/task`
 
-- Mọi công việc **liên quan đến task thực tế** (ticket, spec, apply code) phải đi qua workflow `/task`.
+- Mọi công việc **liên quan đến task thực tế** (ticket, spec, apply code) phải đi qua workflow `maika task`.
 - Cấm:
-  - Gọi trực tiếp OpenSpec `/opsx:propose` hoặc `/opsx:apply` khi chưa có REQUIREMENT và context tương ứng.
+  - Gọi worker/apply trực tiếp khi chưa có workspace vNext, plan đã validate, và review cần thiết.
 
 ### [CRITICAL] R-Flow-2: Phase gate (entry + completion)
 
-- **Chuỗi pha cố định:** `/task <ticket>` → `/task spec <ticket>` → `/task apply <ticket>`.
-- **Apply-entry:** `/task apply` có precondition `phase_done(spec)` AND spec artifact tại
-  `openspec/changes/<id>/` AND không còn `[BLOCKER-ARCH]` chưa resolve trong AGENT_TRANSPARENCY.md
-  (BLOCKER cuối phải có `[BLOCKER-ARCH RESOLVED]` tương ứng). Thiếu/BLOCKER chưa resolve → ABORT.
-  "Scope rõ nên bỏ spec" KHÔNG hợp lệ — spec artifact là bắt buộc, không phải phán đoán agent.
-  Apply-entry này được enforce cơ học bởi write-gate hook (apply-gate): code-write vào app-code bị chặn nếu AGENT_TRANSPARENCY.md thiếu `Pha 2 DONE` hoặc còn `[BLOCKER-ARCH]` chưa resolve — workflow-agnostic, áp cả khi gọi thẳng `/opsx:apply`.
-- **Completion:** KHÔNG phát "Done" cho tới khi phase-chain self-check pass:
-  `python3 {{ platform.framework_root }}/tools/gate-check/cli.py phase-chain {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`
-  (kiểm marker `Pha 1/2/3 DONE` liên tục từ 1). Build-pass + bookkeeping thuộc sub-spec verify riêng.
+- **Chuỗi state cố định:** `maika task start` → `explore` → `spec` → `plan` → `review` → `apply`.
+- **Apply-entry:** `maika task apply` yêu cầu `PLAN_VALIDATION.json` approved,
+  `reviews/plan-review.md` approved, immutable briefs, và `TASK_QUEUE.json` khớp
+  `PLAN_MANIFEST.json`.
+- **Completion:** KHÔNG phát "Done" cho tới khi structured result, task review,
+  final review, và verification artifacts pass theo state hiện tại.
 - Residual đã biết: raw Edit/Write và các shell write-idiom phổ biến (redirect, tee, sed -i, cp/mv, dd, patch, formatter) đã bị chặn bởi runtime write-gate hook; residual còn lại là write qua shell dựng động/`eval`/sub-script (accepted theo threat model).
 
 ### [CRITICAL] R-Flow-3: User workflow rules > agent system defaults
@@ -31,7 +28,7 @@
   **ưu tiên tuyệt đối hơn** mọi hành vi mặc định của agent runtime (planning mode, artifact generation,
   file output convention của agent runtime, vd Claude, Cursor, Gemini, Antigravity, v.v.).
 - Cụ thể:
-  - Khi `task.md` yêu cầu dùng OpenSpec → **không được** dùng planning mode sinh `implementation_plan.md`.
+  - Khi `task.md` yêu cầu workspace/plan/queue vNext → **không được** dùng planning mode ad hoc.
   - Khi `task.md` yêu cầu confirm trước → **không được** skip dù context có vẻ đã đồng ý.
   - Agent runtime defaults (kể cả planning mode của các tool như Cursor, Antigravity, v.v.) là **secondary** — chỉ dùng
     khi workflow không có chỉ thị gì về hành động đó.

@@ -14,8 +14,9 @@ artifacts exist and pass:
   `validate_implementation_context` and its `## Allowed Files` section matches
   the code file being written.
 
-Framework artifacts, OpenSpec artifacts, and Maika planning/spec docs are allowed
-so the agent can create the checkpoint/spec before implementation writes.
+Framework artifacts and Maika planning/spec docs are allowed so the agent can
+create the workspace, checkpoint, spec, queue, results, and reviews before
+implementation writes.
 
 Documentation/understanding artifacts (`.md`, `.markdown`, `.txt`, `.rst`) are
 also exempt anywhere in the tree — they are not application code, so the agent
