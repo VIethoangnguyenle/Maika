@@ -90,3 +90,51 @@ def test_unknown_capability_fails_clearly():
         route_capability(get_platform("claude-code"), "telepathy")
 
     assert "unknown capability" in str(exc.value)
+
+
+# ── W1: knowledge-native capability additions ──────────────────────────────
+
+def test_knowledge_native_capabilities_registered():
+    """W1 adds historical + database capabilities to the canonical registry."""
+    required = {
+        "historical_context_retrieval",
+        "database_schema_inspection",
+        "database_dependency_analysis",
+    }
+    assert required <= capability_ids()
+
+
+def test_historical_context_degrades_when_memory_health_fails():
+    route = route_capability(
+        get_platform("claude-code"),
+        "historical_context_retrieval",
+        health={"dynamic_memory": False},
+    )
+
+    assert route["status"] == DEGRADED
+    assert "dynamic_memory" in route["reason"]
+
+
+def test_historical_context_ready_when_memory_healthy():
+    route = route_capability(
+        get_platform("claude-code"),
+        "historical_context_retrieval",
+        health={"dynamic_memory": True},
+    )
+
+    assert route["status"] == READY
+
+
+@pytest.mark.parametrize(
+    "capability",
+    ["database_schema_inspection", "database_dependency_analysis"],
+)
+def test_database_capabilities_degrade_when_db_health_fails(capability):
+    route = route_capability(
+        get_platform("claude-code"),
+        capability,
+        health={"database": False},
+    )
+
+    assert route["status"] == DEGRADED
+    assert "database" in route["reason"]

@@ -1,33 +1,45 @@
 version: 1
 capabilities:
   architecture_discovery:
-    description: Discover modules, boundaries, and architectural flows.
+    description: Khám phá module, boundary và flow kiến trúc.
     tools: [search_code, graph_stats, index_code]
     freshness: [code_index]
   exact_source_inspection:
-    description: Read current source or symbols authoritatively.
+    description: Đọc source/symbol hiện tại với thẩm quyền tối cao (authoritative).
     tools: [get_symbol, read_file]
     freshness: [code_index]
   dependency_analysis:
-    description: Trace dependency paths and blast radius.
+    description: Truy vết dependency path và phạm vi ảnh hưởng (blast radius).
     tools: [trace_flow, get_dependencies]
     freshness: [code_index]
+  historical_context_retrieval:
+    description: Truy hồi incident cũ, quyết định trước, rejected approach và review pattern lặp lại.
+    tools: [dynamic_memory_recall, dynamic_memory_search]
+    health: [dynamic_memory]
   business_knowledge_retrieval:
-    description: Retrieve product, domain, document, or memory context.
+    description: Truy hồi tri thức sản phẩm, domain, tài liệu và memory.
     tools: [search_docs, dynamic_memory_recall]
     health: [dynamic_memory]
   convention_retrieval:
-    description: Retrieve author DNA, conventions, and rule IDs.
+    description: Truy hồi Author DNA, conventions và rule ID.
     tools: [read_file, search_text]
+  database_schema_inspection:
+    description: Kiểm tra table/column/constraint/index/package/procedure ở chế độ read-only.
+    tools: [db_query]
+    health: [database]
+  database_dependency_analysis:
+    description: Phân tích phụ thuộc DB và consumer SQL/package ở chế độ read-only.
+    tools: [db_query]
+    health: [database]
   runtime_verification:
-    description: Run build, test, lint, or verification commands and inspect output.
+    description: Chạy lệnh build/test/lint/verification thật và đọc output.
     tools: [run_command, command_status]
   version_control:
-    description: Inspect and record version-control evidence.
+    description: Đọc và ghi bằng chứng version-control (commit SHA, diff, trạng thái).
     tools: [run_command]
   task_dispatch:
-    description: Dispatch one implementation task through the canonical worker contract.
+    description: Dispatch một task implementation theo worker contract chung.
     platform_capability: task_dispatch
   review_dispatch:
-    description: Dispatch task or final review through the canonical reviewer contract.
+    description: Dispatch task review hoặc final review theo reviewer contract chung.
     platform_capability: review_dispatch

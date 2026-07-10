@@ -30,12 +30,12 @@
 | File | Nội dung | Sections |
 |------|----------|---------|
 | `rules/rules-flow.md` | Flow bắt buộc, Spec/Apply, Bootstrap | §2, §6, §11 |
-| `rules/rules-tool.md` | Quyền MCP & tool | §3 |
+| `rules/rules-tool.md` | Provider Doctrine (preferred provider, use-when-healthy, probe, freshness, degradation) | §3 |
 | `rules/rules-exec.md` | Data, Architecture, Cost, Observability | §4, §5, §7, §8 |
-| `rules/rules-knowledge.md` | Knowledge Lifecycle, Path Convention, Conventions, Skill Schema | §10, §12, §13, §15 |
+| `rules/rules-knowledge.md` | Hiến pháp tri thức (nguồn, thẩm quyền, freshness, reconcile, promotion, supersession) | §10 |
 | `rules/rules-guard.md` | Pre-invoke Guards, R-DNA-7, R-KI-1 | §14 |
 
-> §9 (Path Convention Deprecated) đã bị xoá — xem §12 thay thế.
+> Path Convention: quy ước path knowledge nay ở `knowledge/README.md` (nguồn canonical); `rules-knowledge.md` §10 trỏ về đó.
 
 ---
 

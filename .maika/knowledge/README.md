@@ -47,7 +47,7 @@ Bộ nhớ được chia làm 4 tầng:
 
 ## Quy ước path
 
-Tất cả path được quy ước tại `{{ platform.framework_root }}/rules/RULES.md`, section "Path Convention".
+Tất cả path knowledge được quy ước tại chính README này (bảng dưới) — nguồn canonical; `rules/rules-knowledge.md` §10 trỏ về đây.
 
 Tóm tắt nhanh:
 
