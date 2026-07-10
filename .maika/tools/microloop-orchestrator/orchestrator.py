@@ -808,7 +808,7 @@ def main(argv=None):
             runner = make_worker_runner(conf.get("worker_command", "echo stub"))
             out = vd.run_queue(ws, args.repo_root, runner)
             if out["status"] == "done":
-                vs.transition(ws, "VERIFYING")
+                vs.transition(ws, "FINAL_REVIEW")
             elif out["status"] == "stale_plan":
                 vs.transition(ws, "BLOCKED", blocked={"reason": "stale_plan"})
             print(f"Run outcome: {out['status']}")

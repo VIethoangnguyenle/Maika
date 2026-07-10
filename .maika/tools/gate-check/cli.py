@@ -29,6 +29,8 @@ VALIDATORS = {
     "spec": "validate_vnext_spec",
     "brief-integrity": "validate_brief_integrity",
     "result-contract": "validate_result_contract",
+    "task-review": "validate_task_review",
+    "final-review": "validate_final_review",
 }
 
 
@@ -130,6 +132,15 @@ def main(argv=None):
         ws_root = Path(args.file).resolve().parents[1]
         kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
         kwargs["task_id"] = Path(args.file).stem
+    elif args.gate == "task-review":
+        import json
+        ws_root = Path(args.file).resolve().parents[1]
+        kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+        kwargs["task_id"] = Path(args.file).stem
+    elif args.gate == "final-review":
+        import json
+        ws_root = Path(args.file).resolve().parents[1]
+        kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
 
     res = getattr(g, VALIDATORS[args.gate])(text, **kwargs)
     print(("PASS" if res.ok else f"FAIL — {res.reason}"))

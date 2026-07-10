@@ -332,14 +332,34 @@ entries:
   - id: PROP-007
     mechanism: task-review
     type: gate
-    status: proposed
-    scheduled_wave: W2
+    status: active
+    activation_wave: W3
+    failure:
+      classification: reproducible_litmus
+      reference: v2 §22, W3
+      summary: Per-task review gate requires task id and approved/changes-required verdict.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_result_gate.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/vnext_dispatch.py]
+    scheduled_wave: W3
     reviewed_at: 2026-07-10
 
   - id: PROP-008
     mechanism: final-review
     type: gate
-    status: proposed
+    status: active
+    activation_wave: W3
+    failure:
+      classification: reproducible_litmus
+      reference: v2 §17, W3
+      summary: Final review requires every task to be done and reviewed.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_result_gate.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/vnext_dispatch.py]
     scheduled_wave: W3
     reviewed_at: 2026-07-10
 

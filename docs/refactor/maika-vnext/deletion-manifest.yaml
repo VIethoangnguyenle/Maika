@@ -61,3 +61,10 @@ deleted:
     reason: Orphaned by compact W2 contract skill.
     consumers_moved_to: [knowledge-curator]
     verification: cli/tests/test_skill_standard.py
+subsequent_waves:
+  - wave: W3
+    deleted:
+      - path: .maika/tools/microloop-orchestrator/vnext_dispatch.py::run_dispatch
+        reason: Superseded by W3 run_queue implementation/fix/task-review/final-review dispatcher.
+        consumers_moved_to: [vnext_dispatch.py::run_queue]
+        verification: rg run_dispatch plus microloop-orchestrator tests

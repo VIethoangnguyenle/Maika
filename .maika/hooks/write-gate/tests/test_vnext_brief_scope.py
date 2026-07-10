@@ -49,6 +49,7 @@ def _setup_vnext_workspace(
                 "files": {
                     "create": ["src/App.py"],
                     "modify": ["src/service.py"],
+                    "delete": ["src/old.py"],
                     "test": ["tests/test_app.py"],
                 },
             }
@@ -101,6 +102,14 @@ def test_vnext_executing_denies_file_outside_brief_scope_with_task_id(tmp_path):
     assert result.ok is False
     assert "vNext brief-scope" in result.reason
     assert "TASK-001" in result.reason
+
+
+def test_vnext_executing_allows_declared_delete_file(tmp_path):
+    _setup_vnext_workspace(tmp_path)
+
+    result = wg.evaluate_write(tmp_path, Path("src/old.py"), framework_root=".maika")
+
+    assert result.ok is True
 
 
 def test_vnext_executing_allows_writes_inside_change_workspace(tmp_path):

@@ -606,7 +606,7 @@ def validate_vnext_plan(
             return Result(False, f"{t['id']}: placeholder TODO/TBD/FIXME in section")
         files = h.get("files") or {}
         if repo_root:
-            for key in ("modify", "test"):
+            for key in ("modify", "delete", "test"):
                 for p in files.get(key, []) or []:
                     if not (Path(repo_root) / p).exists():
                         return Result(False, f"{t['id']}: files.{key} missing on disk: {p}")
@@ -677,6 +677,8 @@ def validate_result_contract(text: str, queue_doc=None, task_id=None) -> Result:
         res = yaml.safe_load(text) or {}
     except Exception as e:
         return Result(False, f"bad result format: {e}")
+    if not isinstance(res, dict):
+        return Result(False, "result contract must be a mapping")
     if res.get("task_id") != task_id:
         return Result(False, f"task_id mismatch: expected {task_id}, got {res.get('task_id')}")
     if res.get("status") != "success":
@@ -689,7 +691,48 @@ def validate_result_contract(text: str, queue_doc=None, task_id=None) -> Result:
         return Result(False, f"task_id {task_id} not in queue")
     expected_files = task_info.get("files") or {}
     actual_files = res.get("files") or {}
-    for key in ("create", "modify"):
+    for key in ("create", "modify", "delete", "test"):
         if set(expected_files.get(key) or []) != set(actual_files.get(key) or []):
             return Result(False, f"files mismatch on {key}")
+    return Result(True)
+
+
+def _field_value(text: str, name: str):
+    match = re.search(rf"^{re.escape(name)}\s*:\s*(.+?)\s*$", text, re.MULTILINE)
+    return match.group(1).strip() if match else None
+
+
+def validate_task_review(text: str, queue_doc=None, task_id=None) -> Result:
+    """Gate `task-review`: one task review must name the task and return a verdict."""
+    if not queue_doc or not task_id:
+        return Result(False, "queue_doc and task_id required")
+    task_info = next((t for t in queue_doc.get("tasks", []) if t.get("id") == task_id), None)
+    if not task_info:
+        return Result(False, f"task_id {task_id} not in queue")
+    reviewed_id = _field_value(text, "TASK_ID")
+    if reviewed_id != task_id:
+        return Result(False, f"TASK_ID mismatch: expected {task_id}, got {reviewed_id}")
+    verdict = _field_value(text, "VERDICT")
+    if verdict not in {"APPROVED", "CHANGES_REQUIRED"}:
+        return Result(False, "review verdict must be APPROVED or CHANGES_REQUIRED")
+    return Result(True)
+
+
+def validate_final_review(text: str, queue_doc=None) -> Result:
+    """Gate `final-review`: whole-change review only after every task was reviewed."""
+    if not queue_doc:
+        return Result(False, "queue_doc required")
+    tasks = queue_doc.get("tasks") or []
+    if not tasks:
+        return Result(False, "TASK_QUEUE has no tasks")
+    for task in tasks:
+        if task.get("status") != "done":
+            return Result(False, f"{task.get('id')}: task is not done")
+        if not task.get("review_path"):
+            return Result(False, f"{task.get('id')}: task lacks review")
+    verdict = _field_value(text, "VERDICT")
+    if verdict not in {"APPROVED", "CHANGES_REQUIRED"}:
+        return Result(False, "final review verdict must be APPROVED or CHANGES_REQUIRED")
+    if verdict != "APPROVED":
+        return Result(False, "final review has unresolved findings")
     return Result(True)

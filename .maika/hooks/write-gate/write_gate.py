@@ -569,7 +569,7 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
             return Decision(False, f"vNext EXECUTING nhưng trạng thái hỏng: {vnext[1]}")
         ws, task = vnext
         allowed = set()
-        for key in ("create", "modify", "test"):
+        for key in ("create", "modify", "delete", "test"):
             allowed.update((task.get("files") or {}).get(key, []) or [])
         rel = policy_path.relative_to(project_root).as_posix() if policy_path.is_absolute() else policy_path.as_posix()
         if rel in allowed or rel.startswith(str(ws.relative_to(project_root))):

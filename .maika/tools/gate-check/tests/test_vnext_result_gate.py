@@ -15,7 +15,9 @@ QUEUE_DOC = {
             "id": "TASK-001",
             "files": {
                 "create": ["src/b.py"],
-                "modify": ["src/a.py"]
+                "modify": ["src/a.py"],
+                "delete": ["src/old.py"],
+                "test": ["tests/test_a.py"],
             }
         }
     ]
@@ -27,6 +29,8 @@ status: success
 files:
   create: [src/b.py]
   modify: [src/a.py]
+  delete: [src/old.py]
+  test: [tests/test_a.py]
 verification:
   passed: true
   output: "1 passed"
@@ -47,6 +51,11 @@ def test_status_failure_fails():
     assert not res.ok and "success" in res.reason
 
 
+def test_non_mapping_yaml_result_fails_without_crashing():
+    res = gates.validate_result_contract("stub result", queue_doc=QUEUE_DOC, task_id="TASK-001")
+    assert not res.ok and "mapping" in res.reason
+
+
 def test_verification_failed_fails():
     res = gates.validate_result_contract(RESULT_OK.replace("passed: true", "passed: false"), queue_doc=QUEUE_DOC, task_id="TASK-001")
     assert not res.ok and "verification" in res.reason
@@ -56,3 +65,33 @@ def test_files_mismatch_fails():
     bad = RESULT_OK.replace("create: [src/b.py]", "create: [src/c.py]")
     res = gates.validate_result_contract(bad, queue_doc=QUEUE_DOC, task_id="TASK-001")
     assert not res.ok and "files mismatch" in res.reason
+
+
+def test_deleted_files_mismatch_fails():
+    bad = RESULT_OK.replace("delete: [src/old.py]", "delete: []")
+    res = gates.validate_result_contract(bad, queue_doc=QUEUE_DOC, task_id="TASK-001")
+    assert not res.ok and "files mismatch" in res.reason
+
+
+def test_task_review_contract_passes():
+    review = "TASK_ID: TASK-001\nVERDICT: APPROVED\n"
+    res = gates.validate_task_review(review, queue_doc=QUEUE_DOC, task_id="TASK-001")
+    assert res.ok
+
+
+def test_task_review_requires_known_verdict():
+    review = "TASK_ID: TASK-001\nVERDICT: LOOKS_FINE\n"
+    res = gates.validate_task_review(review, queue_doc=QUEUE_DOC, task_id="TASK-001")
+    assert not res.ok and "verdict" in res.reason
+
+
+def test_final_review_requires_reviewed_tasks():
+    queue = {
+        "tasks": [
+            {"id": "TASK-001", "status": "done", "review_path": "reviews/TASK-001.md"},
+            {"id": "TASK-002", "status": "done"},
+        ]
+    }
+    review = "VERDICT: APPROVED\n"
+    res = gates.validate_final_review(review, queue_doc=queue)
+    assert not res.ok and "lacks review" in res.reason

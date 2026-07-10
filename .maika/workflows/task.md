@@ -21,9 +21,9 @@ intent-analysis
 → knowledge-curator
 ```
 
-## Current W2 Commands
+## Current W3 Commands
 
-The W2 runtime is exposed through the vNext CLI slice:
+The W3 runtime is exposed through the vNext CLI slice:
 
 - `vnext-init` creates `CHANGE.yaml`, `INTENT.md`, and `STATE.yaml`.
 - `vnext-validate-reasoning` validates `INTENT.md`, `GROUNDING.yaml`, and
@@ -31,11 +31,12 @@ The W2 runtime is exposed through the vNext CLI slice:
 - `vnext-validate-spec` validates `SPEC.md`.
 - `vnext-compile` validates and compiles `IMPLEMENTATION_PLAN.md`.
 - `vnext-review-plan` records independent plan review.
-- `vnext-run` uses the W1 sequential execution path until W3 dispatcher cutover.
+- `vnext-run` dispatches implementation, fix, task-review, and final-review
+  workers through fresh prompts and validates their written artifacts.
 - `vnext-status` reads canonical workspace state.
 
 The public `/task start|explore|reconcile|brainstorm|spec|plan|validate-plan|apply|review|verify|archive|status|resume|cancel`
-surface is the W5 cutover target, not a completed W2 command registry.
+surface is the W5 cutover target, not a completed W3 command registry.
 
 ## Artifact Order
 
@@ -53,6 +54,7 @@ generated/TASK_QUEUE.json
 briefs/TASK-001.md
 results/TASK-001.yaml
 reviews/TASK-001.md
+reviews/FINAL_REVIEW.md
 ```
 
 ## Rules
@@ -61,4 +63,5 @@ reviews/TASK-001.md
   design.
 - Implementers receive immutable briefs, not parent-session history.
 - Reviewers do not modify application code.
+- Undeclared application-code writes are blocked by the vNext write gate.
 - Completion requires structured results, review, and fresh verification.

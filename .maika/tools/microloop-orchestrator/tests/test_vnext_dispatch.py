@@ -80,60 +80,185 @@ def test_review_plan_missing_output(tmp_path):
     assert vd.review_plan(ws, runner, output_path=ws / "review_output.txt") == "FINDINGS"
 
 
-def test_dispatch_happy_path(tmp_path):
+def _runner_for_w3(ws, calls, *, first_review="APPROVED"):
+    review_verdicts = [first_review]
+
+    def runner(prompt):
+        calls.append(prompt)
+        markers = dict(
+            line.split(": ", 1) for line in prompt.splitlines() if ": " in line
+        )
+        dispatch_type = markers["DISPATCH_TYPE"]
+        task_id = markers.get("TASK_ID", "TASK-001")
+        output = Path(markers["OUTPUT_FILE"])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if dispatch_type in {"implementation", "fix"}:
+            output.write_text(
+                "\n".join([
+                    f"task_id: {task_id}",
+                    "status: success",
+                    "files:",
+                    "  create: [src/b.py]",
+                    "verification:",
+                    "  passed: true",
+                    "  output: ok",
+                    "",
+                ]),
+                encoding="utf-8",
+            )
+        elif dispatch_type == "task_review":
+            verdict = review_verdicts.pop(0) if review_verdicts else "APPROVED"
+            output.write_text(
+                f"TASK_ID: {task_id}\nVERDICT: {verdict}\n", encoding="utf-8"
+            )
+        elif dispatch_type == "final_review":
+            output.write_text("VERDICT: APPROVED\n", encoding="utf-8")
+        return 0, "ok"
+
+    return runner
+
+
+def test_run_queue_uses_fresh_dispatches_and_reviews_every_task(tmp_path):
     ws, root = _setup(tmp_path)
-    
-    def dummy_worker(tid, brief_path, result_path):
-        import yaml
-        res = {
-            "task_id": tid,
-            "status": "success",
-            "files": {"create": ["src/b.py"]},
-            "verification": {"passed": True, "output": "ok"}
-        }
-        Path(result_path).write_text(yaml.safe_dump(res, sort_keys=False), encoding="utf-8")
-        return True
+    calls = []
+    runner = _runner_for_w3(ws, calls)
 
-    vd.run_dispatch(ws, repo_root=root, worker_fn=dummy_worker)
-    
+    out = vd.run_queue(ws, root, runner, max_retries=1)
+
+    assert out["status"] == "done"
     q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
-    assert q["tasks"][0]["status"] == "success"
+    assert q["tasks"][0]["status"] == "done"
+    assert q["tasks"][0]["review_path"] == "reviews/TASK-001.md"
+    assert (ws / "reviews" / "FINAL_REVIEW.md").exists()
+    assert [p.splitlines()[0] for p in calls] == [
+        "DISPATCH_TYPE: implementation",
+        "DISPATCH_TYPE: task_review",
+        "DISPATCH_TYPE: final_review",
+    ]
 
 
-def test_dispatch_stops_on_brief_integrity_fail(tmp_path):
+def test_run_queue_blocks_when_exit_zero_has_no_result_file(tmp_path):
     ws, root = _setup(tmp_path)
-    (ws / "briefs" / "TASK-001.md").write_text("Sửa đổi lén", encoding="utf-8")
-    
-    called = []
-    def dummy_worker(tid, brief_path, result_path):
-        called.append(tid)
-        return True
 
-    res = vd.run_dispatch(ws, repo_root=root, worker_fn=dummy_worker)
-    assert res == False
-    assert not called
+    out = vd.run_queue(ws, root, lambda prompt: (0, "no artifact"), max_retries=0)
+
+    assert out["status"] == "blocked"
+    assert out["task_id"] == "TASK-001"
     q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
-    assert q["tasks"][0]["status"] == "failed"
+    assert q["tasks"][0]["status"] == "blocked"
 
 
-def test_dispatch_stops_on_worker_fail(tmp_path):
+def test_run_queue_dispatches_fix_after_task_review_findings(tmp_path):
     ws, root = _setup(tmp_path)
-    
-    def dummy_worker(tid, brief_path, result_path):
-        import yaml
-        res = {
-            "task_id": tid,
-            "status": "failure",
-            "files": {},
-            "verification": {"passed": False, "output": "error"}
-        }
-        Path(result_path).write_text(yaml.safe_dump(res, sort_keys=False), encoding="utf-8")
-        return False
+    calls = []
+    review_verdicts = ["CHANGES_REQUIRED", "APPROVED"]
 
-    res = vd.run_dispatch(ws, repo_root=root, worker_fn=dummy_worker)
-    assert res == False
-    q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
-    assert q["tasks"][0]["status"] == "failed"
+    def runner(prompt):
+        calls.append(prompt)
+        markers = dict(
+            line.split(": ", 1) for line in prompt.splitlines() if ": " in line
+        )
+        dispatch_type = markers["DISPATCH_TYPE"]
+        task_id = markers.get("TASK_ID", "TASK-001")
+        output = Path(markers["OUTPUT_FILE"])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if dispatch_type in {"implementation", "fix"}:
+            output.write_text(
+                f"""task_id: {task_id}
+status: success
+files:
+  create: [src/b.py]
+verification:
+  passed: true
+  output: ok
+""",
+                encoding="utf-8",
+            )
+        elif dispatch_type == "task_review":
+            output.write_text(
+                f"TASK_ID: {task_id}\nVERDICT: {review_verdicts.pop(0)}\n",
+                encoding="utf-8",
+            )
+        elif dispatch_type == "final_review":
+            output.write_text("VERDICT: APPROVED\n", encoding="utf-8")
+        return 0, "ok"
+
+    out = vd.run_queue(ws, root, runner, max_retries=1)
+
+    assert out["status"] == "done"
+    assert [p.splitlines()[0] for p in calls] == [
+        "DISPATCH_TYPE: implementation",
+        "DISPATCH_TYPE: task_review",
+        "DISPATCH_TYPE: fix",
+        "DISPATCH_TYPE: task_review",
+        "DISPATCH_TYPE: final_review",
+    ]
+
+
+def test_run_queue_resumes_reviewing_task_without_reimplementation(tmp_path):
+    ws, root = _setup(tmp_path)
+    q_path = ws / "generated" / "TASK_QUEUE.json"
+    q = json.loads(q_path.read_text(encoding="utf-8"))
+    q["tasks"][0]["status"] = "reviewing"
+    q["tasks"][0]["attempts"] = 0
+    q_path.write_text(json.dumps(q, indent=2), encoding="utf-8")
+    (ws / "results" / "TASK-001.yaml").write_text(
+        """task_id: TASK-001
+status: success
+files:
+  create: [src/b.py]
+verification:
+  passed: true
+  output: ok
+""",
+        encoding="utf-8",
+    )
+    calls = []
+
+    def runner(prompt):
+        calls.append(prompt)
+        markers = dict(
+            line.split(": ", 1) for line in prompt.splitlines() if ": " in line
+        )
+        output = Path(markers["OUTPUT_FILE"])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if markers["DISPATCH_TYPE"] == "task_review":
+            output.write_text("TASK_ID: TASK-001\nVERDICT: APPROVED\n", encoding="utf-8")
+        elif markers["DISPATCH_TYPE"] == "final_review":
+            output.write_text("VERDICT: APPROVED\n", encoding="utf-8")
+        return 0, "ok"
+
+    out = vd.run_queue(ws, root, runner, max_retries=1)
+
+    assert out["status"] == "done"
+    assert [p.splitlines()[0] for p in calls] == [
+        "DISPATCH_TYPE: task_review",
+        "DISPATCH_TYPE: final_review",
+    ]
+
+
+def test_run_queue_resumes_changes_required_task_with_fix_dispatch(tmp_path):
+    ws, root = _setup(tmp_path)
+    q_path = ws / "generated" / "TASK_QUEUE.json"
+    q = json.loads(q_path.read_text(encoding="utf-8"))
+    q["tasks"][0]["status"] = "changes_required"
+    q["tasks"][0]["attempts"] = 0
+    q["tasks"][0]["review_path"] = "reviews/TASK-001.md"
+    q_path.write_text(json.dumps(q, indent=2), encoding="utf-8")
+    (ws / "reviews" / "TASK-001.md").write_text(
+        "TASK_ID: TASK-001\nVERDICT: CHANGES_REQUIRED\n", encoding="utf-8"
+    )
+    calls = []
+    runner = _runner_for_w3(ws, calls)
+
+    out = vd.run_queue(ws, root, runner, max_retries=1)
+
+    assert out["status"] == "done"
+    assert [p.splitlines()[0] for p in calls] == [
+        "DISPATCH_TYPE: fix",
+        "DISPATCH_TYPE: task_review",
+        "DISPATCH_TYPE: final_review",
+    ]
 
 
 def test_planning_dispatch_fail(tmp_path):

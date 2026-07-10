@@ -120,6 +120,13 @@ def test_modify_file_missing_fails(tmp_path):
     assert not res.ok and "missing" in res.reason
 
 
+def test_delete_file_missing_fails(tmp_path):
+    text, _ = _mk(tmp_path)
+    text = text.replace("modify: [src/a.py]", "delete: [src/missing.py]")
+    res = _check(tmp_path, text)
+    assert not res.ok and "files.delete missing" in res.reason
+
+
 def test_symbol_not_found_fails(tmp_path):
     text, _ = _mk(tmp_path)
     res = _check(tmp_path, text.replace("src/a.py: [A]", "src/a.py: [KhongTonTai]"))

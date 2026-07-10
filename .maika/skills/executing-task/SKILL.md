@@ -54,8 +54,15 @@ deleted files, changed symbols, deviations, concerns, and commit SHA.
 - Verification repeatedly fails for the same reason.
 
 ## Output contract
-Write `results/TASK-NNN.yaml` with status `DONE`, `DONE_WITH_CONCERNS`,
-`NEEDS_CONTEXT`, `BLOCKED`, `STALE_PLAN`, or `FAILED_VERIFICATION`.
+Write `results/TASK-NNN.yaml` with:
+- `task_id: TASK-NNN`
+- `status: success` only when the task is complete
+- `files.create`, `files.modify`, `files.delete`, and `files.test` matching the
+  compiled task scope
+- `verification.passed: true` plus observed output
+
+Blocked or incomplete work must be reported through the orchestrator retry/block
+path, not by pretending the task result succeeded.
 
 ## Next handoff
 `reviewing-task`.
