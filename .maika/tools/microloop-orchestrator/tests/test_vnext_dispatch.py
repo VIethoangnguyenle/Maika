@@ -51,6 +51,32 @@ Thân task 1.
     return ws, tmp_path
 
 
+def test_review_plan_approved(tmp_path):
+    ws, _ = _setup(tmp_path)
+    def runner(prompt):
+        # Extract output file path from a marker or similar logic in real implementation
+        out = ws / "review_output.txt"
+        out.write_text("VERDICT: APPROVED\n- stub")
+        return 0, ""
+    assert vd.review_plan(ws, runner, output_path=ws / "review_output.txt") == "APPROVED"
+
+
+def test_review_plan_findings(tmp_path):
+    ws, _ = _setup(tmp_path)
+    def runner(prompt):
+        out = ws / "review_output.txt"
+        out.write_text("VERDICT: FINDINGS\n- stub")
+        return 0, ""
+    assert vd.review_plan(ws, runner, output_path=ws / "review_output.txt") == "FINDINGS"
+
+
+def test_review_plan_missing_output(tmp_path):
+    ws, _ = _setup(tmp_path)
+    def runner(prompt):
+        return 1, "failed"
+    assert vd.review_plan(ws, runner, output_path=ws / "review_output.txt") == "FINDINGS"
+
+
 def test_dispatch_happy_path(tmp_path):
     ws, root = _setup(tmp_path)
     
