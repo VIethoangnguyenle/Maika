@@ -414,7 +414,30 @@ entries:
   - id: PROP-009
     mechanism: archive-readiness
     type: gate
-    status: proposed
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: Archive requires COMPLETED state and a verified verification report.
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_task_command.py -q
+    implementation:
+      files: [cli/commands/task.py]
+      consumers: [.maika/workflows/task.md]
+    scheduled_wave: W6
+    reviewed_at: 2026-07-10
+
+  - id: ENF-019
+    mechanism: umbrella-ci-runner
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: CI must run CLI plus vNext enforcement tool suites.
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_ci_runner.py -q
+    implementation:
+      files: [scripts/run_ci.py, .github/workflows/ci.yml]
+      consumers: [README.md]
     scheduled_wave: W6
     reviewed_at: 2026-07-10
 

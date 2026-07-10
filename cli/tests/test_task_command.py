@@ -115,10 +115,96 @@ def test_task_reconcile_and_brainstorm_transition_states(tmp_path):
     assert yaml.safe_load(state_path.read_text(encoding="utf-8"))["state"] == "SPEC_REVIEW"
 
 
-def test_task_verify_reserved_until_w6(tmp_path, capsys):
+def _complete_workspace(root: Path, state: str = "FINAL_REVIEW") -> Path:
+    ws = root / ".maika" / "changes" / "demo"
+    (ws / "generated").mkdir(exist_ok=True)
+    (ws / "results").mkdir(exist_ok=True)
+    (ws / "reviews").mkdir(exist_ok=True)
+    (ws / "SPEC.md").write_text("# Spec\n", encoding="utf-8")
+    (ws / "generated" / "PLAN_VALIDATION.json").write_text(
+        json.dumps({"verdict": "APPROVED"}),
+        encoding="utf-8",
+    )
+    (ws / "generated" / "TASK_QUEUE.json").write_text(
+        json.dumps({
+            "tasks": [{
+                "id": "TASK-001",
+                "status": "done",
+                "result_path": "results/TASK-001.yaml",
+                "review_path": "reviews/TASK-001.md",
+            }],
+        }),
+        encoding="utf-8",
+    )
+    (ws / "results" / "TASK-001.yaml").write_text(
+        "task_id: TASK-001\nstatus: done\nchanges:\n  modify: []\n",
+        encoding="utf-8",
+    )
+    (ws / "reviews" / "TASK-001.md").write_text("VERDICT: APPROVED\n", encoding="utf-8")
+    (ws / "reviews" / "FINAL_REVIEW.md").write_text("VERDICT: APPROVED\n", encoding="utf-8")
+    (ws / "STATE.yaml").write_text(f"change_id: demo\nstate: {state}\n", encoding="utf-8")
+    return ws
+
+
+def test_task_verify_writes_evidence_and_completes_workspace(tmp_path):
     root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    ws = _complete_workspace(root)
 
     code = run_task("verify", target_dir=str(root), change_id="demo")
 
-    assert code == 2
-    assert "W6" in capsys.readouterr().out
+    assert code == 0
+    state = yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))
+    assert state["state"] == "COMPLETED"
+    commands = yaml.safe_load((ws / "verification" / "COMMANDS.yaml").read_text(encoding="utf-8"))
+    assert {item["name"] for item in commands["commands"]} >= {
+        "final-review-approved",
+        "task-results-reviewed",
+        "dead-reference-scan",
+    }
+    report = (ws / "verification" / "VERIFICATION_REPORT.md").read_text(encoding="utf-8")
+    assert "VERDICT: VERIFIED" in report
+
+
+def test_task_verify_refuses_unapproved_final_review(tmp_path, capsys):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    ws = _complete_workspace(root)
+    (ws / "reviews" / "FINAL_REVIEW.md").write_text("VERDICT: CHANGES_REQUESTED\n", encoding="utf-8")
+
+    code = run_task("verify", target_dir=str(root), change_id="demo")
+
+    assert code == 1
+    assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["state"] == "FINAL_REVIEW"
+    assert "final review" in capsys.readouterr().out
+
+
+def test_task_archive_moves_completed_workspace_and_refreshes_knowledge_index(tmp_path):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    ws = _complete_workspace(root)
+    assert run_task("verify", target_dir=str(root), change_id="demo") == 0
+
+    code = run_task("archive", target_dir=str(root), change_id="demo")
+
+    assert code == 0
+    archived = root / ".maika" / "archive" / "demo"
+    assert archived.exists()
+    assert not ws.exists()
+    state = yaml.safe_load((archived / "STATE.yaml").read_text(encoding="utf-8"))
+    assert state["state"] == "ARCHIVED"
+    manifest = yaml.safe_load((archived / "ARCHIVE_MANIFEST.yaml").read_text(encoding="utf-8"))
+    assert manifest["change_id"] == "demo"
+    assert manifest["verification_report"] == "verification/VERIFICATION_REPORT.md"
+    assert (root / ".maika" / "knowledge" / "long-term" / "knowledge-index.yaml").exists()
+
+
+def test_task_archive_requires_completed_workspace(tmp_path, capsys):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    _complete_workspace(root, state="FINAL_REVIEW")
+
+    code = run_task("archive", target_dir=str(root), change_id="demo")
+
+    assert code == 1
+    assert "COMPLETED" in capsys.readouterr().out

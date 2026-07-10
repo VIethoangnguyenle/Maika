@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import yaml
 
-from cli.scaffold import load_resolved_config
+from cli.scaffold import generate_knowledge_index, load_resolved_config
 
 
 COMMAND_MAP = {
@@ -33,8 +34,29 @@ def _workspace(target: Path, framework_root: str, change_id: str) -> Path:
     return target / framework_root / "changes" / change_id
 
 
+def _archive_workspace(target: Path, framework_root: str, change_id: str) -> Path:
+    return target / framework_root / "archive" / change_id
+
+
 def _orchestrator(target: Path, framework_root: str) -> Path:
     return target / framework_root / "tools" / "microloop-orchestrator" / "orchestrator.py"
+
+
+def _maika_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _load_yaml(path: Path) -> dict:
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def _write_yaml(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
 def _run(cmd: list[str], cwd: Path) -> int:
@@ -77,6 +99,189 @@ def _cancel(target: Path, framework_root: str, change_id: str) -> int:
     state.update(state="CANCELLED", updated_at=datetime.now(timezone.utc).isoformat())
     state_path.write_text(yaml.safe_dump(state, sort_keys=False, allow_unicode=True), encoding="utf-8")
     print(f"Cancelled {change_id}")
+    return 0
+
+
+def _read_state(ws: Path) -> dict | None:
+    state_path = ws / "STATE.yaml"
+    if not state_path.exists():
+        return None
+    return _load_yaml(state_path)
+
+
+def _write_state(ws: Path, state: dict, new_state: str) -> None:
+    state.update(state=new_state, updated_at=_now(), blocked=None)
+    _write_yaml(ws / "STATE.yaml", state)
+
+
+def _command_record(name: str, expected: str, observed: str, exit_code: int = 0) -> dict:
+    return {
+        "name": name,
+        "command": f"internal:{name}",
+        "expected_output": expected,
+        "observed_output": observed,
+        "exit_code": exit_code,
+        "timestamp": _now(),
+        "interpretation": "pass" if exit_code == 0 else "fail",
+    }
+
+
+_DEAD_REFERENCE_PATTERNS = (
+    "-".join(("idea", "to", "task")),
+    "-".join(("index", "source")),
+    "-".join(("convention", "scan")),
+    "-".join(("approve", "conventions")),
+    "-".join(("dna", "scan")),
+    "-".join(("approve", "dna")),
+    "".join(("Open", "Spec")),
+    "".join(("open", "spec")),
+)
+
+
+def _scan_workspace_refs(ws: Path) -> list[str]:
+    hits: list[str] = []
+    for path in sorted(p for p in ws.rglob("*") if p.is_file()):
+        if path.parts[-2:] == ("verification", "COMMANDS.yaml"):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for pattern in _DEAD_REFERENCE_PATTERNS:
+            if pattern in text:
+                hits.append(f"{path.relative_to(ws)}:{pattern}")
+    return hits
+
+
+def _task_artifacts_ok(ws: Path, queue_doc: dict) -> tuple[bool, str]:
+    tasks = queue_doc.get("tasks")
+    if not isinstance(tasks, list) or not tasks:
+        return False, "task queue has no tasks"
+    for task in tasks:
+        task_id = task.get("id")
+        if task.get("status") != "done":
+            return False, f"{task_id}: status is not done"
+        result_path = ws / (task.get("result_path") or f"results/{task_id}.yaml")
+        review_path = ws / (task.get("review_path") or f"reviews/{task_id}.md")
+        if not result_path.exists():
+            return False, f"{task_id}: missing result {result_path.relative_to(ws)}"
+        if not review_path.exists():
+            return False, f"{task_id}: missing review {review_path.relative_to(ws)}"
+        if "VERDICT: APPROVED" not in review_path.read_text(encoding="utf-8"):
+            return False, f"{task_id}: review is not approved"
+    return True, f"{len(tasks)} task(s) done and reviewed"
+
+
+def _write_verification(ws: Path, change_id: str, commands: list[dict], verdict: str) -> None:
+    verification = ws / "verification"
+    verification.mkdir(exist_ok=True)
+    _write_yaml(verification / "COMMANDS.yaml", {"commands": commands})
+    lines = [
+        f"# Verification Report: {change_id}",
+        "",
+        f"VERDICT: {verdict}",
+        f"checked_at: {_now()}",
+        "",
+        "## Evidence",
+    ]
+    for record in commands:
+        lines.extend([
+            f"- {record['name']}: {record['interpretation']}",
+            f"  observed: {record['observed_output']}",
+        ])
+    (verification / "VERIFICATION_REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _verify(target: Path, framework_root: str, change_id: str) -> int:
+    ws = _workspace(target, framework_root, change_id)
+    state = _read_state(ws)
+    if state is None:
+        print(f"No such vNext task workspace: {change_id}")
+        return 1
+    if state.get("state") not in {"FINAL_REVIEW", "VERIFYING"}:
+        print(f"Refused: verification requires FINAL_REVIEW or VERIFYING (found {state.get('state')})")
+        return 1
+
+    commands: list[dict] = []
+    final_review = ws / "reviews" / "FINAL_REVIEW.md"
+    if not final_review.exists():
+        commands.append(_command_record("final-review-approved", "VERDICT: APPROVED", "missing final review", 1))
+        _write_verification(ws, change_id, commands, "FAILED_VERIFICATION")
+        print("Refused: final review is missing")
+        return 1
+    final_text = final_review.read_text(encoding="utf-8")
+    if "VERDICT: APPROVED" not in final_text:
+        commands.append(_command_record("final-review-approved", "VERDICT: APPROVED", "final review not approved", 1))
+        _write_verification(ws, change_id, commands, "FAILED_VERIFICATION")
+        print("Refused: final review is not approved")
+        return 1
+    commands.append(_command_record("final-review-approved", "VERDICT: APPROVED", "approved"))
+
+    queue_path = ws / "generated" / "TASK_QUEUE.json"
+    if not queue_path.exists():
+        commands.append(_command_record("task-results-reviewed", "queue exists", "missing task queue", 1))
+        _write_verification(ws, change_id, commands, "FAILED_VERIFICATION")
+        print("Refused: task queue is missing")
+        return 1
+    queue_doc = json.loads(queue_path.read_text(encoding="utf-8"))
+    ok, detail = _task_artifacts_ok(ws, queue_doc)
+    commands.append(_command_record("task-results-reviewed", "all tasks done with approved reviews", detail, 0 if ok else 1))
+    if not ok:
+        _write_verification(ws, change_id, commands, "FAILED_VERIFICATION")
+        print(f"Refused: {detail}")
+        return 1
+
+    dead_refs = _scan_workspace_refs(ws)
+    commands.append(_command_record(
+        "dead-reference-scan",
+        "no obsolete vNext references in task workspace",
+        "no hits" if not dead_refs else "; ".join(dead_refs),
+        0 if not dead_refs else 1,
+    ))
+    if dead_refs:
+        _write_verification(ws, change_id, commands, "FAILED_VERIFICATION")
+        print("Refused: obsolete references found in task workspace")
+        return 1
+
+    _write_verification(ws, change_id, commands, "VERIFIED")
+    _write_state(ws, state, "COMPLETED")
+    print(f"Verified {change_id}")
+    return 0
+
+
+def _archive(target: Path, framework_root: str, change_id: str) -> int:
+    ws = _workspace(target, framework_root, change_id)
+    state = _read_state(ws)
+    if state is None:
+        print(f"No such vNext task workspace: {change_id}")
+        return 1
+    if state.get("state") != "COMPLETED":
+        print(f"Refused: archive requires COMPLETED (found {state.get('state')})")
+        return 1
+    verification_report = ws / "verification" / "VERIFICATION_REPORT.md"
+    if not verification_report.exists() or "VERDICT: VERIFIED" not in verification_report.read_text(encoding="utf-8"):
+        print("Refused: archive requires verified verification/VERIFICATION_REPORT.md")
+        return 1
+
+    dest = _archive_workspace(target, framework_root, change_id)
+    if dest.exists():
+        print(f"Refused: archive destination already exists: {dest}")
+        return 1
+
+    long_term = target / framework_root / "knowledge" / "long-term"
+    long_term.mkdir(parents=True, exist_ok=True)
+    generate_knowledge_index(_maika_root(), target, framework_root)
+    _write_yaml(ws / "ARCHIVE_MANIFEST.yaml", {
+        "change_id": change_id,
+        "archived_at": _now(),
+        "source_state": "COMPLETED",
+        "verification_report": "verification/VERIFICATION_REPORT.md",
+        "knowledge_index": "knowledge/long-term/knowledge-index.yaml",
+    })
+    _write_state(ws, state, "ARCHIVED")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(ws), str(dest))
+    print(f"Archived {change_id} -> {dest}")
     return 0
 
 
@@ -125,9 +330,16 @@ def run_task(
             print("task brainstorm requires --id")
             return 2
         return _transition(target, framework_root, change_id, "BRAINSTORMING", "SPEC_REVIEW")
-    if action in {"verify", "archive"}:
-        print(f"task {action} is reserved for the W6 verification/archive cutover.")
-        return 2
+    if action == "verify":
+        if not change_id:
+            print("task verify requires --id")
+            return 2
+        return _verify(target, framework_root, change_id)
+    if action == "archive":
+        if not change_id:
+            print("task archive requires --id")
+            return 2
+        return _archive(target, framework_root, change_id)
     if not orchestrator.exists():
         print(f"Missing vNext orchestrator: {orchestrator}")
         print("Run `maika update` to refresh the target scaffold.")

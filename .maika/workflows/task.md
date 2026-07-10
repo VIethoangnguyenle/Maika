@@ -34,12 +34,17 @@ The target scaffold exposes the canonical workflow through `maika task`:
 - `maika task validate-plan --id <change-id>`
 - `maika task review --id <change-id>`
 - `maika task apply --id <change-id>`
+- `maika task verify --id <change-id>`
+- `maika task archive --id <change-id>`
 - `maika task status [--id <change-id>]`
 - `maika task resume --id <change-id>`
 - `maika task cancel --id <change-id>`
 
-`maika task verify` and `maika task archive` are reserved for the W6
-verification/archive cutover and refuse with an explicit message until then.
+`maika task verify` writes `verification/COMMANDS.yaml` and
+`verification/VERIFICATION_REPORT.md`, then marks the workspace `COMPLETED`.
+`maika task archive` requires verified completion, regenerates
+`knowledge/long-term/knowledge-index.yaml`, writes `ARCHIVE_MANIFEST.yaml`, and
+moves the workspace to `<framework-root>/archive/<change-id>`.
 
 ## Artifact Order
 
@@ -58,6 +63,9 @@ briefs/TASK-001.md
 results/TASK-001.yaml
 reviews/TASK-001.md
 reviews/FINAL_REVIEW.md
+verification/COMMANDS.yaml
+verification/VERIFICATION_REPORT.md
+ARCHIVE_MANIFEST.yaml
 ```
 
 ## Rules

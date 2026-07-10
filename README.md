@@ -201,7 +201,7 @@ Mỗi pha có artifact riêng:
 | Reconciliation | So khớp current/desired behavior và approach | `RECONCILIATION.md` |
 | Spec | Sinh contract hành vi | `SPEC.md` |
 | Plan | Sinh plan code-level và queue | `IMPLEMENTATION_PLAN.md`, generated JSON |
-| Run | Chạy brief, result, review, verify | briefs/results/reviews/verification |
+| Run | Chạy brief, result, review, verify, archive | briefs/results/reviews/verification/archive |
 
 Rule quan trọng: implementation chỉ đi tiếp khi spec, plan validation, compiled
 brief, result contract, review, and verification gates are satisfied.
@@ -280,7 +280,7 @@ Maika ship một bộ skill module hoá theo vai trò.
 | `reviewing-task` | Review từng task result | Sau implementation |
 | `reviewing-change` | Review whole change | Trước verification |
 | `verification-before-completion` | Verify completion evidence | Trước archive |
-| `knowledge-curator` | Archive và cập nhật knowledge | Sau task hoặc khi có teaching moment |
+| `knowledge-curator` | Archive và cập nhật knowledge index | Sau verify |
 | `convention-intelligence-builder` | Quét convention codebase | Khi onboard hoặc sau refactor lớn |
 | `author-dna-builder` | Encode judgment layer | Khi cần style/philosophy của tác giả |
 | `infra-tdd` | Technical Design Document 5 tầng | Khi thay đổi ảnh hưởng kiến trúc/hạ tầng |
@@ -482,11 +482,13 @@ Task active
 |-- TOKEN_LOG.md
 |
 |  /task spec
-|  /task apply
+|  maika task apply
+|  maika task verify
+|  maika task archive
 v
 Task complete
 |
-|-- knowledge-curator archives active context
+|-- knowledge-curator archives verified context
 |-- knowledge-snapshot.md gets new architecture facts
 |-- conventions.yaml may be marked stale after refactor
 |-- active/ resets to templates
@@ -583,13 +585,13 @@ Không. vNext dùng workspace canonical (`CHANGE.yaml`, `SPEC.md`,
 
 ## 🔧 Development
 
-Chạy test CLI:
+Chạy toàn bộ test suite CI:
 
 ```bash
-python3 -m pytest cli/tests
+python3 scripts/run_ci.py
 ```
 
-Chạy skill lint:
+Chạy riêng skill lint:
 
 ```bash
 python3 .maika/tools/skill-lint/validate_skills.py
