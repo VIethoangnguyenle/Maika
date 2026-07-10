@@ -155,6 +155,8 @@
 .agents/tools/microloop-orchestrator/extraction.py
 .agents/tools/microloop-orchestrator/orchestrator.py
 .agents/tools/microloop-orchestrator/outcome.py
+.agents/tools/microloop-orchestrator/plan_compiler.py
+.agents/tools/microloop-orchestrator/plan_parser.py
 .agents/tools/microloop-orchestrator/requirements.txt
 .agents/tools/microloop-orchestrator/stats.py
 .agents/tools/microloop-orchestrator/tiers/
@@ -162,6 +164,7 @@
 .agents/tools/microloop-orchestrator/tiers/fresh_session.py
 .agents/tools/microloop-orchestrator/tiers/inline_reload.py
 .agents/tools/microloop-orchestrator/tiers/subagent.py
+.agents/tools/microloop-orchestrator/vnext_dispatch.py
 .agents/tools/microloop-orchestrator/vnext_state.py
 .agents/tools/rule-projector/
 .agents/tools/rule-projector/README.md

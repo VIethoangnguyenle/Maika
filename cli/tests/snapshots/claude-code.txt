@@ -155,6 +155,8 @@
 .claude/tools/microloop-orchestrator/extraction.py
 .claude/tools/microloop-orchestrator/orchestrator.py
 .claude/tools/microloop-orchestrator/outcome.py
+.claude/tools/microloop-orchestrator/plan_compiler.py
+.claude/tools/microloop-orchestrator/plan_parser.py
 .claude/tools/microloop-orchestrator/requirements.txt
 .claude/tools/microloop-orchestrator/stats.py
 .claude/tools/microloop-orchestrator/tiers/
@@ -162,6 +164,7 @@
 .claude/tools/microloop-orchestrator/tiers/fresh_session.py
 .claude/tools/microloop-orchestrator/tiers/inline_reload.py
 .claude/tools/microloop-orchestrator/tiers/subagent.py
+.claude/tools/microloop-orchestrator/vnext_dispatch.py
 .claude/tools/microloop-orchestrator/vnext_state.py
 .claude/tools/rule-projector/
 .claude/tools/rule-projector/README.md
