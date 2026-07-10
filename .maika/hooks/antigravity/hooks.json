@@ -1,5 +1,5 @@
 {
-  "hooks": {
+  "maika-write-gate": {
     "PreToolUse": [
       {
         "matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command",
@@ -7,11 +7,10 @@
           {
             "type": "command",
 {% if is_windows %}
-            "command": "{{ hook_python }} {{ platform.framework_root }}/hooks/write-gate/write_gate.py --framework-root {{ platform.framework_root }} --runtime antigravity",
+            "command": "{{ hook_python }} {{ platform.framework_root }}/hooks/write-gate/write_gate.py --framework-root {{ platform.framework_root }} --runtime antigravity"
 {% else %}
-            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/{{ platform.framework_root }}/hooks/write-gate/write_gate.py\" --framework-root {{ platform.framework_root }} --runtime antigravity",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/{{ platform.framework_root }}/hooks/write-gate/write_gate.py\" --framework-root {{ platform.framework_root }} --runtime antigravity"
 {% endif %}
-            "statusMessage": "Checking Maika write gate"
           }
         ]
       }
