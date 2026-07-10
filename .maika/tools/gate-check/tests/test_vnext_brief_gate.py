@@ -70,7 +70,7 @@ def _mk(tmp_path):
 
 def _setup(tmp_path):
     import hashlib
-    ws = vs.init_workspace(tmp_path / "changes", "demo", "small", "t")
+    ws = vs.init_workspace(tmp_path / "changes", "demo", "standard", "t")
     (ws / "SPEC.md").write_text("# spec\n", encoding="utf-8")
     plan_text, _ = _mk(tmp_path)
     evidence_sha = hashlib.sha256(

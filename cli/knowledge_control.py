@@ -94,6 +94,14 @@ def candidate_triggered(observations: list[dict]) -> bool:
     if any(item.get("critical_incident") or item.get("user_directive") or
            (item.get("dogfood_failure") and item.get("reproducible")) for item in verified):
         return True
+    explicit_signals = (
+        "human_correction", "repeated_failure", "unexpected_blast_radius",
+        "reusable_review_finding", "measurable_token_reduction",
+    )
+    if any(any(item.get(signal) for signal in explicit_signals) for item in verified):
+        return True
+    if any(int(item.get("observed_convention_count") or 0) >= 2 for item in verified):
+        return True
     by_key: dict[str, list[dict]] = {}
     for item in verified:
         if item.get("recurrence_key"):
@@ -239,6 +247,12 @@ class LearningStore:
             "compatibility": {"capability_ids_changed": False, "output_contract_changed": False,
                               "runtime_consumer_changed": False, "migration_required": False},
             "validation": {"required_tests": [], "dogfood_scenarios": [], "regression_risks": []},
+            "skill_evaluation": {
+                "skill": observations[0].get("skill"), "candidate_version": "1",
+                "evaluation_tasks": [], "before_metrics": {}, "after_metrics": {},
+                "verdict": "PENDING",
+            },
+            "rollback": {"previous_version": "current", "status": "ready"},
         }
 
 
@@ -312,6 +326,9 @@ def promote_skill_candidate(target: Path, framework_root: str, candidate_path: P
         raise ValueError(gate.reason)
     if not candidate_threshold_from_document(candidate):
         raise ValueError("candidate threshold/verified evidence not met")
+    evaluation = candidate.get("skill_evaluation")
+    if evaluation and evaluation.get("verdict") not in {"PROMOTE", "APPROVED"}:
+        raise ValueError("candidate requires successful offline skill evaluation")
     if review.get("independent") is not True or review.get("verdict") != "approved" or review.get("guardrails_preserved") is not True:
         raise ValueError("independent approved review preserving guardrails is required")
     promotion = {**promotion, "classification": candidate["classification"]}
@@ -386,11 +403,12 @@ def regenerate_runtime_index(long_term: Path) -> Path:
             "applies_to": item.get("applies_to") or [], "status": item.get("status"),
             "freshness": item.get("freshness", "verified"),
             "confidence": item.get("confidence", "medium"),
+            "type": item.get("type"), "affected_paths": item.get("affected_paths") or [],
         })
     index_path.parent.mkdir(parents=True, exist_ok=True)
     index_path.write_text(
         "# TỰ ĐỘNG TẠO BỞI KNOWLEDGE CONTROL PLANE — KHÔNG CHỈNH SỬA THỦ CÔNG\n" +
-        yaml.safe_dump({"entries": entries}, sort_keys=False, allow_unicode=True),
+        yaml.safe_dump({"version": 1, "entries": entries}, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
     return index_path

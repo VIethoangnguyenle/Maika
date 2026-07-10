@@ -292,13 +292,25 @@ Maika ship một bộ skill module hoá theo vai trò.
 | Command | Mục đích |
 |---|---|
 | `maika task start --id <id> --title <title>` | Tạo workspace vNext |
-| `maika task explore --id <id>` | Validate intent + grounding evidence |
+| `maika task explore --id <id>` | Bắt đầu exploration (`INTAKE → EXPLORING`, idempotent) |
+| `maika task validate-reasoning --id <id>` | Validate intent + grounding evidence |
 | `maika task spec --id <id>` | Validate `SPEC.md` |
 | `maika task plan --id <id>` | Compile `IMPLEMENTATION_PLAN.md` |
 | `maika task review --id <id>` | Dispatch independent plan review |
 | `maika task apply --id <id>` | Dispatch implementation, task review, fixes, final review |
 | `maika task status [--id <id>]` | Xem state và task queue |
 | `maika task cancel --id <id>` | Huỷ workspace |
+
+Workflow được chọn theo risk class: `trivial` dùng `TASK.yaml`; `small` dùng
+`TASK.yaml`, `EVIDENCE.yaml`, `RESULT.yaml`; `standard` và `architectural` giữ
+full grounding/spec/plan/review chain. Classifier chỉ nâng class khi evidence mới
+cho thấy contract, persistence, event, concurrency, security, migration hoặc
+cross-service impact; class đã xác nhận không tự động bị hạ.
+
+Verification command dùng schema versioned (`executable`, `args`, `category`) và
+chạy với `shell=False`. `small` cần ít nhất một real command, `standard` cần test
+hoặc build, còn `architectural` cần cả build và test. Docker/Kubernetes/Terraform
+và migration tool cần human confirmation.
 
 ---
 

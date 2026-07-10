@@ -22,3 +22,17 @@ worker_timeout_seconds: 900
 
 # vNext W7: canonical engine; legacy execution paths are no longer scaffold defaults.
 workflow_engine: vnext
+
+token_budget:
+  version: 1
+  trivial: {max_context_tokens: 8000, max_worker_calls: 1, max_evidence_items: 5}
+  small: {max_context_tokens: 20000, max_worker_calls: 2, max_evidence_items: 12}
+  standard: {max_context_tokens: 60000, max_worker_calls: 6, max_evidence_items: 30}
+  architectural: {max_context_tokens: 120000, max_worker_calls: 12, max_evidence_items: 60}
+
+command_policy:
+  version: 1
+  allowed_executables: [./gradlew, gradlew, mvn, pytest, python, python3, npm, pnpm, go, cargo, git]
+  requires_human_confirmation: [docker, kubectl, terraform, flyway, liquibase]
+  timeout_seconds: 600
+  output_cap_bytes: 2000

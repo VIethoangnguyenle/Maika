@@ -3,10 +3,16 @@
 import json
 import importlib.util
 import hashlib
+import os
+import socket
+import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
 
 import yaml
+
+from adaptive_runtime import DEFAULT_TOKEN_BUDGET
+from runtime_hardening import ReviewInvalid, parse_review
 
 
 DISPATCH_KERNEL_ID = "KERNEL_ID: maika-knowledge-control-v1"
@@ -47,7 +53,21 @@ def _read_queue(ws):
 
 def _write_queue(ws, doc):
     q_path = Path(ws) / "generated" / "TASK_QUEUE.json"
-    q_path.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+    doc.setdefault("version", 1)
+    payload = json.dumps(doc, ensure_ascii=False, indent=2)
+    fd, temp_name = tempfile.mkstemp(prefix=".TASK_QUEUE.", dir=q_path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, q_path)
+    except BaseException:
+        try:
+            os.unlink(temp_name)
+        except FileNotFoundError:
+            pass
+        raise
     return doc
 
 
@@ -55,6 +75,13 @@ def _update_task(ws, tid, **fields):
     doc = _read_queue(ws)
     for task in doc["tasks"]:
         if task["id"] == tid:
+            if fields.get("status") == "in_progress":
+                fields.setdefault("lease", {
+                    "version": 1, "pid": os.getpid(), "host": socket.gethostname(),
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                })
+            elif fields.get("status") in {"done", "blocked", "changes_required"}:
+                fields.setdefault("lease", None)
             task.update(fields)
             return _write_queue(ws, doc)
     raise ValueError(f"task {tid} not in queue")
@@ -79,11 +106,15 @@ def _append_dispatch_log(ws, record):
         f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
 
 
-def _verdict(text):
-    for line in text.splitlines():
-        if line.startswith("VERDICT:"):
-            return line.split(":", 1)[1].strip()
-    return None
+def _verdict(ws, text, review_type):
+    queue = _read_queue(ws)
+    try:
+        return parse_review(
+            text, review_type, queue.get("base_commit"),
+            "sha256:" + queue.get("plan_sha256", ""),
+        )["verdict"]
+    except ReviewInvalid:
+        return None
 
 
 def run_planning_dispatch(ws, repo_root):
@@ -158,13 +189,25 @@ def review_plan(ws, runner, output_path=None):
     review = gates.validate_plan_review(
         text, valid_evidence_ids=evidence_ids, repo_root=queue.get("repo_root")
     )
-    if review.ok and _verdict(text) == "APPROVED":
+    if review.ok and _verdict(ws, text, "plan") == "APPROVED":
         return "APPROVED"
     return "FINDINGS"
 
 
 def _dispatch_to_runner(ws, dispatch_type, task, artifact_rel, output_rel, runner,
                         *, attempt=0, extra=None):
+    queue = _read_queue(ws)
+    metrics = queue.setdefault("runtime_metrics", {})
+    task_class = queue.get("task_class", "standard")
+    maximum = DEFAULT_TOKEN_BUDGET[task_class]["max_worker_calls"]
+    if int(metrics.get("worker_calls") or 0) >= maximum:
+        return 75, f"{task_class} worker-call budget exhausted; escalate or block"
+    metrics["worker_calls"] = int(metrics.get("worker_calls") or 0) + 1
+    if metrics["worker_calls"] == maximum:
+        metrics["budget_warning"] = f"worker-call budget reached ({maximum}/{maximum})"
+    if dispatch_type == "fix":
+        metrics["retry_count"] = int(metrics.get("retry_count") or 0) + 1
+    _write_queue(ws, queue)
     prompt = build_prompt(dispatch_type, ws, artifact_rel, output_rel, extra=extra, task=task)
     _append_dispatch_log(ws, {
         "dispatch_type": dispatch_type,
@@ -295,10 +338,14 @@ def _run_task_review(ws, gates, task, runner, attempt):
     if not review.ok:
         _update_task(ws, task_id, status="blocked", blocked_reason=review.reason)
         return {"status": "blocked", "reason": review.reason}
-    verdict = _verdict(review_path.read_text(encoding="utf-8"))
+    verdict = _verdict(ws, review_path.read_text(encoding="utf-8"), "task")
     if verdict == "APPROVED":
         _update_task(ws, task_id, status="done", review_path=review_rel)
         return {"status": "approved"}
+    if verdict != "CHANGES_REQUESTED":
+        reason = "task review is malformed or has unsupported verdict"
+        _update_task(ws, task_id, status="blocked", blocked_reason=reason)
+        return {"status": "blocked", "reason": reason}
     _update_task(ws, task_id, status="changes_required", review_path=review_rel)
     return {"status": "changes_required"}
 
@@ -380,6 +427,8 @@ def _run_final_review(ws, gates, runner):
         return {"status": "blocked", "reason": f"final_review exit {exit_code}: {output}"}
     if not review_path.exists():
         return {"status": "blocked", "reason": f"final_review exit 0 but did not write {review_rel}"}
+    if _verdict(ws, review_path.read_text(encoding="utf-8"), "final") != "APPROVED":
+        return {"status": "blocked", "reason": "final review is malformed or not approved"}
     final = gates.validate_final_review(
         review_path.read_text(encoding="utf-8"),
         queue_doc=queue_doc,

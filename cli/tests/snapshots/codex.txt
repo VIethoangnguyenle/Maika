@@ -108,10 +108,12 @@
 .agents/tools/mcp-bridge/mcp_client.py
 .agents/tools/microloop-orchestrator/
 .agents/tools/microloop-orchestrator/README.md
+.agents/tools/microloop-orchestrator/adaptive_runtime.py
 .agents/tools/microloop-orchestrator/orchestrator.py
 .agents/tools/microloop-orchestrator/plan_compiler.py
 .agents/tools/microloop-orchestrator/plan_parser.py
 .agents/tools/microloop-orchestrator/requirements.txt
+.agents/tools/microloop-orchestrator/runtime_hardening.py
 .agents/tools/microloop-orchestrator/vnext_dispatch.py
 .agents/tools/microloop-orchestrator/vnext_state.py
 .agents/tools/rule-projector/

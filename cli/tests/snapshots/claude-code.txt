@@ -109,10 +109,12 @@
 .claude/tools/mcp-bridge/mcp_client.py
 .claude/tools/microloop-orchestrator/
 .claude/tools/microloop-orchestrator/README.md
+.claude/tools/microloop-orchestrator/adaptive_runtime.py
 .claude/tools/microloop-orchestrator/orchestrator.py
 .claude/tools/microloop-orchestrator/plan_compiler.py
 .claude/tools/microloop-orchestrator/plan_parser.py
 .claude/tools/microloop-orchestrator/requirements.txt
+.claude/tools/microloop-orchestrator/runtime_hardening.py
 .claude/tools/microloop-orchestrator/vnext_dispatch.py
 .claude/tools/microloop-orchestrator/vnext_state.py
 .claude/tools/rule-projector/

@@ -29,8 +29,20 @@ decision:
 ```
 """
 
+
+def _review(ws, review_type, verdict="APPROVED", body="", task_id=None):
+    queue = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+    normalized = "CHANGES_REQUESTED" if verdict == "CHANGES_REQUIRED" else verdict
+    task_line = f"task_id: {task_id}\n" if task_id else ""
+    return (
+        "---\nschema_version: 1\n"
+        f"review_type: {review_type}\nverdict: {normalized}\n{task_line}"
+        f"reviewed_commit: {queue['base_commit']}\n"
+        f"reviewed_plan_hash: sha256:{queue['plan_sha256']}\n---\n{body}"
+    )
+
 def _setup(tmp_path):
-    ws = vs.init_workspace(tmp_path / "changes", "demo", "small", "t")
+    ws = vs.init_workspace(tmp_path / "changes", "demo", "standard", "t")
     (ws / "SPEC.md").write_text("# spec\n", encoding="utf-8")
     (tmp_path / "src").mkdir(exist_ok=True); (tmp_path / "tests").mkdir(exist_ok=True)
     (tmp_path / "src" / "a.py").write_text("A = 1\n")
@@ -93,9 +105,9 @@ def test_review_plan_approved(tmp_path):
     def runner(prompt):
         # Extract output file path from a marker or similar logic in real implementation
         out = ws / "review_output.txt"
-        out.write_text(
-            f"VERDICT: APPROVED\n\n## Counter-evidence\n- {ws / 'IMPLEMENTATION_PLAN.md'}\n" + REVIEW_TRACE
-        )
+        out.write_text(_review(
+            ws, "plan", body=f"## Counter-evidence\n- {ws / 'IMPLEMENTATION_PLAN.md'}\n" + REVIEW_TRACE
+        ))
         return 0, ""
     assert vd.review_plan(ws, runner, output_path=ws / "review_output.txt") == "APPROVED"
 
@@ -148,15 +160,14 @@ def _runner_for_w3(ws, calls, *, first_review="APPROVED"):
             )
         elif dispatch_type == "task_review":
             verdict = review_verdicts.pop(0) if review_verdicts else "APPROVED"
-            body = f"TASK_ID: {task_id}\nVERDICT: {verdict}\n"
+            body = ""
             if verdict == "APPROVED":
-                body += "\n## Counter-evidence\n- src/b.py:1 — behavior confirmed in current source\n" + REVIEW_TRACE
-            output.write_text(body, encoding="utf-8")
+                body = "## Counter-evidence\n- src/b.py:1 — behavior confirmed in current source\n" + REVIEW_TRACE
+            output.write_text(_review(ws, "task", verdict, body, task_id), encoding="utf-8")
         elif dispatch_type == "final_review":
-            output.write_text(
-                "VERDICT: APPROVED\n\n## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE,
-                encoding="utf-8",
-            )
+            output.write_text(_review(
+                ws, "final", body="## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE
+            ), encoding="utf-8")
             (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
                 "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
                 "graph_refresh_required: false\nmemory_updates: []\n",
@@ -251,15 +262,14 @@ consumed:
             )
         elif dispatch_type == "task_review":
             verdict = review_verdicts.pop(0)
-            body = f"TASK_ID: {task_id}\nVERDICT: {verdict}\n"
+            body = ""
             if verdict == "APPROVED":
-                body += "\n## Counter-evidence\n- src/b.py:1 — confirmed in source\n" + REVIEW_TRACE
-            output.write_text(body, encoding="utf-8")
+                body = "## Counter-evidence\n- src/b.py:1 — confirmed in source\n" + REVIEW_TRACE
+            output.write_text(_review(ws, "task", verdict, body, task_id), encoding="utf-8")
         elif dispatch_type == "final_review":
-            output.write_text(
-                "VERDICT: APPROVED\n\n## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE,
-                encoding="utf-8",
-            )
+            output.write_text(_review(
+                ws, "final", body="## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE
+            ), encoding="utf-8")
             (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
                 "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
                 "graph_refresh_required: false\nmemory_updates: []\n",
@@ -311,16 +321,14 @@ consumed:
         output = Path(markers["OUTPUT_FILE"])
         output.parent.mkdir(parents=True, exist_ok=True)
         if markers["DISPATCH_TYPE"] == "task_review":
-            output.write_text(
-                "TASK_ID: TASK-001\nVERDICT: APPROVED\n\n"
-                "## Counter-evidence\n- src/b.py:1 — confirmed in source\n" + REVIEW_TRACE,
-                encoding="utf-8",
-            )
+            output.write_text(_review(
+                ws, "task", body="## Counter-evidence\n- src/b.py:1 — confirmed in source\n" + REVIEW_TRACE,
+                task_id="TASK-001",
+            ), encoding="utf-8")
         elif markers["DISPATCH_TYPE"] == "final_review":
-            output.write_text(
-                "VERDICT: APPROVED\n\n## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE,
-                encoding="utf-8",
-            )
+            output.write_text(_review(
+                ws, "final", body="## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE
+            ), encoding="utf-8")
             (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
                 "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
                 "graph_refresh_required: false\nmemory_updates: []\n",

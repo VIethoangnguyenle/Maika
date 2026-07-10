@@ -84,7 +84,7 @@ def _mk(tmp_path):
     return PLAN_TPL.replace("BASESHA", sha), sha
 
 def _setup(tmp_path):
-    ws = vs.init_workspace(tmp_path / "changes", "demo", "small", "t")
+    ws = vs.init_workspace(tmp_path / "changes", "demo", "standard", "t")
     (ws / "SPEC.md").write_text("# spec\n", encoding="utf-8")
     plan_text, _ = _mk(tmp_path)
     evidence_sha = hashlib.sha256(
@@ -200,10 +200,18 @@ def test_task_b_compilation_retrieves_project_knowledge_saved_by_task_a(tmp_path
     store = ws.parents[1] / "knowledge" / "long-term" / "project-knowledge"
     store.mkdir(parents=True)
     (store / "PK-A.yaml").write_text(
-        "id: PK-A\nstatus: active\nstatement: payment requires idempotency\n"
-        "applies_to: [payment]\nconfidence: high\nfreshness: verified\n",
+        "version: 1\nid: PK-A\ntype: convention\nstatus: active\n"
+        "statement: payment requires idempotency\napplies_to: [payment]\n"
+        "source: task-review\nsource_commit: abc\naffected_paths: [src/payment/**]\n"
+        "confidence: high\nfreshness: verified\n",
         encoding="utf-8",
     )
+    (store.parent / "knowledge-index.yaml").write_text(yaml.safe_dump({
+        "version": 1,
+        "entries": [{"id": "PK-A", "store": "project-knowledge", "path": "project-knowledge/PK-A.yaml",
+                     "title": "payment requires idempotency", "applies_to": ["payment"],
+                     "affected_paths": ["src/payment/**"], "status": "active"}],
+    }), encoding="utf-8")
     plan = ws / "IMPLEMENTATION_PLAN.md"
     plan.write_text(plan.read_text(encoding="utf-8").replace("Thân task 1.", "Payment idempotency implementation."), encoding="utf-8")
 

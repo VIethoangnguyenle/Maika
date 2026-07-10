@@ -23,7 +23,8 @@ from cli.knowledge_control import (
 
 
 COMMAND_MAP = {
-    "explore": "vnext-validate-reasoning",
+    "explore": "vnext-start-exploration",
+    "validate-reasoning": "vnext-validate-reasoning",
     "spec": "vnext-validate-spec",
     "plan": "vnext-compile",
     "validate-plan": "vnext-compile",
@@ -48,6 +49,34 @@ def _archive_workspace(target: Path, framework_root: str, change_id: str) -> Pat
 
 def _orchestrator(target: Path, framework_root: str) -> Path:
     return target / framework_root / "tools" / "microloop-orchestrator" / "orchestrator.py"
+
+
+def _state_service(target: Path, framework_root: str):
+    module_path = target / framework_root / "tools" / "microloop-orchestrator" / "vnext_state.py"
+    if not module_path.exists():
+        raise RuntimeError(f"canonical state service unavailable: {module_path}")
+    spec = importlib.util.spec_from_file_location("maika_target_vnext_state", module_path)
+    module = importlib.util.module_from_spec(spec)
+    module_dir = str(module_path.parent)
+    inserted = module_dir not in sys.path
+    if inserted:
+        sys.path.insert(0, module_dir)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if inserted:
+            sys.path.remove(module_dir)
+    return module
+
+
+def _runtime_hardening(target: Path, framework_root: str):
+    module_path = target / framework_root / "tools" / "microloop-orchestrator" / "runtime_hardening.py"
+    if not module_path.exists():
+        raise RuntimeError(f"runtime command policy unavailable: {module_path}")
+    spec = importlib.util.spec_from_file_location("maika_target_runtime_hardening", module_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _bootstrap_ready(target: Path, framework_root: str) -> tuple[bool, str]:
@@ -117,23 +146,20 @@ def _cancel(target: Path, framework_root: str, change_id: str) -> int:
     if not state_path.exists():
         print(f"No such vNext task workspace: {change_id}")
         return 1
-    state = yaml.safe_load(state_path.read_text(encoding="utf-8")) or {}
-    state.update(state="CANCELLED", updated_at=datetime.now(timezone.utc).isoformat())
-    state_path.write_text(yaml.safe_dump(state, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    try:
+        _state_service(target, framework_root).transition(ws, "CANCELLED")
+    except (RuntimeError, ValueError) as exc:
+        print(f"Refused: {exc}")
+        return 1
     print(f"Cancelled {change_id}")
     return 0
 
 
-def _read_state(ws: Path) -> dict | None:
+def _read_state(target: Path, framework_root: str, ws: Path) -> dict | None:
     state_path = ws / "STATE.yaml"
     if not state_path.exists():
         return None
-    return _load_yaml(state_path)
-
-
-def _write_state(ws: Path, state: dict, new_state: str) -> None:
-    state.update(state=new_state, updated_at=_now(), blocked=None)
-    _write_yaml(ws / "STATE.yaml", state)
+    return _state_service(target, framework_root).load_state(ws)
 
 
 def _command_record(name: str, expected: str, observed: str, exit_code: int = 0) -> dict:
@@ -148,38 +174,67 @@ def _command_record(name: str, expected: str, observed: str, exit_code: int = 0)
     }
 
 
-def _run_declared_commands(target: Path, declared: list) -> list[dict]:
+def _run_declared_commands(target: Path, framework_root: str, declared: list) -> list[dict]:
     """Run real verification commands declared in verification/COMMANDS.yaml and
     record command, expected, observed output, exit code, timestamp, interpretation.
     A command passes only when it exits 0 AND (if declared) its expected substring
     is in the observed output — completion never rests on exit code alone."""
     records: list[dict] = []
     for item in declared or []:
-        command = item.get("command")
+        command = item if item.get("executable") else item.get("command")
         if not command:
             continue
-        name = item.get("name") or command
+        name = item.get("name") or item.get("executable") or str(command)
         expected = str(item.get("expected", ""))
-        if command.startswith("python ") and shutil.which("python") is None:
-            command = shlex.quote(sys.executable) + command[len("python"):]
         try:
-            proc = subprocess.run(command, cwd=str(target), shell=True,
-                                  capture_output=True, text=True, timeout=600)
-            observed = ((proc.stdout or "") + (proc.stderr or "")).strip()
-            exit_code = proc.returncode
-        except subprocess.SubprocessError as exc:
-            observed, exit_code = f"command error: {exc}", 1
+            policy = _runtime_hardening(target, framework_root)
+            if isinstance(command, dict):
+                command = {**command, "category": item.get("category", command.get("category", "other"))}
+            record = policy.execute_command(
+                command, target, human_confirmed=bool(item.get("human_confirmed")),
+                timeout=int(item.get("timeout", 600)), output_cap=2000,
+            )
+            observed, exit_code = record["observed_output"].strip(), record["exit_code"]
+        except Exception as exc:
+            record = {"command": str(command), "category": item.get("category", "other"), "shell": False}
+            observed, exit_code = f"command policy error: {exc}", 1
         ok = exit_code == 0 and (expected in observed if expected else True)
         records.append({
             "name": name,
-            "command": command,
+            "command": record["command"],
+            "category": item.get("category", "other"),
             "expected_output": expected,
             "observed_output": observed[-2000:],
             "exit_code": exit_code,
             "timestamp": _now(),
             "interpretation": "pass" if ok else "fail",
+            "shell": False,
         })
     return records
+
+
+_VERIFICATION_POLICY = {
+    "trivial": {"minimum": 0, "categories": set()},
+    "small": {"minimum": 1, "categories": set()},
+    "standard": {"minimum": 1, "categories": {"test_or_build"}},
+    "architectural": {"minimum": 2, "categories": {"build", "test"}},
+}
+
+
+def _verification_policy_result(klass: str, records: list[dict]) -> tuple[bool, str]:
+    policy = _VERIFICATION_POLICY.get(klass, _VERIFICATION_POLICY["standard"])
+    real = [record for record in records if not str(record.get("command", "")).startswith("internal:")]
+    passed = [record for record in real if record.get("interpretation") == "pass"]
+    categories = {str(record.get("category", "other")) for record in passed}
+    required = policy["categories"]
+    if "test_or_build" in required and not categories.intersection({"test", "build"}):
+        return False, f"{klass} requires categories: test or build; observed {', '.join(sorted(categories)) or 'none'}"
+    missing = (required - {"test_or_build"}) - categories
+    if missing:
+        return False, f"{klass} requires categories: {', '.join(sorted(required))}; missing {', '.join(sorted(missing))}"
+    if len(passed) < policy["minimum"]:
+        return False, f"{klass} requires at least {policy['minimum']} real verification command(s); observed {len(passed)}"
+    return True, f"{len(passed)} real command(s) satisfy {klass} policy"
 
 
 def _apply_knowledge_lifecycle(target: Path, framework_root: str, ws: Path) -> dict:
@@ -218,7 +273,7 @@ def _scan_workspace_refs(ws: Path) -> list[str]:
     return hits
 
 
-def _task_artifacts_ok(ws: Path, queue_doc: dict) -> tuple[bool, str]:
+def _task_artifacts_ok(ws: Path, queue_doc: dict, review_policy) -> tuple[bool, str]:
     tasks = queue_doc.get("tasks")
     if not isinstance(tasks, list) or not tasks:
         return False, "task queue has no tasks"
@@ -232,8 +287,13 @@ def _task_artifacts_ok(ws: Path, queue_doc: dict) -> tuple[bool, str]:
             return False, f"{task_id}: missing result {result_path.relative_to(ws)}"
         if not review_path.exists():
             return False, f"{task_id}: missing review {review_path.relative_to(ws)}"
-        if "VERDICT: APPROVED" not in review_path.read_text(encoding="utf-8"):
-            return False, f"{task_id}: review is not approved"
+        try:
+            review_policy.parse_review(
+                review_path.read_text(encoding="utf-8"), "task",
+                queue_doc.get("base_commit"), "sha256:" + queue_doc.get("plan_sha256", ""),
+            )
+        except review_policy.ReviewInvalid as exc:
+            return False, f"{task_id}: invalid structured review: {exc}"
     return True, f"{len(tasks)} task(s) done and reviewed"
 
 
@@ -282,15 +342,66 @@ def _write_verification(ws: Path, change_id: str, commands: list[dict], verdict:
     (verification / "VERIFICATION_REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _verify_lightweight(target: Path, framework_root: str, ws: Path, change: dict) -> int:
+    task = _load_yaml(ws / "TASK.yaml")
+    declared = (task.get("verification") or {}).get("commands") or []
+    commands = _run_declared_commands(target, framework_root, declared) if declared else []
+    if any(record["interpretation"] == "fail" for record in commands):
+        _write_verification(ws, change["change_id"], commands, "FAILED_VERIFICATION", declared)
+        print("Refused: a lightweight verification command failed")
+        return 1
+    if change["class"] == "trivial" and not commands:
+        scoped = [path for values in ((task.get("scope") or {}).get("files") or {}).values()
+                  for path in (values or [])]
+        doc_suffixes = {".md", ".rst", ".txt", ".adoc"}
+        non_documentation = [path for path in scoped if Path(path).suffix.lower() not in doc_suffixes]
+        if non_documentation:
+            reason = "trivial may omit real commands only for documentation-only scope"
+            commands.append(_command_record("real-verification-policy", reason,
+                                            ", ".join(non_documentation), 1))
+            _write_verification(ws, change["change_id"], commands, "FAILED_VERIFICATION", declared)
+            print(f"Refused: {reason}")
+            return 1
+    policy_ok, reason = _verification_policy_result(change["class"], commands)
+    commands.append(_command_record(
+        "real-verification-policy", "change-class verification policy satisfied",
+        reason, 0 if policy_ok else 1,
+    ))
+    if not policy_ok:
+        _write_verification(ws, change["change_id"], commands, "FAILED_VERIFICATION", declared)
+        print(f"Refused: real verification policy failed: {reason}")
+        return 1
+    _write_verification(ws, change["change_id"], commands, "VERIFIED", declared)
+    service = _state_service(target, framework_root)
+    state = service.load_state(ws)
+    metrics = dict(state.get("runtime_metrics") or {})
+    metrics["real_verification_commands"] = len([
+        record for record in commands if not record["command"].startswith("internal:")
+        and record["interpretation"] == "pass"
+    ])
+    metrics["tool_calls"] = int(metrics.get("tool_calls") or 0) + metrics["real_verification_commands"]
+    service.record_runtime_metrics(ws, metrics)
+    service.transition(ws, "COMPLETED")
+    print(f"Verified {change['change_id']}")
+    return 0
+
+
 def _verify(target: Path, framework_root: str, change_id: str) -> int:
     ws = _workspace(target, framework_root, change_id)
-    state = _read_state(ws)
+    state = _read_state(target, framework_root, ws)
     if state is None:
         print(f"No such vNext task workspace: {change_id}")
         return 1
     if state.get("state") not in {"FINAL_REVIEW", "VERIFYING"}:
         print(f"Refused: verification requires FINAL_REVIEW or VERIFYING (found {state.get('state')})")
         return 1
+
+    change = _load_yaml(ws / "CHANGE.yaml")
+    if change.get("class") in {"trivial", "small"}:
+        if state.get("state") != "VERIFYING":
+            print(f"Refused: lightweight verification requires VERIFYING (found {state.get('state')})")
+            return 1
+        return _verify_lightweight(target, framework_root, ws, change)
 
     commands: list[dict] = []
     commands_path = ws / "verification" / "COMMANDS.yaml"
@@ -302,21 +413,29 @@ def _verify(target: Path, framework_root: str, change_id: str) -> int:
         print("Refused: final review is missing")
         return 1
     final_text = final_review.read_text(encoding="utf-8")
-    if "VERDICT: APPROVED" not in final_text:
+    review_policy = _runtime_hardening(target, framework_root)
+    queue_path = ws / "generated" / "TASK_QUEUE.json"
+    queue_doc = json.loads(queue_path.read_text(encoding="utf-8")) if queue_path.exists() else {}
+    try:
+        final_verdict = review_policy.parse_review(
+            final_text, "final", queue_doc.get("base_commit"),
+            "sha256:" + queue_doc.get("plan_sha256", ""),
+        ).get("verdict")
+    except review_policy.ReviewInvalid:
+        final_verdict = None
+    if final_verdict != "APPROVED":
         commands.append(_command_record("final-review-approved", "VERDICT: APPROVED", "final review not approved", 1))
         _write_verification(ws, change_id, commands, "FAILED_VERIFICATION")
         print("Refused: final review is not approved")
         return 1
     commands.append(_command_record("final-review-approved", "VERDICT: APPROVED", "approved"))
 
-    queue_path = ws / "generated" / "TASK_QUEUE.json"
     if not queue_path.exists():
         commands.append(_command_record("task-results-reviewed", "queue exists", "missing task queue", 1))
         _write_verification(ws, change_id, commands, "FAILED_VERIFICATION")
         print("Refused: task queue is missing")
         return 1
-    queue_doc = json.loads(queue_path.read_text(encoding="utf-8"))
-    ok, detail = _task_artifacts_ok(ws, queue_doc)
+    ok, detail = _task_artifacts_ok(ws, queue_doc, review_policy)
     commands.append(_command_record("task-results-reviewed", "all tasks done with approved reviews", detail, 0 if ok else 1))
     if not ok:
         _write_verification(ws, change_id, commands, "FAILED_VERIFICATION")
@@ -337,12 +456,22 @@ def _verify(target: Path, framework_root: str, change_id: str) -> int:
 
     # Run real declared verification commands (build/test/lint/...) fresh.
     if declared:
-        declared_records = _run_declared_commands(target, declared)
+        declared_records = _run_declared_commands(target, framework_root, declared)
         commands.extend(declared_records)
         if any(record["interpretation"] == "fail" for record in declared_records):
             _write_verification(ws, change_id, commands, "FAILED_VERIFICATION", declared)
             print("Refused: a declared verification command failed")
             return 1
+
+    policy_ok, policy_reason = _verification_policy_result(change.get("class", "standard"), commands)
+    commands.append(_command_record(
+        "real-verification-policy", "change-class verification policy satisfied",
+        policy_reason, 0 if policy_ok else 1,
+    ))
+    if not policy_ok:
+        _write_verification(ws, change_id, commands, "FAILED_VERIFICATION", declared)
+        print(f"Refused: real verification policy failed: {policy_reason}")
+        return 1
 
     skill_feedback = ws / "reviews" / "SKILL_FEEDBACK.yaml"
     if skill_feedback.exists():
@@ -364,14 +493,21 @@ def _verify(target: Path, framework_root: str, change_id: str) -> int:
         return 1
 
     _write_verification(ws, change_id, commands, "VERIFIED", declared)
-    _write_state(ws, state, "COMPLETED")
+    metrics = dict(queue_doc.get("runtime_metrics") or {})
+    metrics["real_verification_commands"] = len([
+        record for record in commands if not record["command"].startswith("internal:")
+        and record["interpretation"] == "pass"
+    ])
+    metrics["tool_calls"] = int(metrics.get("tool_calls") or 0) + metrics["real_verification_commands"]
+    _state_service(target, framework_root).record_runtime_metrics(ws, metrics)
+    _state_service(target, framework_root).transition(ws, "COMPLETED")
     print(f"Verified {change_id}")
     return 0
 
 
 def _archive(target: Path, framework_root: str, change_id: str) -> int:
     ws = _workspace(target, framework_root, change_id)
-    state = _read_state(ws)
+    state = _read_state(target, framework_root, ws)
     if state is None:
         print(f"No such vNext task workspace: {change_id}")
         return 1
@@ -424,7 +560,7 @@ def _archive(target: Path, framework_root: str, change_id: str) -> int:
         "knowledge_index_sha256": lifecycle["knowledge_index_sha256"],
         "knowledge_lifecycle": lifecycle,
     })
-    _write_state(ws, state, "ARCHIVED")
+    _state_service(target, framework_root).transition(ws, "ARCHIVED")
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(ws), str(dest))
     print(f"Archived {change_id} -> {dest}")
@@ -439,7 +575,8 @@ def _transition(
     if not state_path.exists():
         print(f"No such vNext task workspace: {change_id}")
         return 1
-    state = yaml.safe_load(state_path.read_text(encoding="utf-8")) or {}
+    service = _state_service(target, framework_root)
+    state = service.load_state(ws)
     if state.get("state") != expected:
         print(f"Refused: wrong state {state.get('state')} (expected {expected})")
         return 1
@@ -451,8 +588,11 @@ def _transition(
         if not trace.ok:
             print(f"Refused: reconciliation Knowledge Trace failed: {trace.reason}")
             return 1
-    state.update(state=new_state, updated_at=datetime.now(timezone.utc).isoformat(), blocked=None)
-    state_path.write_text(yaml.safe_dump(state, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    try:
+        service.transition(ws, new_state)
+    except ValueError as exc:
+        print(f"Refused: {exc}")
+        return 1
     print(f"{change_id}: {expected} -> {new_state}")
     return 0
 

@@ -32,3 +32,13 @@ validation:
   required_tests: []
   dogfood_scenarios: []
   regression_risks: []
+skill_evaluation:
+  skill:
+  candidate_version:
+  evaluation_tasks: []
+  before_metrics: {}
+  after_metrics: {}
+  verdict: PENDING
+rollback:
+  previous_version:
+  status: ready

@@ -16,6 +16,9 @@ from pathlib import Path
 
 import yaml
 
+import adaptive_runtime as ar
+from runtime_hardening import WorkspaceBusy, WorkspaceLock
+
 
 def _execution_config_path(profiles_dir: Path) -> Path:
     local = profiles_dir / "execution-mode.local.yaml"
@@ -108,6 +111,14 @@ def make_worker_runner(worker_command, timeout=900):
     return runner
 
 
+def _worker_runner(config):
+    worker_command = (config or {}).get("worker_command")
+    if not isinstance(worker_command, str) or not worker_command.strip():
+        print("Refused: worker_command is missing from profiles/execution-mode.local.yaml or execution-mode.yaml")
+        return None
+    return make_worker_runner(worker_command)
+
+
 def _add_vnext_commands(sub):
     init_parser = sub.add_parser("vnext-init")
     init_parser.add_argument("--changes-root", required=True)
@@ -126,6 +137,16 @@ def _add_vnext_commands(sub):
     reasoning_parser = sub.add_parser("vnext-validate-reasoning")
     reasoning_parser.add_argument("--workspace", required=True)
     reasoning_parser.add_argument("--repo-root", required=True)
+
+    explore_parser = sub.add_parser("vnext-start-exploration")
+    explore_parser.add_argument("--workspace", required=True)
+    explore_parser.add_argument("--repo-root", required=True)
+
+    transition_parser = sub.add_parser("vnext-transition")
+    transition_parser.add_argument("--workspace", required=True)
+    transition_parser.add_argument("--repo-root", required=True)
+    transition_parser.add_argument("--expected", required=True)
+    transition_parser.add_argument("--target", required=True)
 
     spec_parser = sub.add_parser("vnext-validate-spec")
     spec_parser.add_argument("--workspace", required=True)
@@ -175,6 +196,30 @@ def main(argv=None):
         return 0
 
     ws = Path(args.workspace)
+    if args.command == "vnext-start-exploration":
+        try:
+            previous = vs.load_state(ws).get("state")
+            state = vs.start_exploration(ws)
+        except ValueError as exc:
+            print(f"Refused: {exc}")
+            return 1
+        suffix = " (already started)" if previous == "EXPLORING" else ""
+        print(f"Exploration state: {state['state']}{suffix}")
+        return 0
+
+    if args.command == "vnext-transition":
+        state = vs.load_state(ws)
+        if state.get("state") != args.expected:
+            print(f"Refused: wrong state {state.get('state')} (expected {args.expected})")
+            return 1
+        try:
+            vs.transition(ws, args.target)
+        except ValueError as exc:
+            print(f"Refused: {exc}")
+            return 1
+        print(f"{ws.name}: {args.expected} -> {args.target}")
+        return 0
+
     if args.command == "vnext-compile":
         state = vs.load_state(ws)
         if state["state"] == "INTAKE":
@@ -197,7 +242,9 @@ def main(argv=None):
         if state["state"] != "PLAN_REVIEW":
             print(f"Refused: wrong state {state['state']}")
             return 1
-        runner = make_worker_runner(config.get("worker_command", "echo stub"))
+        runner = _worker_runner(config)
+        if runner is None:
+            return 2
         verdict = vd.review_plan(ws, runner)
         print(f"Plan review verdict: {verdict}")
         return 0
@@ -297,26 +344,61 @@ def main(argv=None):
         return 0
 
     if args.command == "vnext-run":
-        state = vs.load_state(ws)
-        val = json.loads((ws / "generated" / "PLAN_VALIDATION.json").read_text(encoding="utf-8"))
-        rev = (ws / "reviews" / "plan-review.md").read_text(encoding="utf-8") if (ws / "reviews" / "plan-review.md").exists() else ""
-        if state["state"] == "PLAN_REVIEW":
-            if val.get("verdict") == "APPROVED" and "VERDICT: APPROVED" in rev:
-                vs.transition(ws, "EXECUTING")
-            else:
-                print("Refused: plan not approved")
-                return 1
-        elif state["state"] != "EXECUTING":
-            print(f"Refused: wrong state {state['state']}")
+        lock = WorkspaceLock(ws / "generated" / "WORKSPACE.lock", task_id=ws.name)
+        try:
+            lock.acquire()
+        except WorkspaceBusy as exc:
+            print(f"Refused: {exc}")
             return 1
-        runner = make_worker_runner(config.get("worker_command", "echo stub"))
-        out = vd.run_queue(ws, args.repo_root, runner)
-        if out["status"] == "done":
-            vs.transition(ws, "FINAL_REVIEW")
-        elif out["status"] == "stale_plan":
-            vs.transition(ws, "BLOCKED", blocked={"reason": "stale_plan"})
-        print(f"Run outcome: {out['status']}")
-        return 0
+        try:
+            state = vs.load_state(ws)
+            change = yaml.safe_load((ws / "CHANGE.yaml").read_text(encoding="utf-8")) or {}
+            if change.get("class") in {"trivial", "small"}:
+                if state.get("state") != "INTAKE":
+                    print(f"Refused: lightweight apply requires INTAKE (found {state.get('state')})")
+                    return 1
+                runner = _worker_runner(config)
+                if runner is None:
+                    return 2
+                outcome = ar.execute_lightweight(ws, runner)
+                metrics = outcome.get("runtime_metrics")
+                if metrics:
+                    vs.record_runtime_metrics(ws, metrics)
+                if outcome["status"] == "escalate":
+                    target = outcome.get("target_class", "standard")
+                    vs.escalate_to_full(ws, target, outcome.get("triggers") or [])
+                    print(f"Run outcome: escalated to {target}")
+                    return 1
+                if outcome["status"] != "done":
+                    print(f"Run outcome: blocked: {outcome.get('reason')}")
+                    return 1
+                vs.transition(ws, "EXECUTING")
+                vs.transition(ws, "VERIFYING")
+                print("Run outcome: ready_for_verification")
+                return 0
+            val = json.loads((ws / "generated" / "PLAN_VALIDATION.json").read_text(encoding="utf-8"))
+            rev = (ws / "reviews" / "plan-review.md").read_text(encoding="utf-8") if (ws / "reviews" / "plan-review.md").exists() else ""
+            if state["state"] == "PLAN_REVIEW":
+                if val.get("verdict") == "APPROVED" and vd._verdict(ws, rev, "plan") == "APPROVED":
+                    vs.transition(ws, "EXECUTING")
+                else:
+                    print("Refused: plan not approved")
+                    return 1
+            elif state["state"] != "EXECUTING":
+                print(f"Refused: wrong state {state['state']}")
+                return 1
+            runner = _worker_runner(config)
+            if runner is None:
+                return 2
+            out = vd.run_queue(ws, args.repo_root, runner)
+            if out["status"] == "done":
+                vs.transition(ws, "FINAL_REVIEW")
+            elif out["status"] == "stale_plan":
+                vs.transition(ws, "BLOCKED", blocked={"reason": "stale_plan"})
+            print(f"Run outcome: {out['status']}")
+            return 0
+        finally:
+            lock.release()
 
     if args.command == "vnext-status":
         state = vs.load_state(ws)

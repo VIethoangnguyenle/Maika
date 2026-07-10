@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -212,11 +213,16 @@ def test_vnext_cli_e2e(tmp_path):
     prof.mkdir()
     # Python script to mock the worker
     mock_worker = tmp_path / "mock_worker.py"
-    mock_worker.write_text("""import sys, re
+    mock_worker.write_text("""import sys, re, json
+from pathlib import Path
 prompt = sys.argv[1]
 out_path = re.search(r'^OUTPUT_FILE: (.+)$', prompt, re.M).group(1)
+out = Path(out_path)
+queue = json.loads((out.parents[1] / 'generated' / 'TASK_QUEUE.json').read_text())
 with open(out_path, 'w') as f:
-    f.write("VERDICT: APPROVED\\n" if "plan-review" in out_path else "stub result")
+    f.write(("---\\nschema_version: 1\\nreview_type: plan\\nverdict: APPROVED\\n"
+             f"reviewed_commit: {queue['base_commit']}\\nreviewed_plan_hash: sha256:{queue['plan_sha256']}\\n---\\n")
+            if "plan-review" in out_path else "stub result")
 """)
     (prof / "execution-mode.yaml").write_text(f"workflow_engine: vnext\nworker_command: '{sys.executable} {mock_worker} {{prompt}}'\n")
     
@@ -227,7 +233,7 @@ with open(out_path, 'w') as f:
     cmd = [sys.executable, str(orch)]
     
     # Init
-    res = subprocess.run(cmd + ["vnext-init", "--changes-root", str(ch_root), "--id", "demo", "--class", "small", "--title", "t"], capture_output=True, text=True)
+    res = subprocess.run(cmd + ["vnext-init", "--changes-root", str(ch_root), "--id", "demo", "--class", "standard", "--title", "t"], capture_output=True, text=True)
     assert res.returncode == 0
     ws = ch_root / "demo"
     assert yaml.safe_load((ws / "STATE.yaml").read_text())["state"] == "INTAKE"
@@ -266,6 +272,7 @@ evidence_hash: sha256:{evidence_sha}
 task:
   id: TASK-001
   implementation_mode: exact
+  acceptance_criteria: [AC-001]
   verification:
     command: pytest
     expected: pass
@@ -283,6 +290,8 @@ Body
     sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
     
     (ws / "IMPLEMENTATION_PLAN.md").write_text(plan_text.replace("deadbeef", sha))
+    import vnext_state as vs
+    vs.transition(ws, "PLANNING")
     
     # Compile
     res = subprocess.run(cmd + ["vnext-compile", "--workspace", str(ws), "--repo-root", str(tmp_path)], capture_output=True, text=True)
@@ -326,9 +335,9 @@ def test_vnext_reasoning_and_spec_validation_commands(tmp_path):
     )
     assert res.returncode == 0
     ws = ch_root / "demo"
-    state = yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))
-    state["state"] = "EXPLORING"
-    (ws / "STATE.yaml").write_text(yaml.safe_dump(state), encoding="utf-8")
+    res = subprocess.run(cmd + ["vnext-start-exploration", "--workspace", str(ws), "--repo-root", str(tmp_path)], capture_output=True, text=True)
+    assert res.returncode == 0
+    assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["state"] == "EXPLORING"
     _write_valid_reasoning(ws, tmp_path)
 
     res = subprocess.run(cmd + ["vnext-validate-reasoning", "--workspace", str(ws), "--repo-root", str(tmp_path)], capture_output=True, text=True)
@@ -336,15 +345,148 @@ def test_vnext_reasoning_and_spec_validation_commands(tmp_path):
     assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["state"] == "RECONCILING"
     assert (ws / "generated" / "EXPLORATION_VALIDATION.json").exists()
 
-    state = yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))
-    state["state"] = "SPEC_REVIEW"
-    (ws / "STATE.yaml").write_text(yaml.safe_dump(state), encoding="utf-8")
+    # Public phase transitions preserve the state machine; no direct STATE.yaml mutation.
+    res = subprocess.run(cmd + ["vnext-transition", "--workspace", str(ws), "--repo-root", str(tmp_path), "--expected", "RECONCILING", "--target", "BRAINSTORMING"], capture_output=True, text=True)
+    assert res.returncode == 0
+    res = subprocess.run(cmd + ["vnext-transition", "--workspace", str(ws), "--repo-root", str(tmp_path), "--expected", "BRAINSTORMING", "--target", "SPEC_REVIEW"], capture_output=True, text=True)
+    assert res.returncode == 0
     _write_small_spec(ws)
 
     res = subprocess.run(cmd + ["vnext-validate-spec", "--workspace", str(ws), "--repo-root", str(tmp_path)], capture_output=True, text=True)
     assert res.returncode == 0
     assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["state"] == "PLANNING"
     assert (ws / "generated" / "SPEC_VALIDATION.json").exists()
+
+
+def test_public_standard_flow_reaches_planning_without_state_file_mutation(tmp_path):
+    source_framework = Path(__file__).resolve().parents[3]
+    fw_root = tmp_path / ".maika"
+    shutil.copytree(source_framework, fw_root)
+    _write_bootstrap(fw_root)
+    (fw_root / "profiles" / "execution-mode.yaml").write_text(
+        "workflow_engine: vnext\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base"],
+        cwd=tmp_path, check=True,
+    )
+    cli = Path(__file__).resolve().parents[4] / "cli" / "maika.py"
+
+    def public(*args):
+        return subprocess.run(
+            [sys.executable, str(cli), "task", *args, "--target", str(tmp_path)],
+            cwd=tmp_path, capture_output=True, text=True,
+        )
+
+    assert public("start", "--id", "demo", "--class", "standard", "--title", "Demo").returncode == 0
+    ws = fw_root / "changes" / "demo"
+    assert public("explore", "--id", "demo").returncode == 0
+    assert public("explore", "--id", "demo").returncode == 0  # idempotent retry
+    _write_valid_reasoning(ws, tmp_path)
+    assert public("validate-reasoning", "--id", "demo").returncode == 0
+
+    (ws / "RECONCILIATION.md").write_text(
+        "# Reconciliation\n\n## Knowledge Trace\n```yaml\ndecision:\n"
+        "  id: DEC-REC-001\n  statement: Reconcile current evidence.\n"
+        "  type: architecture\n  knowledge_questions: ['What does source prove?']\n"
+        "  evidence_ids: [CODE-001]\n  authority: current source\n  conflicts: []\n"
+        "  assumptions: []\n  confidence: high\n  freshness: fresh\n  verdict: accepted\n```\n",
+        encoding="utf-8",
+    )
+    assert public("reconcile", "--id", "demo").returncode == 0
+    assert public("brainstorm", "--id", "demo").returncode == 0
+    _write_small_spec(ws)
+    assert public("spec", "--id", "demo").returncode == 0
+
+    import hashlib
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    spec_sha = hashlib.sha256((ws / "SPEC.md").read_bytes()).hexdigest()
+    evidence_sha = hashlib.sha256((ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_bytes()).hexdigest()
+    (ws / "IMPLEMENTATION_PLAN.md").write_text(f"""---
+change_id: demo
+plan_version: 1
+knowledge_trace:
+  id: DEC-PLAN-001
+  statement: Decompose the verified change.
+  type: task_decomposition
+  knowledge_questions: ['What tasks are required?']
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
+base_commit: {head}
+spec_hash: sha256:{spec_sha}
+evidence_hash: sha256:{evidence_sha}
+---
+# Plan
+### TASK-001: Demo
+```yaml
+task:
+  id: TASK-001
+  implementation_mode: exact
+  acceptance_criteria: [AC-001]
+  verification:
+    command: pytest
+    expected: pass
+```
+Implement the validated change.
+""", encoding="utf-8")
+
+    result = public("plan", "--id", "demo")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["state"] == "PLAN_REVIEW", result.stdout + result.stderr
+
+
+def test_public_small_happy_path_completes_with_one_worker_call(tmp_path):
+    source_framework = Path(__file__).resolve().parents[3]
+    fw_root = tmp_path / ".maika"
+    shutil.copytree(source_framework, fw_root)
+    _write_bootstrap(fw_root)
+    worker = tmp_path / "small_worker.py"
+    worker.write_text("""import re, sys, yaml
+from pathlib import Path
+prompt = sys.argv[1]
+out = Path(re.search(r'^OUTPUT_FILE: (.+)$', prompt, re.M).group(1))
+out.write_text(yaml.safe_dump({'version': 1, 'status': 'success', 'touched_files': ['src/a.py'], 'observed_risk_signals': {}}))
+""", encoding="utf-8")
+    (fw_root / "profiles" / "execution-mode.yaml").write_text(
+        f"workflow_engine: vnext\nworker_command: '{sys.executable} {worker} {{prompt}}'\n",
+        encoding="utf-8",
+    )
+    cli = Path(__file__).resolve().parents[4] / "cli" / "maika.py"
+    def public(*args):
+        return subprocess.run(
+            [sys.executable, str(cli), "task", *args, "--target", str(tmp_path)],
+            cwd=tmp_path, capture_output=True, text=True,
+        )
+
+    assert public("start", "--id", "small", "--class", "small", "--title", "Small").returncode == 0
+    ws = fw_root / "changes" / "small"
+    task = yaml.safe_load((ws / "TASK.yaml").read_text(encoding="utf-8"))
+    task["scope"]["files"]["modify"] = ["src/a.py"]
+    task["verification"]["commands"] = [{
+        "name": "smoke", "version": 1, "executable": sys.executable,
+        "args": ["-c", "print('pass')"], "category": "test", "expected": "pass",
+    }]
+    (ws / "TASK.yaml").write_text(yaml.safe_dump(task), encoding="utf-8")
+    evidence = yaml.safe_load((ws / "EVIDENCE.yaml").read_text(encoding="utf-8"))
+    evidence["items"] = [{"id": "CODE-1", "statement": "a.py is the target"}]
+    (ws / "EVIDENCE.yaml").write_text(yaml.safe_dump(evidence), encoding="utf-8")
+
+    apply = public("apply", "--id", "small")
+    assert apply.returncode == 0, apply.stdout + apply.stderr
+    verify = public("verify", "--id", "small")
+    assert verify.returncode == 0, verify.stdout + verify.stderr
+    state = yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))
+    assert state["state"] == "COMPLETED"
+    assert state["runtime_metrics"]["worker_calls"] == 1
 
 
 def test_standard_change_cannot_compile_from_intake_without_reasoning(tmp_path):
@@ -371,6 +513,30 @@ def test_standard_change_cannot_compile_from_intake_without_reasoning(tmp_path):
     res = subprocess.run(cmd + ["vnext-compile", "--workspace", str(ws), "--repo-root", str(tmp_path)], capture_output=True, text=True)
     assert res.returncode == 1
     assert "requires reasoning/spec validation" in res.stdout
+
+
+def test_worker_command_is_required_for_review(tmp_path):
+    fw_root = tmp_path / ".maika"
+    fw_root.mkdir()
+    _write_bootstrap(fw_root)
+    prof = fw_root / "profiles"
+    prof.mkdir()
+    (prof / "execution-mode.yaml").write_text("workflow_engine: vnext\n", encoding="utf-8")
+    changes = fw_root / "changes"
+    changes.mkdir()
+    orch = Path(__file__).resolve().parents[1] / "orchestrator.py"
+    cmd = [sys.executable, str(orch)]
+    assert subprocess.run(cmd + ["vnext-init", "--changes-root", str(changes), "--id", "demo", "--class", "small", "--title", "t"], capture_output=True, text=True).returncode == 0
+    ws = changes / "demo"
+    import vnext_state as vs
+    vs.transition(ws, "PLANNING")
+    vs.transition(ws, "PLAN_REVIEW")
+
+    result = subprocess.run(cmd + ["vnext-review-plan", "--workspace", str(ws), "--repo-root", str(tmp_path)], capture_output=True, text=True)
+
+    assert result.returncode == 2
+    assert "worker_command" in result.stdout
+    assert "missing" in result.stdout.lower()
 
 def test_refuse_legacy(tmp_path):
     fw_root = tmp_path / ".maika"

@@ -752,7 +752,18 @@ def validate_result_contract(text: str, queue_doc=None, task_id=None) -> Result:
 
 def _field_value(text: str, name: str):
     match = re.search(rf"^{re.escape(name)}\s*:\s*(.+?)\s*$", text, re.MULTILINE)
-    return match.group(1).strip() if match else None
+    if match:
+        return match.group(1).strip()
+    if text.startswith("---\n") and "\n---\n" in text[4:]:
+        try:
+            front = yaml.safe_load(text[4:].split("\n---\n", 1)[0]) or {}
+        except yaml.YAMLError:
+            return None
+        value = front.get(name.lower())
+        if name == "VERDICT" and value == "CHANGES_REQUESTED":
+            return "CHANGES_REQUIRED"
+        return str(value) if value is not None else None
+    return None
 
 
 def validate_task_review(text: str, queue_doc=None, task_id=None) -> Result:

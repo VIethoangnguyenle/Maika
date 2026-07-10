@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,7 +16,15 @@ def _load(name, rel):
         Path(__file__).resolve().parents[1] / rel
     spec = importlib.util.spec_from_file_location(name, mod_path)
     m = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(m)
+    module_dir = str(mod_path.parent)
+    inserted = module_dir not in sys.path
+    if inserted:
+        sys.path.insert(0, module_dir)
+    try:
+        spec.loader.exec_module(m)
+    finally:
+        if inserted:
+            sys.path.remove(module_dir)
     return m
 
 
@@ -25,28 +34,43 @@ def _sha(text):
 
 def _active_project_knowledge(framework_root, task_header, section_text):
     """Select the smallest active durable slice for a compiled task."""
-    store = Path(framework_root) / "knowledge" / "long-term" / "project-knowledge"
+    long_term = Path(framework_root) / "knowledge" / "long-term"
+    index_path = long_term / "knowledge-index.yaml"
     questions = task_header.get("knowledge_questions") or []
     files = task_header.get("files") or {}
     scope = [item for values in files.values() for item in (values or [])]
     terms = {word.lower() for value in [*scope, *questions, section_text]
              for word in re.findall(r"[A-Za-z0-9_-]{4,}", str(value))}
+    if not index_path.exists():
+        return [], questions, {"retrieved": 0, "reused": 0, "revalidated": 0, "newly_created": 0}
+    index = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}
+    refs = [item for item in index.get("entries") or []
+            if item.get("store") == "project-knowledge" and item.get("status") == "active"]
     matched = []
-    for path in sorted(store.glob("*.yaml")) if store.is_dir() else []:
+    selected = []
+    for ref in refs:
+        haystack = " ".join([str(ref.get("id", "")), str(ref.get("title", "")),
+                             " ".join(ref.get("applies_to") or []),
+                             " ".join(ref.get("affected_paths") or [])]).lower()
+        if terms and any(term in haystack for term in terms):
+            selected.append(ref)
+    for ref in selected:
+        path = long_term / ref["path"]
         item = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         if not isinstance(item, dict) or item.get("status") != "active":
             continue
-        haystack = " ".join([str(item.get("id", "")), str(item.get("statement", "")),
-                             " ".join(item.get("applies_to") or [])]).lower()
-        if not terms or any(term in haystack for term in terms):
-            matched.append({
-                "id": item.get("id"), "path": str(path),
-                "statement": item.get("statement"),
-                "provenance": item.get("provenance") or {},
-                "freshness": item.get("freshness", "verified"),
-                "confidence": item.get("confidence", "medium"),
-            })
-    return matched, questions
+        matched.append({
+            "id": item.get("id"), "type": item.get("type"), "path": str(path),
+            "statement": item.get("statement"), "applies_to": item.get("applies_to") or [],
+            "source": item.get("source") or item.get("provenance") or {},
+            "source_commit": item.get("source_commit"),
+            "affected_paths": item.get("affected_paths") or [],
+            "freshness": item.get("freshness", "verified"),
+            "confidence": item.get("confidence", "medium"), "status": item.get("status"),
+        })
+    metrics = {"retrieved": len(selected), "reused": len(matched),
+               "revalidated": 0, "newly_created": 0}
+    return matched, questions, metrics
 
 
 def compile_plan(ws, repo_root):
@@ -100,6 +124,9 @@ def compile_plan(ws, repo_root):
                   "historical_context", "database_evidence")
     queue_tasks = []
     framework_root = ws.parents[1]
+    change = yaml.safe_load((ws / "CHANGE.yaml").read_text(encoding="utf-8")) or {}
+    evidence_retrieved = 0
+    evidence_reused = 0
     for tid in order:
         t = by_id[tid]
         body = t["section_text"]
@@ -111,13 +138,14 @@ def compile_plan(ws, repo_root):
         brief_path.write_text(header + "\n---\n" + body, encoding="utf-8")
         # W4: Task Knowledge Capsule — smallest relevant knowledge slice + freshness.
         kn = t["header"].get("knowledge") or {}
-        project_slice, knowledge_questions = _active_project_knowledge(
+        project_slice, knowledge_questions, evidence_metrics = _active_project_knowledge(
             framework_root, t["header"], body
         )
         capsule = {
             "task_id": tid,
             "knowledge_slice": {k: (kn.get(k) or []) for k in slice_keys},
             "project_knowledge": project_slice,
+            "evidence_metrics": evidence_metrics,
             "knowledge_questions": knowledge_questions,
             "forbidden_patterns": t["header"].get("forbidden_patterns") or [],
             "assumptions": t["header"].get("assumptions") or [],
@@ -127,6 +155,8 @@ def compile_plan(ws, repo_root):
             },
             "confidence": t["header"].get("confidence") or "medium",
         }
+        evidence_retrieved += evidence_metrics["retrieved"]
+        evidence_reused += evidence_metrics["reused"]
         capsule_text = yaml.safe_dump(capsule, sort_keys=False, allow_unicode=True)
         capsule_path = ws / "briefs" / f"{tid}.knowledge.yaml"
         capsule_path.write_text(capsule_text, encoding="utf-8")
@@ -168,7 +198,18 @@ def compile_plan(ws, repo_root):
             "files": t["header"].get("files") or {},
         })
     (gen / "TASK_QUEUE.json").write_text(json.dumps(
-        {"change_id": manifest["change_id"], "plan_sha256": plan_sha,
+        {"version": 1, "change_id": manifest["change_id"], "base_commit": manifest["base_commit"],
+         "plan_sha256": plan_sha, "task_class": change.get("class", "standard"),
          "repo_root": str(Path(repo_root).resolve()),
+         "runtime_metrics": {
+             "version": 1, "task_class": change.get("class", "standard"),
+             "total_tokens": "unavailable",
+             "token_count_reason": "platform did not provide token usage",
+             "worker_calls": 0, "tool_calls": 0,
+             "evidence_reuse_ratio": evidence_reused / max(1, evidence_retrieved),
+             "retry_count": 0, "real_verification_commands": 0, "review_findings": 0,
+             "human_corrections": 0, "knowledge_entries_created": 0,
+             "knowledge_entries_reused": sum(len(q.get("knowledge_ids") or []) for q in queue_tasks),
+         },
          "tasks": queue_tasks}, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"verdict": "APPROVED", **manifest}

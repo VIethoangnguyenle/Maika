@@ -90,6 +90,12 @@ decision:
         "sections": ["Output"], "summary": "require evidence",
         "before": "## Output\nold\n", "after": "## Output\nnew control\n",
     }
+    candidate["skill_evaluation"].update({
+        "evaluation_tasks": ["TASK-A", "TASK-B"],
+        "before_metrics": {"retry_count": 2},
+        "after_metrics": {"retry_count": 0},
+        "verdict": "PROMOTE",
+    })
     candidate_path = framework / "knowledge" / "skill-evolution" / "candidates" / "SC-capsule-idempotency.yaml"
     candidate_path.parent.mkdir(parents=True)
     candidate_path.write_text(yaml.safe_dump(candidate, sort_keys=False), encoding="utf-8")
