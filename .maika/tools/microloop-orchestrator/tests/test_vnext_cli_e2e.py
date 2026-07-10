@@ -111,3 +111,21 @@ def test_refuse_legacy(tmp_path):
     res = subprocess.run(cmd + ["vnext-init", "--changes-root", str(ch_root), "--id", "demo", "--class", "small", "--title", "t"], capture_output=True, text=True)
     assert res.returncode == 2
     assert "Refused" in res.stdout
+
+def test_vnext_cli_prefers_local_override_over_template(tmp_path):
+    fw_root = tmp_path / ".maika"
+    fw_root.mkdir()
+    prof = fw_root / "profiles"
+    prof.mkdir()
+    (prof / "execution-mode.yaml").write_text("{% if platform == 'codex' %}\nworkflow_engine: legacy\n{% endif %}\n")
+    (prof / "execution-mode.local.yaml").write_text("workflow_engine: vnext\n")
+
+    ch_root = tmp_path / ".maika" / "changes"
+    ch_root.mkdir()
+
+    orch = Path(__file__).resolve().parents[1] / "orchestrator.py"
+    cmd = [sys.executable, str(orch)]
+
+    res = subprocess.run(cmd + ["vnext-init", "--changes-root", str(ch_root), "--id", "demo", "--class", "small", "--title", "t"], capture_output=True, text=True)
+    assert res.returncode == 0
+    assert "Workspace initialized" in res.stdout

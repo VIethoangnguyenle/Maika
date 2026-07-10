@@ -59,6 +59,25 @@ def _ok_runner(tmp_path):
     return runner
 
 
+def test_load_execution_config_prefers_local_override(tmp_path):
+    active = _scaffold(tmp_path)
+    profiles = active.parents[1] / "profiles"
+    (profiles / "execution-mode.local.yaml").write_text(
+        yaml.safe_dump({
+            "execution_mode": "fresh-session",
+            "worker_command": "local {prompt}",
+            "max_retries": 3,
+            "worker_timeout_seconds": 15,
+        }),
+        encoding="utf-8",
+    )
+
+    config = orchestrator.load_execution_config(active)
+
+    assert config["worker_command"] == "local {prompt}"
+    assert config["max_retries"] == 3
+
+
 def test_apply_command_happy_two_nodes(tmp_path):
     active = _scaffold(tmp_path)
     summary = orchestrator.apply_command(active, runner=_ok_runner(tmp_path))

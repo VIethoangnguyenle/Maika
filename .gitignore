@@ -12,4 +12,5 @@ __pycache__/
 
 # Per-dev: persona là phong cách tương tác riêng từng developer (seed từ persona.template.yaml)
 .maika/knowledge/long-term/persona.yaml
+.maika/profiles/execution-mode.local.yaml
 .gstack/

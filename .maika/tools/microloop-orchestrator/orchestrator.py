@@ -52,6 +52,14 @@ def _project_rel(framework_root, *parts):
     return str(Path(framework_root, "knowledge", "active", *parts))
 
 
+def _execution_config_path(profiles_dir):
+    profiles = Path(profiles_dir)
+    local = profiles / "execution-mode.local.yaml"
+    if local.exists():
+        return local
+    return profiles / "execution-mode.yaml"
+
+
 def append_activity_event(active_dir, event, **fields):
     """Append one dashboard activity event to microloop/ACTIVITY_LOG.jsonl."""
     record = {"ts": fields.pop("ts", _now_iso()), "event": event}
@@ -517,7 +525,7 @@ def load_execution_config(active_dir):
 
     active_dir = <framework_root>/knowledge/active → config ở <framework_root>/profiles/.
     Trả None nếu file không tồn tại (precondition sẽ báo)."""
-    path = Path(active_dir).resolve().parents[1] / "profiles" / "execution-mode.yaml"
+    path = _execution_config_path(Path(active_dir).resolve().parents[1] / "profiles")
     if not path.exists():
         return None
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -666,7 +674,7 @@ def main(argv=None):
             # For vnext-init, changes_root is .maika/changes, repo_root is parents[2]
             repo_root = str(Path(args.changes_root).parents[1])
         
-        config_path = Path(repo_root) / ".maika" / "profiles" / "execution-mode.yaml"
+        config_path = _execution_config_path(Path(repo_root) / ".maika" / "profiles")
         engine = "legacy"
         if config_path.exists():
             conf = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
