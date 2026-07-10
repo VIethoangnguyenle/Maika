@@ -608,3 +608,65 @@ def test_cli_coverage_checks_require_against_file(tmp_path, capsys):
     assert cli.main(["ac-coverage", str(req)]) == 2
     captured = capsys.readouterr()
     assert captured.out.strip() == "FAIL — --against is required for coverage checks"
+
+
+# ── artifact_type-aware strict slice (spec 2026-07-07) ──────────────────
+
+_IMPL_OK_BODY = (
+    "## Evidence\n"
+    "domain_overview: user service layer\n"
+    "node_id: svc.UserService#42\nblast-radius: 2 nodes\n"
+    "## Allowed Files\n- src/main/java/App.java\n"
+)
+
+
+def test_handoff_slice_strict_accepts_slice_rule_ids():
+    text = "## Applicable DNA/Conventions\n- SP-6\n- HP-1\n"
+    assert g.validate_handoff_slice(text, valid_rule_ids={"SP-6", "HP-1"}).ok is True
+
+
+def test_handoff_slice_strict_rejects_wrong_artifact_type_rule():
+    # RC-2 tồn tại trong index nhưng thuộc slice của artifact-type khác.
+    text = "## Applicable DNA/Conventions\n- SP-6\n- RC-2\n"
+    res = g.validate_handoff_slice(text, valid_rule_ids={"SP-6", "HP-1"})
+    assert res.ok is False
+    assert "RC-2" in res.reason
+
+
+def test_handoff_slice_strict_rejects_nonexistent_rule_id():
+    text = "## Applicable DNA/Conventions\n- XX-99\n"
+    res = g.validate_handoff_slice(text, valid_rule_ids={"SP-6"})
+    assert res.ok is False
+    assert "XX-99" in res.reason
+
+
+def test_handoff_slice_legacy_unchanged_without_valid_set():
+    # Không truyền valid_rule_ids → behavior cũ: chỉ cần ≥1 rule-id.
+    text = "## Applicable DNA/Conventions\n- XX-99\n"
+    assert g.validate_handoff_slice(text).ok is True
+
+
+def test_handoff_slice_strict_ignores_rule_ids_outside_section():
+    # Prose ở section khác nhắc PR-33 không được gây false-fail.
+    text = (
+        "## Applicable DNA/Conventions\n- SP-6\n"
+        "## Constraints\nsee PR-33 discussion\n"
+    )
+    assert g.validate_handoff_slice(text, valid_rule_ids={"SP-6"}).ok is True
+
+
+def test_implementation_context_strict_rejects_foreign_rule_ids():
+    text = "## Applicable DNA/Conventions\n- SP-6\n- RC-2\n" + _IMPL_OK_BODY
+    res = g.validate_implementation_context(text, valid_rule_ids={"SP-6"})
+    assert res.ok is False
+    assert "RC-2" in res.reason
+
+
+def test_implementation_context_strict_accepts_slice_rule_ids():
+    text = "## Applicable DNA/Conventions\n- SP-6\n" + _IMPL_OK_BODY
+    assert g.validate_implementation_context(text, valid_rule_ids={"SP-6"}).ok is True
+
+
+def test_implementation_context_legacy_unchanged_without_valid_set():
+    text = "## Applicable DNA/Conventions\n- XX-99\n" + _IMPL_OK_BODY
+    assert g.validate_implementation_context(text).ok is True

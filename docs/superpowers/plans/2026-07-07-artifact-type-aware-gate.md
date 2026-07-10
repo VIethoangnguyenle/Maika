@@ -24,7 +24,7 @@
 - Modify: `.maika/tools/gate-check/gates.py` (validate_handoff_slice ~dòng 127, validate_implementation_context ~dòng 134)
 - Test: `.maika/tools/gate-check/tests/test_gates.py` (append cuối file)
 
-- [ ] **Step 1: Viết failing tests**
+- [x] **Step 1: Viết failing tests**
 
 Append vào cuối `.maika/tools/gate-check/tests/test_gates.py`:
 
@@ -91,12 +91,12 @@ def test_implementation_context_legacy_unchanged_without_valid_set():
     assert g.validate_implementation_context(text).ok is True
 ```
 
-- [ ] **Step 2: Chạy tests, verify fail đúng chỗ**
+- [x] **Step 2: Chạy tests, verify fail đúng chỗ**
 
 Run: `/usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_gates.py -v -k "strict or legacy_unchanged"`
 Expected: các test `*_strict_rejects_*` FAIL với `TypeError: ... unexpected keyword argument 'valid_rule_ids'`; các test legacy PASS (regression guard).
 
-- [ ] **Step 3: Implement trong gates.py**
+- [x] **Step 3: Implement trong gates.py**
 
 Thêm helper ngay sau `validate_apply_gate` (trước `validate_handoff_slice`):
 
@@ -132,12 +132,12 @@ Trong `validate_implementation_context`, đổi signature thành `def validate_i
             )
 ```
 
-- [ ] **Step 4: Chạy toàn bộ test_gates.py, verify pass**
+- [x] **Step 4: Chạy toàn bộ test_gates.py, verify pass**
 
 Run: `/usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_gates.py -v`
 Expected: ALL PASS (test cũ + 8 test mới).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .maika/tools/gate-check/gates.py .maika/tools/gate-check/tests/test_gates.py
@@ -152,7 +152,7 @@ git commit -m "feat(gate-check): strict slice validation for handoff-slice/imple
 - Modify: `.maika/tools/gate-check/cli.py` (`_load_index_rule_ids` dòng 35–44, `main` dòng 62–71)
 - Create: `.maika/tools/gate-check/tests/test_cli_index.py`
 
-- [ ] **Step 1: Viết failing tests**
+- [x] **Step 1: Viết failing tests**
 
 Tạo `.maika/tools/gate-check/tests/test_cli_index.py`:
 
@@ -256,12 +256,12 @@ def test_cli_implementation_context_strict_fail_nonexistent(tmp_path, capsys):
     assert "XX-99" in capsys.readouterr().out
 ```
 
-- [ ] **Step 2: Chạy tests, verify fail đúng chỗ**
+- [x] **Step 2: Chạy tests, verify fail đúng chỗ**
 
 Run: `/usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_cli_index.py -v`
 Expected: `test_load_index_includes_global_rules_*` FAIL (HP-1 bị loại — bug hiện tại); `test_cli_handoff_slice_strict_fail_wrong_type` và `test_cli_implementation_context_strict_fail_nonexistent` FAIL (rc==0 vì flag bị bỏ qua); `test_cli_empty_slice_*` FAIL (không có WARN). Các test legacy PASS.
 
-- [ ] **Step 3: Implement trong cli.py**
+- [x] **Step 3: Implement trong cli.py**
 
 Sửa `_load_index_rule_ids` — thêm nhánh global (khớp context-loader.md dòng 46–48):
 
@@ -301,12 +301,12 @@ Trong `main()`, thay block `if args.gate == "knowledge-checkpoint" and args.inde
         kwargs["spec_text"] = Path(args.against).read_text(encoding="utf-8")
 ```
 
-- [ ] **Step 4: Chạy tests, verify pass**
+- [x] **Step 4: Chạy tests, verify pass**
 
 Run: `/usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_cli_index.py .maika/tools/gate-check/tests/test_gates.py -v`
 Expected: ALL PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .maika/tools/gate-check/cli.py .maika/tools/gate-check/tests/test_cli_index.py
@@ -323,7 +323,7 @@ git commit -m "feat(gate-check): wire --index/--artifact-type into handoff-slice
 
 (Không sửa `tools/microloop-orchestrator/README.md` — file này không chứa lệnh gọi gate nào; chỗ gọi của microloop dispatch chính là R-Tool-8 trong rules-tool.md.)
 
-- [ ] **Step 1: Sửa decision-gate.md**
+- [x] **Step 1: Sửa decision-gate.md**
 
 Thay step 4 (dòng 9–11):
 
@@ -350,7 +350,7 @@ Trong section "Token bằng chứng BẮT BUỘC", cập nhật 2 bullet (dòng 
   target file đang sửa phải khớp một dòng trong `Allowed Files`.
 ```
 
-- [ ] **Step 2: Sửa rules-tool.md (R-Tool-8)**
+- [x] **Step 2: Sửa rules-tool.md (R-Tool-8)**
 
 Dòng 165, thay:
 
@@ -371,7 +371,7 @@ Với `--index`/`--artifact-type`, mọi rule-id trong `## Applicable DNA/Conven
 slice của artifact-type đó (hoặc global) — rule-id bịa hoặc sai type → gate FAIL.
 ```
 
-- [ ] **Step 3: Chạy toàn bộ test suite framework, verify không vỡ gì**
+- [x] **Step 3: Chạy toàn bộ test suite framework, verify không vỡ gì**
 
 Run: `/usr/bin/python3 -m pytest .maika/tools/gate-check/tests/ -v`
 Expected: ALL PASS.
@@ -379,7 +379,7 @@ Expected: ALL PASS.
 Run: `/usr/bin/python3 -m pytest .maika/hooks/write-gate/tests/ -v`
 Expected: ALL PASS (write_gate.py gọi `validate_implementation_context(text)` không kwarg — signature backward compatible nên không đổi gì).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .maika/procedures/decision-gate.md .maika/rules/rules-tool.md
@@ -390,12 +390,12 @@ git commit -m "docs(gate-check): wire --index/--artifact-type into decision-gate
 
 ### Task 4: Verify DoD + full suite
 
-- [ ] **Step 1: Chạy full test của repo (framework tools + cli)**
+- [x] **Step 1: Chạy full test của repo (framework tools + cli)**
 
 Run: `/usr/bin/python3 -m pytest .maika/tools/gate-check/tests/ .maika/hooks/write-gate/tests/ cli/ -q`
 Expected: ALL PASS, không regression.
 
-- [ ] **Step 2: Smoke test CLI bằng tay trên fixture thật**
+- [x] **Step 2: Smoke test CLI bằng tay trên fixture thật**
 
 ```bash
 cd /tmp && mkdir -p gate-smoke && cd gate-smoke
@@ -406,7 +406,7 @@ printf '## Applicable DNA/Conventions\n- RC-2\n## Allowed Files\n- src/App.java\
 
 Expected: `FAIL — handoff cites rule-ids not in knowledge-index slice: RC-2`, exit code 1.
 
-- [ ] **Step 3: Đối chiếu DoD trong spec — tick từng dòng**
+- [x] **Step 3: Đối chiếu DoD trong spec — tick từng dòng**
 
 - `implementation-context` + `handoff-slice` support `--index`/`--artifact-type` ✓ (Task 2)
 - Strict-in-section; legacy mode không đổi ✓ (Task 1, 2)

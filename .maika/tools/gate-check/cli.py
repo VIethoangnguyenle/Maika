@@ -48,7 +48,7 @@ def _load_index_rule_ids(index_path, artifact_type=None):
     matched = []
     for entry in entries:
         applies = entry.get("applies_to") or []
-        if artifact_type is None or artifact_type in applies:
+        if artifact_type is None or artifact_type in applies or not applies:
             if entry.get("id"):
                 matched.append(entry["id"])
     return set(matched), len(matched) == 0
@@ -76,6 +76,14 @@ def main(argv=None):
         valid_rule_ids, index_empty = _load_index_rule_ids(args.index, args.artifact_type)
         kwargs["valid_rule_ids"] = valid_rule_ids
         kwargs["allow_no_knowledge"] = index_empty
+    elif args.gate in {"handoff-slice", "implementation-context"} and args.index:
+        valid_rule_ids, slice_empty = _load_index_rule_ids(args.index, args.artifact_type)
+        if slice_empty:
+            print(f"WARN — slice empty for artifact_type={args.artifact_type} — falling back to legacy check")
+        else:
+            if args.artifact_type is None:
+                print("WARN — --index without --artifact-type: checking rule-id existence only")
+            kwargs["valid_rule_ids"] = valid_rule_ids
     elif args.gate in {"ac-coverage", "integration-coverage"}:
         if not args.against:
             print("FAIL — --against is required for coverage checks")

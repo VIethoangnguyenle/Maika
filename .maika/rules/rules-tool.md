@@ -168,12 +168,17 @@ Orchestrator KHÔNG được `invoke_subagent` cho tới khi `TASK_HANDOFF.<node
 chứa section `## Applicable DNA/Conventions` (slice từ knowledge-index theo
 artifact-type của node) và pass:
 
-`python3 {{ platform.framework_root }}/tools/gate-check/cli.py handoff-slice <file>`
+`python3 {{ platform.framework_root }}/tools/gate-check/cli.py handoff-slice <file> --index {{ platform.framework_root }}/knowledge/long-term/knowledge-index.yaml --artifact-type <artifact-type của node>`
 
 Trước khi executor/subagent được phép ghi code, cùng handoff đó cũng PHẢI pass
 implementation preflight:
 
-`python3 {{ platform.framework_root }}/tools/gate-check/cli.py implementation-context <file>`
+`python3 {{ platform.framework_root }}/tools/gate-check/cli.py implementation-context <file> --index {{ platform.framework_root }}/knowledge/long-term/knowledge-index.yaml --artifact-type <artifact-type của node>`
+
+Với `--index`/`--artifact-type`, mọi rule-id trong `## Applicable DNA/Conventions` phải thuộc
+slice của artifact-type đó (hoặc global) — rule-id bịa hoặc sai type → gate FAIL. Áp dụng cho
+cả hai lệnh trên (handoff-slice và implementation-context). Nếu slice rỗng cho artifact-type đó
+(chưa có rule nào áp dụng) → tool WARN và fallback về check legacy (≥1 rule-id là đủ, không strict).
 
 Implementation context phải có `## Evidence` với UA evidence (`domain_overview`,
 `domain_flow`, `domain_relationships`) hoặc explicit UA degrade/override, và
