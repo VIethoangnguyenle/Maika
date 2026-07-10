@@ -1,10 +1,12 @@
-# Maika vNext — Master Refactor Implementation Plan
+# Maika vNext — Master Refactor Implementation Plan (v2)
 
 > **Purpose:** Refactor the Maika framework end-to-end into a grounded, evidence-driven, plan-first, subagent-dispatched development system.
 >
 > **Audience:** A capable coding agent acting as orchestrator, planner, implementer, and reviewer.
 >
 > **Execution rule:** This document is a **master program plan**, not permission to implement the entire repository in one unreviewable change. Execute it as ordered waves. Before coding each wave, produce a repository-verified Superpowers-style implementation plan containing exact files, symbols, tests, commands, expected failures, and code where appropriate.
+>
+> **Authority:** This v2 supersedes v1 (commit `437ae91`). The migration strategy follows **Design Spec Rev 2** (`docs/superpowers/specs/2026-07-10-vnext-plan-restructure-design.md`), which is authoritative where v1 and v2 differ. The target architecture of v1 is preserved except where Rev 2 explicitly changes it.
 
 ---
 
@@ -63,7 +65,11 @@ Do not:
 - Delete legacy OpenSpec support until the vNext path passes dogfood and migration tests.
 - Treat line numbers as stable code identities.
 - Mark a task complete only because a subprocess exited with code `0`.
-- pass entire parent-session history into subagents.
+- Pass entire parent-session history into subagents.
+- **Add speculative gates, states, dispatch mechanisms, routing dimensions, or fixtures that lack an eligible enforcement-ledger entry (§5).**
+- **Run parallel implementers before a ledger-recorded need exists. Sequential execution is the only implementation mode through W6.**
+- **Expand the dashboard as a committed wave. The existing dashboard and `ACTIVITY_LOG.jsonl` remain unchanged unless dogfood records a concrete deficiency.**
+- **Claim cross-platform behavior before the W0 R4 capability matrix verifies the underlying mechanism.**
 
 ---
 
@@ -99,6 +105,8 @@ Brainstorming may ask user questions early, but it must not propose final archit
 - convention/knowledge evidence
 - unresolved contradictions
 
+All three grounding lenses (§10) are mandatory inputs to design approval.
+
 ### AD-4 — Strict outcomes, flexible tool use
 
 Skills define:
@@ -112,11 +120,9 @@ Skills define:
 
 Skills do not globally dictate exact MCP function names or rigid call order.
 
-Concrete provider/function mappings belong in platform adapters and capability profiles.
+Canonical skills and role contracts refer only to the capability vocabulary (§11). Concrete provider/function mappings belong exclusively in provider mappings, capability profiles, platform adapters, tool documentation, and platform capability evidence.
 
 ### AD-5 — Detailed plan is the canonical execution source
-
-The reviewed `IMPLEMENTATION_PLAN.md` is the human-readable source of truth.
 
 A deterministic compiler produces:
 
@@ -149,17 +155,17 @@ Plans record:
 - base commit
 - spec hash
 - evidence hash
-- referenced file hashes
+- referenced **file-level** hashes
 - symbol anchors
 - tool/index freshness metadata
 
-A stale plan or stale task cannot silently execute.
+A stale plan or stale task cannot silently execute. Claim-level hashing is deferred (§5) unless file-level staleness produces an observed false negative.
 
 ### AD-9 — Existing chokepoints are extended
 
 Extend:
 
-- `.maika/tools/microloop-orchestrator`
+- `.maika/tools/microloop-orchestrator` (as a **contract migration** — see §17; not a naive extension)
 - `.maika/tools/gate-check`
 - `.maika/hooks/write-gate`
 - `.maika/profiles`
@@ -170,75 +176,195 @@ Do not build duplicate parallel systems.
 
 ---
 
-## 4. Target workflow
+## 4. Migration principles (P1–P5)
+
+These principles govern how the waves execute. They rank equal to the Execution rule.
+
+- **P1 — Dogfood-first.** Every wave ends with a dogfood checkpoint that runs real changes (on the Maika repository itself or a real downstream project). Observed failures from each checkpoint are recorded in the enforcement ledger and shape the scope of the next wave.
+- **P2 — Enforcement ledger.** Every gate, hook, and validator must have an entry in `docs/refactor/maika-vnext/enforcement-ledger.yaml` conforming to the schema in §5. A mechanism may be implemented only when its entry satisfies at least one eligibility condition; otherwise its status stays `deferred`. **Exception by design:** write boundaries and destructive-action protections do not wait for a production incident.
+- **P3 — R4 pre-flight.** Any wave that designs on top of a platform mechanism (subagent spawn, hook event, model selection) must open with a table proving "mechanism exists at `<file:line>` / `<command>`" for every claimed platform. A missing row blocks that wave at the planning stage.
+- **P4 — Single-platform-first.** The vertical slice runs on Claude Code first. Codex and Antigravity follow through adapters only after the contracts have stabilized through dogfood, and only within what the W0 capability matrix proves.
+- **P5 — Real fixtures over built fixtures.** Dogfood uses the Maika repository and a real downstream Java project. No banking fixture is built. CI end-to-end uses one minimal Python fixture repository.
+
+---
+
+## 5. Enforcement ledger
+
+File: `docs/refactor/maika-vnext/enforcement-ledger.yaml`. Created in W0. Minimum schema:
+
+```yaml
+version: 1
+
+entries:
+  - id: ENF-001
+    mechanism: code-evidence
+    type: gate            # gate | hook | validator
+    status: active
+
+    failure:
+      classification: observed_failure
+      reference: docs/incidents/example.md
+      summary: Agent used grep despite a healthy indexed provider.
+
+    litmus:
+      command: python3 ...
+      expected_without_enforcement: pass
+      expected_with_enforcement: fail
+
+    implementation:
+      files:
+        - .maika/tools/gate-check/gates.py
+      consumers:
+        - .maika/workflows/task.md
+
+    scope:
+      change_classes:
+        - standard
+        - architectural
+
+    reviewed_at: 2026-07-10
+```
+
+Allowed statuses:
+
+```text
+proposed | active | deferred | superseded | removed
+```
+
+Allowed evidence classifications:
+
+```text
+observed_failure | reproducible_litmus | external_requirement | safety_boundary
+```
+
+**Implementation eligibility.** An enforcement mechanism may be implemented only when at least one of these is true:
+
+1. An observed failure exists.
+2. A reproducible litmus exists.
+3. An external requirement mandates it.
+4. It protects a safety or destructive-action boundary.
+
+Otherwise its status must remain `deferred`. Every `deferred` entry must state its activation condition (see §26 Wave definitions and §30).
+
+The ledger schema itself is validated by gate-check; that validator's own ledger entry uses classification `reproducible_litmus` (schema fixture tests).
+
+Note relative to `DEVELOPMENT_RULES.md` R3: `external_requirement` and `safety_boundary` are a deliberate extension of R3's literal wording (observed failure / litmus only). W0 must propose the corresponding `DEVELOPMENT_RULES.md` amendment in its own PR (R6 — no silent override).
+
+---
+
+## 6. Change classification
+
+Every change is classified at INTAKE and the class is recorded in `CHANGE.yaml`. Gates read the class to determine which artifacts are mandatory.
+
+| Class | Example | Pipeline |
+|---|---|---|
+| `trivial` | typo, docs, one-file config, no behavior change | INTENT → mini-plan (1 task, mode `intent`) → implement → verify. No explorer, no SPEC. Write gate and result contract still apply. |
+| `small` | bug/feature within one module, ≤ ~3 files | Light grounding (seam + tests) → short SPEC (Goal/Current/Desired/AC) → plan → plan review → execute → task review (doubles as final review when there is a single task) → verify. |
+| `standard` | multi-file, multi-module | Full pipeline (§7). |
+| `architectural` | public contract, database, cross-service | Full pipeline + all user-approval gates mandatory + Compatibility/Migration sections must be non-empty. |
+
+### Automatic classification
+
+For `trivial` and clearly scoped `small` changes:
+
+1. The orchestrator classifies the change.
+2. It briefly displays the classification and reason.
+3. It proceeds unless the user objects.
+
+Example display:
+
+```text
+Classified as `small`: one module, three files or fewer, no public contract,
+database, security, or cross-service impact.
+```
+
+Explicit user confirmation is required only when:
+
+- classification is ambiguous;
+- the proposed class is `standard` or `architectural`;
+- public contract changes are involved;
+- persistence or database changes are involved;
+- security-sensitive behavior is involved;
+- destructive migration is involved;
+- reclassification introduces significant additional artifacts or approval gates.
+
+Every classification — including auto-proceeded ones — is recorded in `CHANGE.yaml`.
+
+### Escalation and reclassification
+
+When execution hits a re-plan trigger that exceeds the current class (public signature change, new dependency, new module, changed DB/event/API contract — the §19 list), the orchestrator re-classifies upward and returns to the earliest missing pipeline step. No new mechanism: the existing re-plan triggers are the escalation signal.
+
+---
+
+## 7. Target workflow
+
+Full pipeline (`standard` / `architectural`; `trivial` and `small` compress per §6):
 
 ```text
 Intent Intake
     |
     v
-Change Classification
+Change Classification (§6)
     |
     v
-Evidence Dispatch
-    |-----------------------|--------------------------|
-    v                       v                          v
-Business Explorer      Codebase Explorer       Convention Explorer
-    |                       |                          |
-    +-----------------------+--------------------------+
-                            |
-                            v
-                 Architecture Reconciler
-                            |
-                            v
-                  Grounding Readiness Gate
-                            |
-                            v
-                   Grounded Brainstorming
-                            |
-                            v
-                    Reviewed SPEC.md
-                            |
-                            v
-             Detailed IMPLEMENTATION_PLAN.md
-                            |
-                            v
-              Independent Plan Validation
-                            |
-                            v
-               Deterministic Plan Compiler
-                            |
-                            v
-          CONTRACT_DAG + TASK_QUEUE + Briefs
-                            |
-                            v
-               Fresh Implementer Per Task
-                            |
-                            v
-                 Task-Scoped Reviewer
-                            |
-                   findings? -- yes --> Fix Agent --> Re-review
-                            |
-                            v
-                 Final Whole-Change Review
-                            |
-                            v
-             Mechanical Verification + Archive
+Grounding Dispatch
+    |
+    v
+Grounding Explorer — three mandatory lenses
+  (codebase + business + conventions; specialized
+   agents only after W3 evidence — §10)
+    |
+    v
+Architecture Reconciler
+    |
+    v
+Grounding Readiness Check (inside exploration-evidence gate)
+    |
+    v
+Grounded Brainstorming
+    |
+    v
+Reviewed SPEC.md
+    |
+    v
+Detailed IMPLEMENTATION_PLAN.md
+    |
+    v
+Independent Plan Validation
+    |
+    v
+Deterministic Plan Compiler
+    |
+    v
+CONTRACT_DAG + TASK_QUEUE + Briefs
+    |
+    v
+Fresh Implementer Per Task (sequential)
+    |
+    v
+Task-Scoped Reviewer
+    |
+   findings? -- yes --> Fix Agent --> Re-review
+    |
+    v
+Final Whole-Change Review
+    |
+    v
+Mechanical Verification + Archive
 ```
 
 ---
 
-## 5. Canonical change workspace
+## 8. Canonical change workspace
 
 Create a single canonical layout:
 
 ```text
 .maika/changes/<change-id>/
-├── CHANGE.yaml
+├── CHANGE.yaml                # includes `class:` (§6)
 ├── INTENT.md
 ├── exploration/
-│   ├── BUSINESS_CONTEXT.md
-│   ├── CODEBASE_CONTEXT.md
-│   ├── CONVENTION_CONTEXT.md
+│   ├── GROUNDING.yaml         # three mandatory lenses (§10)
 │   ├── EVIDENCE_MANIFEST.yaml
 │   └── TOOL_HEALTH_SNAPSHOT.yaml
 ├── RECONCILIATION.md
@@ -267,6 +393,8 @@ Create a single canonical layout:
 └── STATE.yaml
 ```
 
+Classes `trivial`/`small` create only the artifacts their pipeline requires (§6); the layout is the superset.
+
 Archive by moving the complete workspace to:
 
 ```text
@@ -277,63 +405,81 @@ Do not copy selected artifacts into several competing canonical locations.
 
 ---
 
-## 6. State model
+## 9. State model
 
-Use a machine-readable state enum:
+Fourteen persistent lifecycle states:
 
 ```text
 INTAKE
 EXPLORING
 RECONCILING
-GROUNDING_BLOCKED
 BRAINSTORMING
 SPEC_REVIEW
 PLANNING
 PLAN_REVIEW
-READY
 EXECUTING
-TASK_REVIEW
 VERIFYING
 FINAL_REVIEW
 COMPLETED
 ARCHIVED
 BLOCKED
-STALE
 CANCELLED
 ```
 
-State transitions must be owned by the orchestrator and validated by gates.
+Rules:
 
-A markdown marker may remain for human readability, but it must not be the only source of workflow truth.
+- Blocker detail is metadata, not state. `BLOCKED` carries a structured reason in `STATE.yaml`:
+
+  ```yaml
+  state: BLOCKED
+  blocked:
+    reason: grounding | stale_plan | capability | user_input | environment
+    detail: ...
+    since: 2026-07-10T...
+  ```
+
+  (v1's `GROUNDING_BLOCKED` and `STALE` collapse into this.)
+- Readiness to execute is a gate-validated transition (`PLAN_REVIEW → EXECUTING`), not a state. (v1's `READY` is removed.)
+- Per-task progress (including task review status) lives in `TASK_QUEUE.json` as task-level statuses, not in the change-level state machine. (v1's `TASK_REVIEW` state is removed.)
+- State transitions are owned by the orchestrator and validated by gates.
+- A markdown marker may remain for human readability, but it must not be the only source of workflow truth.
 
 ---
 
-## 7. Role model
+## 10. Role model
 
-### 7.1 Business Explorer
+Role contracts refer to capabilities (§11), never to concrete providers.
 
-**Purpose:** Ground the requested change in business rules and domain vocabulary.
+### 10.1 Grounding Explorer (three mandatory lenses)
 
-**Access:**
+**Purpose:** Ground the requested change in the current implementation, the business domain, and project conventions.
 
-- read-only business knowledge
-- Agent Memory
-- Confluence or document MCPs when configured
-- existing specs and contracts
-- database metadata in read-only mode
+One unified explorer produces a single `exploration/GROUNDING.yaml` containing three mandatory sections:
 
-**Required output:**
+```yaml
+codebase:
+  entry_points:
+  current_flow:
+  extension_seams:
+  related_tests:
+  blast_radius:
 
-- actors
-- use cases
-- business rules
-- states and transitions
-- temporal rules
-- permissions
-- exceptions
-- source references
-- contradictions
-- unknowns
+business:
+  terminology:
+  known_rules:
+  states_and_transitions:
+  unresolved_questions:
+  evidence_sources:
+
+conventions:
+  applicable_rule_ids:
+  existing_patterns:
+  testing_patterns:
+  error_handling:
+  conflicts:
+```
+
+**Capabilities:** `architecture_discovery`, `exact_source_inspection`, `dependency_analysis`, `business_knowledge_retrieval`, `convention_retrieval`.
 
 **Must not:**
 
@@ -341,80 +487,23 @@ A markdown marker may remain for human readability, but it must not be the only 
 - write implementation code
 - invent business rules without evidence
 
-### 7.2 Codebase Explorer
-
-**Purpose:** Ground the change in the current implementation.
-
-**Access:**
-
-- Understand Anything
-- Codebase Memory
-- repository search
-- direct source reads
-- tests
-- git history
-- build/config files
-
-**Required output:**
-
-- verified entry points
-- current call/data flow
-- relevant modules
-- exact files and symbols
-- extension seams
-- dependencies
-- blast radius
-- similar implementations
-- tests
-- unresolved code uncertainties
-
 Every exact code claim must be verified against current source.
 
-### 7.3 Convention Explorer
+**Specialization is conditional (W3).** Splitting the lenses into dedicated Business/Convention/Codebase Explorer subagents happens only when dogfood evidence shows: business rules repeatedly missed; convention constraints omitted; context too large; business and code evidence not reconciled; or shallow unified output. Absent that evidence, the unified explorer remains. Specialized agents, when introduced, still write sections of the same `GROUNDING.yaml`.
 
-**Purpose:** Identify project-specific implementation constraints.
-
-**Access:**
-
-- Author DNA
-- conventions
-- knowledge index
-- similar source files
-- build rules
-- projected static-analysis rules
-
-**Required output:**
-
-- naming and layering rules
-- contract conventions
-- error handling
-- transaction boundaries
-- testing patterns
-- observability/audit requirements
-- applicable rule IDs
-- conflicts between written conventions and actual code
-
-### 7.4 Architecture Reconciler
+### 10.2 Architecture Reconciler
 
 **Purpose:** Reconcile user intent, business evidence, code evidence, and conventions.
 
-**Required output:**
-
-- current behavior
-- desired behavior
-- recommended extension seam
-- alternative seams and rejection reasons
-- contradictions
-- questions that only the user can resolve
-- readiness verdict
+**Required output:** current behavior; desired behavior; recommended extension seam; alternative seams and rejection reasons; contradictions; questions only the user can resolve; readiness verdict.
 
 It must not proceed to design when a material contradiction remains unresolved.
 
-### 7.5 Grounded Brainstormer
+### 10.3 Grounded Brainstormer
 
 **Purpose:** Convert reconciled evidence and user intent into a reviewed design.
 
-It should ask questions grounded in the current system, for example:
+It must ask questions grounded in the current system, for example:
 
 ```text
 The current validation chain executes before approval creation.
@@ -422,63 +511,64 @@ Should the new limit check remain maker-time only, or also be repeated at approv
 because available limits may change between the two events?
 ```
 
-It must not ask the user to restate facts already verified from the system.
+It must not ask the user to restate facts already verified from the system. It cannot propose final architecture unless all three grounding lenses are present and the exploration-evidence gate passed.
 
-### 7.6 Spec Writer
+### 10.4 Spec Writer
 
-**Purpose:** Produce the behavioral and architectural contract.
+**Purpose:** Produce the behavioral and architectural contract. The spec defines what the system must do, not every implementation line.
 
-The spec defines what the system must do, not every implementation line.
+### 10.5 Implementation Planner
 
-### 7.7 Implementation Planner
+**Purpose:** Produce a code-level blueprint grounded in the reviewed spec and current repository. The planner is the primary coding-reasoning role. **Capabilities:** `exact_source_inspection`, `dependency_analysis`, `architecture_discovery`.
 
-**Purpose:** Produce a code-level blueprint grounded in the reviewed spec and current repository.
-
-The planner is the primary coding-reasoning role.
-
-### 7.8 Plan Reviewer
+### 10.6 Plan Reviewer
 
 **Purpose:** Independently compare:
 
 ```text
-SPEC
-↔ IMPLEMENTATION_PLAN
-↔ CURRENT CODEBASE
-↔ CONVENTIONS
+SPEC ↔ IMPLEMENTATION_PLAN ↔ CURRENT CODEBASE ↔ CONVENTIONS
 ```
 
 It must verify both coverage and feasibility.
 
-### 7.9 Implementer
+### 10.7 Implementer
 
-**Purpose:** Apply one task brief exactly within its scope.
+**Purpose:** Apply one task brief exactly within its scope. It may not silently change architecture or public contracts. **Capabilities:** `exact_source_inspection`, `runtime_verification`.
 
-It may not silently change architecture or public contracts.
+### 10.8 Task Reviewer
 
-### 7.10 Task Reviewer
+**Purpose:** Review one task for: spec/plan compliance; code quality; boundary compliance; test evidence.
 
-**Purpose:** Review one task for:
-
-1. spec/plan compliance
-2. code quality
-3. boundary compliance
-4. test evidence
-
-### 7.11 Final Reviewer
+### 10.9 Final Reviewer
 
 **Purpose:** Review the whole branch/change with cross-task context and the full diff package.
 
 ---
 
-## 8. Capability-based tool model
+## 11. Capability model
 
-Create or normalize:
+### 11.1 Capability vocabulary (exists from W1)
+
+The abstract vocabulary precedes the runtime (which arrives in W4). Minimum capability IDs:
 
 ```text
-.maika/profiles/tool-capabilities.yaml
+architecture_discovery
+exact_source_inspection
+dependency_analysis
+business_knowledge_retrieval
+convention_retrieval
+runtime_verification
 ```
 
-Suggested schema:
+Rules:
+
+- Canonical skills and role contracts refer only to capability IDs.
+- Concrete provider names and function mappings appear only in: provider mappings, capability profiles, platform adapters, tool documentation, and platform capability evidence (the W0 matrix).
+- The vocabulary ships in the same PR as the first canonical skill that references it (R1: consumer in the same PR). The mechanical consumer (skill lint) arrives in W4; between W1 and W4, compliance is held by plan review.
+
+### 11.2 Provider registry and profiles (W4 runtime)
+
+Create or normalize `.maika/profiles/tool-capabilities.yaml`:
 
 ```yaml
 version: 1
@@ -491,66 +581,34 @@ capabilities:
       - flow_path
       - dependency_edge
     providers:
-      - id: understand_anything
+      - id: understand_anything        # provider mapping — allowed here only
         availability_probe: ua_health
         operations:
           - domain_overview
           - domain_flow
-        strengths:
-          - architecture
-          - business-domain mapping
       - id: codebase_memory
         availability_probe: cbm_health
         operations:
           - graph_search
           - impact_analysis
-        strengths:
-          - symbol graph
-          - dependencies
       - id: source
         operations:
           - search
           - read
-        strengths:
-          - authoritative current code
-
-  exact_symbol_inspection:
-    evidence_types:
-      - file_symbol
-      - source_range
-    providers:
-      - id: source
-      - id: codebase_memory
-
-  business_knowledge_retrieval:
-    evidence_types:
-      - document_reference
-      - memory_reference
-    providers:
-      - id: agent_memory
-      - id: documentation_connector
 ```
 
-Provider mappings may contain concrete function names.
+Provider mappings may contain concrete function names. Canonical reasoning skills must refer only to capability IDs, evidence types, and quality requirements.
 
-Canonical reasoning skills must refer only to capability IDs, evidence types, and quality requirements.
+### 11.3 Routing rules (W4 runtime)
 
-### Routing rules
+Routing considers exactly two runtime dimensions:
 
-Routing should consider:
-
-- evidence granularity needed
 - provider health
-- index freshness
-- repository commit/index commit mismatch
-- reliability
-- expected cost
-- task risk
-- data sensitivity
+- index freshness (repository commit vs index commit)
 
-The router is advisory by default.
+Cost, risk, and data-sensitivity routing are **not implemented**; their ledger entry stays `deferred` with activation condition "an observed misrouting failure attributable to a missing dimension".
 
-Exact provider enforcement is allowed only for:
+The router is advisory by default. Exact provider enforcement is allowed only for:
 
 - safety boundaries
 - destructive actions
@@ -560,11 +618,9 @@ Exact provider enforcement is allowed only for:
 
 ---
 
-## 9. Evidence model
+## 12. Evidence model
 
-Create a machine-readable evidence manifest.
-
-Example:
+Machine-readable evidence manifest, file-level hashing:
 
 ```yaml
 version: 1
@@ -578,9 +634,9 @@ claims:
       - type: file_symbol
         file: src/main/java/.../ValidateCreateApprovalLimitProcessor.java
         symbol: ValidateCreateApprovalLimitProcessor
-        source_hash: sha256:...
+        source_hash: sha256:...      # hash of the file, not the claim
       - type: dependency_edge
-        provider: codebase_memory
+        provider: codebase_memory    # provider reference allowed: this is evidence, not a skill
         node_id: project....ValidateCreateApprovalLimitProcessor
         indexed_commit: abc123
     status: verified
@@ -598,11 +654,7 @@ claims:
 Claim statuses:
 
 ```text
-verified
-inferred
-conflicting
-unverified
-stale
+verified | inferred | conflicting | unverified | stale
 ```
 
 Rules:
@@ -612,52 +664,11 @@ Rules:
 - Inferences must be labeled.
 - Conflicting claims block grounded design unless explicitly resolved.
 - The final spec and plan must reference evidence IDs for non-obvious decisions.
+- Hash granularity is per file. Claim-level hashing stays `deferred` in the ledger; activation condition: an observed staleness false negative that file-level hashing missed.
 
 ---
 
-## 10. Grounding readiness gate
-
-Before design approval, validate:
-
-```yaml
-business:
-  actors_identified: true
-  primary_rules_identified: true
-  source_coverage: sufficient
-
-codebase:
-  entry_points_verified: true
-  current_flow_traced: true
-  extension_seam_identified: true
-  blast_radius_assessed: true
-  tests_located: true
-
-conventions:
-  applicable_rules_loaded: true
-  existing_patterns_identified: true
-
-reconciliation:
-  material_conflicts: 0
-  unresolved_blockers: 0
-
-tooling:
-  health_snapshot_present: true
-  degraded_capabilities_declared: true
-```
-
-The gate may return:
-
-```text
-PASS
-PASS_WITH_DEGRADATION
-BLOCK
-```
-
-A degraded pass must be visible in the spec and plan.
-
----
-
-## 11. Native skill set
+## 13. Native skill set
 
 Create or refactor toward these canonical skills:
 
@@ -671,9 +682,7 @@ Create or refactor toward these canonical skills:
 ├── reviewing-task/
 ├── reviewing-change/
 ├── verification-before-completion/
-├── codebase-explorer/
-├── business-explorer/
-├── convention-explorer/
+├── grounding-explorer/            # three lenses; specialization conditional (W3)
 └── architecture-reconciler/
 ```
 
@@ -692,33 +701,17 @@ Output contract
 Next handoff
 ```
 
-Concrete MCP function tutorials belong in provider references or adapter documentation, not in the canonical skill process.
+Skills reference capability IDs only. Concrete MCP function tutorials belong in provider references or adapter documentation, never in the canonical skill process.
 
 ### Skill strictness
 
-Strict:
+Strict: artifact output; evidence quality; stop conditions; spec coverage; plan completeness; write boundary; required verification; destructive-action protection.
 
-- artifact output
-- evidence quality
-- stop conditions
-- spec coverage
-- plan completeness
-- write boundary
-- required verification
-- destructive-action protection
-
-Flexible:
-
-- provider selection
-- search sequence
-- number of retrieval calls
-- exploration path
-- local private-helper structure
-- non-contractual formatting
+Flexible: provider selection; search sequence; number of retrieval calls; exploration path; local private-helper structure; non-contractual formatting.
 
 ---
 
-## 12. Specification contract
+## 14. Specification contract
 
 `SPEC.md` must contain:
 
@@ -749,19 +742,19 @@ Open Risks
 Evidence References
 ```
 
+For `small` changes, the short-spec subset is: Goal, Current Behavior, Desired Behavior, Acceptance Criteria, Evidence References.
+
 Retain OpenSpec's valuable delta semantics:
 
 ```text
-ADDED
-MODIFIED
-REMOVED
+ADDED | MODIFIED | REMOVED
 ```
 
 Use them inside `SPEC.md`; do not retain OpenSpec solely for this syntax.
 
 ---
 
-## 13. Implementation-plan contract
+## 15. Implementation-plan contract
 
 `IMPLEMENTATION_PLAN.md` must begin with machine-readable metadata:
 
@@ -841,37 +834,30 @@ task:
 
 ### Line numbers
 
-Line numbers are hints only.
-
-Identity priority:
+Line numbers are hints only. Identity priority:
 
 ```text
-symbol anchor
-> structural/context anchor
-> content hash
-> approximate line
+symbol anchor > structural/context anchor > content hash > approximate line
 ```
 
 ---
 
-## 14. Plan validation
+## 16. Plan validation
 
-Add a deterministic and semantic validation stage.
+Plan validation is the internal check set of the **`plan` gate** (§22), plus an independent semantic review. It is not a family of separate lifecycle gates.
 
-### Mechanical validation
-
-Validate:
+### Mechanical checks (inside the `plan` gate)
 
 - metadata exists
 - base commit is resolvable
-- spec/evidence hashes match
+- spec/evidence hashes match (freshness)
 - referenced files exist or are marked `create`
-- referenced symbols exist
-- source hashes match or are consciously refreshed
+- referenced symbols exist (symbol grounding)
+- file-level source hashes match or are consciously refreshed
 - task IDs are unique
-- dependencies are acyclic
+- dependencies are acyclic (DAG validity)
 - every task has verification
-- every acceptance criterion maps to at least one task
+- every acceptance criterion maps to at least one task (coverage)
 - every public contract change has compatibility treatment
 - every exact code block has a target anchor
 - no placeholder/TODO/TBD remains
@@ -879,8 +865,6 @@ Validate:
 - implementation modes are valid
 
 ### Independent semantic review
-
-Review:
 
 - design matches current architecture
 - plan covers the complete spec
@@ -892,45 +876,36 @@ Review:
 - no unrelated refactor is introduced
 - plan instructions do not contradict review standards
 
-Output:
-
-```text
-generated/PLAN_VALIDATION.json
-```
+Output: `generated/PLAN_VALIDATION.json`.
 
 Verdicts:
 
 ```text
-APPROVED
-APPROVED_WITH_WARNINGS
-REVISE
-STALE
-BLOCKED
+APPROVED | APPROVED_WITH_WARNINGS | REVISE | STALE | BLOCKED
 ```
 
 Only `APPROVED` may compile into an executable queue by default.
 
 ---
 
-## 15. Deterministic plan compiler
+## 17. Deterministic plan compiler and microloop contract migration
 
-Extend the existing microloop orchestration tool rather than adding a new parallel orchestrator.
+This work is a **contract migration**, not a simple extension. The existing microloop contract is markdown (`TASK_QUEUE.md`, `TASK_HANDOFF.md`, `TASK_RESULT.md` under `knowledge/active/microloop/`); vNext moves the execution contract to JSON artifacts plus hashed verbatim briefs in the change workspace. During the opt-in period the orchestrator must keep a compatibility reader for legacy artifacts, and snapshot tests must be updated deliberately.
 
-Suggested modules under:
+Target modules under `.maika/tools/microloop-orchestrator/` (W1 implements the subset it needs; nothing is created without a consumer in the same PR):
 
 ```text
-.maika/tools/microloop-orchestrator/
-├── plan_parser.py
-├── plan_validator.py
-├── plan_compiler.py
-├── dag.py
-├── task_brief.py
-├── dispatcher.py
-├── ledger.py
-├── staleness.py
-├── review_package.py
-├── result_contract.py
-└── state_machine.py
+plan_parser.py
+plan_validator.py
+plan_compiler.py
+dag.py
+task_brief.py
+dispatcher.py
+ledger.py
+staleness.py
+review_package.py
+result_contract.py
+state_machine.py
 ```
 
 The compiler must:
@@ -938,21 +913,20 @@ The compiler must:
 1. Parse task metadata and task bodies.
 2. Verify the plan validation verdict.
 3. Build a dependency DAG.
-4. Detect file overlap and unsafe parallelism.
-5. Produce an ordered task queue.
-6. Extract each task verbatim into a brief.
-7. Add only runtime context that cannot be known by the original plan.
-8. Hash each brief.
-9. Record plan-section hash and spec hash.
-10. Never summarize implementation requirements through an LLM.
+4. Produce an ordered **sequential** task queue.
+5. Extract each task verbatim into a brief.
+6. Add only runtime context that cannot be known by the original plan.
+7. Hash each brief.
+8. Record plan-section hash and spec hash.
+9. Never summarize implementation requirements through an LLM.
+
+File-overlap detection and unsafe-parallelism analysis are deferred together with parallel execution (ledger entry; activation condition: a ledger-recorded need for parallel implementers).
 
 ---
 
-## 16. Dispatcher architecture
+## 18. Dispatcher architecture
 
-### 16.1 Dispatch classes
-
-Support:
+### 18.1 Dispatch classes
 
 ```text
 exploration_dispatch
@@ -963,9 +937,11 @@ task_review_dispatch
 final_review_dispatch
 ```
 
-### 16.2 Context isolation
+W1 implements `planning_dispatch`, `implementation_dispatch`, `task_review_dispatch` (a fix is a re-dispatch of `implementation_dispatch` carrying the findings file until `fix_dispatch` is introduced with the W2 review loop). `exploration_dispatch` arrives in W2; `fix_dispatch` and `final_review_dispatch` with the hardened review loop in W2–W3.
 
-Every dispatched agent must be fresh and receive:
+### 18.2 Context isolation
+
+Every dispatched agent is fresh and receives:
 
 - role contract
 - one artifact/brief path
@@ -977,18 +953,11 @@ Every dispatched agent must be fresh and receive:
 
 Do not provide accumulated conversation history.
 
-### 16.3 File handoff
+### 18.3 File handoff
 
-Large artifacts and diffs must be exchanged as files:
+Large artifacts and diffs are exchanged as files: task brief file, task result file, review package file, findings ledger file. The parent context retains only paths, hashes, statuses, and short summaries.
 
-- task brief file
-- task result file
-- review package file
-- findings ledger file
-
-The parent context should retain only paths, hashes, statuses, and short summaries.
-
-### 16.4 Status contract
+### 18.4 Status contract
 
 Agents report:
 
@@ -1024,38 +993,30 @@ commit_sha:
 
 An exit code alone is never sufficient to mark a task complete.
 
-### 16.5 Retry policy
+### 18.5 Retry policy
 
 - `NEEDS_CONTEXT`: provide missing context and redispatch.
 - `BLOCKED`: classify as context, capability, scope, plan, or environment failure.
 - `STALE_PLAN`: stop and return to planning.
 - `FAILED_VERIFICATION`: fix within task scope or return to plan review.
-- repeated identical failure: escalate model/capability or split task.
-- never repeat the same dispatch unchanged after an explicit blocker.
+- Repeated identical failure: escalate model/capability or split task.
+- Never repeat the same dispatch unchanged after an explicit blocker.
 
-### 16.6 Model selection
+### 18.6 Model selection
 
-Express model selection as abstract tiers:
+Model selection is expressed as abstract tiers:
 
 ```text
-mechanical
-standard
-reasoning
-highest-review
+mechanical | standard | reasoning | highest-review
 ```
 
-Platform adapters map tiers to concrete models.
+Platform adapters map tiers to concrete models. Tier activation on a platform requires the W0 capability matrix to prove that the platform's dispatch mechanism supports model selection; where it does not, the adapter declares a single-tier degradation.
 
-Use:
-
-- mechanical: exact-code transcription, isolated one-file tasks
-- standard: multi-file integration with a detailed plan
-- reasoning: debugging or plan deviation
-- highest-review: architecture, planning, final branch review
+Use: mechanical for exact-code transcription and isolated one-file tasks; standard for multi-file integration with a detailed plan; reasoning for debugging or plan deviation; highest-review for architecture, planning, and final branch review.
 
 ---
 
-## 17. Execution safety
+## 19. Execution safety
 
 The implementer must:
 
@@ -1068,29 +1029,13 @@ The implementer must:
 7. Stop on re-plan triggers.
 8. Self-review before returning a result.
 
-Allowed automatic adaptations:
+Allowed automatic adaptations: formatting; import ordering; private local variable naming; equivalent private helper extraction; framework-required syntax adjustments that do not change behavior.
 
-- formatting
-- import ordering
-- private local variable naming
-- equivalent private helper extraction
-- framework-required syntax adjustments that do not change behavior
-
-Require re-plan for:
-
-- public signature changes
-- new dependency
-- extra production file/module
-- changed database/event/API contract
-- architecture change
-- missing referenced symbol
-- invalid test strategy
-- insufficient allowed files
-- conflict with current source
+Require re-plan for: public signature changes; new dependency; extra production file/module; changed database/event/API contract; architecture change; missing referenced symbol; invalid test strategy; insufficient allowed files; conflict with current source.
 
 ---
 
-## 18. Review loop
+## 20. Review loop
 
 Per task:
 
@@ -1112,25 +1057,13 @@ Task Reviewer
 Task Complete
 ```
 
-Task review has two explicit lenses:
+Task review has two explicit lenses: **spec/plan compliance** and **code quality and risk**.
 
-1. **Spec/plan compliance**
-2. **Code quality and risk**
-
-The final reviewer receives:
-
-- merge-base to HEAD review package
-- spec
-- plan
-- findings ledger
-- unresolved minor findings
-- verification report
-
-The final reviewer must inspect cross-task behavior, integration, compatibility, and migration.
+The final reviewer receives: merge-base to HEAD review package; spec; plan; findings ledger; unresolved minor findings; verification report. The final reviewer must inspect cross-task behavior, integration, compatibility, and migration.
 
 ---
 
-## 19. Write-gate evolution
+## 21. Write-gate evolution
 
 Extend `.maika/hooks/write-gate` to validate:
 
@@ -1140,45 +1073,43 @@ Extend `.maika/hooks/write-gate` to validate:
 - brief hash matches queue
 - plan/spec are current
 - file is inside allowed scope
-- file ownership is not held by another parallel task
 - task is not already completed/cancelled
 - plan validation verdict is approved
 
-Do not use prompt prose as the only enforcement source.
+File-ownership checks against parallel tasks are deferred together with parallel execution.
 
-Retain cooperative-governance semantics; document that this is not a hostile security sandbox.
+Ledger entry: the write-scope mechanism is classified `safety_boundary` (implementable without waiting for an incident); the state/brief/freshness checks additionally reference the observed write-gate bypass on Antigravity (fixed, logged) as `observed_failure`.
 
----
-
-## 20. Gate-check evolution
-
-Add or refactor gates:
-
-```text
-change-workspace
-exploration-artifacts
-grounding-readiness
-evidence-manifest
-spec-completeness
-spec-evidence-coverage
-plan-structure
-plan-code-grounding
-plan-spec-coverage
-plan-freshness
-dag-validity
-task-brief-integrity
-task-result-contract
-task-verification
-task-review
-final-review
-archive-readiness
-```
-
-Existing useful gates such as code evidence, memory recall, implementation context, handoff slice, and code hygiene should be integrated into this lifecycle rather than invoked as unrelated checks.
+Do not use prompt prose as the only enforcement source. Retain cooperative-governance semantics; document that this is not a hostile security sandbox.
 
 ---
 
-## 21. Workflow and command surface
+## 22. Enforcement architecture — nine lifecycle gates
+
+The change lifecycle has exactly nine primary gates:
+
+| Gate | Guards transition | Internal checks (not separate gates) |
+|---|---|---|
+| `change-workspace` | INTAKE → EXPLORING | workspace layout, `CHANGE.yaml` schema incl. class, state file validity |
+| `exploration-evidence` | EXPLORING/RECONCILING → BRAINSTORMING | three lenses present and non-empty, evidence manifest schema, claim statuses, tool health snapshot, grounding readiness verdict (PASS / PASS_WITH_DEGRADATION / BLOCK), degraded capabilities declared |
+| `spec` | SPEC_REVIEW → PLANNING | spec section completeness (per class), evidence coverage of significant decisions, delta semantics validity |
+| `plan` | PLAN_REVIEW → EXECUTING | full §16 mechanical set: structure, symbol grounding, spec coverage, freshness (hashes/base commit), DAG validity, verification presence, mode validity, write-scope declarations |
+| `brief-integrity` | before each dispatch | brief hash matches queue, verbatim-slice traceability to approved plan section, plan not stale |
+| `result-contract` | after each task | required result fields, commands with expected vs observed, verification evidence present, no undeclared file touched |
+| `task-review` | task completion | review artifact exists, findings triaged, Critical/Important resolved or escalated |
+| `final-review` | FINAL_REVIEW → VERIFYING/COMPLETED | full-diff package reviewed, cross-task findings resolved, unresolved minors acknowledged |
+| `archive-readiness` | COMPLETED → ARCHIVED | verification report complete, ledger consistent, workspace movable |
+
+Rules:
+
+- Plan freshness, DAG validity, symbol grounding, coverage, and verification completeness are **checks inside** their primary gate, never separate lifecycle gates.
+- Every gate, hook, and validator section must state how its enforcement-ledger entry (§5) is created or referenced; gate-check refuses to register a gate without an eligible ledger entry.
+- Existing gates (code-evidence, memory-recall, implementation-context, handoff-slice, code hygiene) are integrated as internal checks of the gates above rather than invoked as unrelated checks; their ledger entries carry their existing observed-failure references.
+- A degraded exploration pass (`PASS_WITH_DEGRADATION`) must be visible in the spec and the plan.
+
+---
+
+## 23. Workflow and command surface
 
 Refactor `.maika/workflows/task.md` around explicit commands:
 
@@ -1198,7 +1129,7 @@ Refactor `.maika/workflows/task.md` around explicit commands:
 /task resume
 ```
 
-The default `/task <request>` may run the complete state machine, pausing only at required user-review gates or genuine blockers.
+The default `/task <request>` may run the complete state machine, pausing only at required user-review gates or genuine blockers. Classification happens at `/task start` per §6: `trivial` and clear `small` changes display their class and proceed; `standard`/`architectural` (and the other §6 conditions) require explicit confirmation.
 
 ### User approval gates
 
@@ -1209,12 +1140,13 @@ Require user approval for:
 - public contract changes not already approved
 - destructive migration
 - reviewer finding that conflicts with explicit plan text
+- classification confirmations per §6 (only in the listed cases)
 
 Do not require user confirmation between routine implementation tasks.
 
 ---
 
-## 22. OpenSpec migration
+## 24. OpenSpec migration
 
 ### Retain conceptually
 
@@ -1252,23 +1184,19 @@ Do not pretend a legacy `tasks.md` is equivalent to a vNext implementation plan.
 
 ---
 
-## 23. Skills migration strategy
+## 25. Skills migration strategy
 
 Inventory every current skill and classify:
 
 ```text
-retain
-merge
-rewrite
-deprecate
-delete
+retain | merge | rewrite | deprecate | delete
 ```
 
 Expected direction:
 
 ### Retain and adapt
 
-- codebase-explorer
+- codebase-explorer (→ grounding-explorer, three lenses)
 - architecture-reviewer
 - knowledge-curator
 - infra-tdd
@@ -1295,556 +1223,309 @@ The inventory itself must be evidence-backed and must identify all downstream co
 
 ---
 
-## 24. Implementation waves
+## 26. Implementation waves
 
-# Wave 0 — Baseline, freeze, and inventory
-
-## Objective
-
-Create a trustworthy baseline and prevent concurrent work from invalidating the refactor.
-
-## Tasks
-
-1. Resolve or explicitly stack active PRs touching:
-   - gate-check
-   - workflow/task.md
-   - rules-tool.md
-   - knowledge/conventions
-   - microloop
-2. Create branch:
-   ```bash
-   git checkout main
-   git pull
-   git checkout -b refactor/maika-vnext
-   ```
-3. Run and record all test suites.
-4. Capture repository tree and artifact consumers.
-5. Inventory:
-   - workflows
-   - skills
-   - rules
-   - procedures
-   - tools
-   - hooks
-   - templates
-   - CLI manifest entries
-   - platform adapters
-6. Map producer → consumer for every workflow artifact.
-7. Identify exact OpenSpec dependencies.
-8. Identify concrete MCP names embedded outside adapters/tool docs.
-9. Produce:
-   ```text
-   docs/refactor/maika-vnext/current-state-audit.md
-   docs/refactor/maika-vnext/artifact-consumer-map.yaml
-   docs/refactor/maika-vnext/skill-migration-map.yaml
-   docs/refactor/maika-vnext/tool-coupling-report.md
-   ```
-
-## Tests
-
-- all current test suites pass
-- scaffold snapshots recorded
-- no code behavior changed
-
-## Exit criteria
-
-- baseline commit recorded
-- active conflicting branches resolved
-- every planned deletion has known consumers
-- current-state audit approved
+Eight waves. Every wave produces its own repository-verified implementation plan before coding, preserves a green baseline, and is independently revertible.
 
 ---
 
-# Wave 1 — Change workspace and schemas
+### W0 — Baseline, inventory, ledger, and platform capability matrix
 
-## Objective
+**Objective:** Create a trustworthy baseline; prevent concurrent work from invalidating the refactor; establish the two artifacts every later wave depends on.
 
-Introduce the vNext artifact model without changing the default workflow.
+**Value:** Framework-visible — a verified current-state audit, the enforcement ledger, and the R4 platform capability matrix.
 
-## Create
+**Preconditions:** Active PRs touching gate-check, `workflows/task.md`, rules, knowledge/conventions, or microloop are resolved or explicitly stacked.
+
+**Scope:**
+
+1. Create branch `refactor/maika-vnext` from green `main`.
+2. Run and record all test suites.
+3. Inventory workflows, skills, rules, procedures, tools, hooks, templates, CLI manifest entries, platform adapters.
+4. Map producer → consumer for every workflow artifact.
+5. Identify exact OpenSpec dependencies.
+6. Identify concrete MCP names embedded outside adapters/tool docs.
+7. Initialize `docs/refactor/maika-vnext/enforcement-ledger.yaml` (§5): one entry per existing gate/hook/validator with its known observed-failure reference; one `proposed`/`deferred` entry per mechanism this plan introduces, each with an activation condition.
+8. Produce the **platform capability matrix** (`docs/refactor/maika-vnext/platform-capability-matrix.yaml`): for Claude Code, Codex, Antigravity — subagent/fresh-session spawn mechanism, hook events that actually fire, model selection support — each row with `file:line` or command evidence. No cross-platform behavior may be claimed anywhere in vNext before its matrix row exists.
+9. Propose the `DEVELOPMENT_RULES.md` R3 amendment for `external_requirement`/`safety_boundary` (own PR, R6).
+
+**Deferred:** everything implementational.
+
+**Deliverables:** `current-state-audit.md`, `artifact-consumer-map.yaml`, `skill-migration-map.yaml`, `tool-coupling-report.md`, `enforcement-ledger.yaml`, `platform-capability-matrix.yaml`.
+
+**Dogfood checkpoint:** retroactively classify the three most recently merged real changes with §6 rules and check the ledger/matrix explain them; record any misfit.
+
+**Evidence to record:** baseline test results; scaffold snapshots; ledger entries for every known past failure (grep-dishonesty/code-evidence, Antigravity write-gate bypass, skill-migration guidance loss).
+
+**Exit criteria:** baseline commit recorded; conflicting branches resolved; every planned deletion has known consumers; audit approved; ledger and matrix exist and validate.
+
+**Rollback boundary:** documentation-only; revert = delete docs.
+
+**Input to next wave:** ledger + matrix + consumer map feed W1's implementation plan.
+
+---
+
+### W1 — Claude Code vertical slice
+
+**Objective:** A genuinely end-to-end, opt-in execution path on one platform:
 
 ```text
-.maika/knowledge/templates/vnext/
-├── CHANGE.tpl.yaml
-├── INTENT.tpl.md
-├── BUSINESS_CONTEXT.tpl.md
-├── CODEBASE_CONTEXT.tpl.md
-├── CONVENTION_CONTEXT.tpl.md
-├── EVIDENCE_MANIFEST.tpl.yaml
-├── RECONCILIATION.tpl.md
-├── SPEC.tpl.md
-├── IMPLEMENTATION_PLAN.tpl.md
-├── TASK_RESULT.tpl.yaml
-├── PLAN_VALIDATION.tpl.json
-└── VERIFICATION_REPORT.tpl.md
+detailed plan
++ mechanical validation
++ independent plan review
++ deterministic sequential queue
++ verbatim brief
++ fresh Claude Code implementer
++ structured result
++ independent task review
++ write-scope enforcement
 ```
 
-Add schema modules to the existing orchestrator/tooling location.
+**Value:** User-visible — a real change can run through the vNext pipeline (`workflow_engine: vnext`, opt-in).
 
-## Modify
+**Preconditions:** W0 complete; matrix row proving Claude Code subagent dispatch and its model-selection capability.
 
-- scaffold manifest
-- template registry
-- snapshot tests
-- archive gate
-- task state representation
+**Scope:**
 
-## Tests
+1. Minimal workspace: `CHANGE.yaml` (with class), `INTENT.md`, `SPEC.md`, `IMPLEMENTATION_PLAN.md`, `generated/TASK_QUEUE.json`, `briefs/`, `results/`, `STATE.yaml` + schemas and fixtures.
+2. Capability vocabulary (§11.1) shipped in the same PR as the first canonical skill referencing it.
+3. `writing-plan` skill (capability IDs only) + `plan` gate mechanical subset (files/symbols exist, per-task verification, unique IDs, acyclic DAG, freshness metadata) + independent plan review via `planning_dispatch`.
+4. Minimal compiler: parse → sequential queue → verbatim briefs + hashes (§17), with legacy-artifact compatibility reader.
+5. `implementation_dispatch` + `task_review_dispatch` on Claude Code; result contract (§18.4); `brief-integrity` and `result-contract` gates.
+6. Write-gate extension: brief-scope check (§21).
+7. Feature flag `workflow_engine: legacy | vnext` (default `legacy`).
 
-- valid/invalid fixture tests for every schema
-- create/resume/archive workspace tests
-- cross-platform scaffold snapshots
-- backward compatibility with existing projects
+**W1 must not depend on:** runtime provider registry; advanced router; specialized exploration agents; parallel execution; file locks; Codex or Antigravity parity. Only the static vocabulary (§11.1) is used.
 
-## Exit criteria
+**Deferred (ledger entries with activation conditions):** parallel queue + overlap detection (activation: recorded wall-clock need across ≥2 dogfood changes); `fix_dispatch` as a distinct class (activation: W2 review loop); exploration dispatch (W2).
 
-- `maika change init <id>` can create a complete empty workspace
-- legacy workflow remains default
-- no OpenSpec removal yet
+**Deliverables:** schemas, compiler subset, dispatcher subset, gates `plan`/`brief-integrity`/`result-contract` wired into gate-check, write-gate extension, flag.
 
----
+**Dogfood checkpoint (A):** two real `small` changes on the Maika repository run end-to-end under `workflow_engine: vnext`.
 
-# Wave 2 — Capability registry and routing policy
+**Evidence to record:** tokens by phase; plan revisions; task retries; any brief-hash mismatch; any write-scope denial; failures → ledger.
 
-## Objective
+**Exit criteria:** Dogfood A completes; no task marked complete from exit code alone; briefs are verbatim traceable; legacy workflow untouched and default.
 
-Move concrete MCP choreography out of canonical skills/rules.
+**Rollback boundary:** flag off = legacy behavior; new modules unused.
 
-## Tasks
-
-1. Define capability schema.
-2. Map current providers and platform functions.
-3. Add health/freshness snapshot.
-4. Implement advisory capability selection.
-5. Update tool documentation.
-6. Add lint that flags concrete provider/function names in canonical skills unless allowlisted.
-7. Refactor `rules-tool.md` from exact global sequence to:
-   - evidence requirements
-   - preferred capabilities
-   - degradation rules
-   - safety exceptions
-
-## Tests
-
-- provider selection fixtures
-- unhealthy provider fallback
-- stale-index behavior
-- platform adapter contract tests
-- skill lint positive/negative fixtures
-
-## Exit criteria
-
-- canonical workflow can express needs without concrete MCP names
-- provider mappings remain platform-specific
-- exact-source verification remains enforced
+**Input to next wave:** dogfood-A failure list drives W2 grounding scope.
 
 ---
 
-# Wave 3 — Specialized exploration dispatch
+### W2 — Three-lens grounding core
 
-## Objective
+**Objective:** Prevent generic use-case-only designs: mandatory grounding with three lenses, evidence manifest, grounded brainstorming, full spec contract.
 
-Implement parallel, artifact-producing exploration.
+**Value:** User-visible — designs and specs cite verified evidence from codebase, business, and conventions.
 
-## Tasks
+**Preconditions:** W1 exit; Dogfood A evidence reviewed.
 
-1. Create native skills:
-   - business-explorer
-   - codebase-explorer vNext
-   - convention-explorer
-2. Add exploration dispatch profile.
-3. Add role permissions.
-4. Dispatch explorers in parallel when independent.
-5. Write outputs to the change workspace.
-6. Produce tool health and evidence manifests.
-7. Integrate current code-evidence and memory-recall gates.
-8. Add degradation handling.
+**Scope:**
 
-## Tests
+1. `grounding-explorer` skill (refactor of existing codebase-explorer) producing `GROUNDING.yaml` with the three mandatory lenses (§10.1) via `exploration_dispatch`.
+2. Evidence manifest (§12, file-level hashes) + `exploration-evidence` gate (three lenses non-empty, claim statuses, health snapshot, readiness verdict).
+3. Port grounded brainstorming; brainstormer blocked without a passing exploration-evidence gate.
+4. Full `SPEC.md` contract + `spec` gate (class-aware completeness, evidence coverage).
+5. Review loop hardening: `fix_dispatch`, `task-review` gate; degradation handling (indexed providers unavailable → declared degradation).
 
-- full-capability exploration
-- UA unavailable
-- CBM unavailable
-- business knowledge unavailable
-- conflicting business/code evidence
-- fabricated evidence
-- stale graph vs current source
-- parallel explorer isolation
+**Deferred:** specialized explorer subagents (W3 decision); reconciler (W3).
 
-## Exit criteria
+**Deliverables:** grounding-explorer skill, evidence manifest schema + validator, exploration-evidence and spec gates, grounded-brainstorming and writing-spec skills.
 
-- no explorer writes application code
-- all exact code claims point to current source
-- exploration can complete with declared degradation
-- evidence manifests are mechanically validated
+**Dogfood checkpoint (B):** one real `standard` change on Maika and one on the real downstream Java project, both fully grounded.
+
+**Evidence to record:** the five specialization signals (§10.1): missed business rules, omitted conventions, context size, reconciliation failures, shallow output; degradation occurrences.
+
+**Exit criteria:** no design reaches approval without all three lenses; exact code claims point at current source; degraded exploration is visible in spec and plan.
+
+**Rollback boundary:** grounding artifacts additive; flag still opt-in.
+
+**Input to next wave:** Dogfood B signals decide W3 specialization.
 
 ---
 
-# Wave 4 — Reconciliation and grounded brainstorming
+### W3 — Reconciliation and conditional explorer specialization
 
-## Objective
+**Objective:** Reconcile intent, evidence, and conventions before design; decide explorer specialization on evidence.
 
-Prevent generic use-case-only designs.
+**Value:** Framework-visible — contradictions surface before design instead of during review.
 
-## Tasks
+**Preconditions:** W2 exit; Dogfood B signal record.
 
-1. Create architecture-reconciler skill.
-2. Create `RECONCILIATION.md` contract.
-3. Implement grounding-readiness gate.
-4. Port/adapt Superpowers brainstorming methodology.
-5. Require grounded questions.
-6. Write reviewed `SPEC.md`.
-7. Keep user approval gate.
-8. Add spec self-review and independent spec validation.
+**Scope:**
 
-## Tests
+1. `architecture-reconciler` skill + `RECONCILIATION.md` contract; material contradictions block design (BLOCKED, reason `grounding`).
+2. Full grounding-readiness verdict integrated into the `exploration-evidence` gate.
+3. **Conditional:** split Business/Convention/Codebase explorer subagents **only** if Dogfood B recorded the §10.1 signals; otherwise retain the unified explorer. Specialized agents write sections of the same `GROUNDING.yaml`.
 
-- current architecture supports requested change
-- desired behavior conflicts with current behavior
-- business docs conflict with code
-- missing extension seam
-- user chooses an architecture-breaking option
-- simple task produces a short spec without bypassing grounding
+**Deferred:** anything not evidenced by Dogfood B.
 
-## Exit criteria
+**Deliverables:** reconciler skill + contract; specialization decision recorded in the ledger with its evidence.
 
-- no design can reach approval without grounding verdict
-- spec references evidence for significant decisions
-- user-facing questions reflect current system facts
+**Dogfood checkpoint:** one real change with a known business/code contradiction (from the downstream project's real backlog) — the reconciler must catch it before design.
+
+**Evidence to record:** contradiction-catch rate; reconciler cost; explorer-specialization outcome.
+
+**Exit criteria:** contradictions block design mechanically; specialization decision is evidence-backed either way.
+
+**Rollback boundary:** reconciler additive.
+
+**Input to next wave:** stable skill set ready for capability runtime.
 
 ---
 
-# Wave 5 — Detailed planning and plan validation
+### W4 — Capability runtime and canonical-skill cleanup
 
-## Objective
+**Objective:** Implement the runtime half of the capability model; make the vocabulary mechanically enforced.
 
-Port the strongest part of Superpowers: code-level implementation planning.
+**Value:** Framework-visible — provider outages degrade gracefully; canonical skills are provider-clean, verified by lint.
 
-## Tasks
+**Preconditions:** W1–W3 skills exist and already use the vocabulary (no skill-contract rewrite needed in this wave).
 
-1. Create writing-plan skill.
-2. Support exact/guided/intent modes.
-3. Require exact files, symbols, tests, commands, and expected outputs.
-4. Add code blocks where useful.
-5. Add plan self-review.
-6. Add independent plan reviewer.
-7. Implement mechanical plan gates.
-8. Implement spec-to-plan coverage mapping.
-9. Implement plan freshness metadata.
-10. Produce approved plan verdict.
+**Scope:**
 
-## Tests
+1. Provider registry `.maika/profiles/tool-capabilities.yaml` (§11.2).
+2. Health checks and freshness checks (observed failures exist: indexed-provider daemons down; stale index vs repository commit).
+3. Provider mappings for the platforms the matrix covers.
+4. Skill lint: canonical skills must not contain concrete provider/function names unless allowlisted (mechanical consumer of §11.1 completing the R1 loop).
+5. Refactor `rules-tool.md` from exact global sequence to evidence requirements, preferred capabilities, degradation rules, safety exceptions.
 
-- nonexistent symbol
-- stale source hash
-- missing acceptance-criterion coverage
-- cyclic task dependencies
-- test without assertion
-- code block incompatible with current signature
-- plan uses line number without stable anchor
-- exact-mode change requests an undeclared file
-- cross-task interface mismatch
+**Deferred:** cost/risk/data-sensitivity routing (ledger: activation = observed misrouting failure).
 
-## Exit criteria
+**Deliverables:** registry, probes, lint wired into CI, refactored `rules-tool.md`.
 
-- approved plans are grounded and executable
-- vague task lists fail validation
-- legacy OpenSpec tasks cannot bypass planning
+**Dogfood checkpoint:** one real `small` change executed with a deliberately stopped indexed provider — pipeline must complete with declared degradation.
+
+**Evidence to record:** provider-selection outcomes; degradation events; lint violations found in existing skills.
+
+**Exit criteria:** canonical workflow expresses needs without concrete MCP names; lint green; exact-source verification still enforced.
+
+**Rollback boundary:** registry advisory; removing it restores W3 behavior.
+
+**Input to next wave:** stable capability contracts for adapters.
 
 ---
 
-# Wave 6 — Plan compiler and task briefs
+### W5 — Codex and Antigravity adapters
 
-## Objective
+**Objective:** Extend dispatch and write-gate parity to the other two platforms, strictly bounded by the W0 matrix.
 
-Convert reviewed plans into deterministic execution artifacts.
+**Value:** User-visible — vNext runs on Codex and Antigravity.
 
-## Tasks
+**Preconditions:** **R4 pre-flight table** (from the W0 matrix, refreshed): dispatch mechanism, hook availability, model selection per platform, each with evidence. Missing row = wave blocked at planning.
 
-1. Implement parser.
-2. Build DAG.
-3. Detect file overlap.
-4. Generate queue.
-5. Extract task sections verbatim.
-6. Generate brief hashes.
-7. Add interface carry-forward from completed dependencies.
-8. Add task ownership and file locks.
-9. Add staleness checks.
+**Scope:**
 
-## Tests
+1. Dispatcher adapter per platform (fresh-session tier where subagent spawn is unavailable).
+2. Write-gate parity (hook wiring per platform as the matrix proves).
+3. Model tiers only where the platform supports model selection; otherwise declared single-tier degradation.
 
-- deterministic output
-- identical plan produces identical queue/brief hashes
-- plan edit invalidates derived artifacts
-- spec edit invalidates plan
-- source change affects only relevant tasks where possible
-- overlapping files prevent unsafe parallelism
-- independent tasks may batch safely
+**Deferred:** any platform behavior the matrix cannot evidence.
 
-## Exit criteria
+**Deliverables:** platform adapters, adapter contract tests, updated matrix.
 
-- no LLM paraphrase is required to produce a task brief
-- every brief is traceable to an approved plan section
-- queue and DAG are reproducible
+**Dogfood checkpoint:** one real `trivial`-or-`small` change per platform end-to-end.
+
+**Evidence to record:** platform-specific dispatch failures; hook misfires; tier degradations.
+
+**Exit criteria:** identical contract artifacts across platforms; write-gate parity demonstrated; no unverified platform claims.
+
+**Rollback boundary:** per-platform adapters independent; Claude Code path unaffected.
+
+**Input to next wave:** all platforms ready for user-facing cutover.
 
 ---
 
-# Wave 7 — Fresh subagent dispatcher
+### W6 — Workflow cutover and OpenSpec migration
 
-## Objective
+**Objective:** Expose vNext through the user-facing task workflow; remove OpenSpec from the default path with a compatibility importer.
 
-Adopt Superpowers-style context isolation and review dispatch.
+**Value:** User-visible — `/task` commands drive the vNext state machine; legacy changes importable.
 
-## Tasks
+**Preconditions:** W1–W5 exits; sequential queue remains the only execution mode (unchanged through this wave).
 
-1. Add dispatcher interfaces.
-2. Add platform adapter implementation.
-3. Add role-based model tiers.
-4. Add file handoff.
-5. Add result contract.
-6. Add status handling.
-7. Add retry/escalation policy.
-8. Add progress ledger.
-9. Add review-package generation.
-10. Add final review dispatch.
+**Scope:**
 
-## Tests
+1. Refactor `task.md` around the state machine and commands (§23), including auto-classification behavior.
+2. `/task status`, `/task resume` (crash-safe resume from `STATE.yaml` + queue).
+3. Update bootstrap, meta-prompt, plugin manifest, scaffold snapshots.
+4. `maika migrate-openspec` importer (§24); migration warnings on OpenSpec commands; legacy-read compatibility preserved during cutover.
+5. Remove OpenSpec invocation from the default workflow (default engine still `legacy` until W7).
 
-- fresh context per task
-- no accumulated-history injection
-- needs-context redispatch
-- blocker classification
-- stale-plan stop
-- failed verification stop
-- implementer result missing tests rejected
-- reviewer independence
-- fix/re-review loop
-- final review receives complete merge-base diff
+**Deferred:** default switch (W7); deletion of legacy runtime files (post-W7, consumer-map verified).
 
-## Exit criteria
+**Deliverables:** refactored workflow, commands, importer, updated docs/snapshots.
 
-- tasks are not marked complete from exit code alone
-- task result and review are required
-- parent context stores paths and statuses, not full artifacts
+**Dogfood checkpoint:** full workflow (start → archive) on a real change driven only by public commands; one representative legacy OpenSpec change imported and re-grounded.
+
+**Evidence to record:** resume correctness after interruption; importer fidelity; command-surface gaps.
+
+**Exit criteria:** vNext end-to-end via commands on all platforms; legacy workflow still functional; no hidden command required; archived legacy changes readable.
+
+**Rollback boundary:** flag still defaults `legacy`; cutover is opt-in until W7.
+
+**Input to next wave:** complete system for hardening and the switch decision.
 
 ---
 
-# Wave 8 — Microloop and write-gate integration
+### W7 — Hardening, dogfood, metrics, and default switch
 
-## Objective
+**Objective:** Prove the architecture on real work; flip the default only on evidence.
 
-Make the dispatcher the real execution runtime.
+**Value:** User-visible — vNext becomes the default with a legacy fallback.
 
-## Tasks
+**Preconditions:** W6 exit.
 
-1. Integrate plan queue with existing microloop.
-2. Update write gate for role/state/brief/file ownership.
-3. Remove Apply-time strategy generation.
-4. Add task-level verification gate.
-5. Add task-level review gate.
-6. Add whole-change verification.
-7. Add crash-safe resume.
+**Scope:**
 
-## Tests
+1. Expanded dogfood on real changes from the Maika repo and the downstream project (covering at minimum, as they genuinely arise: one-file bug, multi-file feature, contract-sensitive change, incident-driven debug).
+2. Metrics: tokens by phase/role; tool calls; exploration degradation; plan revisions; stale-plan incidents; task retries; out-of-plan file changes; first-pass compile/test rate; reviewer findings; escaped defects; parent-context growth; time/cost by tier.
+3. Ledger review: activate any deferred mechanism whose activation condition was met (e.g., parallelism, dashboard expansion); everything else stays deferred.
+4. Default-switch gate.
 
-- restart during task
-- restart after implementation before review
-- write outside allowed files
-- two tasks claim same file
-- brief hash mismatch
-- task from stale queue
-- executor tries to redesign contract
-- verification command lies about output
-- reviewer flags plan-mandated defect
+**Deferred:** parallel execution remains deferred unless its ledger condition was met during dogfood; dashboard expansion likewise.
 
-## Exit criteria
+**Deliverables:** metrics report, ledger review record, default-switch decision.
 
-- microloop consumes reviewed plan tasks
-- executor cannot write without valid task ownership
-- resume does not duplicate completed work
+**Dogfood checkpoint:** this wave largely *is* dogfood; at least three representative real changes complete.
+
+**Evidence to record:** the full metrics list; every deviation → ledger.
+
+**Exit criteria (default switch):** all mandatory suites pass; ≥3 representative dogfood changes complete; no Critical unresolved findings; plan-to-code drift acceptably low; fresh-session execution reliable; rollback to legacy remains available for one release.
+
+**Rollback boundary:** `workflow_engine: legacy` remains one flag away for at least one release.
+
+**Input to next phase:** post-refactor operations; legacy removal per §31 rollout.
 
 ---
 
-# Wave 9 — Workflow and CLI cutover
-
-## Objective
-
-Expose vNext through the user-facing task workflow.
-
-## Tasks
-
-1. Refactor `task.md`.
-2. Add state-aware commands.
-3. Add status and resume.
-4. Update bootstrap and meta-prompt.
-5. Update plugin manifest and snapshots.
-6. Add feature flag:
-   ```yaml
-   workflow_engine: legacy | vnext
-   ```
-7. Make vNext opt-in first.
-8. Add migration warnings for OpenSpec commands.
-
-## Tests
-
-- init on all supported platforms
-- full simple-task workflow
-- full standard-task workflow
-- resume workflow
-- user spec revision
-- user rejects reviewer/plan conflict
-- legacy workflow still works during transition
-
-## Exit criteria
-
-- vNext can execute end-to-end in a downstream fixture
-- CLI and docs are consistent
-- no hidden command is required
-
----
-
-# Wave 10 — OpenSpec compatibility and removal
-
-## Objective
-
-Remove OpenSpec from the core after vNext is proven.
-
-## Tasks
-
-1. Implement legacy change importer.
-2. Migrate relevant templates and archived examples.
-3. Remove OpenSpec invocation from default workflow.
-4. Remove OpenSpec-specific skill dependencies.
-5. Remove duplicate task/state concepts.
-6. Update docs.
-7. Keep importer for at least one compatibility release.
-8. Delete dead files only after consumer-map verification.
-
-## Tests
-
-- migrate representative legacy change
-- preserve original legacy artifacts
-- require new grounded plan
-- no OpenSpec runtime command invoked by vNext
-- scaffold does not ship dead OpenSpec runtime files
-
-## Exit criteria
-
-- OpenSpec is not a core dependency
-- existing archived changes remain readable
-- new changes cannot accidentally use legacy Apply
-
----
-
-# Wave 11 — Observability and dashboard
-
-## Objective
-
-Make agent activity understandable and controllable.
-
-## Display
-
-- current change/state
-- active dispatches
-- role/model tier
-- task ownership
-- tool health
-- evidence degradation
-- queue/DAG
-- blockers
-- review findings
-- verification status
-- token/context estimates where available
-
-## Rules
-
-- dashboard reads state/ledger artifacts
-- dashboard does not become a second state owner
-- runtime remains functional without dashboard
-
-## Tests
-
-- ledger replay
-- interrupted task display
-- stale plan display
-- concurrent explorer display
-- review loop display
-
----
-
-# Wave 12 — Dogfood, metrics, and default switch
-
-## Objective
-
-Prove the architecture on real work.
-
-## Dogfood scenarios
-
-1. Small one-file bug.
-2. Multi-file feature inside one module.
-3. Java Spring Boot feature involving validation chain.
-4. Database migration.
-5. Kafka or asynchronous workflow.
-6. gRPC contract-sensitive change.
-7. Cross-repository/upstream dependency.
-8. Incident-driven debugging task.
-
-## Metrics
-
-Record:
-
-- tokens by phase/role
-- number of tool calls
-- exploration degradation
-- plan revisions
-- stale-plan incidents
-- task retries
-- files changed outside initial plan
-- first-pass compile/test rate
-- reviewer findings
-- escaped defects
-- total parent-context growth
-- time and cost by model tier
-
-## Default-switch gate
-
-Make vNext default only when:
-
-- all mandatory suites pass
-- at least three representative dogfood changes complete
-- no Critical unresolved findings
-- plan-to-code drift is acceptably low
-- fresh-session execution is reliable
-- rollback to legacy remains available for one release
-
----
-
-## 25. Test strategy
+## 27. Test strategy
 
 ### Unit
 
-- schemas
+- schemas (workspace, ledger, matrix, evidence, result)
 - parsers
 - hashes
 - DAG
-- state transitions
+- state transitions (14 states, blocked metadata)
 - result contracts
 - evidence validation
-- router selection
+- classification rules
+- router selection (health/freshness)
 - staleness detection
-- file ownership
 
 ### Contract
 
 - platform adapters
 - provider health probes
-- model-tier mapping
+- model-tier mapping (matrix-bounded)
 - dispatcher input/output
 - scaffold manifest
 
 ### Integration
 
-- explorer → reconciliation
+- grounding → reconciliation
 - spec → plan
 - plan → queue
 - queue → implementer
@@ -1854,32 +1535,25 @@ Make vNext default only when:
 
 ### End-to-end
 
-Use fixture repositories representing:
-
-- Python framework repository
-- Java Spring Boot service
-- multi-module banking application
+One minimal Python fixture repository in CI. Real-repository dogfood (Maika + downstream Java project) covers the realistic scenarios per P5.
 
 ### Fault injection
 
-- MCP unavailable
-- stale MCP index
+- provider (MCP) unavailable
+- stale provider index
 - malformed provider response
 - agent returns incomplete result
 - agent edits forbidden file
-- process crashes
-- conflicting parallel writes
-- branch advances after planning
+- process crashes (resume)
+- branch advances after planning (staleness)
 - test command unavailable
 - final review finds cross-task defect
 
 ---
 
-## 26. CI requirements
+## 28. CI requirements
 
-CI must run all enforcement suites, not only CLI tests.
-
-Required groups:
+CI must run all enforcement suites, not only CLI tests:
 
 ```text
 cli
@@ -1891,64 +1565,47 @@ rule-projector
 skill-lint
 plan compiler
 dispatcher
+enforcement-ledger validation
 migration
-end-to-end fixtures
+end-to-end fixture
 ```
 
-Add one umbrella command such as:
-
-```bash
-python3 scripts/test_all.py
-```
-
-It must fail if a mandatory suite is missing from the registry.
+One umbrella command, e.g. `python3 scripts/test_all.py`, which fails if a mandatory suite is missing from the registry.
 
 ---
 
-## 27. Documentation changes
+## 29. Documentation changes
 
-Update:
-
-- top-level README
-- architecture overview
-- workflow guide
-- skill authoring guide
-- tool capability guide
-- evidence guide
-- planning guide
-- subagent dispatch guide
-- migration guide
-- troubleshooting
-- platform-specific setup
-- downstream scaffold documentation
+Update: top-level README; architecture overview; workflow guide; skill authoring guide; tool capability guide; evidence guide; planning guide; subagent dispatch guide; migration guide; troubleshooting; platform-specific setup; downstream scaffold documentation.
 
 Document clearly:
 
 ```text
-Skill = reasoning method and output contract
-Capability = semantic need
-Provider = concrete tool/MCP
-Adapter = capability-to-provider mapping
-Evidence = proof supporting a claim
-Spec = behavioral contract
-Plan = executable implementation blueprint
-Brief = immutable task slice
-Gate = deterministic transition check
+Skill      = reasoning method and output contract
+Capability = semantic need (the §11.1 vocabulary)
+Provider   = concrete tool/MCP
+Adapter    = capability-to-provider mapping
+Evidence   = proof supporting a claim
+Spec       = behavioral contract
+Plan       = executable implementation blueprint
+Brief      = immutable task slice
+Gate       = deterministic transition check (nine lifecycle gates)
+Ledger     = enforcement eligibility record
 Dispatcher = isolated role/task execution
-Reviewer = independent judgment
+Reviewer   = independent judgment
 ```
 
 ---
 
-## 28. Acceptance criteria for the complete refactor
+## 30. Acceptance criteria for the complete refactor
 
 The refactor is complete only when all are true:
 
 1. New tasks do not require OpenSpec.
-2. Grounded exploration occurs before final design.
+2. Grounded exploration with three lenses occurs before final design.
 3. Business, codebase, and convention evidence are reconciled.
 4. Canonical skills do not hard-code provider call sequences.
-5. Concrete provider names are localized to adapters, profiles, or tool documentation.
+5. Concrete provider names are localized to provider mappings, capability profiles, platform adapters, tool documentation, and platform capability evidence.
 6. Significant spec and plan decisions reference evidence.
 7. Detailed plans contain exact code-level instructions appropriate to task risk.
 8. Plan validation catches nonexistent symbols and stale source.
@@ -1962,14 +1619,16 @@ The refactor is complete only when all are true:
 16. Write gate validates state, role, brief, freshness, and file scope.
 17. Parent context is not polluted by complete task histories or diffs.
 18. Microloop can resume safely after interruption.
-19. CI runs every enforcement suite.
+19. CI runs every enforcement suite, including enforcement-ledger validation.
 20. Legacy OpenSpec changes can be imported but not treated as implementation-ready.
-21. The system passes dogfood on representative Java/banking scenarios.
+21. The system passes dogfood on representative real changes (Maika repository + real downstream Java project).
 22. Documentation and scaffold snapshots match runtime behavior.
+23. Every enforcement mechanism has an eligible enforcement-ledger entry; every deferred mechanism has an activation condition.
+24. Change classification keeps `trivial`/`small` pipelines proportional (no full-pipeline overhead, no unnecessary user interaction).
 
 ---
 
-## 29. Rollback strategy
+## 31. Rollback strategy
 
 Every wave must:
 
@@ -1984,54 +1643,28 @@ Recommended rollout:
 
 ```text
 legacy default
-→ vNext opt-in
-→ vNext default with legacy fallback
+→ vNext opt-in                        (from W1)
+→ vNext default with legacy fallback  (W7 gate)
 → legacy read/import only
 → remove legacy runtime
 ```
 
 ---
 
-## 30. First agent instructions
+## 32. First agent instructions
 
-The first implementing agent must not begin Wave 1 immediately.
+The first implementing agent must not begin W1 immediately.
 
 It must:
 
-1. Read this master plan.
+1. Read this master plan (v2) and Design Spec Rev 2.
 2. Read `DEVELOPMENT_RULES.md`.
 3. Inspect the current main branch and active PRs.
 4. Run the full baseline.
-5. Execute Wave 0 only.
-6. Produce the current-state audit and migration maps.
-7. Present contradictions between this master plan and the actual repository.
-8. Write a separate Superpowers-style implementation plan for Wave 1 with:
-   - exact files
-   - exact symbols
-   - failing tests
-   - implementation code
-   - commands
-   - expected outputs
-   - commit boundaries
-9. Obtain plan review approval.
-10. Then execute Wave 1 through fresh task subagents and independent reviews.
+5. Execute **W0 only**: audit, consumer maps, enforcement ledger, platform capability matrix, R3-amendment proposal.
+6. Present contradictions between this master plan and the actual repository.
+7. Write a separate Superpowers-style implementation plan for **W1** with exact files, exact symbols, failing tests, implementation code, commands, expected outputs, commit boundaries.
+8. Obtain plan review approval.
+9. Then execute W1 through fresh task subagents and independent reviews.
 
 Do not extrapolate exact code from this master plan when the repository can be inspected directly.
-
----
-
-## 31. Final design principle
-
-```text
-Superpowers provides the discipline of deep planning and isolated task execution.
-
-Maika provides the missing enterprise intelligence:
-business knowledge, code graphs, conventions, memory, evidence gates,
-write boundaries, deterministic orchestration, and long-term evolution.
-
-The target is not “Superpowers inside Maika.”
-
-The target is:
-Maika as a grounded agentic engineering runtime whose planning and dispatch quality
-matches or exceeds Superpowers while remaining native, portable, and mechanically governed.
-```
