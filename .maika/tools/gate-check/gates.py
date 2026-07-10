@@ -762,6 +762,29 @@ def validate_knowledge_impact(text) -> Result:
     return Result(True)
 
 
+def validate_verification_report(text) -> Result:
+    """Gate `verification-report` — verification/COMMANDS.yaml must carry real
+    per-command evidence (observed_output + integer exit_code + timestamp +
+    pass/fail interpretation). Completion never rests on a marker alone."""
+    doc = yaml.safe_load(text) or {}
+    commands = doc.get("commands")
+    if not isinstance(commands, list) or not commands:
+        return Result(False, "verification COMMANDS.yaml requires a non-empty commands list")
+    for i, rec in enumerate(commands, 1):
+        if not isinstance(rec, dict):
+            return Result(False, f"command {i} must be a mapping")
+        name = rec.get("name")
+        if not str(rec.get("observed_output") or "").strip():
+            return Result(False, f"command {i} ({name}) missing observed_output")
+        if not isinstance(rec.get("exit_code"), int):
+            return Result(False, f"command {i} ({name}) missing integer exit_code")
+        if not str(rec.get("timestamp") or "").strip():
+            return Result(False, f"command {i} ({name}) missing timestamp")
+        if rec.get("interpretation") not in {"pass", "fail"}:
+            return Result(False, f"command {i} ({name}) invalid interpretation")
+    return Result(True)
+
+
 def validate_final_review(text: str, queue_doc=None) -> Result:
     """Gate `final-review`: whole-change review only after every task was reviewed."""
     if not queue_doc:

@@ -648,6 +648,22 @@ entries:
     scope: {change_classes: [standard, architectural]}
     reviewed_at: 2026-07-10
 
+  - id: KN-011
+    mechanism: verification-report
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §8.12 (P10, DoD #19)
+      summary: Verification chạy lệnh thật; mỗi record cần observed_output + exit_code(int) + timestamp + interpretation (không complete bằng marker).
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_task_command.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py, cli/commands/task.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/skills/verification-before-completion/SKILL.md]
+    scope: {change_classes: [small, standard, architectural]}
+    reviewed_at: 2026-07-10
+
 
   # ---- deferred: hoãn có điều kiện kích hoạt (traceability doc §Deferred) ----
   - id: DEF-001

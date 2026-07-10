@@ -142,6 +142,11 @@ def _complete_workspace(root: Path, state: str = "FINAL_REVIEW") -> Path:
     )
     (ws / "reviews" / "TASK-001.md").write_text("VERDICT: APPROVED\n", encoding="utf-8")
     (ws / "reviews" / "FINAL_REVIEW.md").write_text("VERDICT: APPROVED\n", encoding="utf-8")
+    (ws / "reviews" / "KNOWLEDGE_IMPACT.yaml").write_text(
+        "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
+        "graph_refresh_required: false\nmemory_updates: []\n",
+        encoding="utf-8",
+    )
     (ws / "STATE.yaml").write_text(f"change_id: demo\nstate: {state}\n", encoding="utf-8")
     return ws
 
@@ -164,6 +169,46 @@ def test_task_verify_writes_evidence_and_completes_workspace(tmp_path):
     }
     report = (ws / "verification" / "VERIFICATION_REPORT.md").read_text(encoding="utf-8")
     assert "VERDICT: VERIFIED" in report
+
+
+def test_task_verify_runs_real_declared_commands(tmp_path):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    ws = _complete_workspace(root)
+    (ws / "verification").mkdir(exist_ok=True)
+    (ws / "verification" / "COMMANDS.yaml").write_text(
+        "declared:\n"
+        "  - name: smoke\n"
+        "    command: \"python -c 'print(\\\"1 passed\\\")'\"\n"
+        "    expected: \"1 passed\"\n",
+        encoding="utf-8",
+    )
+
+    code = run_task("verify", target_dir=str(root), change_id="demo")
+
+    assert code == 0
+    commands = yaml.safe_load((ws / "verification" / "COMMANDS.yaml").read_text(encoding="utf-8"))
+    smoke = next(c for c in commands["commands"] if c["name"] == "smoke")
+    assert smoke["interpretation"] == "pass"
+    assert "1 passed" in smoke["observed_output"]      # real observed output, not a marker
+    assert smoke["exit_code"] == 0
+
+
+def test_task_verify_fails_when_declared_command_fails(tmp_path, capsys):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    ws = _complete_workspace(root)
+    (ws / "verification").mkdir(exist_ok=True)
+    (ws / "verification" / "COMMANDS.yaml").write_text(
+        "declared:\n  - name: failing\n    command: \"python -c 'import sys; sys.exit(3)'\"\n",
+        encoding="utf-8",
+    )
+
+    code = run_task("verify", target_dir=str(root), change_id="demo")
+
+    assert code == 1
+    assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["state"] == "FINAL_REVIEW"
+    assert "declared verification command failed" in capsys.readouterr().out
 
 
 def test_task_verify_refuses_unapproved_final_review(tmp_path, capsys):
@@ -196,7 +241,22 @@ def test_task_archive_moves_completed_workspace_and_refreshes_knowledge_index(tm
     manifest = yaml.safe_load((archived / "ARCHIVE_MANIFEST.yaml").read_text(encoding="utf-8"))
     assert manifest["change_id"] == "demo"
     assert manifest["verification_report"] == "verification/VERIFICATION_REPORT.md"
+    assert "knowledge_lifecycle" in manifest
+    assert manifest["knowledge_lifecycle"]["graph_refresh_requested"] is False
     assert (root / ".maika" / "knowledge" / "long-term" / "knowledge-index.yaml").exists()
+
+
+def test_task_archive_requires_knowledge_impact(tmp_path, capsys):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    ws = _complete_workspace(root)
+    assert run_task("verify", target_dir=str(root), change_id="demo") == 0
+    (ws / "reviews" / "KNOWLEDGE_IMPACT.yaml").unlink()
+
+    code = run_task("archive", target_dir=str(root), change_id="demo")
+
+    assert code == 1
+    assert "KNOWLEDGE_IMPACT.yaml" in capsys.readouterr().out
 
 
 def test_task_archive_requires_completed_workspace(tmp_path, capsys):

@@ -254,3 +254,32 @@ def test_evidence_update_request_bad_status():
 def test_evidence_update_request_requires_reason_and_evidence():
     doc = yaml.safe_dump({"task_id": "T", "status": "STALE_KNOWLEDGE"})
     assert not gates.validate_evidence_update_request(doc).ok
+
+
+# ── W6: verification-report real evidence ───────────────────────────────────
+
+def test_verification_report_valid():
+    doc = yaml.safe_dump({"commands": [{
+        "name": "unit", "command": "pytest -q", "expected_output": "passed",
+        "observed_output": "3 passed", "exit_code": 0, "timestamp": "2026-07-10T00:00:00Z",
+        "interpretation": "pass",
+    }]})
+    assert gates.validate_verification_report(doc).ok
+
+
+def test_verification_report_requires_observed_output():
+    doc = yaml.safe_dump({"commands": [{
+        "name": "unit", "command": "pytest -q", "observed_output": "",
+        "exit_code": 0, "timestamp": "2026-07-10T00:00:00Z", "interpretation": "pass",
+    }]})
+    res = gates.validate_verification_report(doc)
+    assert not res.ok and "observed_output" in res.reason
+
+
+def test_verification_report_requires_integer_exit_code():
+    doc = yaml.safe_dump({"commands": [{
+        "name": "unit", "command": "pytest -q", "observed_output": "3 passed",
+        "exit_code": "zero", "timestamp": "2026-07-10T00:00:00Z", "interpretation": "pass",
+    }]})
+    res = gates.validate_verification_report(doc)
+    assert not res.ok and "exit_code" in res.reason

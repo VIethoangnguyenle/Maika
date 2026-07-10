@@ -39,6 +39,7 @@ VALIDATORS = {
     "task-review": "validate_task_review",
     "final-review": "validate_final_review",
     "knowledge-impact": "validate_knowledge_impact",
+    "verification-report": "validate_verification_report",
 }
 
 

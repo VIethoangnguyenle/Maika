@@ -126,6 +126,54 @@ def _command_record(name: str, expected: str, observed: str, exit_code: int = 0)
     }
 
 
+def _run_declared_commands(target: Path, declared: list) -> list[dict]:
+    """Run real verification commands declared in verification/COMMANDS.yaml and
+    record command, expected, observed output, exit code, timestamp, interpretation.
+    A command passes only when it exits 0 AND (if declared) its expected substring
+    is in the observed output — completion never rests on exit code alone."""
+    records: list[dict] = []
+    for item in declared or []:
+        command = item.get("command")
+        if not command:
+            continue
+        name = item.get("name") or command
+        expected = str(item.get("expected", ""))
+        try:
+            proc = subprocess.run(command, cwd=str(target), shell=True,
+                                  capture_output=True, text=True, timeout=600)
+            observed = ((proc.stdout or "") + (proc.stderr or "")).strip()
+            exit_code = proc.returncode
+        except subprocess.SubprocessError as exc:
+            observed, exit_code = f"command error: {exc}", 1
+        ok = exit_code == 0 and (expected in observed if expected else True)
+        records.append({
+            "name": name,
+            "command": command,
+            "expected_output": expected,
+            "observed_output": observed[-2000:],
+            "exit_code": exit_code,
+            "timestamp": _now(),
+            "interpretation": "pass" if ok else "fail",
+        })
+    return records
+
+
+def _apply_knowledge_lifecycle(ws: Path) -> dict:
+    """Turn reviews/KNOWLEDGE_IMPACT.yaml into recorded lifecycle actions:
+    promote candidates, supersede/invalidate stale entries, save episodic memory,
+    request graph refresh. Actions are recorded in the archive manifest so the
+    curator's promote/supersede/save/refresh is auditable."""
+    ki_path = ws / "reviews" / "KNOWLEDGE_IMPACT.yaml"
+    ki = _load_yaml(ki_path) if ki_path.exists() else {}
+    return {
+        "promoted": ki.get("new_candidates") or [],
+        "superseded": ki.get("superseded_decisions") or [],
+        "stale_invalidated": ki.get("stale_entries") or [],
+        "memory_saved": ki.get("memory_updates") or [],
+        "graph_refresh_requested": bool(ki.get("graph_refresh_required")),
+    }
+
+
 _DEAD_REFERENCE_PATTERNS = (
     "-".join(("idea", "to", "task")),
     "-".join(("index", "source")),
@@ -172,10 +220,14 @@ def _task_artifacts_ok(ws: Path, queue_doc: dict) -> tuple[bool, str]:
     return True, f"{len(tasks)} task(s) done and reviewed"
 
 
-def _write_verification(ws: Path, change_id: str, commands: list[dict], verdict: str) -> None:
+def _write_verification(ws: Path, change_id: str, commands: list[dict], verdict: str,
+                        declared: list | None = None) -> None:
     verification = ws / "verification"
     verification.mkdir(exist_ok=True)
-    _write_yaml(verification / "COMMANDS.yaml", {"commands": commands})
+    payload: dict = {"commands": commands}
+    if declared:
+        payload["declared"] = declared
+    _write_yaml(verification / "COMMANDS.yaml", payload)
     lines = [
         f"# Verification Report: {change_id}",
         "",
@@ -203,6 +255,8 @@ def _verify(target: Path, framework_root: str, change_id: str) -> int:
         return 1
 
     commands: list[dict] = []
+    commands_path = ws / "verification" / "COMMANDS.yaml"
+    declared = (_load_yaml(commands_path).get("declared") if commands_path.exists() else None) or []
     final_review = ws / "reviews" / "FINAL_REVIEW.md"
     if not final_review.exists():
         commands.append(_command_record("final-review-approved", "VERDICT: APPROVED", "missing final review", 1))
@@ -239,11 +293,20 @@ def _verify(target: Path, framework_root: str, change_id: str) -> int:
         0 if not dead_refs else 1,
     ))
     if dead_refs:
-        _write_verification(ws, change_id, commands, "FAILED_VERIFICATION")
+        _write_verification(ws, change_id, commands, "FAILED_VERIFICATION", declared)
         print("Refused: obsolete references found in task workspace")
         return 1
 
-    _write_verification(ws, change_id, commands, "VERIFIED")
+    # Run real declared verification commands (build/test/lint/...) fresh.
+    if declared:
+        declared_records = _run_declared_commands(target, declared)
+        commands.extend(declared_records)
+        if any(record["interpretation"] == "fail" for record in declared_records):
+            _write_verification(ws, change_id, commands, "FAILED_VERIFICATION", declared)
+            print("Refused: a declared verification command failed")
+            return 1
+
+    _write_verification(ws, change_id, commands, "VERIFIED", declared)
     _write_state(ws, state, "COMPLETED")
     print(f"Verified {change_id}")
     return 0
@@ -263,6 +326,17 @@ def _archive(target: Path, framework_root: str, change_id: str) -> int:
         print("Refused: archive requires verified verification/VERIFICATION_REPORT.md")
         return 1
 
+    ki_path = ws / "reviews" / "KNOWLEDGE_IMPACT.yaml"
+    if not ki_path.exists():
+        print("Refused: archive requires reviews/KNOWLEDGE_IMPACT.yaml (final knowledge impact)")
+        return 1
+    ki = _load_yaml(ki_path)
+    missing_lanes = [k for k in ("stale_entries", "superseded_decisions", "new_candidates",
+                                 "graph_refresh_required", "memory_updates") if k not in ki]
+    if missing_lanes:
+        print(f"Refused: KNOWLEDGE_IMPACT.yaml missing lanes: {', '.join(missing_lanes)}")
+        return 1
+
     dest = _archive_workspace(target, framework_root, change_id)
     if dest.exists():
         print(f"Refused: archive destination already exists: {dest}")
@@ -271,12 +345,14 @@ def _archive(target: Path, framework_root: str, change_id: str) -> int:
     long_term = target / framework_root / "knowledge" / "long-term"
     long_term.mkdir(parents=True, exist_ok=True)
     generate_knowledge_index(_maika_root(), target, framework_root)
+    lifecycle = _apply_knowledge_lifecycle(ws)
     _write_yaml(ws / "ARCHIVE_MANIFEST.yaml", {
         "change_id": change_id,
         "archived_at": _now(),
         "source_state": "COMPLETED",
         "verification_report": "verification/VERIFICATION_REPORT.md",
         "knowledge_index": "knowledge/long-term/knowledge-index.yaml",
+        "knowledge_lifecycle": lifecycle,
     })
     _write_state(ws, state, "ARCHIVED")
     dest.parent.mkdir(parents=True, exist_ok=True)
