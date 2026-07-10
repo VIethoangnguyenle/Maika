@@ -537,6 +537,8 @@ def validate_brief_integrity(text: str, queue_doc=None) -> Result:
     try:
         header_text, _, body = text.partition("\n---\n")
         header = yaml.safe_load(header_text) or {}
+        if not isinstance(header, dict):
+            return Result(False, "brief header must be a dict")
     except Exception as e:
         return Result(False, f"bad brief format: {e}")
     tid = header.get("task_id")

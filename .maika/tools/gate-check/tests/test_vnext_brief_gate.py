@@ -12,7 +12,9 @@ _PC = Path(__file__).resolve().parents[2] / "microloop-orchestrator" / "plan_com
 spec_pc = importlib.util.spec_from_file_location("plan_compiler", _PC)
 pc = importlib.util.module_from_spec(spec_pc); spec_pc.loader.exec_module(pc)
 
-import vnext_state as vs
+_VS = Path(__file__).resolve().parents[2] / "microloop-orchestrator" / "vnext_state.py"
+spec_vs = importlib.util.spec_from_file_location("vnext_state", _VS)
+vs = importlib.util.module_from_spec(spec_vs); spec_vs.loader.exec_module(vs)
 
 PLAN_TPL = """---
 change_id: demo

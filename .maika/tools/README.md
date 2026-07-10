@@ -33,7 +33,8 @@ tasks.md → topo-sort → TASK_QUEUE → per-task: TASK_HANDOFF → executor �
 ```
 
 - **Tier** khai báo ở `{{ platform.framework_root }}/profiles/execution-mode.yaml`: `subagent` (Claude) ·
-  `fresh-session` (Cursor/Antigravity) · `inline-reload` (fallback, luôn chạy được).
+  `fresh-session` (Cursor/Antigravity) · `inline-reload` (fallback, luôn chạy được). (W1: dùng `workflow_engine: vnext` cho vNext mode).
+- **vNext subcommands (Pha 3 opt-in)**: `maika vnext-init`, `maika vnext-compile`, `maika vnext-review-plan`, `maika vnext-run`, `maika vnext-status`.
 - **Test** (source repo framework): `python3 -m pytest .maika/tools/microloop-orchestrator/tests/ -v`
 
 Chi tiết (repo framework): [docs/superpowers/specs/2026-06-17-sp1b-coding-microloop-design.md](../../docs/superpowers/specs/2026-06-17-sp1b-coding-microloop-design.md)
@@ -41,7 +42,7 @@ Chi tiết (repo framework): [docs/superpowers/specs/2026-06-17-sp1b-coding-micr
 ## gate-check/ — Evidence gate validators
 
 Kiểm checkpoint artifact bằng token bằng chứng (xem `procedures/decision-gate.md`).
-- **Run**: `python3 {{ platform.framework_root }}/tools/gate-check/cli.py <gate> <file>` — gates: knowledge-checkpoint, handoff-slice, implementation-context, phase-chain, mcp-status, memory-recall, teaching-moment, archive-ready, ac-coverage, integration-coverage…
+- **Run**: `python3 {{ platform.framework_root }}/tools/gate-check/cli.py <gate> <file>` — gates: knowledge-checkpoint, handoff-slice, implementation-context, phase-chain, mcp-status, memory-recall, teaching-moment, archive-ready, ac-coverage, integration-coverage, vnext-plan, vnext-brief, vnext-result...
 - **Test** (source repo framework): `python3 -m pytest .maika/tools/gate-check/tests/ -v`
 
 ## skill-lint/ — Skill schema validator (SP2) — chỉ repo framework
