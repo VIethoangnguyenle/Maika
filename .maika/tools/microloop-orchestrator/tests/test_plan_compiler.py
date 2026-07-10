@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -14,6 +15,18 @@ import vnext_state as vs
 PLAN_TPL = """---
 change_id: demo
 plan_version: 1
+knowledge_trace:
+  id: DEC-PLAN-001
+  statement: Decompose the verified change.
+  type: task_decomposition
+  knowledge_questions: ["What tasks are required?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
 base_commit: BASESHA
 spec_hash: sha256:SPECSHA
 evidence_hash: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
@@ -180,3 +193,20 @@ def test_capsule_carries_declared_slice(tmp_path):
     assert cap["knowledge_slice"]["code_evidence"] == ["CODE-001"]
     assert cap["knowledge_slice"]["conventions"] == ["CONV-1"]
     assert cap["forbidden_patterns"] == ["duplicate validation"]
+
+
+def test_task_b_compilation_retrieves_project_knowledge_saved_by_task_a(tmp_path):
+    ws, root = _setup(tmp_path)
+    store = ws.parents[1] / "knowledge" / "long-term" / "project-knowledge"
+    store.mkdir(parents=True)
+    (store / "PK-A.yaml").write_text(
+        "id: PK-A\nstatus: active\nstatement: payment requires idempotency\n"
+        "applies_to: [payment]\nconfidence: high\nfreshness: verified\n",
+        encoding="utf-8",
+    )
+    plan = ws / "IMPLEMENTATION_PLAN.md"
+    plan.write_text(plan.read_text(encoding="utf-8").replace("Thân task 1.", "Payment idempotency implementation."), encoding="utf-8")
+
+    assert pc.compile_plan(ws, repo_root=root)["verdict"] == "APPROVED"
+    capsule = yaml.safe_load((ws / "briefs" / "TASK-001.knowledge.yaml").read_text())
+    assert [item["id"] for item in capsule["project_knowledge"]] == ["PK-A"]

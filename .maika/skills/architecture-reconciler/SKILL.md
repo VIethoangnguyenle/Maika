@@ -85,4 +85,8 @@ degradation, và không dùng claim đó làm nền quyết định high-risk.
 `exploration/CONFLICTS.yaml` (resolved) + `RECONCILIATION.md`.
 
 ## Handoff tiếp theo
+
+Mỗi resolution material phải emit canonical `Knowledge Trace` với `decision.id`,
+`statement`, `type`, `knowledge_questions`, `evidence_ids`, `authority`, `conflicts`,
+`assumptions`, `confidence`, `freshness`, `verdict`; unresolved conflict block handoff.
 `grounded-brainstorming`.

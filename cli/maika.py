@@ -14,6 +14,7 @@ Commands:
     update    Re-render framework files, preserving user-owned files
     status    Show current Maika configuration in a project
     task      Run public vNext task workflow commands
+    bootstrap Produce provider-aware BOOTSTRAP_REPORT.yaml
 """
 
 import argparse
@@ -98,6 +99,18 @@ def main():
         default=".",
         help="Project directory to check (default: current directory)",
     )
+
+    bootstrap_parser = subparsers.add_parser(
+        "bootstrap", help="Probe configured providers and create BOOTSTRAP_REPORT.yaml",
+    )
+    bootstrap_parser.add_argument("--target", default=".")
+
+    skill_parser = subparsers.add_parser("skill", help="Promote or reject a reviewed skill candidate")
+    skill_parser.add_argument("action", choices=["promote", "reject"])
+    skill_parser.add_argument("--target", default=".")
+    skill_parser.add_argument("--candidate", required=True)
+    skill_parser.add_argument("--review", required=True)
+    skill_parser.add_argument("--promotion")
 
     # ─── task ───
     task_parser = subparsers.add_parser(
@@ -209,6 +222,12 @@ def main():
     elif args.command == "status":
         from cli.commands.status import run_status
         run_status(target_dir=args.target)
+    elif args.command == "bootstrap":
+        from cli.commands.bootstrap import run_bootstrap
+        sys.exit(run_bootstrap(args.target))
+    elif args.command == "skill":
+        from cli.commands.skill import run_skill
+        sys.exit(run_skill(args.action, args.target, args.candidate, args.review, args.promotion))
     elif args.command == "task":
         from cli.commands.task import run_task
         rc = run_task(

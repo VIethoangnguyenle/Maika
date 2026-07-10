@@ -87,4 +87,7 @@ Không đánh giá được một tác động tri thức (vd graph không probe
 `reviews/FINAL_REVIEW.md`, `reviews/FINDINGS.yaml`, `reviews/KNOWLEDGE_IMPACT.yaml`.
 
 ## Handoff tiếp theo
+
+Final verdict và knowledge-impact decision phải có canonical `Knowledge Trace`; thiếu
+trace hoặc còn conflict unresolved thì `CHANGES_REQUIRED`, không được approve.
 `verification-before-completion`.

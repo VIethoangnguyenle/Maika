@@ -49,6 +49,24 @@ def test_update_aborts_when_no_config(tmp_path, maika_root, capsys):
     assert "No Maika installation" in capsys.readouterr().out
 
 
+def test_update_preserves_live_skill_evolution_history(tmp_path, maika_root):
+    target = tmp_path / "proj"
+    run_init(
+        target_dir=str(target), maika_root=str(maika_root), platform_key="generic",
+        selected_mcps=[], language="python", assume_yes=True,
+    )
+    store = target / ".maika" / "knowledge" / "skill-evolution"
+    candidate = store / "candidates" / "SC-LIVE.yaml"
+    accepted = store / "accepted" / "SC-OLD.yaml"
+    candidate.write_text("candidate_id: SC-LIVE\n", encoding="utf-8")
+    accepted.write_text("candidate_id: SC-OLD\n", encoding="utf-8")
+
+    run_update(target_dir=str(target), maika_root=str(maika_root))
+
+    assert candidate.read_text(encoding="utf-8") == "candidate_id: SC-LIVE\n"
+    assert accepted.read_text(encoding="utf-8") == "candidate_id: SC-OLD\n"
+
+
 def test_reconfigure_to_claude_writes_claude_root_and_warns_about_legacy_maika(
     tmp_path, maika_root, monkeypatch, capsys,
 ):

@@ -46,6 +46,13 @@ Scaffold ở target phơi bày workflow chuẩn qua `maika task`:
 `maika task archive` yêu cầu verified completion + `reviews/KNOWLEDGE_IMPACT.yaml`,
 áp knowledge lifecycle, regenerate `knowledge/long-term/knowledge-index.yaml`, ghi
 `ARCHIVE_MANIFEST.yaml`, và dời workspace sang `<framework-root>/archive/<change-id>`.
+Verification cũng bắt buộc `reviews/SKILL_FEEDBACK.yaml`; archive record feedback,
+cluster recurrence và chỉ tạo skill candidate khi threshold trong
+`rules/rules-skill-evolution.md` pass. Candidate không được auto-promote.
+
+Mọi reconciliation/spec/plan/review/verification material decision phải pass gate
+`knowledge-trace`. Mọi fresh dispatch phải pass `context-package` và
+`dispatch-kernel`, đồng thời mang Task Knowledge Capsule path/hash.
 
 Workflow chạy thật end-to-end — người dùng **không** phải tự sửa `STATE.yaml`,
 grounding artifact, result, review, queue, hay verification report.

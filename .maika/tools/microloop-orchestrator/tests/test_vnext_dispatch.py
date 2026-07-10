@@ -11,6 +11,24 @@ import vnext_dispatch as vd
 import vnext_state as vs
 import plan_compiler as pc
 
+REVIEW_TRACE = """
+## Knowledge Trace
+```yaml
+decision:
+  id: DEC-REVIEW-001
+  statement: Approve verified task behavior.
+  type: verification_claim
+  knowledge_questions: ["Does current source satisfy the task?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: verified
+  verdict: approved
+```
+"""
+
 def _setup(tmp_path):
     ws = vs.init_workspace(tmp_path / "changes", "demo", "small", "t")
     (ws / "SPEC.md").write_text("# spec\n", encoding="utf-8")
@@ -30,6 +48,18 @@ def _setup(tmp_path):
     plan_text = f"""---
 change_id: demo
 plan_version: 1
+knowledge_trace:
+  id: DEC-PLAN-001
+  statement: Decompose the verified change.
+  type: task_decomposition
+  knowledge_questions: ["What tasks are required?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
 base_commit: {sha}
 spec_hash: sha256:{hashlib.sha256((ws / "SPEC.md").read_bytes()).hexdigest()}
 evidence_hash: sha256:{evidence_sha}
@@ -63,7 +93,9 @@ def test_review_plan_approved(tmp_path):
     def runner(prompt):
         # Extract output file path from a marker or similar logic in real implementation
         out = ws / "review_output.txt"
-        out.write_text("VERDICT: APPROVED\n- stub")
+        out.write_text(
+            f"VERDICT: APPROVED\n\n## Counter-evidence\n- {ws / 'IMPLEMENTATION_PLAN.md'}\n" + REVIEW_TRACE
+        )
         return 0, ""
     assert vd.review_plan(ws, runner, output_path=ws / "review_output.txt") == "APPROVED"
 
@@ -97,6 +129,7 @@ def _runner_for_w3(ws, calls, *, first_review="APPROVED"):
         output = Path(markers["OUTPUT_FILE"])
         output.parent.mkdir(parents=True, exist_ok=True)
         if dispatch_type in {"implementation", "fix"}:
+            (ws.parents[1] / "src" / "b.py").write_text("B = 1\n", encoding="utf-8")
             output.write_text(
                 "\n".join([
                     f"task_id: {task_id}",
@@ -106,6 +139,9 @@ def _runner_for_w3(ws, calls, *, first_review="APPROVED"):
                     "verification:",
                     "  passed: true",
                     "  output: ok",
+                    "consumed:",
+                    "  evidence_ids: [CODE-001]",
+                    "  knowledge_ids: []",
                     "",
                 ]),
                 encoding="utf-8",
@@ -114,10 +150,13 @@ def _runner_for_w3(ws, calls, *, first_review="APPROVED"):
             verdict = review_verdicts.pop(0) if review_verdicts else "APPROVED"
             body = f"TASK_ID: {task_id}\nVERDICT: {verdict}\n"
             if verdict == "APPROVED":
-                body += "\n## Counter-evidence\n- src/b.py:1 — behavior confirmed in current source\n"
+                body += "\n## Counter-evidence\n- src/b.py:1 — behavior confirmed in current source\n" + REVIEW_TRACE
             output.write_text(body, encoding="utf-8")
         elif dispatch_type == "final_review":
-            output.write_text("VERDICT: APPROVED\n", encoding="utf-8")
+            output.write_text(
+                "VERDICT: APPROVED\n\n## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE,
+                encoding="utf-8",
+            )
             (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
                 "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
                 "graph_refresh_required: false\nmemory_updates: []\n",
@@ -158,6 +197,28 @@ def test_run_queue_blocks_when_exit_zero_has_no_result_file(tmp_path):
     assert q["tasks"][0]["status"] == "blocked"
 
 
+def test_run_queue_routes_evidence_update_request_without_blind_retry(tmp_path):
+    ws, root = _setup(tmp_path)
+    calls = []
+
+    def runner(prompt):
+        calls.append(prompt)
+        request = ws / "results" / "TASK-001.EVIDENCE_UPDATE_REQUEST.yaml"
+        request.write_text(
+            "task_id: TASK-001\nstatus: STALE_KNOWLEDGE\n"
+            "reason: source hash changed\naffected_evidence: [CODE-001]\n",
+            encoding="utf-8",
+        )
+        return 0, "reground"
+
+    out = vd.run_queue(ws, root, runner, max_retries=2)
+    assert out["status"] == "blocked"
+    assert out["reason"] == "EVIDENCE_UPDATE_REQUEST"
+    assert len(calls) == 1
+    task = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text())["tasks"][0]
+    assert task["evidence_update_request"].endswith("EVIDENCE_UPDATE_REQUEST.yaml")
+
+
 def test_run_queue_dispatches_fix_after_task_review_findings(tmp_path):
     ws, root = _setup(tmp_path)
     calls = []
@@ -173,6 +234,7 @@ def test_run_queue_dispatches_fix_after_task_review_findings(tmp_path):
         output = Path(markers["OUTPUT_FILE"])
         output.parent.mkdir(parents=True, exist_ok=True)
         if dispatch_type in {"implementation", "fix"}:
+            (ws.parents[1] / "src" / "b.py").write_text("B = 1\n", encoding="utf-8")
             output.write_text(
                 f"""task_id: {task_id}
 status: success
@@ -181,6 +243,9 @@ files:
 verification:
   passed: true
   output: ok
+consumed:
+  evidence_ids: [CODE-001]
+  knowledge_ids: []
 """,
                 encoding="utf-8",
             )
@@ -188,10 +253,13 @@ verification:
             verdict = review_verdicts.pop(0)
             body = f"TASK_ID: {task_id}\nVERDICT: {verdict}\n"
             if verdict == "APPROVED":
-                body += "\n## Counter-evidence\n- src/b.py:1 — confirmed in source\n"
+                body += "\n## Counter-evidence\n- src/b.py:1 — confirmed in source\n" + REVIEW_TRACE
             output.write_text(body, encoding="utf-8")
         elif dispatch_type == "final_review":
-            output.write_text("VERDICT: APPROVED\n", encoding="utf-8")
+            output.write_text(
+                "VERDICT: APPROVED\n\n## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE,
+                encoding="utf-8",
+            )
             (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
                 "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
                 "graph_refresh_required: false\nmemory_updates: []\n",
@@ -213,6 +281,7 @@ verification:
 
 def test_run_queue_resumes_reviewing_task_without_reimplementation(tmp_path):
     ws, root = _setup(tmp_path)
+    (root / "src" / "b.py").write_text("B = 1\n", encoding="utf-8")
     q_path = ws / "generated" / "TASK_QUEUE.json"
     q = json.loads(q_path.read_text(encoding="utf-8"))
     q["tasks"][0]["status"] = "reviewing"
@@ -226,6 +295,9 @@ files:
 verification:
   passed: true
   output: ok
+consumed:
+  evidence_ids: [CODE-001]
+  knowledge_ids: []
 """,
         encoding="utf-8",
     )
@@ -241,11 +313,14 @@ verification:
         if markers["DISPATCH_TYPE"] == "task_review":
             output.write_text(
                 "TASK_ID: TASK-001\nVERDICT: APPROVED\n\n"
-                "## Counter-evidence\n- src/b.py:1 — confirmed in source\n",
+                "## Counter-evidence\n- src/b.py:1 — confirmed in source\n" + REVIEW_TRACE,
                 encoding="utf-8",
             )
         elif markers["DISPATCH_TYPE"] == "final_review":
-            output.write_text("VERDICT: APPROVED\n", encoding="utf-8")
+            output.write_text(
+                "VERDICT: APPROVED\n\n## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE,
+                encoding="utf-8",
+            )
             (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
                 "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
                 "graph_refresh_required: false\nmemory_updates: []\n",

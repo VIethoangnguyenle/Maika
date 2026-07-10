@@ -63,8 +63,8 @@ def test_extracts_targetfile_from_antigravity_tool_input_payload():
     assert wg.extract_target_paths(payload) == [Path("src/App.java")]
 
 
-def test_allows_framework_artifacts_but_not_retired_spec_writes(tmp_path):
-    assert wg.evaluate_write(tmp_path, Path(".maika/changes/demo/STATE.yaml")).ok is True
+def test_framework_artifacts_require_an_authorized_role_and_retired_specs_block(tmp_path):
+    assert wg.evaluate_write(tmp_path, Path(".maika/changes/demo/STATE.yaml")).ok is False
     retired = "".join(("open", "spec")) + "/changes/x/specs/foo/spec.md"
     result = wg.evaluate_write(tmp_path, Path(retired))
     assert result.ok is False
@@ -93,15 +93,15 @@ def test_main_allows_documentation_write(tmp_path, monkeypatch):
     assert code == 0
 
 
-def test_main_allows_absolute_framework_knowledge_write_without_checkpoint(tmp_path, monkeypatch):
+def test_main_blocks_absolute_framework_knowledge_write_without_curator_role(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     target = tmp_path / ".maika" / "knowledge" / "long-term" / "author-dna.yaml"
     payload = {"tool_name": "Write", "tool_input": {"file_path": str(target)}}
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
-    assert code == 0
+    assert code == 2
 
 
-def test_main_allows_absolute_framework_knowledge_write_from_subdir(tmp_path, monkeypatch):
+def test_main_blocks_absolute_framework_knowledge_write_from_subdir_without_role(tmp_path, monkeypatch):
     _init_git_repo(tmp_path)
     subdir = tmp_path / "src"
     subdir.mkdir()
@@ -109,7 +109,7 @@ def test_main_allows_absolute_framework_knowledge_write_from_subdir(tmp_path, mo
     target = tmp_path / ".maika" / "knowledge" / "long-term" / "author-dna.yaml"
     payload = {"tool_name": "Write", "tool_input": {"file_path": str(target)}}
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
-    assert code == 0
+    assert code == 2
 
 
 def test_bash_write_to_documentation_allowed(tmp_path, monkeypatch):
@@ -398,11 +398,11 @@ def test_bash_write_to_gitignored_path_allowed(tmp_path, monkeypatch):
     assert code == 0
 
 
-def test_bash_write_to_framework_artifact_allowed(tmp_path, monkeypatch):
+def test_bash_write_to_framework_artifact_requires_role(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     payload = {"tool_name": "Bash", "tool_input": {"command": "echo x > .maika/knowledge/active/REQUIREMENT.md"}}
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
-    assert code == 0
+    assert code == 2
 
 
 def test_bash_dynamic_write_warns_and_allows(tmp_path, monkeypatch, capsys):

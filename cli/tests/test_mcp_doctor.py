@@ -124,7 +124,7 @@ def test_doctor_fix_copies_known_good_antigravity_ide_config(tmp_path):
     assert json.loads(dest.read_text(encoding="utf-8"))["mcpServers"]["codebase-memory-mcp"]["command"] == "npx"
 
 
-def test_doctor_fix_backs_up_existing_non_empty_destination(tmp_path):
+def test_doctor_fix_cleanly_replaces_existing_destination_without_backup(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
     write_resolved(target, platform="antigravity", mcps=["codebase-memory-mcp"])
@@ -137,8 +137,8 @@ def test_doctor_fix_backs_up_existing_non_empty_destination(tmp_path):
 
     run_doctor_mcp(str(target), fix=True, assume_yes=True, home=home)
 
-    assert (dest.parent / "mcp_config.json.bak").exists()
-    assert "old" in (dest.parent / "mcp_config.json.bak").read_text(encoding="utf-8")
+    assert not (dest.parent / ("mcp_config.json." + "bak")).exists()
+    assert "old" not in dest.read_text(encoding="utf-8")
 
 
 def _init_ua(tmp_path, home):

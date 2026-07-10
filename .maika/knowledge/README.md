@@ -14,6 +14,8 @@ Bộ nhớ được chia làm 4 tầng:
 - **`long-term/`** — *long-term memory*: judgment sống + bản đồ kiến trúc, **source-of-truth** (tích luỹ, không reset).
 - **`archive/`** — *episodic memory*: snapshot các task đã hoàn thành theo ticket-id.
 - **`templates/`** — *skeleton tĩnh*: chỉ chứa template để clone khi bootstrap, **không chứa knowledge sống**.
+- **`skill-evolution/`** — feedback cluster và candidate lifecycle; candidates chỉ từ
+  verified evidence, accepted/rejected giữ provenance và promotion result.
 
 ---
 
@@ -37,6 +39,7 @@ Bộ nhớ được chia làm 4 tầng:
 │   └── persona.template.yaml  ← Template persona (committed)
 ├── archive/                  ← Episodic memory — context task đã hoàn thành (theo ticket-id)
 │   └── {ticket-id}/
+├── skill-evolution/          ← candidates/accepted/rejected + canonical index
 └── templates/                ← skeleton .tpl.md để clone khi bootstrap (CHỈ template):
                                 context (REQUIREMENT, EXPLORE_CONTEXT, AGENT_TRANSPARENCY, TOKEN_LOG,
                                 ARCHIVE_META), ticket-type (feature, fixbug, refactor, changerequest,

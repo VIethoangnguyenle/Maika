@@ -89,6 +89,12 @@ def init_workspace(changes_root, change_id, klass, title):
         "required_evidence": {"covered": [], "missing": []},
         "verdict": "NEEDS_CONTEXT",
     }, ws / "exploration" / "COVERAGE.yaml")
+    _dump_yaml({
+        "version": 1,
+        "change_id": change_id,
+        "verified": False,
+        "observations": [],
+    }, ws / "reviews" / "SKILL_FEEDBACK.yaml")
     (ws / "RECONCILIATION.md").write_text("# Reconciliation\n\n", encoding="utf-8")
     return ws
 

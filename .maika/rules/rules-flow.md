@@ -87,7 +87,7 @@
 
 - `/task apply` luôn phải:
   - Tóm tắt file/module sẽ bị chạm.
-  - Hỏi user confirm trước khi gọi `/opsx:apply`.
+  - Hỏi user confirm trước khi gọi `maika task apply --id <change-id>`.
 
 ---
 

@@ -13,6 +13,7 @@ QUEUE_DOC = {
     "tasks": [
         {
             "id": "TASK-001",
+            "evidence_ids": ["CODE-001"],
             "files": {
                 "create": ["src/b.py"],
                 "modify": ["src/a.py"],
@@ -75,7 +76,13 @@ def test_deleted_files_mismatch_fails():
 
 def test_task_review_contract_passes():
     review = ("TASK_ID: TASK-001\nVERDICT: APPROVED\n\n"
-              "## Counter-evidence\n- src/a.py:10 — behavior confirmed in source\n")
+              "## Counter-evidence\n- src/a.py:10 — behavior confirmed in source\n\n"
+              "## Knowledge Trace\n```yaml\ndecision:\n"
+              "  id: DEC-REVIEW-001\n  statement: Approve verified behavior.\n"
+              "  type: verification_claim\n  knowledge_questions: [\"Does source satisfy the task?\"]\n"
+              "  evidence_ids: [CODE-001]\n  authority: current source\n"
+              "  conflicts: []\n  assumptions: []\n  confidence: high\n"
+              "  freshness: verified\n  verdict: approved\n```\n")
     res = gates.validate_task_review(review, queue_doc=QUEUE_DOC, task_id="TASK-001")
     assert res.ok
 

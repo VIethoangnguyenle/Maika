@@ -20,4 +20,20 @@
 | task review | `reviews/TASK-*.md` | `task-review` |
 | final review | `reviews/FINAL_REVIEW.md` | `final-review` |
 | MCP-probe | dòng MCP-status (bootstrap report / transparency) | `mcp-status` |
+| meta prompt | platform entry point | `meta-prompt-constitution` |
+| bootstrap | `knowledge/active/BOOTSTRAP_REPORT.yaml` | `bootstrap-complete` |
+| context package | `generated/CONTEXT_PACKAGE.<role>.yaml` | `context-package` |
+| dispatch prompt | dispatch log/prompt | `dispatch-kernel` |
+| material decision | trace block/artifact | `knowledge-trace` |
+| skill feedback | `reviews/SKILL_FEEDBACK.yaml` | `skill-feedback` |
+| skill candidate | `knowledge/skill-evolution/candidates/*.yaml` | `skill-evolution-candidate` |
+| skill review | candidate review artifact | `skill-evolution-review` |
+| skill promotion | promotion record | `skill-evolution-promotion` |
 - **mcp-status:** số probe thật (`nodes=…`/`edges=…`) **hoặc** dòng degrade `KG unavailable — … MEDIUM`. "Runtime Ready" rỗng = FAIL.
+
+## Knowledge Trace blocking law
+
+`reconciliation`, `spec`, `plan`, `task review`, `final review` và `verification`
+phải validate mọi material decision bằng `knowledge-trace`. Chỉ kiểm heading/evidence
+reference là chưa đủ. Trace thiếu evidence ID, freshness, authority, confidence,
+assumption hoặc có unresolved conflict phải fail và không transition state.

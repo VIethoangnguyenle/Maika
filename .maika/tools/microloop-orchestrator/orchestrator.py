@@ -32,14 +32,34 @@ def _load_gate_check():
     return gates
 
 
-def _require_vnext(repo_root: Path) -> tuple[Path, dict] | tuple[None, None]:
-    config_path = _execution_config_path(repo_root / ".maika" / "profiles")
+def _require_vnext(framework_path: Path) -> tuple[Path, dict] | tuple[None, None]:
+    config_path = _execution_config_path(Path(framework_path) / "profiles")
     config = yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
     config = config or {}
     if config.get("workflow_engine") != "vnext":
         print("Refused: workflow_engine is not vnext")
         return None, None
     return config_path, config
+
+
+def _require_bootstrap(framework_path: Path, gates, repo_root: Path) -> bool:
+    report = Path(framework_path) / "knowledge" / "active" / "BOOTSTRAP_REPORT.yaml"
+    if not report.exists():
+        print("Refused: bootstrap-complete requires knowledge/active/BOOTSTRAP_REPORT.yaml")
+        return False
+    result = gates.validate_bootstrap_complete(report.read_text(encoding="utf-8"))
+    if not result.ok:
+        print(f"Refused: bootstrap-complete failed: {result.reason}")
+        return False
+    report_doc = yaml.safe_load(report.read_text(encoding="utf-8")) or {}
+    recorded = report_doc.get("repository_commit")
+    if recorded != "unavailable":
+        probe = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_root,
+                               capture_output=True, text=True, check=False)
+        if probe.returncode != 0 or probe.stdout.strip() != recorded:
+            print("Refused: bootstrap report repository_commit is stale")
+            return False
+    return True
 
 
 def topo_sort(tasks):
@@ -127,7 +147,12 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     repo_root = Path(getattr(args, "repo_root", "") or Path(args.changes_root).parents[1])
-    config_path, config = _require_vnext(repo_root)
+    framework_path = (
+        Path(args.changes_root).parent
+        if hasattr(args, "changes_root")
+        else Path(args.workspace).parents[1]
+    )
+    config_path, config = _require_vnext(framework_path)
     if config_path is None:
         return 2
 
@@ -135,10 +160,14 @@ def main(argv=None):
     import vnext_dispatch as vd
     import vnext_state as vs
 
+    gates = _load_gate_check()
+    if args.command not in {"vnext-init", "vnext-status"} and not _require_bootstrap(framework_path, gates, repo_root):
+        return 1
+
     if args.command == "vnext-init":
         ws = vs.init_workspace(args.changes_root, args.id, args.klass, args.title)
         text = (ws / "CHANGE.yaml").read_text(encoding="utf-8")
-        res = _load_gate_check().validate_change_workspace(text)
+        res = gates.validate_change_workspace(text)
         if not res.ok:
             print(f"Gate vnext-workspace failed: {res.reason}")
             return 1
@@ -188,13 +217,55 @@ def main(argv=None):
             (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_text(encoding="utf-8"),
             repo_root=args.repo_root,
         )
-        ok = intent_res.ok and evidence_res.ok
+        registry_path = framework_path / "profiles" / "capability-registry.yaml"
+        if not registry_path.exists():
+            registry_path = Path(__file__).resolve().parents[2] / "profiles" / "capability-registry.yaml"
+        registry = yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {}
+        capabilities = registry.get("capabilities") or {}
+        coverable = {evidence for item in capabilities.values()
+                     for evidence in (item.get("preferred_evidence") or [])}
+        query_text = (ws / "exploration" / "QUERY_PLAN.yaml").read_text(encoding="utf-8")
+        query_res = gates.validate_query_plan(
+            query_text, valid_capabilities=set(capabilities), coverable_evidence=coverable
+        )
+        health_res = gates.validate_tool_health(
+            (ws / "exploration" / "TOOL_HEALTH.yaml").read_text(encoding="utf-8")
+        )
+        conflict_res = gates.validate_conflicts(
+            (ws / "exploration" / "CONFLICTS.yaml").read_text(encoding="utf-8")
+        )
+        coverage_res = gates.validate_coverage(
+            (ws / "exploration" / "COVERAGE.yaml").read_text(encoding="utf-8")
+        )
+        change = yaml.safe_load((ws / "CHANGE.yaml").read_text(encoding="utf-8")) or {}
+        memory_res = gates.Result(True)
+        if change.get("class") in {"standard", "architectural"}:
+            memory_path = ws / "exploration" / "MEMORY_RECALL.md"
+            memory_res = gates.validate_memory_recall(
+                memory_path.read_text(encoding="utf-8") if memory_path.exists() else ""
+            )
+        query_doc = yaml.safe_load(query_text) or {}
+        needs_db = any(
+            cap in {"database_schema_inspection", "database_dependency_analysis"}
+            for q in query_doc.get("questions") or [] for cap in q.get("required_capabilities") or []
+        )
+        database_res = gates.Result(True)
+        if needs_db:
+            database_path = ws / "exploration" / "DATABASE_CONTEXT.yaml"
+            database_res = gates.validate_database_context(
+                database_path.read_text(encoding="utf-8") if database_path.exists() else ""
+            )
+        checks = [
+            ("intent", intent_res), ("exploration-evidence", evidence_res),
+            ("query-plan", query_res), ("tool-health", health_res),
+            ("conflicts", conflict_res), ("coverage", coverage_res),
+            ("memory-recall", memory_res), ("database-context", database_res),
+        ]
+        ok = all(result.ok for _, result in checks)
         (ws / "generated" / "EXPLORATION_VALIDATION.json").write_text(json.dumps({
             "verdict": "APPROVED" if ok else "REVISE",
-            "checks": [
-                {"id": "intent", "ok": intent_res.ok, "reason": intent_res.reason},
-                {"id": "exploration-evidence", "ok": evidence_res.ok, "reason": evidence_res.reason},
-            ],
+            "checks": [{"id": name, "ok": result.ok, "reason": result.reason}
+                       for name, result in checks],
         }, ensure_ascii=False, indent=2), encoding="utf-8")
         if not ok:
             print("Reasoning validation verdict: REVISE")

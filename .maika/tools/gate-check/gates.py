@@ -6,6 +6,8 @@ checkpoint/report — never whether a tool was 'called'. See spec §2.
 import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
+from datetime import datetime, timezone
 
 import yaml
 
@@ -566,6 +568,12 @@ def _has_heading(text: str, heading: str) -> bool:
     return bool(re.search(rf"^##\s+{re.escape(heading)}\s*$", text, re.MULTILINE))
 
 
+def _markdown_knowledge_trace(text: str):
+    section = _section_text(text, "Knowledge Trace")
+    match = re.search(r"```yaml\s*(.*?)```", section, re.DOTALL)
+    return match.group(1) if match else ""
+
+
 def validate_vnext_spec(text: str, change_class: str = "standard") -> Result:
     """Gate `spec` — class-aware W2 spec contract."""
     if change_class not in VALID_CHANGE_CLASSES:
@@ -580,6 +588,14 @@ def validate_vnext_spec(text: str, change_class: str = "standard") -> Result:
         return Result(False, "SPEC.md Acceptance Criteria must include AC ids")
     if not re.search(r"\b[A-Z]+-\d+\b", _section_text(text, "Evidence References")):
         return Result(False, "SPEC.md Evidence References must cite claim ids")
+    trace = _markdown_knowledge_trace(text)
+    if not trace:
+        return Result(False, "SPEC.md requires canonical Knowledge Trace YAML")
+    traced = validate_knowledge_trace(
+        trace, valid_evidence_ids=set(re.findall(r"\b[A-Z]+-\d+\b", _section_text(text, "Evidence References")))
+    )
+    if not traced.ok:
+        return Result(False, "SPEC.md Knowledge Trace: " + traced.reason)
     return Result(True)
 
 
@@ -596,6 +612,12 @@ def validate_vnext_plan(
     import subprocess
     from pathlib import Path
     meta, tasks = plan_doc["meta"], plan_doc["tasks"]
+    plan_trace = meta.get("knowledge_trace")
+    if not isinstance(plan_trace, dict):
+        return Result(False, "plan frontmatter requires knowledge_trace")
+    traced = validate_knowledge_trace(yaml.safe_dump({"decision": plan_trace}, sort_keys=False))
+    if not traced.ok:
+        return Result(False, "plan Knowledge Trace: " + traced.reason)
     if spec_sha256 is not None and meta.get("spec_hash") != f"sha256:{spec_sha256}":
         return Result(False, "spec_hash mismatch: plan compiled against different SPEC.md")
     if evidence_sha256 is not None and meta.get("evidence_hash") != f"sha256:{evidence_sha256}":
@@ -713,6 +735,18 @@ def validate_result_contract(text: str, queue_doc=None, task_id=None) -> Result:
     for key in ("create", "modify", "delete", "test"):
         if set(expected_files.get(key) or []) != set(actual_files.get(key) or []):
             return Result(False, f"files mismatch on {key}")
+    if task_info.get("context_package_path"):
+        consumed = res.get("consumed") or {}
+        evidence_ids = consumed.get("evidence_ids")
+        knowledge_ids = consumed.get("knowledge_ids")
+        if not isinstance(evidence_ids, list) or not evidence_ids:
+            return Result(False, "result must record consumed.evidence_ids")
+        if not isinstance(knowledge_ids, list):
+            return Result(False, "result must record consumed.knowledge_ids")
+        if not set(evidence_ids) <= set(task_info.get("evidence_ids") or []):
+            return Result(False, "result consumed evidence IDs outside assigned capsule")
+        if not set(knowledge_ids) <= set(task_info.get("knowledge_ids") or []):
+            return Result(False, "result consumed knowledge IDs outside assigned capsule")
     return Result(True)
 
 
@@ -740,6 +774,16 @@ def validate_task_review(text: str, queue_doc=None, task_id=None) -> Result:
         counter = _section_text(text, "Counter-evidence")
         if not _FILE_PATH.search(counter):
             return Result(False, "APPROVED task review requires a Counter-evidence section with a source anchor")
+        if queue_doc.get("repo_root"):
+            anchors = _FILE_PATH.findall(counter)
+            if not any((Path(queue_doc["repo_root"]) / anchor).exists() for anchor in anchors):
+                return Result(False, "task review counter-evidence source anchor does not exist")
+        trace = _markdown_knowledge_trace(text)
+        traced = validate_knowledge_trace(
+            trace, valid_evidence_ids=set(task_info.get("evidence_ids") or [])
+        ) if trace else Result(False, "missing trace")
+        if not traced.ok:
+            return Result(False, "APPROVED task review requires valid Knowledge Trace: " + traced.reason)
     return Result(True)
 
 
@@ -802,7 +846,37 @@ def validate_final_review(text: str, queue_doc=None) -> Result:
         return Result(False, "final review verdict must be APPROVED or CHANGES_REQUIRED")
     if verdict != "APPROVED":
         return Result(False, "final review has unresolved findings")
+    counter = _section_text(text, "Counter-evidence")
+    anchors = _FILE_PATH.findall(counter)
+    if not anchors:
+        return Result(False, "APPROVED final review requires source-anchored Counter-evidence")
+    if queue_doc.get("repo_root") and not any(
+        (Path(queue_doc["repo_root"]) / anchor).exists() for anchor in anchors
+    ):
+        return Result(False, "final review counter-evidence source anchor does not exist")
+    trace = _markdown_knowledge_trace(text)
+    valid_ids = {item for task in tasks for item in (task.get("evidence_ids") or [])}
+    traced = validate_knowledge_trace(trace, valid_evidence_ids=valid_ids) if trace else Result(False, "missing trace")
+    if not traced.ok:
+        return Result(False, "APPROVED final review requires valid Knowledge Trace: " + traced.reason)
     return Result(True)
+
+
+def validate_plan_review(text: str, valid_evidence_ids=None, repo_root=None) -> Result:
+    verdict = _field_value(text, "VERDICT")
+    if verdict not in {"APPROVED", "FINDINGS"}:
+        return Result(False, "plan review verdict must be APPROVED or FINDINGS")
+    if verdict == "FINDINGS":
+        return Result(True)
+    counter = _section_text(text, "Counter-evidence")
+    anchors = _FILE_PATH.findall(counter)
+    if not anchors:
+        return Result(False, "APPROVED plan review requires Counter-evidence")
+    if repo_root and not any((Path(repo_root) / anchor).exists() for anchor in anchors):
+        return Result(False, "plan review counter-evidence anchor does not exist")
+    trace = _markdown_knowledge_trace(text)
+    traced = validate_knowledge_trace(trace, valid_evidence_ids=valid_evidence_ids) if trace else Result(False, "missing trace")
+    return Result(False, "APPROVED plan review requires valid Knowledge Trace: " + traced.reason) if not traced.ok else Result(True)
 
 
 # ── W2 grounding-package validators (query plan, tool health, conflicts, ──────
@@ -996,4 +1070,263 @@ def validate_evidence_update_request(text) -> Result:
     affected = doc.get("affected_evidence")
     if not isinstance(affected, list) or not affected:
         return Result(False, "evidence update request must list non-empty affected_evidence")
+    return Result(True)
+
+
+# Knowledge control-plane gates -------------------------------------------------
+
+_MATERIAL_DECISION_TYPES = {
+    "architecture", "public_contract", "business_behavior", "persistence",
+    "async_event", "migration", "deletion", "security", "task_decomposition",
+    "verification_claim",
+}
+
+
+def _yaml_mapping(text, artifact: str):
+    try:
+        data = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        return None, Result(False, f"{artifact} is not valid YAML: {exc}")
+    if not isinstance(data, dict):
+        return None, Result(False, f"{artifact} must be a YAML mapping")
+    return data, None
+
+
+def validate_meta_prompt_constitution(text: str) -> Result:
+    sections = (
+        "Identity", "Core Mission", "Non-negotiable Principles", "Mandatory Bootstrap",
+        "Canonical Knowledge Sources", "Authority Hierarchy",
+        "Knowledge and MCP Operating Reflex", "Canonical Workflow",
+        "Phase-specific Knowledge Obligations", "Context and Knowledge Slice Rules",
+        "Role Boundaries", "Write Boundaries", "Evidence and Knowledge Trace",
+        "Degradation and Stop Conditions", "Project Knowledge Learning Loop",
+        "Skill Evolution Loop", "Load Order", "Handoff Contract",
+    )
+    missing = [name for name in sections if not re.search(rf"^##\s+(?:\d+\.\s+)?{re.escape(name)}\s*$", text, re.MULTILINE)]
+    if missing:
+        return Result(False, "meta prompt missing sections: " + ", ".join(missing))
+    required = (
+        "knowledge-grounded engineering agent", "Không có material decision",
+        "procedures/bootstrap.md", "BOOTSTRAP_REPORT.yaml",
+        "live runtime/database state", "current source", "Agent Memory",
+        "Project Knowledge Learning Loop", "Skill Evolution Loop",
+    )
+    absent = [item for item in required if item.lower() not in text.lower()]
+    if absent:
+        return Result(False, "meta prompt missing constitution markers: " + ", ".join(absent))
+    lines = len(text.splitlines())
+    if not 120 <= lines <= 220:
+        return Result(False, f"meta prompt length must be 120-220 lines, found {lines}")
+    return Result(True)
+
+
+def validate_bootstrap_complete(text: str) -> Result:
+    data, error = _yaml_mapping(text, "bootstrap report")
+    if error:
+        return error
+    required = ("version", "completed", "timestamp", "repository_commit", "entry_point", "rules_loaded",
+                "knowledge_index", "configured_providers", "provider_probes", "episodic_provider_health", "active_state",
+                "resume_state", "degradation")
+    missing = [key for key in required if key not in data]
+    if missing:
+        return Result(False, "bootstrap report missing: " + ", ".join(missing))
+    if data.get("completed") is not True:
+        return Result(False, "bootstrap report is not completed")
+    for key in ("timestamp", "entry_point", "episodic_provider_health", "active_state", "resume_state"):
+        if data.get(key) in (None, "", []):
+            return Result(False, f"bootstrap report {key} cannot be empty")
+    try:
+        timestamp = datetime.fromisoformat(str(data["timestamp"]).replace("Z", "+00:00"))
+        age = datetime.now(timezone.utc) - timestamp.astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        return Result(False, "bootstrap timestamp must be ISO-8601")
+    if age.total_seconds() < -300 or age.total_seconds() > 86400:
+        return Result(False, "bootstrap report is stale for this session/day")
+    if not str(data.get("repository_commit") or "").strip():
+        return Result(False, "bootstrap repository_commit cannot be empty")
+    rules = set(data.get("rules_loaded") or [])
+    required_rules = {"RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
+                      "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"}
+    if not required_rules <= rules:
+        return Result(False, "bootstrap did not load every core rule")
+    index = data.get("knowledge_index") or {}
+    if index.get("status") != "loaded" or not isinstance(index.get("entries"), int):
+        return Result(False, "bootstrap knowledge_index must be loaded with integer entries")
+    configured = set(data.get("configured_providers") or [])
+    probes = data.get("provider_probes")
+    if not isinstance(probes, list):
+        return Result(False, "bootstrap provider_probes must be a list")
+    probed = {item.get("provider_id") for item in probes if isinstance(item, dict)}
+    if configured != probed:
+        return Result(False, "bootstrap must probe every configured provider exactly once")
+    for item in probes:
+        if not item.get("status") or not item.get("evidence"):
+            return Result(False, "bootstrap provider probe requires status and evidence")
+        if item.get("status") != "healthy" and not any(
+            d.get("provider_id") == item.get("provider_id") for d in data.get("degradation") or []
+            if isinstance(d, dict)
+        ):
+            return Result(False, "unhealthy/unprobed provider requires degradation")
+    return Result(True)
+
+
+def validate_context_package(text: str) -> Result:
+    data, error = _yaml_mapping(text, "context package")
+    if error:
+        return error
+    required = ("role", "change_id", "state", "loaded_artifacts", "knowledge_slice",
+                "memory_slice", "source_anchors", "database_slice", "missing_context",
+                "degradation", "confidence", "freshness")
+    missing = [key for key in required if key not in data]
+    if missing:
+        return Result(False, "context package missing: " + ", ".join(missing))
+    if data.get("confidence") not in {"low", "medium", "high"}:
+        return Result(False, "context package confidence must be low/medium/high")
+    freshness = data.get("freshness") or {}
+    if not freshness.get("repository_commit") or not freshness.get("generated_at"):
+        return Result(False, "context package missing repository_commit/generated_at freshness")
+    if data.get("missing_context") and not data.get("degradation"):
+        return Result(False, "missing context requires explicit degradation")
+    return Result(True)
+
+
+def validate_dispatch_kernel(text: str) -> Result:
+    required = (
+        "KERNEL_ID: maika-knowledge-control-v1", "You are an isolated Maika worker.",
+        "Do not rely on parent conversation history.", "current source",
+        "EVIDENCE_UPDATE_REQUEST", "evidence IDs", "write boundaries",
+        "Return structured result only.",
+    )
+    missing = [item for item in required if item.lower() not in text.lower()]
+    return Result(False, "dispatch kernel missing: " + ", ".join(missing)) if missing else Result(True)
+
+
+def validate_knowledge_trace(text: str, valid_evidence_ids=None) -> Result:
+    data, error = _yaml_mapping(text, "Knowledge Trace")
+    if error:
+        return error
+    decision = data.get("decision")
+    if not isinstance(decision, dict):
+        return Result(False, "Knowledge Trace requires decision mapping")
+    required = ("id", "statement", "type", "knowledge_questions", "evidence_ids",
+                "authority", "conflicts", "assumptions", "confidence", "freshness", "verdict")
+    missing = [key for key in required if key not in decision]
+    if missing:
+        return Result(False, "Knowledge Trace missing: " + ", ".join(missing))
+    if not str(decision.get("id") or "").strip() or not str(decision.get("statement") or "").strip():
+        return Result(False, "Knowledge Trace id/statement cannot be empty")
+    decision_type = re.sub(r"[-/\s]+", "_", str(decision.get("type") or "").lower())
+    if decision_type not in _MATERIAL_DECISION_TYPES:
+        return Result(False, "Knowledge Trace has invalid material decision type")
+    if not isinstance(decision.get("knowledge_questions"), list) or not decision["knowledge_questions"]:
+        return Result(False, "Knowledge Trace requires knowledge_questions")
+    if not isinstance(decision.get("evidence_ids"), list) or not decision["evidence_ids"]:
+        return Result(False, "Knowledge Trace material decision requires evidence_ids")
+    if not all(str(item).strip() for item in decision["evidence_ids"]):
+        return Result(False, "Knowledge Trace evidence_ids cannot contain empty values")
+    if valid_evidence_ids is not None and not set(decision["evidence_ids"]) <= set(valid_evidence_ids):
+        return Result(False, "Knowledge Trace cites evidence IDs absent from assigned manifest/capsule")
+    authority = str(decision.get("authority") or "").lower()
+    authority_markers = ("runtime", "database", "current source", "business contract",
+                         "graph", "durable knowledge", "historical memory")
+    if not any(marker in authority for marker in authority_markers):
+        return Result(False, "Knowledge Trace authority is outside canonical hierarchy")
+    if not isinstance(decision.get("conflicts"), list) or not isinstance(decision.get("assumptions"), list):
+        return Result(False, "Knowledge Trace conflicts/assumptions must be lists")
+    if decision.get("confidence") not in {"low", "medium", "high"}:
+        return Result(False, "Knowledge Trace confidence must be low/medium/high")
+    if decision.get("freshness") not in {"fresh", "verified", "degraded"}:
+        return Result(False, "Knowledge Trace freshness must be fresh/verified/degraded")
+    unresolved = [item for item in decision.get("conflicts") or []
+                  if not isinstance(item, dict) or item.get("status") not in {"resolved", "superseded"}]
+    if unresolved:
+        return Result(False, "Knowledge Trace has unresolved conflicts")
+    for assumption in decision.get("assumptions") or []:
+        if not isinstance(assumption, dict) or not all(assumption.get(key) for key in ("statement", "confidence", "expiry")):
+            return Result(False, "Knowledge Trace assumption requires statement/confidence/expiry")
+    if str(decision.get("verdict") or "").lower() not in {"accepted", "approved", "verified"}:
+        return Result(False, "Knowledge Trace verdict is not accepted")
+    if decision.get("confidence") == "low" or decision.get("freshness") == "degraded":
+        return Result(False, "accepted material decision requires non-low, non-degraded evidence")
+    return Result(True)
+
+
+def validate_skill_feedback(text: str) -> Result:
+    data, error = _yaml_mapping(text, "skill feedback")
+    if error:
+        return error
+    if data.get("version") != 1 or not data.get("change_id") or data.get("verified") is not True:
+        return Result(False, "skill feedback requires version 1, change_id and verified: true")
+    observations = data.get("observations")
+    if not isinstance(observations, list):
+        return Result(False, "skill feedback observations must be a list")
+    fields = {"id", "skill", "category", "severity", "statement", "evidence",
+              "recurrence_key", "recommendation"}
+    for item in observations:
+        if not isinstance(item, dict) or fields - set(item):
+            return Result(False, "skill feedback observation missing required fields")
+        if item.get("category") not in {"editorial", "behavioral", "contractual"}:
+            return Result(False, "invalid skill feedback category")
+        if not item.get("evidence"):
+            return Result(False, "skill feedback observation requires evidence")
+    return Result(True)
+
+
+def validate_skill_evolution_candidate(text: str) -> Result:
+    data, error = _yaml_mapping(text, "skill evolution candidate")
+    if error:
+        return error
+    top = {"version", "candidate_id", "target_skill", "status", "classification", "problem",
+           "evidence", "proposed_change", "expected_effect", "compatibility", "validation"}
+    if top - set(data):
+        return Result(False, "skill candidate missing: " + ", ".join(sorted(top - set(data))))
+    if data.get("classification") not in {"editorial", "behavioral", "contractual"}:
+        return Result(False, "invalid skill candidate classification")
+    problem, evidence = data.get("problem") or {}, data.get("evidence") or {}
+    count = int(problem.get("occurrences") or 0)
+    changes = set(evidence.get("changes") or [])
+    if evidence.get("verified") is not True:
+        return Result(False, "skill candidate requires verified evidence")
+    explicit = bool(evidence.get("critical_incident") or evidence.get("user_directive") or
+                    (evidence.get("dogfood_failure") and evidence.get("reproducible")))
+    if not explicit and (count < 3 or len(changes) < 2):
+        return Result(False, "skill candidate recurrence threshold not met")
+    return Result(True)
+
+
+def validate_skill_evolution_review(text: str) -> Result:
+    data, error = _yaml_mapping(text, "skill evolution review")
+    if error:
+        return error
+    required = ("candidate_id", "reviewer", "independent", "guardrails_preserved", "verdict")
+    if any(key not in data for key in required):
+        return Result(False, "skill evolution review missing required fields")
+    if data.get("independent") is not True or data.get("guardrails_preserved") is not True:
+        return Result(False, "skill evolution review must be independent and preserve guardrails")
+    if data.get("verdict") not in {"approved", "rejected"}:
+        return Result(False, "skill evolution review verdict must be approved/rejected")
+    return Result(True)
+
+
+def validate_skill_evolution_promotion(text: str) -> Result:
+    data, error = _yaml_mapping(text, "skill evolution promotion")
+    if error:
+        return error
+    required = ("candidate_id", "classification", "old_version", "new_version",
+                "independent_review", "tests_passed", "dogfood_passed", "human_approval")
+    if any(key not in data for key in required):
+        return Result(False, "skill evolution promotion missing required fields")
+    def version(value):
+        try:
+            return tuple(int(part) for part in str(value).split("."))
+        except ValueError:
+            return ()
+    if not version(data.get("new_version")) > version(data.get("old_version")):
+        return Result(False, "skill version must increase")
+    if data.get("independent_review") != "approved" or data.get("tests_passed") is not True:
+        return Result(False, "promotion requires approved review and regression tests")
+    if data.get("classification") in {"behavioral", "contractual"} and data.get("dogfood_passed") is not True:
+        return Result(False, "behavioral/contractual promotion requires dogfood")
+    if data.get("classification") == "contractual" and data.get("human_approval") is not True:
+        return Result(False, "contractual promotion requires human approval")
     return Result(True)

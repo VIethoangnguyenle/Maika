@@ -22,6 +22,7 @@ SOURCE_MAP = {
     "skills/":              ".maika/skills/",
     "workflows/":           ".maika/workflows/",
     "procedures/":          ".maika/procedures/",
+    "profiles/":            ".maika/profiles/",
     "tools/":               ".maika/tools/",
     "hooks/":               ".maika/hooks/",
     "knowledge-templates/": ".maika/knowledge/templates/",
@@ -393,6 +394,7 @@ def generate_knowledge_index(maika_root: Path, target: Path, framework_root: str
         long_term / "author-dna.yaml",
         long_term / "conventions.yaml",
         snapshot_path=long_term / "knowledge-snapshot.md",
+        project_path=long_term / "project-knowledge",
     )
     header = "# TỰ ĐỘNG TẠO BỞI generate_index.py — KHÔNG CHỈNH SỬA THỦ CÔNG\n"
     (long_term / "knowledge-index.yaml").write_text(

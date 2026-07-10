@@ -16,6 +16,7 @@ READ: {{ platform.framework_root }}/rules/rules-flow.md         ← flow constra
 READ: {{ platform.framework_root }}/rules/rules-tool.md         ← tool permissions
 READ: {{ platform.framework_root }}/rules/rules-exec.md         ← data/arch/cost/obs
 READ: {{ platform.framework_root }}/rules/rules-knowledge.md    ← knowledge lifecycle + path
+READ: {{ platform.framework_root }}/rules/rules-skill-evolution.md ← verified skill learning
 READ: {{ platform.framework_root }}/rules/rules-guard.md        ← pre-invoke guards (đọc SAU cùng)
 ```
 
@@ -160,6 +161,31 @@ Format (Giới hạn dưới 5 dòng):
 📦 Archive: {n} tickets | Token Log: {exists/new}
 ⚠️ {warnings nếu có}
 ```
+
+Đồng thời ghi machine-readable report tại
+`{{ platform.framework_root }}/knowledge/active/BOOTSTRAP_REPORT.yaml`:
+
+```yaml
+version: 1
+completed: true
+timestamp:
+repository_commit:
+entry_point:
+rules_loaded: []
+knowledge_index:
+  status:
+  entries:
+configured_providers: []
+provider_probes: []
+episodic_provider_health:
+active_state:
+resume_state:
+degradation: []
+```
+
+Chạy gate `bootstrap-complete`. Thiếu report, `completed != true`, thiếu bất kỳ core
+rule, chưa probe provider configured, hoặc degradation không được ghi thì **ABORT**.
+Mọi downstream context package và dispatch log phải cite path report này.
 
 > **Bắt buộc sau khi nạp**:
 > - `knowledge-index.yaml` đã nạp → report ghi `🧠 Knowledge-index: loaded — {n entries}`.

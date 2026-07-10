@@ -113,6 +113,12 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/rules/rules-knowledge.md"
 
+  - name: rules-skill-evolution
+    type: rule
+    source: rules/rules-skill-evolution.md
+    template: false
+    output: "{{ platform.framework_root }}/rules/rules-skill-evolution.md"
+
   - name: rules-guard
     type: rule
     source: rules/rules-guard.md
@@ -132,6 +138,12 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/profiles/capability-registry.yaml"
 
+  - name: execution-mode
+    type: profile
+    source: profiles/execution-mode.yaml
+    template: true
+    output: "{{ platform.framework_root }}/profiles/execution-mode.yaml"
+
   # ─── SKILLS ───
   - name: intent-analysis
     type: skill
@@ -146,7 +158,6 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/skills/grounding-explorer/"
     copy_dir: true
-    requires_capability: code_exploration
 
   - name: database-explorer
     type: skill
@@ -272,6 +283,18 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/procedures/context-loader.md"
 
+  - name: decision-gate
+    type: procedure
+    source: procedures/decision-gate.md
+    template: false
+    output: "{{ platform.framework_root }}/procedures/decision-gate.md"
+
+  - name: dispatch-kernel
+    type: procedure
+    source: procedures/dispatch-kernel.md
+    template: false
+    output: "{{ platform.framework_root }}/procedures/dispatch-kernel.md"
+
   - name: context-compressor
     type: procedure
     source: procedures/context-compressor.md
@@ -371,6 +394,20 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/knowledge/templates/"
     copy_dir: true
+
+  - name: knowledge-readme
+    type: knowledge
+    source: .maika/knowledge/README.md
+    template: false
+    output: "{{ platform.framework_root }}/knowledge/README.md"
+
+  - name: skill-evolution-store
+    type: knowledge
+    source: .maika/knowledge/skill-evolution/
+    template: false
+    output: "{{ platform.framework_root }}/knowledge/skill-evolution/"
+    copy_dir: true
+    ownership: user
 
   - name: knowledge-active-skeleton
     type: template

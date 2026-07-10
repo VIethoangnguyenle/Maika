@@ -38,8 +38,18 @@ VALIDATORS = {
     "result-contract": "validate_result_contract",
     "task-review": "validate_task_review",
     "final-review": "validate_final_review",
+    "plan-review": "validate_plan_review",
     "knowledge-impact": "validate_knowledge_impact",
     "verification-report": "validate_verification_report",
+    "meta-prompt-constitution": "validate_meta_prompt_constitution",
+    "bootstrap-complete": "validate_bootstrap_complete",
+    "context-package": "validate_context_package",
+    "dispatch-kernel": "validate_dispatch_kernel",
+    "knowledge-trace": "validate_knowledge_trace",
+    "skill-feedback": "validate_skill_feedback",
+    "skill-evolution-candidate": "validate_skill_evolution_candidate",
+    "skill-evolution-review": "validate_skill_evolution_review",
+    "skill-evolution-promotion": "validate_skill_evolution_promotion",
 }
 
 

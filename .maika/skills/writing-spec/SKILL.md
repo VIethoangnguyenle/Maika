@@ -98,4 +98,8 @@ Ghi assumption + expiry để reviewer/curator theo dõi; không promote knowled
 `SPEC.md` (+ `generated/SPEC_VALIDATION.json` khi gate chạy).
 
 ## Handoff tiếp theo
+
+Mỗi architecture/public contract/business/persistence/security decision trong spec
+phải map tới một canonical `Knowledge Trace`. Evidence reference không thay thế trace;
+gate `knowledge-trace` phải pass trước `SPEC_REVIEW` được approve.
 `writing-plan`.

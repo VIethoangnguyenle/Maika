@@ -115,6 +115,22 @@ New behavior.
 
 ## Evidence References
 - CODE-001
+
+## Knowledge Trace
+```yaml
+decision:
+  id: DEC-SPEC-001
+  statement: Use the verified desired behavior.
+  type: business_behavior
+  knowledge_questions: ["What behavior is required?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
+```
 """
 
 
@@ -122,6 +138,18 @@ def _plan(base_sha, spec_hash, evidence_hash):
     return f"""---
 change_id: demo
 plan_version: 1
+knowledge_trace:
+  id: DEC-PLAN-001
+  statement: Decompose the verified acceptance criteria.
+  type: task_decomposition
+  knowledge_questions: ["What tasks satisfy AC-001?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
 base_commit: {base_sha}
 spec_hash: sha256:{spec_hash}
 evidence_hash: sha256:{evidence_hash}

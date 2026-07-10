@@ -112,7 +112,7 @@ def test_vnext_executing_allows_declared_delete_file(tmp_path):
     assert result.ok is True
 
 
-def test_vnext_executing_allows_writes_inside_change_workspace(tmp_path):
+def test_application_implementer_cannot_rewrite_assigned_brief(tmp_path):
     _setup_vnext_workspace(tmp_path)
 
     result = wg.evaluate_write(
@@ -121,7 +121,8 @@ def test_vnext_executing_allows_writes_inside_change_workspace(tmp_path):
         framework_root=".maika",
     )
 
-    assert result.ok is True
+    assert result.ok is False
+    assert "khai báo" in result.reason
 
 
 def test_no_executing_change_is_rejected(tmp_path):

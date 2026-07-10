@@ -94,4 +94,7 @@ Ghi re-plan triggers + assumption. Task capsule là slice knowledge mang vào ex
 `IMPLEMENTATION_PLAN.md` + trả `READY_FOR_PLAN_REVIEW` hoặc `NEEDS_CONTEXT`.
 
 ## Handoff tiếp theo
+
+Mỗi task decomposition và cross-task dependency là material decision, phải có canonical
+`Knowledge Trace` và evidence IDs. Capsule ghi trace IDs được task consume.
 `validating-plan`.

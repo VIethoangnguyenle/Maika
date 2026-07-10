@@ -220,8 +220,5 @@ def apply_fix(target: Path, home: Path, assume_yes: bool) -> Path | None:
         if answer != "y":
             return None
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists() and destination.read_text(encoding="utf-8").strip():
-        backup = destination.with_name(destination.name + ".bak")
-        shutil.copy2(destination, backup)
     shutil.copy2(source, destination)
     return destination

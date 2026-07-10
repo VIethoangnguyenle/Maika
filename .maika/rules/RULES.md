@@ -33,6 +33,7 @@
 | `rules/rules-tool.md` | Provider Doctrine (preferred provider, use-when-healthy, probe, freshness, degradation) | §3 |
 | `rules/rules-exec.md` | Data, Architecture, Cost, Observability | §4, §5, §7, §8 |
 | `rules/rules-knowledge.md` | Hiến pháp tri thức (nguồn, thẩm quyền, freshness, reconcile, promotion, supersession) | §10 |
+| `rules/rules-skill-evolution.md` | Skill feedback, threshold, classification, poisoning protection, promotion | §12 |
 | `rules/rules-guard.md` | Pre-invoke Guards, R-DNA-7, R-KI-1 | §14 |
 
 > Path Convention: quy ước path knowledge nay ở `knowledge/README.md` (nguồn canonical); `rules-knowledge.md` §10 trỏ về đó.
@@ -47,7 +48,8 @@ READ: rules/rules-flow.md         ← critical: flow constraints
 READ: rules/rules-tool.md         ← tool permissions
 READ: rules/rules-exec.md         ← data/arch/cost/obs
 READ: rules/rules-knowledge.md    ← knowledge lifecycle + path
+READ: rules/rules-skill-evolution.md ← verified skill learning + anti-drift
 READ: rules/rules-guard.md        ← pre-invoke guards (đọc SAU cùng để override)
 ```
 
-**Quan trọng**: Phải đọc đủ 6 file. Thiếu bất kỳ file nào = guardrails không đầy đủ.
+**Quan trọng**: Phải đọc đủ 7 file. Thiếu bất kỳ file nào = guardrails không đầy đủ.

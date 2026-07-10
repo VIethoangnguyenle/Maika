@@ -2,6 +2,7 @@
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -17,6 +18,17 @@ def _target(tmp_path):
     tool.mkdir(parents=True)
     profiles.mkdir(parents=True)
     (profiles / "execution-mode.yaml").write_text("workflow_engine: vnext\n", encoding="utf-8")
+    active = fw / "knowledge" / "active"
+    active.mkdir(parents=True)
+    (active / "BOOTSTRAP_REPORT.yaml").write_text(yaml.safe_dump({
+        "version": 1, "completed": True, "timestamp": datetime.now(timezone.utc).isoformat(), "repository_commit": "unavailable",
+        "entry_point": "AGENTS.md",
+        "rules_loaded": ["RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
+                         "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"],
+        "knowledge_index": {"status": "loaded", "entries": 1}, "configured_providers": [], "provider_probes": [],
+        "episodic_provider_health": "not-configured", "active_state": "empty",
+        "resume_state": "new", "degradation": [],
+    }, sort_keys=False), encoding="utf-8")
     (fw / "resolved-config.yaml").write_text(
         "resolved:\n"
         "  platform: generic\n"
@@ -108,6 +120,15 @@ def test_task_reconcile_and_brainstorm_transition_states(tmp_path):
     run_task("start", target_dir=str(root), change_id="demo", title="Demo")
     state_path = root / ".maika" / "changes" / "demo" / "STATE.yaml"
     state_path.write_text("change_id: demo\nstate: RECONCILING\n", encoding="utf-8")
+    (state_path.parent / "RECONCILIATION.md").write_text(
+        "# Reconciliation\n\n## Knowledge Trace\n```yaml\ndecision:\n"
+        "  id: DEC-REC-001\n  statement: Resolve current evidence.\n"
+        "  type: architecture\n  knowledge_questions: [\"What does source prove?\"]\n"
+        "  evidence_ids: [CODE-001]\n  authority: current source\n"
+        "  conflicts: []\n  assumptions: []\n  confidence: high\n"
+        "  freshness: fresh\n  verdict: accepted\n```\n",
+        encoding="utf-8",
+    )
 
     assert run_task("reconcile", target_dir=str(root), change_id="demo") == 0
     assert yaml.safe_load(state_path.read_text(encoding="utf-8"))["state"] == "BRAINSTORMING"
@@ -257,6 +278,17 @@ def test_task_archive_requires_knowledge_impact(tmp_path, capsys):
 
     assert code == 1
     assert "KNOWLEDGE_IMPACT.yaml" in capsys.readouterr().out
+
+
+def test_task_archive_requires_verified_skill_feedback(tmp_path, capsys):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    ws = _complete_workspace(root)
+    assert run_task("verify", target_dir=str(root), change_id="demo") == 0
+    (ws / "reviews" / "SKILL_FEEDBACK.yaml").unlink()
+
+    assert run_task("archive", target_dir=str(root), change_id="demo") == 1
+    assert "SKILL_FEEDBACK.yaml" in capsys.readouterr().out
 
 
 def test_task_archive_requires_completed_workspace(tmp_path, capsys):

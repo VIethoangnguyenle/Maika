@@ -2,10 +2,34 @@
 """Engine loop vNext: dispatch pending tasks to fresh workers."""
 import json
 import importlib.util
+import hashlib
 from pathlib import Path
+from datetime import datetime, timezone
+
+import yaml
 
 
-DISPATCH_TYPES = {"planning", "implementation", "fix", "task_review", "final_review"}
+DISPATCH_KERNEL_ID = "KERNEL_ID: maika-knowledge-control-v1"
+DISPATCH_TYPES = {
+    "intent", "grounding", "reconciliation", "brainstorming", "spec", "planning",
+    "plan_review", "implementation", "fix", "task_review", "final_review",
+    "verification", "knowledge_curator", "skill_evolution_curator",
+    "skill_evolution_implementer", "skill_evolution_reviewer",
+}
+
+
+def _dispatch_kernel():
+    """Load the one canonical worker constitution; never duplicate prompt prose."""
+    path = Path(__file__).resolve().parents[2] / "procedures" / "dispatch-kernel.md"
+    text = path.read_text(encoding="utf-8")
+    if DISPATCH_KERNEL_ID not in text:
+        raise RuntimeError(f"invalid dispatch kernel: {path}")
+    marker = "```text\n"
+    start = text.find(marker)
+    end = text.find("\n```", start + len(marker))
+    if start < 0 or end < 0:
+        raise RuntimeError(f"dispatch kernel has no canonical text block: {path}")
+    return text[start + len(marker):end].strip()
 
 
 def _load(name, rel):
@@ -88,6 +112,9 @@ def build_prompt(klass, ws, brief_rel, result_rel, extra=None, task=None):
     task_id = task.get("id", "stub")
     allowed = json.dumps(task.get("files") or {}, ensure_ascii=False, sort_keys=True)
     dependencies = json.dumps(task.get("depends_on") or [], ensure_ascii=False)
+    capsule = task.get("capsule_path") or "none"
+    context_package = task.get("context_package_path") or "none"
+    prior_review = task.get("review_path") or "none"
     lines = [
         f"DISPATCH_TYPE: {klass}",
         f"ROLE: {klass}",
@@ -97,9 +124,16 @@ def build_prompt(klass, ws, brief_rel, result_rel, extra=None, task=None):
         f"OUTPUT_FILE: {ws / result_rel}",
         f"ALLOWED_SCOPE: {allowed}",
         f"DEPENDENCY_OUTPUTS: {dependencies}",
+        f"KNOWLEDGE_CAPSULE: {ws / capsule if capsule != 'none' else capsule}",
+        f"CONTEXT_PACKAGE: {ws / context_package if context_package != 'none' else context_package}",
+        f"PRIOR_REVIEW: {ws / prior_review if prior_review != 'none' else prior_review}",
+        DISPATCH_KERNEL_ID,
         "",
-        "Read exactly the artifact path above and write exactly the output file.",
-        "Do not rely on parent-session history. Do not write outside allowed scope.",
+        _dispatch_kernel(),
+        "",
+        "Read exactly the assigned artifacts above and write exactly the output file.",
+        "For implementation/review, read KNOWLEDGE_CAPSULE and record consumed IDs.",
+        "Do not write outside ALLOWED_SCOPE.",
     ]
     if extra:
         lines.extend(["", str(extra)])
@@ -107,7 +141,7 @@ def build_prompt(klass, ws, brief_rel, result_rel, extra=None, task=None):
 
 def review_plan(ws, runner, output_path=None):
     ws = Path(ws)
-    prompt = build_prompt("planning", ws, "IMPLEMENTATION_PLAN.md", "reviews/plan-review.md")
+    prompt = build_prompt("plan_review", ws, "IMPLEMENTATION_PLAN.md", "reviews/plan-review.md")
     (ws / "reviews").mkdir(exist_ok=True)
     out = output_path or (ws / "reviews" / "plan-review.md")
     if out.exists():
@@ -118,7 +152,13 @@ def review_plan(ws, runner, output_path=None):
         out.write_text(f"VERDICT: FINDINGS\nWorker exit {exit_code}: {output}", encoding="utf-8")
         
     text = out.read_text(encoding="utf-8")
-    if text.startswith("VERDICT: APPROVED"):
+    gates = _load("gates_plan_review", "gate-check/gates.py")
+    queue = _read_queue(ws)
+    evidence_ids = {item for task in queue.get("tasks") or [] for item in task.get("evidence_ids") or []}
+    review = gates.validate_plan_review(
+        text, valid_evidence_ids=evidence_ids, repo_root=queue.get("repo_root")
+    )
+    if review.ok and _verdict(text) == "APPROVED":
         return "APPROVED"
     return "FINDINGS"
 
@@ -132,6 +172,8 @@ def _dispatch_to_runner(ws, dispatch_type, task, artifact_rel, output_rel, runne
         "artifact_path": artifact_rel,
         "output_path": output_rel,
         "attempt": attempt,
+        "kernel_id": DISPATCH_KERNEL_ID.split(": ", 1)[1],
+        "capsule_path": task.get("capsule_path") if task else None,
     })
     return runner(prompt)
 
@@ -153,12 +195,25 @@ def _validate_brief(ws, gates, task, queue_doc):
         if not cap_file.exists():
             return gates.Result(False, f"missing capsule: {capsule_path}")
         ev = Path(ws) / "exploration" / "EVIDENCE_MANIFEST.yaml"
-        return gates.validate_capsule_integrity(
+        capsule_result = gates.validate_capsule_integrity(
             cap_file.read_text(encoding="utf-8"),
             queue_doc=queue_doc,
             task_id=task["id"],
             evidence_manifest_text=ev.read_text(encoding="utf-8") if ev.exists() else None,
         )
+        if not capsule_result.ok:
+            return capsule_result
+        context_rel = task.get("context_package_path")
+        if not context_rel:
+            return gates.Result(False, "missing context_package_path")
+        context_file = Path(ws) / context_rel
+        if not context_file.exists():
+            return gates.Result(False, f"missing context package: {context_rel}")
+        import hashlib
+        observed = hashlib.sha256(context_file.read_text(encoding="utf-8").encode("utf-8")).hexdigest()
+        if observed != task.get("context_package_hash"):
+            return gates.Result(False, "context package hash mismatch")
+        return gates.validate_context_package(context_file.read_text(encoding="utf-8"))
     return brief
 
 
@@ -177,12 +232,22 @@ def _run_implementation_or_fix(ws, gates, task, runner, max_retries, dispatch_ty
 
         if result_path.exists():
             result_path.unlink()
+        update_path = result_path.with_name(f"{task_id}.EVIDENCE_UPDATE_REQUEST.yaml")
+        if update_path.exists():
+            update_path.unlink()
         _update_task(ws, task_id, status="in_progress", attempts=attempt)
         exit_code, output = _dispatch_to_runner(
             ws, dispatch_type, current, current["brief_path"], current["result_path"],
             runner, attempt=attempt,
         )
-        if exit_code != 0:
+        if update_path.exists():
+            request = gates.validate_evidence_update_request(update_path.read_text(encoding="utf-8"))
+            if request.ok:
+                _update_task(ws, task_id, status="blocked", blocked_reason="EVIDENCE_UPDATE_REQUEST",
+                             evidence_update_request=str(update_path.relative_to(ws)))
+                return {"status": "blocked", "reason": "EVIDENCE_UPDATE_REQUEST", "attempt": attempt}
+            last_reason = request.reason
+        elif exit_code != 0:
             last_reason = f"{dispatch_type} exit {exit_code}: {output}"
         elif not result_path.exists():
             last_reason = f"{dispatch_type} exit 0 but did not write {current['result_path']}"
@@ -272,7 +337,42 @@ def _run_final_review(ws, gates, runner):
     review_path = Path(ws) / review_rel
     if review_path.exists():
         review_path.unlink()
-    task = {"id": "FINAL_REVIEW", "files": {}, "depends_on": []}
+    queue_doc = _read_queue(ws)
+    loaded = ["generated/TASK_QUEUE.json"]
+    knowledge_slice, source_anchors = [], []
+    for queued in queue_doc.get("tasks") or []:
+        loaded.extend([queued.get("brief_path"), queued.get("capsule_path"),
+                       queued.get("result_path"), queued.get("review_path")])
+        capsule_path = Path(ws) / queued["capsule_path"]
+        capsule = yaml.safe_load(capsule_path.read_text(encoding="utf-8")) or {}
+        knowledge_slice.extend(capsule.get("project_knowledge") or [])
+        source_anchors.extend((capsule.get("knowledge_slice") or {}).get("code_evidence") or [])
+    package = {
+        "version": 1, "role": "reviewer", "change_id": queue_doc.get("change_id"),
+        "state": "FINAL_REVIEW", "loaded_artifacts": [item for item in loaded if item],
+        "knowledge_slice": knowledge_slice, "memory_slice": [],
+        "source_anchors": source_anchors, "database_slice": [],
+        "missing_context": [], "degradation": [], "confidence": "high",
+        "freshness": {"repository_commit": (yaml.safe_load(
+            (Path(ws) / "briefs" / f"{queue_doc['tasks'][0]['id']}.knowledge.yaml")
+            .read_text(encoding="utf-8")) or {}).get("freshness", {}).get("repository_commit"),
+                      "generated_at": datetime.fromtimestamp(
+                          (Path(ws) / "generated" / "TASK_QUEUE.json").stat().st_mtime,
+                          timezone.utc,
+                      ).isoformat()},
+    }
+    context_rel = "generated/CONTEXT_PACKAGE.final-review.yaml"
+    context_path = Path(ws) / context_rel
+    context_text = yaml.safe_dump(package, sort_keys=False, allow_unicode=True)
+    context_path.write_text(context_text, encoding="utf-8")
+    context_gate = gates.validate_context_package(context_text)
+    if not context_gate.ok:
+        return {"status": "blocked", "reason": context_gate.reason}
+    task = {
+        "id": "FINAL_REVIEW", "files": {}, "depends_on": [],
+        "context_package_path": context_rel,
+        "context_package_hash": hashlib.sha256(context_text.encode("utf-8")).hexdigest(),
+    }
     exit_code, output = _dispatch_to_runner(
         ws, "final_review", task, "generated/TASK_QUEUE.json", review_rel, runner,
     )
@@ -280,7 +380,6 @@ def _run_final_review(ws, gates, runner):
         return {"status": "blocked", "reason": f"final_review exit {exit_code}: {output}"}
     if not review_path.exists():
         return {"status": "blocked", "reason": f"final_review exit 0 but did not write {review_rel}"}
-    queue_doc = _read_queue(ws)
     final = gates.validate_final_review(
         review_path.read_text(encoding="utf-8"),
         queue_doc=queue_doc,

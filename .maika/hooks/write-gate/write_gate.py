@@ -392,6 +392,41 @@ def _is_framework_artifact(path: Path, framework_root: str) -> bool:
     )
 
 
+def _framework_role_allows(rel: str, framework_root: str, ws: Path, task: dict,
+                           project_root: Path) -> bool:
+    role = task.get("role") or "application-implementer"
+    ws_rel = ws.relative_to(project_root).as_posix()
+    result_rel = task.get("result_path")
+    if role == "application-implementer":
+        return bool(result_rel and rel == f"{ws_rel}/{result_rel}")
+    if role == "planner":
+        return rel == f"{ws_rel}/IMPLEMENTATION_PLAN.md"
+    if role in {"reviewer", "skill-evolution-reviewer"}:
+        return rel.startswith(f"{ws_rel}/reviews/")
+    if role == "knowledge-curator":
+        return rel.startswith((f"{framework_root}/knowledge/", f"{framework_root}/archive/"))
+    if role == "skill-evolution-curator":
+        return rel.startswith(f"{framework_root}/knowledge/skill-evolution/candidates/")
+    if role == "skill-evolution-implementer":
+        candidate_id = task.get("candidate_id")
+        if not candidate_id:
+            return False
+        candidate_path = project_root / framework_root / "knowledge" / "skill-evolution" / "candidates" / f"{candidate_id}.yaml"
+        try:
+            candidate = yaml.safe_load(candidate_path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            return False
+        target_skill = candidate.get("target_skill")
+        if not target_skill or task.get("target_skill") != target_skill:
+            return False
+        if rel.startswith(f"{framework_root}/skills/{target_skill}/"):
+            return True
+        return rel in set(task.get("approved_reference_paths") or [])
+    if role == "orchestrator":
+        return rel == f"{ws_rel}/STATE.yaml" or rel.startswith(f"{ws_rel}/generated/")
+    return False
+
+
 def _is_documentation(path: Path) -> bool:
     """Documentation/understanding artifacts are not application code, so they
     are exempt from the knowledge-before-code gate (a .md file can never be a
@@ -461,9 +496,15 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
     if not target_path.as_posix():
         return Decision(False, "Unable to identify target path for write-gate payload")
     policy_path = _policy_path(project_root, target_path)
-    if _is_framework_artifact(policy_path, framework_root):
+    rel = policy_path.as_posix()
+    bootstrap_outputs = {
+        f"{framework_root}/knowledge/active/BOOTSTRAP_REPORT.yaml",
+        f"{framework_root}/knowledge/active/AGENT_TRANSPARENCY.md",
+    }
+    if rel in bootstrap_outputs:
         return Decision(True)
-    if _is_documentation(policy_path):
+    is_framework = _is_framework_artifact(policy_path, framework_root)
+    if _is_documentation(policy_path) and not is_framework:
         return Decision(True)
 
     session_result = check_session_gate(project_root, framework_root, session_identity)
@@ -477,8 +518,19 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
     allowed = set()
     for key in ("create", "modify", "delete", "test"):
         allowed.update((task.get("files") or {}).get(key, []) or [])
-    rel = policy_path.relative_to(project_root).as_posix() if policy_path.is_absolute() else policy_path.as_posix()
-    if rel in allowed or _is_same_or_child(rel, ws.relative_to(project_root).as_posix()):
+    rel = policy_path.relative_to(project_root).as_posix() if policy_path.is_absolute() else rel
+    if is_framework:
+        ws_rel = ws.relative_to(project_root).as_posix()
+        result_rel = task.get("result_path")
+        declared = rel in allowed or (result_rel and rel == f"{ws_rel}/{result_rel}")
+        if not declared:
+            return Decision(False, f"role {task.get('role') or 'application-implementer'} không khai báo target {rel}")
+        if _framework_role_allows(rel, framework_root, ws, task, project_root):
+            return Decision(True)
+        return Decision(False, f"role {task.get('role') or 'application-implementer'} không có quyền ghi {rel}")
+    ws_rel = ws.relative_to(project_root).as_posix()
+    result_rel = task.get("result_path")
+    if rel in allowed or (result_rel and rel == f"{ws_rel}/{result_rel}"):
         return Decision(True)
     return Decision(False, f"vNext brief-scope: {rel} ngoài files khai báo của {task['id']}")
 
@@ -530,8 +582,16 @@ def main(argv=None, stdin_text=None):
         targets = [t for t in targets if not _git_ignored(root, _policy_path(root, t))]
         if not targets:
             if unresolved:
-                _warn("write-gate: shell write with unresolved path — allowed (heuristic).")
-            decision = Decision(True)
+                command = _command_text(payload)
+                active = _vnext_active_task(root, args.framework_root)
+                framework_hint = args.framework_root in command
+                if active[0] != "deny" or framework_hint:
+                    decision = Decision(False, "write-gate: unresolved dynamic write fails closed")
+                else:
+                    _warn("write-gate: shell write with unresolved path outside implementation — allowed.")
+                    decision = Decision(True)
+            else:
+                decision = Decision(True)
         else:
             decisions = [
                 evaluate_write(root, target, framework_root=args.framework_root,

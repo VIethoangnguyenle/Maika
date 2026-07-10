@@ -4,6 +4,21 @@ import sys
 from pathlib import Path
 import yaml
 import pytest
+from datetime import datetime, timezone
+
+
+def _write_bootstrap(framework_root):
+    path = Path(framework_root) / "knowledge" / "active" / "BOOTSTRAP_REPORT.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump({
+        "version": 1, "completed": True, "timestamp": datetime.now(timezone.utc).isoformat(), "repository_commit": "unavailable",
+        "entry_point": "AGENTS.md",
+        "rules_loaded": ["RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
+                         "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"],
+        "knowledge_index": {"status": "loaded", "entries": 1},
+        "configured_providers": [], "provider_probes": [], "episodic_provider_health": "not-configured",
+        "active_state": "empty", "resume_state": "new", "degradation": [],
+    }, sort_keys=False), encoding="utf-8")
 
 
 def _write_valid_reasoning(ws, repo_root):
@@ -70,6 +85,28 @@ def _write_valid_reasoning(ws, repo_root):
             }],
         }, sort_keys=False),
         encoding="utf-8",
+    )
+    (ws / "exploration" / "QUERY_PLAN.yaml").write_text(yaml.safe_dump({
+        "version": 1, "change_id": "demo", "questions": [{
+            "id": "Q-1", "question": "What exact behavior exists?",
+            "required_capabilities": ["exact_source_inspection"],
+            "required_evidence_types": ["exact_code_fact"], "status": "answered",
+        }],
+    }, sort_keys=False), encoding="utf-8")
+    (ws / "exploration" / "TOOL_HEALTH.yaml").write_text(yaml.safe_dump({
+        "version": 1, "providers": {
+            "current-source": {"status": "ready", "probe": {"operation": "read src/demo_mod.py", "observed": "demo_func"}, "freshness": "current HEAD"},
+            "agent-memory": {"status": "unavailable", "degradation": {"reason": "not configured", "fallback": "negative recall"}},
+        },
+    }, sort_keys=False), encoding="utf-8")
+    (ws / "exploration" / "CONFLICTS.yaml").write_text("version: 1\nconflicts: []\n", encoding="utf-8")
+    (ws / "exploration" / "COVERAGE.yaml").write_text(
+        "version: 1\nquestions: {total: 1, answered: 1, blocked: 0}\n"
+        "required_evidence: {covered: [exact_code_fact], missing: []}\nverdict: READY\n",
+        encoding="utf-8",
+    )
+    (ws / "exploration" / "MEMORY_RECALL.md").write_text(
+        "agent-memory unavailable — skip recall/save\n", encoding="utf-8"
     )
 
 
@@ -147,6 +184,22 @@ Use pytest.
 
 ## Evidence References
 - CODE-001
+
+## Knowledge Trace
+```yaml
+decision:
+  id: DEC-SPEC-001
+  statement: Validate the W2 behavior.
+  type: business_behavior
+  knowledge_questions: ["What behavior is required?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
+```
 """, encoding="utf-8")
 
 
@@ -154,6 +207,7 @@ def test_vnext_cli_e2e(tmp_path):
     # Setup fixture
     fw_root = tmp_path / ".maika"
     fw_root.mkdir()
+    _write_bootstrap(fw_root)
     prof = fw_root / "profiles"
     prof.mkdir()
     # Python script to mock the worker
@@ -187,6 +241,18 @@ with open(out_path, 'w') as f:
     plan_text = f"""---
 change_id: demo
 plan_version: 1
+knowledge_trace:
+  id: DEC-PLAN-001
+  statement: Decompose the verified change.
+  type: task_decomposition
+  knowledge_questions: ["What tasks are required?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
 base_commit: deadbeef
 spec_hash: sha256:{spec_sha}
 evidence_hash: sha256:{evidence_sha}
@@ -245,6 +311,7 @@ Body
 def test_vnext_reasoning_and_spec_validation_commands(tmp_path):
     fw_root = tmp_path / ".maika"
     fw_root.mkdir()
+    _write_bootstrap(fw_root)
     prof = fw_root / "profiles"
     prof.mkdir()
     (prof / "execution-mode.yaml").write_text("workflow_engine: vnext\n", encoding="utf-8")
@@ -283,6 +350,7 @@ def test_vnext_reasoning_and_spec_validation_commands(tmp_path):
 def test_standard_change_cannot_compile_from_intake_without_reasoning(tmp_path):
     fw_root = tmp_path / ".maika"
     fw_root.mkdir()
+    _write_bootstrap(fw_root)
     prof = fw_root / "profiles"
     prof.mkdir()
     (prof / "execution-mode.yaml").write_text("workflow_engine: vnext\n", encoding="utf-8")
@@ -320,6 +388,27 @@ def test_refuse_legacy(tmp_path):
     res = subprocess.run(cmd + ["vnext-init", "--changes-root", str(ch_root), "--id", "demo", "--class", "small", "--title", "t"], capture_output=True, text=True)
     assert res.returncode == 2
     assert "Refused" in res.stdout
+
+
+def test_runtime_blocks_reasoning_before_bootstrap_complete(tmp_path):
+    fw_root = tmp_path / ".maika"
+    (fw_root / "profiles").mkdir(parents=True)
+    (fw_root / "profiles" / "execution-mode.yaml").write_text("workflow_engine: vnext\n")
+    changes = fw_root / "changes"
+    changes.mkdir()
+    orch = Path(__file__).resolve().parents[1] / "orchestrator.py"
+    cmd = [sys.executable, str(orch)]
+    assert subprocess.run(
+        cmd + ["vnext-init", "--changes-root", str(changes), "--id", "demo",
+               "--class", "small", "--title", "t"], capture_output=True, text=True,
+    ).returncode == 0
+    ws = changes / "demo"
+    result = subprocess.run(
+        cmd + ["vnext-validate-reasoning", "--workspace", str(ws),
+               "--repo-root", str(tmp_path)], capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert "bootstrap-complete" in result.stdout
 
 
 def test_orchestrator_exposes_only_vnext_commands():

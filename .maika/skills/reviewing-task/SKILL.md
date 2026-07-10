@@ -84,4 +84,7 @@ Finding lặp lại (recurring review pattern) được ghi để curator lưu v
 `reviews/TASK-NNN.md` với verdict `APPROVED` hoặc `CHANGES_REQUIRED`.
 
 ## Handoff tiếp theo
+
+Review phải tìm counter-evidence và ghi canonical `Knowledge Trace` cho verdict material;
+trace cite source hiện tại, capsule IDs, conflict/assumption/freshness và confidence.
 Fix dispatch cho finding, hoặc orchestrator queue completion.

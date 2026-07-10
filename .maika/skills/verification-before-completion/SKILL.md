@@ -87,4 +87,7 @@ Xác nhận evidence để `knowledge-curator` promote; đánh dấu graph/index
 `verification/COMMANDS.yaml`, `verification/VERIFICATION_REPORT.md` + verdict.
 
 ## Handoff tiếp theo
+
+Mỗi verification claim là material decision và phải emit canonical `Knowledge Trace`
+trỏ tới command/test/runtime evidence mới chạy, freshness `verified` và verdict rõ ràng.
 `knowledge-curator` và archive.

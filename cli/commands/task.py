@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import importlib.util
+import shlex
 import shutil
 import subprocess
 import sys
@@ -11,7 +13,13 @@ from pathlib import Path
 
 import yaml
 
-from cli.scaffold import generate_knowledge_index, load_resolved_config
+from cli.scaffold import load_resolved_config
+from cli.provider_actions import build_learning_executors
+from cli.knowledge_control import (
+    apply_project_learning,
+    validate_markdown_knowledge_trace,
+    validate_skill_feedback,
+)
 
 
 COMMAND_MAP = {
@@ -42,8 +50,22 @@ def _orchestrator(target: Path, framework_root: str) -> Path:
     return target / framework_root / "tools" / "microloop-orchestrator" / "orchestrator.py"
 
 
-def _maika_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+def _bootstrap_ready(target: Path, framework_root: str) -> tuple[bool, str]:
+    report = target / framework_root / "knowledge" / "active" / "BOOTSTRAP_REPORT.yaml"
+    if not report.exists():
+        return False, "missing knowledge/active/BOOTSTRAP_REPORT.yaml"
+    candidates = [
+        target / framework_root / "tools" / "gate-check" / "gates.py",
+        Path(__file__).resolve().parents[2] / ".maika" / "tools" / "gate-check" / "gates.py",
+    ]
+    module_path = next((path for path in candidates if path.exists()), None)
+    if module_path is None:
+        return False, "bootstrap-complete validator unavailable"
+    spec = importlib.util.spec_from_file_location("maika_bootstrap_gate", module_path)
+    gates = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gates)
+    result = gates.validate_bootstrap_complete(report.read_text(encoding="utf-8"))
+    return result.ok, result.reason
 
 
 def _now() -> str:
@@ -138,6 +160,8 @@ def _run_declared_commands(target: Path, declared: list) -> list[dict]:
             continue
         name = item.get("name") or command
         expected = str(item.get("expected", ""))
+        if command.startswith("python ") and shutil.which("python") is None:
+            command = shlex.quote(sys.executable) + command[len("python"):]
         try:
             proc = subprocess.run(command, cwd=str(target), shell=True,
                                   capture_output=True, text=True, timeout=600)
@@ -158,20 +182,13 @@ def _run_declared_commands(target: Path, declared: list) -> list[dict]:
     return records
 
 
-def _apply_knowledge_lifecycle(ws: Path) -> dict:
-    """Turn reviews/KNOWLEDGE_IMPACT.yaml into recorded lifecycle actions:
-    promote candidates, supersede/invalidate stale entries, save episodic memory,
-    request graph refresh. Actions are recorded in the archive manifest so the
-    curator's promote/supersede/save/refresh is auditable."""
-    ki_path = ws / "reviews" / "KNOWLEDGE_IMPACT.yaml"
-    ki = _load_yaml(ki_path) if ki_path.exists() else {}
-    return {
-        "promoted": ki.get("new_candidates") or [],
-        "superseded": ki.get("superseded_decisions") or [],
-        "stale_invalidated": ki.get("stale_entries") or [],
-        "memory_saved": ki.get("memory_updates") or [],
-        "graph_refresh_requested": bool(ki.get("graph_refresh_required")),
-    }
+def _apply_knowledge_lifecycle(target: Path, framework_root: str, ws: Path) -> dict:
+    """Execute verified learning actions; provider absence becomes explicit outbox."""
+    memory_saver, graph_refresher = build_learning_executors(target, framework_root)
+    return apply_project_learning(
+        target, framework_root, ws,
+        memory_saver=memory_saver, graph_refresher=graph_refresher,
+    )
 
 
 _DEAD_REFERENCE_PATTERNS = (
@@ -241,6 +258,27 @@ def _write_verification(ws: Path, change_id: str, commands: list[dict], verdict:
             f"- {record['name']}: {record['interpretation']}",
             f"  observed: {record['observed_output']}",
         ])
+    evidence_ids = [record["name"] for record in commands]
+    lines.extend([
+        "",
+        "## Knowledge Trace",
+        "```yaml",
+        "decision:",
+        f"  id: DEC-VERIFY-{change_id}",
+        f"  statement: Verification result is {verdict}.",
+        "  type: verification_claim",
+        "  knowledge_questions:",
+        "    - Do fresh commands and reviews prove the completion claim?",
+        "  evidence_ids:",
+        *[f"    - {item}" for item in evidence_ids],
+        "  authority: live runtime/test evidence",
+        "  conflicts: []",
+        "  assumptions: []",
+        "  confidence: high",
+        "  freshness: verified",
+        "  verdict: verified",
+        "```",
+    ])
     (verification / "VERIFICATION_REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -306,6 +344,25 @@ def _verify(target: Path, framework_root: str, change_id: str) -> int:
             print("Refused: a declared verification command failed")
             return 1
 
+    skill_feedback = ws / "reviews" / "SKILL_FEEDBACK.yaml"
+    if skill_feedback.exists():
+        feedback = _load_yaml(skill_feedback)
+        feedback["change_id"] = change_id
+        feedback["verified"] = True
+    else:
+        feedback = {"version": 1, "change_id": change_id, "verified": True, "observations": []}
+    _write_yaml(skill_feedback, feedback)
+    feedback_gate = validate_skill_feedback(skill_feedback.read_text(encoding="utf-8"))
+    commands.append(_command_record(
+        "skill-feedback", "valid verified SKILL_FEEDBACK.yaml",
+        "valid" if feedback_gate.ok else feedback_gate.reason,
+        0 if feedback_gate.ok else 1,
+    ))
+    if not feedback_gate.ok:
+        _write_verification(ws, change_id, commands, "FAILED_VERIFICATION", declared)
+        print("Refused: SKILL_FEEDBACK.yaml failed skill-feedback gate")
+        return 1
+
     _write_verification(ws, change_id, commands, "VERIFIED", declared)
     _write_state(ws, state, "COMPLETED")
     print(f"Verified {change_id}")
@@ -337,6 +394,15 @@ def _archive(target: Path, framework_root: str, change_id: str) -> int:
         print(f"Refused: KNOWLEDGE_IMPACT.yaml missing lanes: {', '.join(missing_lanes)}")
         return 1
 
+    feedback_path = ws / "reviews" / "SKILL_FEEDBACK.yaml"
+    if not feedback_path.exists():
+        print("Refused: archive requires reviews/SKILL_FEEDBACK.yaml")
+        return 1
+    feedback_gate = validate_skill_feedback(feedback_path.read_text(encoding="utf-8"))
+    if not feedback_gate.ok:
+        print(f"Refused: SKILL_FEEDBACK.yaml failed skill-feedback gate: {feedback_gate.reason}")
+        return 1
+
     dest = _archive_workspace(target, framework_root, change_id)
     if dest.exists():
         print(f"Refused: archive destination already exists: {dest}")
@@ -344,14 +410,18 @@ def _archive(target: Path, framework_root: str, change_id: str) -> int:
 
     long_term = target / framework_root / "knowledge" / "long-term"
     long_term.mkdir(parents=True, exist_ok=True)
-    generate_knowledge_index(_maika_root(), target, framework_root)
-    lifecycle = _apply_knowledge_lifecycle(ws)
+    try:
+        lifecycle = _apply_knowledge_lifecycle(target, framework_root, ws)
+    except ValueError as exc:
+        print(f"Refused: knowledge lifecycle failed: {exc}")
+        return 1
     _write_yaml(ws / "ARCHIVE_MANIFEST.yaml", {
         "change_id": change_id,
         "archived_at": _now(),
         "source_state": "COMPLETED",
         "verification_report": "verification/VERIFICATION_REPORT.md",
         "knowledge_index": "knowledge/long-term/knowledge-index.yaml",
+        "knowledge_index_sha256": lifecycle["knowledge_index_sha256"],
         "knowledge_lifecycle": lifecycle,
     })
     _write_state(ws, state, "ARCHIVED")
@@ -373,6 +443,14 @@ def _transition(
     if state.get("state") != expected:
         print(f"Refused: wrong state {state.get('state')} (expected {expected})")
         return 1
+    if expected == "RECONCILING":
+        reconciliation = ws / "RECONCILIATION.md"
+        trace = validate_markdown_knowledge_trace(
+            reconciliation.read_text(encoding="utf-8") if reconciliation.exists() else ""
+        )
+        if not trace.ok:
+            print(f"Refused: reconciliation Knowledge Trace failed: {trace.reason}")
+            return 1
     state.update(state=new_state, updated_at=datetime.now(timezone.utc).isoformat(), blocked=None)
     state_path.write_text(yaml.safe_dump(state, sort_keys=False, allow_unicode=True), encoding="utf-8")
     print(f"{change_id}: {expected} -> {new_state}")
@@ -396,6 +474,11 @@ def run_task(
             print("task cancel requires --id")
             return 2
         return _cancel(target, framework_root, change_id)
+    if action != "start":
+        ready, reason = _bootstrap_ready(target, framework_root)
+        if not ready:
+            print(f"Refused: bootstrap-complete failed: {reason}")
+            return 1
     if action == "reconcile":
         if not change_id:
             print("task reconcile requires --id")
