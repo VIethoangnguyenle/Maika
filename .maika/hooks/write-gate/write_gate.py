@@ -488,6 +488,56 @@ def _validate_implementation_context(project_root: Path, policy_path: Path, fram
     return Decision(False, "Invalid implementation context before code write: " + "; ".join(invalid_reasons))
 
 
+def _read_json(path: Path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _vnext_active_task(project_root: Path, framework_root: str):
+    framework_path = project_root / framework_root
+    config_path = framework_path / "profiles" / "execution-mode.yaml"
+    try:
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return None
+    if (config or {}).get("workflow_engine", "legacy") != "vnext":
+        return None
+
+    executing = []
+    for state_path in sorted((framework_path / "changes").glob("*/STATE.yaml")):
+        try:
+            state = yaml.safe_load(state_path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        if state.get("state") == "EXECUTING":
+            executing.append(state_path.parent)
+    if not executing:
+        return None
+    if len(executing) != 1:
+        return ("deny", "có nhiều change EXECUTING")
+
+    ws = executing[0]
+    gen = ws / "generated"
+    try:
+        validation = _read_json(gen / "PLAN_VALIDATION.json")
+    except (OSError, json.JSONDecodeError):
+        return ("deny", "không đọc được generated/PLAN_VALIDATION.json")
+    if validation.get("verdict") != "APPROVED":
+        return ("deny", "generated/PLAN_VALIDATION.json verdict != APPROVED")
+
+    try:
+        manifest = _read_json(gen / "PLAN_MANIFEST.json")
+        queue = _read_json(gen / "TASK_QUEUE.json")
+    except (OSError, json.JSONDecodeError):
+        return ("deny", "không đọc được generated/PLAN_MANIFEST.json hoặc TASK_QUEUE.json")
+    if queue.get("plan_sha256") != manifest.get("plan_sha256"):
+        return ("deny", "TASK_QUEUE.json.plan_sha256 != PLAN_MANIFEST.json.plan_sha256")
+
+    in_progress = [task for task in queue.get("tasks") or [] if task.get("status") == "in_progress"]
+    if len(in_progress) != 1:
+        return ("deny", "không có đúng một task in_progress")
+    return (ws, in_progress[0])
+
+
 def evaluate_write(project_root: Path, target_path: Path, framework_root: str = ".maika",
                    session_identity=None) -> Decision:
     if not target_path.as_posix():
@@ -501,6 +551,22 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
     session_result = check_session_gate(project_root, framework_root, session_identity)
     if not session_result.ok:
         return session_result
+
+    # vNext mode THAY THẾ legacy phase-gating có chủ đích (v2 §21): khi một change
+    # EXECUTING dưới workflow_engine=vnext, KNOWLEDGE_CHECKPOINT/apply-gate legacy
+    # không áp dụng (vnext có gate riêng: plan approval + brief-scope + result contract).
+    vnext = _vnext_active_task(project_root, framework_root)
+    if vnext is not None:
+        if vnext[0] == "deny":
+            return Decision(False, f"vNext EXECUTING nhưng trạng thái hỏng: {vnext[1]}")
+        ws, task = vnext
+        allowed = set()
+        for key in ("create", "modify", "test"):
+            allowed.update((task.get("files") or {}).get(key, []) or [])
+        rel = policy_path.relative_to(project_root).as_posix() if policy_path.is_absolute() else policy_path.as_posix()
+        if rel in allowed or rel.startswith(str(ws.relative_to(project_root))):
+            return Decision(True)
+        return Decision(False, f"vNext brief-scope: {rel} ngoài files khai báo của {task['id']}")
 
     checkpoint = project_root / framework_root / "knowledge" / "active" / "KNOWLEDGE_CHECKPOINT.md"
     if not checkpoint.exists():

@@ -143,6 +143,8 @@
 .maika/tools/microloop-orchestrator/extraction.py
 .maika/tools/microloop-orchestrator/orchestrator.py
 .maika/tools/microloop-orchestrator/outcome.py
+.maika/tools/microloop-orchestrator/plan_compiler.py
+.maika/tools/microloop-orchestrator/plan_parser.py
 .maika/tools/microloop-orchestrator/requirements.txt
 .maika/tools/microloop-orchestrator/stats.py
 .maika/tools/microloop-orchestrator/tiers/
@@ -150,6 +152,8 @@
 .maika/tools/microloop-orchestrator/tiers/fresh_session.py
 .maika/tools/microloop-orchestrator/tiers/inline_reload.py
 .maika/tools/microloop-orchestrator/tiers/subagent.py
+.maika/tools/microloop-orchestrator/vnext_dispatch.py
+.maika/tools/microloop-orchestrator/vnext_state.py
 .maika/tools/rule-projector/
 .maika/tools/rule-projector/README.md
 .maika/tools/rule-projector/__init__.py

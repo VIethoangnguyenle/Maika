@@ -72,7 +72,11 @@ def test_platform_scaffold_tree_matches_snapshot(tmp_path, maika_root, platform_
 
     actual = _snapshot_tree(target)
     snapshot_path = Path(__file__).resolve().parent / "snapshots" / f"{platform_key}.txt"
-    expected = snapshot_path.read_text(encoding="utf-8")
+    expected = snapshot_path.read_text(encoding="utf-8") if snapshot_path.exists() else ""
+    import os
+    if os.environ.get("UPDATE_SNAPSHOTS") == "1":
+        snapshot_path.write_text(actual, encoding="utf-8")
+        expected = actual
     assert actual == expected
     if platform_key in {"antigravity", "codex"}:
         assert "AGENTS.md" in actual

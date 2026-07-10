@@ -627,31 +627,150 @@ def apply_command(active_dir, runner=None, config=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Micro-loop orchestrator CLI (Pha 3 driver)")
     sub = parser.add_subparsers(dest="command", required=True)
+    
     apply_parser = sub.add_parser("apply", help="Chạy vòng lặp node Pha 3 (fresh-session)")
     apply_parser.add_argument(
         "--active-dir", required=True,
         help="Đường dẫn knowledge/active của scaffold (chạy từ project root)",
     )
+
+    # vNext subcommands
+    init_parser = sub.add_parser("vnext-init")
+    init_parser.add_argument("--changes-root", required=True)
+    init_parser.add_argument("--id", required=True)
+    init_parser.add_argument("--class", dest="klass", required=True)
+    init_parser.add_argument("--title", required=True)
+
+    compile_parser = sub.add_parser("vnext-compile")
+    compile_parser.add_argument("--workspace", required=True)
+    compile_parser.add_argument("--repo-root", required=True)
+
+    review_parser = sub.add_parser("vnext-review-plan")
+    review_parser.add_argument("--workspace", required=True)
+    review_parser.add_argument("--repo-root", required=True)
+
+    run_parser = sub.add_parser("vnext-run")
+    run_parser.add_argument("--workspace", required=True)
+    run_parser.add_argument("--repo-root", required=True)
+
+    status_parser = sub.add_parser("vnext-status")
+    status_parser.add_argument("--workspace", required=True)
+    status_parser.add_argument("--repo-root", required=True)
+
     args = parser.parse_args(argv)
-    summary = apply_command(args.active_dir)
-    if summary["status"] == "refused":
-        print(f"[DRIVER] Từ chối chạy:\n{summary['reason']}")
-        return 2
-    if summary["status"] == "blocked":
+
+    if args.command.startswith("vnext-"):
+        # Check flag
+        repo_root = getattr(args, "repo_root", None)
+        if repo_root is None:
+            # For vnext-init, changes_root is .maika/changes, repo_root is parents[2]
+            repo_root = str(Path(args.changes_root).parents[1])
+        
+        config_path = Path(repo_root) / ".maika" / "profiles" / "execution-mode.yaml"
+        engine = "legacy"
+        if config_path.exists():
+            conf = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            engine = conf.get("workflow_engine", "legacy")
+        
+        if engine != "vnext":
+            print("Refused: workflow_engine is not vnext")
+            return 2
+
+        import vnext_state as vs
+        import plan_compiler as pc
+        import vnext_dispatch as vd
+        if args.command == "vnext-init":
+            ws = vs.init_workspace(args.changes_root, args.id, args.klass, args.title)
+            text = (ws / "CHANGE.yaml").read_text(encoding="utf-8")
+            res = _load_gate_check().validate_change_workspace(text)
+            if not res.ok:
+                print(f"Gate vnext-workspace failed: {res.reason}")
+                return 1
+            print(f"Workspace initialized at {ws}")
+            return 0
+            
+        elif args.command == "vnext-compile":
+            ws = Path(args.workspace)
+            st = vs.load_state(ws)
+            if st["state"] == "INTAKE":
+                vs.transition(ws, "PLANNING")
+            elif st["state"] != "PLANNING":
+                print(f"Refused: wrong state {st['state']}")
+                return 1
+            res = pc.compile_plan(ws, args.repo_root)
+            if res.get("verdict") == "APPROVED":
+                vs.transition(ws, "PLAN_REVIEW")
+            print(f"Compile verdict: {res.get('verdict')}")
+            return 0
+            
+        elif args.command == "vnext-review-plan":
+            ws = Path(args.workspace)
+            st = vs.load_state(ws)
+            if st["state"] != "PLAN_REVIEW":
+                print(f"Refused: wrong state {st['state']}")
+                return 1
+            conf = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            runner = make_worker_runner(conf.get("worker_command", "echo 'VERDICT: APPROVED' > {out}"))
+            verdict = vd.review_plan(ws, runner)
+            print(f"Plan review verdict: {verdict}")
+            return 0
+            
+        elif args.command == "vnext-run":
+            ws = Path(args.workspace)
+            st = vs.load_state(ws)
+            val = json.loads((ws / "generated" / "PLAN_VALIDATION.json").read_text())
+            rev = (ws / "reviews" / "plan-review.md").read_text() if (ws / "reviews" / "plan-review.md").exists() else ""
+            
+            if st["state"] == "PLAN_REVIEW":
+                if val.get("verdict") == "APPROVED" and "VERDICT: APPROVED" in rev:
+                    vs.transition(ws, "EXECUTING")
+                else:
+                    print("Refused: plan not approved")
+                    return 1
+            elif st["state"] != "EXECUTING":
+                print(f"Refused: wrong state {st['state']}")
+                return 1
+                
+            conf = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            runner = make_worker_runner(conf.get("worker_command", "echo stub"))
+            out = vd.run_queue(ws, args.repo_root, runner)
+            if out["status"] == "done":
+                vs.transition(ws, "VERIFYING")
+            elif out["status"] == "stale_plan":
+                vs.transition(ws, "BLOCKED", blocked={"reason": "stale_plan"})
+            print(f"Run outcome: {out['status']}")
+            return 0
+            
+        elif args.command == "vnext-status":
+            ws = Path(args.workspace)
+            st = vs.load_state(ws)
+            print(f"State: {st['state']}")
+            if (ws / "generated" / "TASK_QUEUE.json").exists():
+                q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text())
+                for t in q.get("tasks", []):
+                    print(f"- {t['id']}: {t['status']}")
+            return 0
+
+    if args.command == "apply":
+        summary = apply_command(args.active_dir)
+        if summary["status"] == "refused":
+            print(f"[DRIVER] Từ chối chạy:\n{summary['reason']}")
+            return 2
+        if summary["status"] == "blocked":
+            print(
+                f"[DRIVER] BLOCKED tại node {summary['task_id']} "
+                f"(đã xong {summary['done']} node): {summary['reason']}"
+            )
+            print(
+                "[DRIVER] Sửa nguyên nhân (handoff/feedback), đặt node về pending, "
+                "chạy lại lệnh này — driver tự resume."
+            )
+            return 3
         print(
-            f"[DRIVER] BLOCKED tại node {summary['task_id']} "
-            f"(đã xong {summary['done']} node): {summary['reason']}"
+            f"[DRIVER] Hoàn thành {summary['done']} node. "
+            "Parent tiếp tục §3 bước 6 (post_apply_verify)."
         )
-        print(
-            "[DRIVER] Sửa nguyên nhân (handoff/feedback), đặt node về pending, "
-            "chạy lại lệnh này — driver tự resume."
-        )
-        return 3
-    print(
-        f"[DRIVER] Hoàn thành {summary['done']} node. "
-        "Parent tiếp tục §3 bước 6 (post_apply_verify)."
-    )
-    return 0
+        return 0
 
 
 if __name__ == "__main__":

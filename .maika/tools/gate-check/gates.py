@@ -446,3 +446,137 @@ def validate_node_checkpoint(text: str) -> Result:
     if not _RULE_ID.search(text):
         return Result(False, "node checkpoint missing rule-id evidence")
     return Result(True)
+
+_PLACEHOLDER = re.compile(r"\b(TODO|TBD|FIXME)\b")
+_VALID_MODES = {"exact", "guided", "intent"}
+_SHA256_FMT = re.compile(r"^sha256:[0-9a-f]{64}$")
+VALID_CHANGE_CLASSES = {"trivial", "small", "standard", "architectural"}
+
+
+def validate_change_workspace(text: str) -> Result:
+    """Gate `vnext-workspace` (v2 §22 change-workspace, minimal W1)."""
+    doc = yaml.safe_load(text) or {}
+    for key in ("change_id", "class", "title", "created_at"):
+        if not doc.get(key):
+            return Result(False, f"CHANGE.yaml missing {key}")
+    if doc["class"] not in VALID_CHANGE_CLASSES:
+        return Result(False, f"bad change class: {doc['class']}")
+    return Result(True)
+
+
+def validate_vnext_plan(text, plan_doc=None, repo_root=None, spec_sha256=None) -> Result:
+    """Gate `vnext-plan` — mechanical subset W1 (v2 §26 W1; full §16 là W2+)."""
+    if plan_doc is None:
+        return Result(False, "plan_doc required (cli parses via plan_parser)")
+    import subprocess
+    from pathlib import Path
+    meta, tasks = plan_doc["meta"], plan_doc["tasks"]
+    if spec_sha256 is not None and meta.get("spec_hash") != f"sha256:{spec_sha256}":
+        return Result(False, "spec_hash mismatch: plan compiled against different SPEC.md")
+    if not _SHA256_FMT.match(str(meta.get("evidence_hash", ""))):
+        return Result(False, "evidence_hash must be sha256:<64hex> (manifest match arrives W2)")
+    if repo_root:
+        probe = subprocess.run(["git", "cat-file", "-t", str(meta["base_commit"])],
+                               cwd=repo_root, capture_output=True, text=True)
+        if probe.returncode != 0 or probe.stdout.strip() != "commit":
+            return Result(False, f"base_commit not resolvable: {meta['base_commit']}")
+    ids = [t["id"] for t in tasks]
+    if len(ids) != len(set(ids)):
+        return Result(False, "duplicate task ids")
+    known = set(ids)
+    for t in tasks:
+        h = t["header"]
+        if h.get("implementation_mode") not in _VALID_MODES:
+            return Result(False, f"{t['id']}: bad implementation_mode")
+        for dep in h.get("depends_on", []) or []:
+            if dep not in known:
+                return Result(False, f"{t['id']}: unknown dep {dep}")
+        ver = h.get("verification") or {}
+        if not ver.get("command") or not ver.get("expected"):
+            return Result(False, f"{t['id']}: verification.command/expected required")
+        if _PLACEHOLDER.search(t["section_text"]):
+            return Result(False, f"{t['id']}: placeholder TODO/TBD/FIXME in section")
+        files = h.get("files") or {}
+        if repo_root:
+            for key in ("modify", "test"):
+                for p in files.get(key, []) or []:
+                    if not (Path(repo_root) / p).exists():
+                        return Result(False, f"{t['id']}: files.{key} missing on disk: {p}")
+            for path, names in (h.get("symbols") or {}).items():
+                target = Path(repo_root) / path
+                if not target.exists():
+                    return Result(False, f"{t['id']}: symbol file missing: {path}")
+                content = target.read_text(encoding="utf-8", errors="replace")
+                for name in names or []:
+                    if name not in content:
+                        return Result(False, f"{t['id']}: symbol not found: {name} in {path}")
+    # acyclic — tái dụng thuật toán contract.py qua cấu trúc nodes tối giản
+    indeg = {i: 0 for i in ids}
+    for t in tasks:
+        for _ in t["header"].get("depends_on", []) or []:
+            indeg[t["id"]] += 1
+    ready = [i for i, d in indeg.items() if d == 0]
+    seen = 0
+    while ready:
+        cur = ready.pop()
+        seen += 1
+        for t in tasks:
+            if cur in (t["header"].get("depends_on") or []):
+                indeg[t["id"]] -= 1
+                if indeg[t["id"]] == 0:
+                    ready.append(t["id"])
+    if seen != len(ids):
+        return Result(False, "dependency cycle in tasks")
+    return Result(True)
+
+
+def validate_brief_integrity(text: str, queue_doc=None) -> Result:
+    """Gate `brief-integrity` (v2 §22): hash khớp manifest -> prevent silent edits."""
+    if not queue_doc:
+        return Result(False, "queue_doc required")
+    try:
+        header_text, _, body = text.partition("\n---\n")
+        header = yaml.safe_load(header_text) or {}
+        if not isinstance(header, dict):
+            return Result(False, "brief header must be a dict")
+    except Exception as e:
+        return Result(False, f"bad brief format: {e}")
+    tid = header.get("task_id")
+    if not tid:
+        return Result(False, "missing task_id in brief header")
+    if header.get("plan_sha256") != queue_doc.get("plan_sha256"):
+        return Result(False, "stale plan: plan_sha256 mismatch")
+    task_info = next((t for t in queue_doc.get("tasks", []) if t.get("id") == tid), None)
+    if not task_info:
+        return Result(False, f"task_id {tid} not in queue")
+    import hashlib
+    actual_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    if actual_hash != task_info.get("brief_hash"):
+        return Result(False, "brief_hash mismatch: body was edited after plan compilation")
+    return Result(True)
+
+
+def validate_result_contract(text: str, queue_doc=None, task_id=None) -> Result:
+    """Gate `result-contract` (v2 §22): Kết quả run khớp files manifest + verification pass."""
+    if not queue_doc or not task_id:
+        return Result(False, "queue_doc and task_id required")
+    try:
+        res = yaml.safe_load(text) or {}
+    except Exception as e:
+        return Result(False, f"bad result format: {e}")
+    if res.get("task_id") != task_id:
+        return Result(False, f"task_id mismatch: expected {task_id}, got {res.get('task_id')}")
+    if res.get("status") != "success":
+        return Result(False, f"task did not report success (status: {res.get('status')})")
+    ver = res.get("verification") or {}
+    if not ver.get("passed"):
+        return Result(False, "verification failed (passed != true)")
+    task_info = next((t for t in queue_doc.get("tasks", []) if t.get("id") == task_id), None)
+    if not task_info:
+        return Result(False, f"task_id {task_id} not in queue")
+    expected_files = task_info.get("files") or {}
+    actual_files = res.get("files") or {}
+    for key in ("create", "modify"):
+        if set(expected_files.get(key) or []) != set(actual_files.get(key) or []):
+            return Result(False, f"files mismatch on {key}")
+    return Result(True)

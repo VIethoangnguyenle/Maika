@@ -22,6 +22,10 @@ VALIDATORS = {
     "ac-coverage": "validate_ac_coverage",
     "integration-coverage": "validate_integration_coverage",
     "code-evidence": "validate_code_evidence",
+    "vnext-plan": "validate_vnext_plan",
+    "vnext-workspace": "validate_change_workspace",
+    "brief-integrity": "validate_brief_integrity",
+    "result-contract": "validate_result_contract",
 }
 
 
@@ -51,6 +55,7 @@ def _load_index_rule_ids(index_path, artifact_type=None):
 
 
 def main(argv=None):
+    import importlib.util
     argv = argv or sys.argv[1:]
     parser = argparse.ArgumentParser()
     parser.add_argument("gate", choices=VALIDATORS)
@@ -87,6 +92,25 @@ def main(argv=None):
         kwargs["verified_node_files"] = verified
         kwargs["repo_root"] = repo_root
         kwargs["probe_ok"] = ok
+    elif args.gate == "vnext-plan":
+        pp_path = Path(__file__).resolve().parents[1] / "microloop-orchestrator" / "plan_parser.py"
+        spec_pp = importlib.util.spec_from_file_location("plan_parser", pp_path)
+        pp = importlib.util.module_from_spec(spec_pp); spec_pp.loader.exec_module(pp)
+        kwargs["plan_doc"] = pp.parse_plan(text)
+        kwargs["repo_root"] = args.repo_root or os.getcwd()
+        if args.against:
+            import hashlib
+            kwargs["spec_sha256"] = hashlib.sha256(
+                Path(args.against).read_bytes()).hexdigest()
+    elif args.gate == "brief-integrity":
+        import json
+        ws_root = Path(args.file).resolve().parents[1]
+        kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+    elif args.gate == "result-contract":
+        import json
+        ws_root = Path(args.file).resolve().parents[1]
+        kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+        kwargs["task_id"] = Path(args.file).stem
 
     res = getattr(g, VALIDATORS[args.gate])(text, **kwargs)
     print(("PASS" if res.ok else f"FAIL — {res.reason}"))

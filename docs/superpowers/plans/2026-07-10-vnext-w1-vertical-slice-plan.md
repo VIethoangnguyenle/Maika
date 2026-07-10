@@ -1,6 +1,6 @@
 # Maika vNext W1 — Claude Code Vertical Slice — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Pipeline end-to-end opt-in trên Claude Code: detailed plan → mechanical validation → independent plan review → sequential queue → verbatim brief → fresh implementer → structured result → independent task review → write-scope enforcement (Master Plan v2 §26 W1).
 
@@ -59,7 +59,7 @@ Naming thống nhất: mọi file per-task dùng đúng task id (`TASK-001`), kh
 - Produces: `STATES` (14 state), `init_workspace(changes_root, change_id, klass, title) -> Path`, `load_state(ws) -> dict`, `transition(ws, new_state, blocked=None) -> dict`, `workflow_engine(config) -> str`.
 - Consumes: không (module lá).
 
-- [ ] **Step 1: Viết failing test**
+- [x] **Step 1: Viết failing test**
 
 ```python
 # .maika/tools/microloop-orchestrator/tests/test_vnext_state.py
@@ -105,12 +105,12 @@ def test_blocked_requires_reason(tmp_path):
     assert st["blocked"]["reason"] == "stale_plan"
 ```
 
-- [ ] **Step 2: Chạy fail**
+- [x] **Step 2: Chạy fail**
 
 Run: `cd .maika/tools/microloop-orchestrator && /usr/bin/python3 -m pytest tests/test_vnext_state.py -q`
 Expected: FAIL `ModuleNotFoundError: No module named 'vnext_state'` (tests/ đã có conftest/path theo suite hiện hành — nếu suite dùng rootdir import, thêm `sys.path` giống test hiện có trong dir này; đọc 1 test file sẵn có để khớp).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # .maika/tools/microloop-orchestrator/vnext_state.py
@@ -199,19 +199,19 @@ def workflow_engine(config):
     return (config or {}).get("workflow_engine", "legacy")
 ```
 
-- [ ] **Step 4: Thêm flag vào execution-mode.yaml** — thêm 2 dòng cuối file (ngoài mọi khối Jinja):
+- [x] **Step 4: Thêm flag vào execution-mode.yaml** — thêm 2 dòng cuối file (ngoài mọi khối Jinja):
 
 ```yaml
 # vNext W1: engine flag — vnext là opt-in; legacy là mặc định (Master Plan v2 §26 W1)
 workflow_engine: legacy
 ```
 
-- [ ] **Step 5: Chạy pass + suites**
+- [x] **Step 5: Chạy pass + suites**
 
 Run: `cd .maika/tools/microloop-orchestrator && /usr/bin/python3 -m pytest tests/ -q` → toàn suite PASS.
 Run: `/usr/bin/python3 -m pytest cli/tests/ -q` (từ repo root) → PASS; nếu snapshot scaffold fail vì execution-mode.yaml đổi → cập nhật snapshot fixture trong cùng commit.
 
-- [ ] **Step 6: Commit** — `feat(vnext-w1): workspace + 14-state machine + workflow_engine flag`
+- [x] **Step 6: Commit** — `feat(vnext-w1): workspace + 14-state machine + workflow_engine flag`
 
 ---
 
@@ -225,7 +225,7 @@ Run: `/usr/bin/python3 -m pytest cli/tests/ -q` (từ repo root) → PASS; nếu
 **Interfaces:**
 - Produces: 6 capability IDs (văn bản, tĩnh — KHÔNG runtime); skill canonical đầu tiên tham chiếu IDs (R1 consumer cùng PR).
 
-- [ ] **Step 1: Viết `.maika/profiles/capabilities.md`**
+- [x] **Step 1: Viết `.maika/profiles/capabilities.md`**
 
 ```markdown
 # Capability Vocabulary (vNext §11.1 — tồn tại từ W1, runtime đến W4)
@@ -243,7 +243,7 @@ provider mappings / adapters / tool docs / capability matrix:
 W1→W4: compliance giữ bởi plan review; W4 thêm skill-lint rule cấm provider-name.
 ```
 
-- [ ] **Step 2: Viết skill theo schema skill-lint** — đọc `.maika/skills/codebase-explorer/SKILL.md` làm khung heading (REQUIRED_SECTIONS B1..; frontmatter `name/description/version`). Nội dung cốt lõi (điền vào khung đó, giữ đủ heading bắt buộc):
+- [x] **Step 2: Viết skill theo schema skill-lint** — đọc `.maika/skills/codebase-explorer/SKILL.md` làm khung heading (REQUIRED_SECTIONS B1..; frontmatter `name/description/version`). Nội dung cốt lõi (điền vào khung đó, giữ đủ heading bắt buộc):
 
 ```markdown
 ---
@@ -286,13 +286,13 @@ Ghi IMPLEMENTATION_PLAN.md vào workspace change; chuyển state PLANNING→PLAN
 planning_dispatch (independent plan review) → gate `plan` → compiler.
 ```
 
-- [ ] **Step 3: Lint + regen index**
+- [x] **Step 3: Lint + regen index**
 
 Run: `/usr/bin/python3 .maika/tools/skill-lint/validate_skills.py` → writing-plan PASS (sửa heading theo báo lỗi lint nếu thiếu section bắt buộc — lint là nguồn chân lý schema).
 Run: `/usr/bin/python3 .maika/tools/skill-index/generate_index.py` → skill-index.yaml có entry writing-plan.
 Run: `/usr/bin/python3 -m pytest cli/tests/ -q` → snapshot lệch thì cập nhật cùng commit.
 
-- [ ] **Step 4: Commit** — `feat(vnext-w1): capability vocabulary + skill writing-plan (R1: vocabulary + consumer cùng PR)`
+- [x] **Step 4: Commit** — `feat(vnext-w1): capability vocabulary + skill writing-plan (R1: vocabulary + consumer cùng PR)`
 
 ---
 
@@ -306,7 +306,7 @@ Run: `/usr/bin/python3 -m pytest cli/tests/ -q` → snapshot lệch thì cập n
 - Produces: `parse_plan(text) -> {"meta": dict, "tasks": [{"id","title","header":dict,"section_text":str}]}` — `section_text` là VERBATIM (từ dòng `### TASK-` đến trước `### TASK-` kế/EOF). Raise `ValueError` khi thiếu frontmatter/header.
 - Consumes: không.
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 # tests/test_plan_parser.py
@@ -386,9 +386,9 @@ def test_task_without_yaml_header_raises():
         pp.parse_plan(bad)
 ```
 
-- [ ] **Step 2: Run fail** — `ModuleNotFoundError: plan_parser`.
+- [x] **Step 2: Run fail** — `ModuleNotFoundError: plan_parser`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # plan_parser.py
@@ -427,7 +427,7 @@ def parse_plan(text):
     return {"meta": meta, "tasks": tasks}
 ```
 
-- [ ] **Step 4: Run pass** → 4 passed. **Step 5: Commit** — `feat(vnext-w1): plan parser (frontmatter + verbatim TASK sections)`
+- [x] **Step 4: Run pass** → 4 passed. **Step 5: Commit** — `feat(vnext-w1): plan parser (frontmatter + verbatim TASK sections)`
 
 ---
 
@@ -444,7 +444,7 @@ def parse_plan(text):
 - Produces: `validate_change_workspace(text) -> Result` — text = CHANGE.yaml: đủ key `change_id/class/title/created_at`, class hợp lệ (ledger PROP-001 scheduled W1 — đóng đúng hạn).
 - Consumes: `plan_parser.parse_plan` — cli.py load plan_parser bằng `importlib` (pattern `_load_gate_check` đảo chiều), truyền `plan_doc` vào validator qua kwargs.
 
-- [ ] **Step 1: Failing tests** (code ĐẦY ĐỦ, chạy được ngay):
+- [x] **Step 1: Failing tests** (code ĐẦY ĐỦ, chạy được ngay):
 
 ```python
 # .maika/tools/gate-check/tests/test_vnext_plan_gate.py
@@ -582,9 +582,9 @@ def test_change_workspace_gate():
     assert not gates.validate_change_workspace("change_id: demo\n").ok
 ```
 
-- [ ] **Step 2: Run fail** — `AttributeError: gates has no validate_vnext_plan`.
+- [x] **Step 2: Run fail** — `AttributeError: gates has no validate_vnext_plan`.
 
-- [ ] **Step 3: Implement trong gates.py**
+- [x] **Step 3: Implement trong gates.py**
 
 ```python
 _PLACEHOLDER = re.compile(r"\b(TODO|TBD|FIXME)\b")
@@ -671,7 +671,7 @@ def validate_vnext_plan(text, plan_doc=None, repo_root=None, spec_sha256=None) -
 
 (`from pathlib import Path` đã có sẵn? gates.py hiện import `os, re, yaml` — thêm `from pathlib import Path` đầu file nếu chưa có.)
 
-- [ ] **Step 4: Wire cli.py** — thêm `"vnext-plan": "validate_vnext_plan"` và `"vnext-workspace": "validate_change_workspace"` vào `VALIDATORS`; trong `main()` thêm nhánh:
+- [x] **Step 4: Wire cli.py** — thêm `"vnext-plan": "validate_vnext_plan"` và `"vnext-workspace": "validate_change_workspace"` vào `VALIDATORS`; trong `main()` thêm nhánh:
 
 ```python
     elif args.gate == "vnext-plan":
@@ -688,10 +688,10 @@ def validate_vnext_plan(text, plan_doc=None, repo_root=None, spec_sha256=None) -
 
 (`import importlib.util` đưa lên đầu `main` giống `_load_module` pattern.)
 
-- [ ] **Step 5: Ledger (P2 — cùng commit):** trong `enforcement-ledger.yaml`, PROP entry của `plan` → `mechanism: vnext-plan`, `status: active`, `failure.classification: reproducible_litmus`, `litmus.command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_plan_gate.py -q`, `implementation.files: [.maika/tools/gate-check/gates.py]`, `consumers: [.maika/tools/microloop-orchestrator/plan_compiler.py]`; PROP-001 `change-workspace` → `mechanism: vnext-workspace`, `status: active`, litmus = cùng file test (`test_change_workspace_gate`), consumers: orchestrator vnext-init (Task 11). Chạy `/usr/bin/python3 -m pytest cli/tests/test_vnext_w0_artifacts.py -q` → 4 passed.
+- [x] **Step 5: Ledger (P2 — cùng commit):** trong `enforcement-ledger.yaml`, PROP entry của `plan` → `mechanism: vnext-plan`, `status: active`, `failure.classification: reproducible_litmus`, `litmus.command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_plan_gate.py -q`, `implementation.files: [.maika/tools/gate-check/gates.py]`, `consumers: [.maika/tools/microloop-orchestrator/plan_compiler.py]`; PROP-001 `change-workspace` → `mechanism: vnext-workspace`, `status: active`, litmus = cùng file test (`test_change_workspace_gate`), consumers: orchestrator vnext-init (Task 11). Chạy `/usr/bin/python3 -m pytest cli/tests/test_vnext_w0_artifacts.py -q` → 4 passed.
 
-- [ ] **Step 6: Run pass** — `cd .maika/tools/gate-check && /usr/bin/python3 -m pytest tests/test_vnext_plan_gate.py -q` → 9 passed; toàn suite gate-check PASS.
-- [ ] **Step 7: Commit** — `feat(vnext-w1): gates vnext-plan + vnext-workspace (+ ledger activation)`
+- [x] **Step 6: Run pass** — `cd .maika/tools/gate-check && /usr/bin/python3 -m pytest tests/test_vnext_plan_gate.py -q` → 9 passed; toàn suite gate-check PASS.
+- [x] **Step 7: Commit** — `feat(vnext-w1): gates vnext-plan + vnext-workspace (+ ledger activation)`
 
 ---
 
@@ -705,7 +705,7 @@ def validate_vnext_plan(text, plan_doc=None, repo_root=None, spec_sha256=None) -
 - Produces: `compile_plan(ws, repo_root) -> dict` — đọc `IMPLEMENTATION_PLAN.md`, chạy gate `validate_vnext_plan` (qua `_load_gate_check()` pattern của orchestrator.py:43), ghi `generated/PLAN_VALIDATION.json` ({verdict: APPROVED|REVISE, checks}), nếu APPROVED: ghi `generated/PLAN_MANIFEST.json` (plan_sha256 = sha256 toàn file, spec_sha256 nếu SPEC.md tồn tại), `generated/TASK_QUEUE.json` (tasks topo-sequential — tái dụng `orchestrator.topo_sort` qua importlib cùng dir), `briefs/task-NNN.md` (header YAML: change_id, task_id, brief_hash, generated_at + `\n---\n` + section_text verbatim). Trả manifest dict. Idempotent + deterministic (không timestamp trong hash).
 - Consumes: `plan_parser.parse_plan`, `gates.validate_vnext_plan`, `orchestrator.topo_sort`.
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 # tests/test_plan_compiler.py
@@ -771,7 +771,7 @@ def test_plan_edit_invalidates_hash(tmp_path):
     assert m1 != m2
 ```
 
-- [ ] **Step 2: Run fail.** **Step 3: Implement**
+- [x] **Step 2: Run fail.** **Step 3: Implement**
 
 ```python
 # plan_compiler.py
@@ -860,7 +860,7 @@ def compile_plan(ws, repo_root):
 
 (Chú ý `_load` cho gates: đường dẫn `gate-check/gates.py` nằm ở `parents[1]` của module — viết helper cho đúng 2 trường hợp cùng-dir và sibling-tool như code trên.)
 
-- [ ] **Step 4: Run pass** → 4 passed; toàn suite microloop PASS. **Step 5: Commit** — `feat(vnext-w1): deterministic plan compiler (verdict -> queue -> verbatim briefs)`
+- [x] **Step 4: Run pass** → 4 passed; toàn suite microloop PASS. **Step 5: Commit** — `feat(vnext-w1): deterministic plan compiler (verdict -> queue -> verbatim briefs)`
 
 ---
 
@@ -873,8 +873,8 @@ def compile_plan(ws, repo_root):
 **Interfaces:**
 - Produces: `validate_brief_integrity(text, queue_doc=None) -> Result` — text = nội dung brief file; tách header/body theo `\n---\n`; kiểm: header có task_id/brief_hash/plan_sha256; `sha256(body) == header.brief_hash`; entry trong queue_doc (TASK_QUEUE.json dict) có cùng task_id với cùng brief_hash + plan_sha256 khớp queue. CLI gate `vnext-brief` với `--against <TASK_QUEUE.json>` (tái dụng flag `--against` sẵn có).
 
-- [ ] **Step 1: Failing tests** — 4 test: pass đúng; body bị sửa 1 ký tự → FAIL "brief hash mismatch"; task_id không có trong queue → FAIL; plan_sha256 lệch queue → FAIL "stale plan". (Fixture: dựng ws bằng plan_compiler từ Task 5 fixture — tái dụng `_setup`.)
-- [ ] **Step 2: Run fail.** **Step 3: Implement** (gates.py):
+- [x] **Step 1: Failing tests** — 4 test: pass đúng; body bị sửa 1 ký tự → FAIL "brief hash mismatch"; task_id không có trong queue → FAIL; plan_sha256 lệch queue → FAIL "stale plan". (Fixture: dựng ws bằng plan_compiler từ Task 5 fixture — tái dụng `_setup`.)
+- [x] **Step 2: Run fail.** **Step 3: Implement** (gates.py):
 
 ```python
 def validate_brief_integrity(text, queue_doc=None) -> Result:
@@ -903,8 +903,8 @@ def validate_brief_integrity(text, queue_doc=None) -> Result:
 
 cli.py: `"vnext-brief": "validate_brief_integrity"`; nhánh kwargs: `kwargs["queue_doc"] = json.loads(Path(args.against).read_text())` (thêm `import json` đầu file, yêu cầu `--against`).
 
-- [ ] **Step 4: Ledger (P2 — cùng commit):** PROP `brief-integrity` → `mechanism: vnext-brief`, `status: active`, `reproducible_litmus`, litmus = pytest file test này; consumers: `vnext_dispatch.py`. Verify: `pytest cli/tests/test_vnext_w0_artifacts.py -q` → 4 passed.
-- [ ] **Step 5: Run pass → commit** — `feat(vnext-w1): gate vnext-brief (verbatim traceability + staleness, + ledger)`
+- [x] **Step 4: Ledger (P2 — cùng commit):** PROP `brief-integrity` → `mechanism: vnext-brief`, `status: active`, `reproducible_litmus`, litmus = pytest file test này; consumers: `vnext_dispatch.py`. Verify: `pytest cli/tests/test_vnext_w0_artifacts.py -q` → 4 passed.
+- [x] **Step 5: Run pass → commit** — `feat(vnext-w1): gate vnext-brief (verbatim traceability + staleness, + ledger)`
 
 ---
 
@@ -922,7 +922,7 @@ cli.py: `"vnext-brief": "validate_brief_integrity"`; nhánh kwargs: `kwargs["que
   - Status khác (BLOCKED/NEEDS_CONTEXT/STALE_PLAN/FAILED_VERIFICATION): `concerns` phải non-empty (ghi lý do); commands được phép rỗng; `commit_sha` được phép null.
   - CLI gate `vnext-result`, `--against <queue-entry.json>` tùy chọn → allowed_files (union files.create/modify/test).
 
-- [ ] **Step 1: Failing tests** (đầy đủ, chạy được):
+- [x] **Step 1: Failing tests** (đầy đủ, chạy được):
 
 ```python
 # .maika/tools/gate-check/tests/test_vnext_result_gate.py
@@ -988,9 +988,9 @@ def test_blocked_requires_concerns_allows_empty_commands():
     assert not r2.ok and "concerns" in r2.reason
 ```
 
-- [ ] **Step 2 fail** (`AttributeError`) → **Step 3 implement** theo đúng rules trên, style `Result` (~40 dòng, executor viết khớp từng assert của test).
-- [ ] **Step 4: Ledger (P2 — cùng commit):** PROP `result-contract` → `mechanism: vnext-result`, `status: active`, `reproducible_litmus`, litmus = pytest file này; consumers: `vnext_dispatch.py`. Verify 4 schema test W0 pass.
-- [ ] **Step 5 pass → commit** — `feat(vnext-w1): gate vnext-result (full §18.4, exit-code-not-sufficient, + ledger)`
+- [x] **Step 2 fail** (`AttributeError`) → **Step 3 implement** theo đúng rules trên, style `Result` (~40 dòng, executor viết khớp từng assert của test).
+- [x] **Step 4: Ledger (P2 — cùng commit):** PROP `result-contract` → `mechanism: vnext-result`, `status: active`, `reproducible_litmus`, litmus = pytest file này; consumers: `vnext_dispatch.py`. Verify 4 schema test W0 pass.
+- [x] **Step 5 pass → commit** — `feat(vnext-w1): gate vnext-result (full §18.4, exit-code-not-sufficient, + ledger)`
 
 ---
 
@@ -1015,7 +1015,7 @@ BRIEF_FILE: <abs path>
 OUTPUT_FILE: <abs path>
 ```
 
-- [ ] **Step 1: Failing tests** — dùng **stub runner** (không subprocess), code ĐẦY ĐỦ:
+- [x] **Step 1: Failing tests** — dùng **stub runner** (không subprocess), code ĐẦY ĐỦ:
 
 ```python
 # tests/test_vnext_dispatch.py
@@ -1159,7 +1159,7 @@ def test_resume_skips_done(tmp_path):
     assert out["status"] == "done" and calls2 == []
 ```
 
-- [ ] **Step 2 fail → Step 3 implement.** `build_prompt` LUÔN mở đầu bằng 4 dòng marker (ROLE/TASK_ID/BRIEF_FILE/OUTPUT_FILE — quy ước ở trên, cả stub lẫn worker thật parse được), sau đó role block:
+- [x] **Step 2 fail → Step 3 implement.** `build_prompt` LUÔN mở đầu bằng 4 dòng marker (ROLE/TASK_ID/BRIEF_FILE/OUTPUT_FILE — quy ước ở trên, cả stub lẫn worker thật parse được), sau đó role block:
 
 ```python
 _ROLES = {
@@ -1178,7 +1178,7 @@ _ROLES = {
 
 `run_queue` viết theo pattern `apply_command` (orchestrator.py:570) — disk là source of truth mỗi vòng, `json` thay `yaml` cho queue. (~90 dòng; executor giữ cùng phong cách log qua `append_activity_event` với event mới `vnext_task_*`.)
 
-- [ ] **Step 4 pass → commit** — `feat(vnext-w1): dispatch classes + sequential run loop (fresh worker, review loop)`
+- [x] **Step 4 pass → commit** — `feat(vnext-w1): dispatch classes + sequential run loop (fresh worker, review loop)`
 
 ---
 
@@ -1191,7 +1191,7 @@ _ROLES = {
 **Interfaces:**
 - Produces: `review_plan(ws, runner)` — planning dispatch ghi `reviews/plan-review.md`, trả verdict; chỉ khi cả `PLAN_VALIDATION.json == APPROVED` **và** plan-review `VERDICT: APPROVED` thì `vnext_state.transition(ws, "EXECUTING")` được phép (enforce trong CLI Task 11, không trong hàm).
 
-- [ ] Tests: review APPROVED trả "APPROVED"; review file thiếu dòng VERDICT → trả "FINDINGS" (fail-closed). Implement ~20 dòng. Commit — `feat(vnext-w1): independent plan review dispatch`
+- [x] Tests: review APPROVED trả "APPROVED"; review file thiếu dòng VERDICT → trả "FINDINGS" (fail-closed). Implement ~20 dòng. Commit — `feat(vnext-w1): independent plan review dispatch`
 
 ---
 
@@ -1224,8 +1224,8 @@ _ROLES = {
 
 (yaml.safe_load lỗi vì template Jinja → treat as legacy: bọc try/except trả None. Đây là điểm dogfood-trên-repo-template đã biết.)
 
-- [ ] Tests (8): flag legacy → None (regression toàn suite write-gate pass nguyên trạng); flag vnext + EXECUTING + đủ approval/fresh + file trong allowed → ALLOW; ngoài allowed → DENY kèm task id; ghi vào chính workspace change → ALLOW; không có change EXECUTING → fallthrough legacy; **EXECUTING nhưng PLAN_VALIDATION ≠ APPROVED → DENY**; **plan_sha256 queue ≠ manifest → DENY (stale)**; **không có task in_progress → DENY**. Fixture: tmp project_root với profiles rendered + changes/demo/{STATE.yaml, generated/{PLAN_VALIDATION.json,PLAN_MANIFEST.json,TASK_QUEUE.json}} tự dựng.
-- [ ] Run: `cd .maika/hooks/write-gate && /usr/bin/python3 -m pytest tests/ -q` → toàn suite PASS. Commit — `feat(vnext-w1): write-gate brief-scope (vnext EXECUTING)`
+- [x] Tests (8): flag legacy → None (regression toàn suite write-gate pass nguyên trạng); flag vnext + EXECUTING + đủ approval/fresh + file trong allowed → ALLOW; ngoài allowed → DENY kèm task id; ghi vào chính workspace change → ALLOW; không có change EXECUTING → fallthrough legacy; **EXECUTING nhưng PLAN_VALIDATION ≠ APPROVED → DENY**; **plan_sha256 queue ≠ manifest → DENY (stale)**; **không có task in_progress → DENY**. Fixture: tmp project_root với profiles rendered + changes/demo/{STATE.yaml, generated/{PLAN_VALIDATION.json,PLAN_MANIFEST.json,TASK_QUEUE.json}} tự dựng.
+- [x] Run: `cd .maika/hooks/write-gate && /usr/bin/python3 -m pytest tests/ -q` → toàn suite PASS. Commit — `feat(vnext-w1): write-gate brief-scope (vnext EXECUTING)`
 
 ---
 
@@ -1246,9 +1246,9 @@ _ROLES = {
 | `vnext-run --workspace <ws> --repo-root <root>` | `PLAN_REVIEW` với PLAN_VALIDATION==APPROVED **và** plan-review VERDICT: APPROVED → transition `EXECUTING` rồi run_queue; hoặc `EXECUTING` (resume) | run_queue | queue done → `VERIFYING`; blocked → giữ EXECUTING (task blocked); stale_plan → `BLOCKED(stale_plan)` |
 | `vnext-status --workspace <ws>` | bất kỳ | in state + bảng task | không đổi |
 
-- [ ] E2E test với config stub (`workflow_engine: vnext`, runner stub từ Task 8) — **assert state sau MỖI lệnh**: init→`INTAKE` → compile→`PLAN_REVIEW` → review-plan (stub APPROVED)→`PLAN_REVIEW` → run→2 task done→`VERIFYING`. Test refuse khi flag legacy (exit 2, không side-effect). Test compile verdict REVISE giữ `PLANNING`.
-- [ ] **Legacy-compat test (fix finding F3):** cùng một fixture project có CẢ legacy `knowledge/active/microloop/TASK_QUEUE.md` (dựng bằng `initialize_runtime_queue`) LẪN vnext workspace: (a) `load_runtime_queue` vẫn đọc đúng queue markdown; (b) `vnext-run` không đọc/ghi artifact legacy; (c) toàn suite microloop cũ pass nguyên trạng — chứng minh compatibility reader legacy còn nguyên trong opt-in period (v2 §17).
-- [ ] Run toàn suite microloop + gate-check + write-gate + cli/tests → PASS hết. Commit — `feat(vnext-w1): vnext CLI subcommands + e2e (flag-gated, state-explicit, legacy-compat)`
+- [x] E2E test với config stub (`workflow_engine: vnext`, runner stub từ Task 8) — **assert state sau MỖI lệnh**: init→`INTAKE` → compile→`PLAN_REVIEW` → review-plan (stub APPROVED)→`PLAN_REVIEW` → run→2 task done→`VERIFYING`. Test refuse khi flag legacy (exit 2, không side-effect). Test compile verdict REVISE giữ `PLANNING`.
+- [x] **Legacy-compat test (fix finding F3):** cùng một fixture project có CẢ legacy `knowledge/active/microloop/TASK_QUEUE.md` (dựng bằng `initialize_runtime_queue`) LẪN vnext workspace: (a) `load_runtime_queue` vẫn đọc đúng queue markdown; (b) `vnext-run` không đọc/ghi artifact legacy; (c) toàn suite microloop cũ pass nguyên trạng — chứng minh compatibility reader legacy còn nguyên trong opt-in period (v2 §17).
+- [x] Run toàn suite microloop + gate-check + write-gate + cli/tests → PASS hết. Commit — `feat(vnext-w1): vnext CLI subcommands + e2e (flag-gated, state-explicit, legacy-compat)`
 
 ---
 
@@ -1260,10 +1260,10 @@ _ROLES = {
 
 **Interfaces:** không code.
 
-- [ ] Kiểm consistency ledger: 4 entry đã activate ở Task 4/6/7 (vnext-plan, vnext-workspace, vnext-brief, vnext-result) đủ litmus + consumers thật; không entry nào còn `proposed` với `scheduled_wave: W1`.
-- [ ] Chạy lại 4 schema test W0: `/usr/bin/python3 -m pytest cli/tests/test_vnext_w0_artifacts.py -q` → 4 passed.
-- [ ] Final verify — chạy đủ 7 suite như W0 Task 2, dán số vào commit message.
-- [ ] Commit — `docs(vnext-w1): activate 3 gate ledger entries + tool docs`; push branch; mở PR `feat/vnext-w1-vertical-slice → main` (body: link Master Plan v2 §26 W1 + bảng exit criteria).
+- [x] Kiểm consistency ledger: 4 entry đã activate ở Task 4/6/7 (vnext-plan, vnext-workspace, vnext-brief, vnext-result) đủ litmus + consumers thật; không entry nào còn `proposed` với `scheduled_wave: W1`.
+- [x] Chạy lại 4 schema test W0: `/usr/bin/python3 -m pytest cli/tests/test_vnext_w0_artifacts.py -q` → 4 passed.
+- [x] Final verify — chạy đủ 7 suite như W0 Task 2, dán số vào commit message.
+- [x] Commit — `docs(vnext-w1): activate 3 gate ledger entries + tool docs`; push branch; mở PR `feat/vnext-w1-vertical-slice → main` (body: link Master Plan v2 §26 W1 + bảng exit criteria).
 
 ---
 
