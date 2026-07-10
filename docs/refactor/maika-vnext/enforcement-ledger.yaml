@@ -266,7 +266,16 @@ entries:
   - id: PROP-005
     mechanism: brief-integrity
     type: gate
-    status: proposed
+    status: active
+    failure:
+      classification: reproducible_litmus
+      reference: v2 §22
+      summary: Brief integrity gate
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_brief_gate.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/vnext_dispatch.py]
     scheduled_wave: W1
     reviewed_at: 2026-07-10
 

@@ -528,3 +528,27 @@ def validate_vnext_plan(text, plan_doc=None, repo_root=None, spec_sha256=None) -
     if seen != len(ids):
         return Result(False, "dependency cycle in tasks")
     return Result(True)
+
+
+def validate_brief_integrity(text: str, queue_doc=None) -> Result:
+    """Gate `brief-integrity` (v2 §22): hash khớp manifest -> prevent silent edits."""
+    if not queue_doc:
+        return Result(False, "queue_doc required")
+    try:
+        header_text, _, body = text.partition("\n---\n")
+        header = yaml.safe_load(header_text) or {}
+    except Exception as e:
+        return Result(False, f"bad brief format: {e}")
+    tid = header.get("task_id")
+    if not tid:
+        return Result(False, "missing task_id in brief header")
+    if header.get("plan_sha256") != queue_doc.get("plan_sha256"):
+        return Result(False, "stale plan: plan_sha256 mismatch")
+    task_info = next((t for t in queue_doc.get("tasks", []) if t.get("id") == tid), None)
+    if not task_info:
+        return Result(False, f"task_id {tid} not in queue")
+    import hashlib
+    actual_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    if actual_hash != task_info.get("brief_hash"):
+        return Result(False, "brief_hash mismatch: body was edited after plan compilation")
+    return Result(True)

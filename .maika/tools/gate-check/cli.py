@@ -24,6 +24,7 @@ VALIDATORS = {
     "code-evidence": "validate_code_evidence",
     "vnext-plan": "validate_vnext_plan",
     "vnext-workspace": "validate_change_workspace",
+    "brief-integrity": "validate_brief_integrity",
 }
 
 
@@ -100,6 +101,10 @@ def main(argv=None):
             import hashlib
             kwargs["spec_sha256"] = hashlib.sha256(
                 Path(args.against).read_bytes()).hexdigest()
+    elif args.gate == "brief-integrity":
+        import json
+        ws_root = Path(args.file).resolve().parents[1]
+        kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
 
     res = getattr(g, VALIDATORS[args.gate])(text, **kwargs)
     print(("PASS" if res.ok else f"FAIL — {res.reason}"))
