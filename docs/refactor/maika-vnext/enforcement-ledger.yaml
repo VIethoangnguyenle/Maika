@@ -487,6 +487,104 @@ entries:
     reviewed_at: 2026-07-10
 
 
+  # ---- knowledge-native (W2): grounding-package gates ----
+  - id: KN-001
+    mechanism: query-plan
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §6, §11
+      summary: Question phải khai capability thật + evidence type coverable (chặn capability/evidence bịa).
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py, cli/capability_runtime.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/profiles/capability-registry.yaml]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-002
+    mechanism: tool-health
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §4, §6 (P4/P5)
+      summary: Provider `ready` cần probe thật + observed + freshness; degraded cần degradation record (registration != data).
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/rules/rules-tool.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-003
+    mechanism: conflicts
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §6, §8.4
+      summary: Conflict `open` chưa resolve chặn design; resolved cần resolution + resolved_by.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/rules/rules-knowledge.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-004
+    mechanism: coverage
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §6
+      summary: Verdict READY cấm khi còn missing evidence hoặc blocked question; count phải nhất quán.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/gate-check/cli.py]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-005
+    mechanism: database-context
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §4.4, §6
+      summary: DB exploration read-only; cần DB objects thật hoặc degradation record (persistence-sensitive change).
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/rules/rules-tool.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-006
+    mechanism: exploration-evidence-authenticity
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §11 (P10, DoD #9/#27)
+      summary: exploration-evidence với repo_root xác minh file tồn tại + hash khớp + symbol có thật (chặn fake path/symbol/hash).
+      litmus:
+        command: /usr/bin/python3 -m pytest ".maika/tools/gate-check/tests/test_vnext_reasoning_gates.py::test_exploration_evidence_authenticity_rejects_fake_path_symbol_hash" -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py, .maika/tools/microloop-orchestrator/orchestrator.py]
+      consumers: [.maika/tools/gate-check/cli.py]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+
   # ---- deferred: hoãn có điều kiện kích hoạt (traceability doc §Deferred) ----
   - id: DEF-001
     mechanism: parallel-execution-file-locks

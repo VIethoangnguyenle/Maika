@@ -13,6 +13,7 @@ from cli.capability_runtime import (
     build_capability_routes,
     capability_ids,
     route_capability,
+    route_question,
 )
 from cli.platforms import PLATFORMS, get_platform
 
@@ -138,3 +139,35 @@ def test_database_capabilities_degrade_when_db_health_fails(capability):
 
     assert route["status"] == DEGRADED
     assert "database" in route["reason"]
+
+
+# ── W2a: route_question — evidence-type -> capability resolution ─────────────
+
+def test_route_question_resolves_capabilities_from_evidence_types():
+    plan = route_question(["architecture_node", "dependency_path", "file_symbol"])
+    assert "architecture_discovery" in plan["capabilities"]
+    assert "dependency_analysis" in plan["capabilities"]
+    assert "exact_source_inspection" in plan["capabilities"]
+    assert plan["uncovered"] == []
+
+
+def test_route_question_maps_history_and_database_evidence():
+    plan = route_question(["incident_reference", "database_object", "database_dependency"])
+    assert "historical_context_retrieval" in plan["capabilities"]
+    assert "database_schema_inspection" in plan["capabilities"]
+    assert "database_dependency_analysis" in plan["capabilities"]
+
+
+def test_route_question_flags_uncovered_evidence_type():
+    plan = route_question(["telepathic_signal"])
+    assert plan["capabilities"] == []
+    assert "telepathic_signal" in plan["uncovered"]
+
+
+def test_route_question_by_evidence_lists_serving_capabilities():
+    # domain_flow is served by both architecture_discovery and business_knowledge_retrieval
+    plan = route_question(["domain_flow"])
+    assert set(plan["by_evidence"]["domain_flow"]) >= {
+        "architecture_discovery",
+        "business_knowledge_retrieval",
+    }

@@ -26,6 +26,11 @@ VALIDATORS = {
     "vnext-workspace": "validate_change_workspace",
     "intent": "validate_intent",
     "exploration-evidence": "validate_exploration_evidence",
+    "query-plan": "validate_query_plan",
+    "tool-health": "validate_tool_health",
+    "conflicts": "validate_conflicts",
+    "coverage": "validate_coverage",
+    "database-context": "validate_database_context",
     "spec": "validate_vnext_spec",
     "brief-integrity": "validate_brief_integrity",
     "result-contract": "validate_result_contract",
@@ -117,6 +122,18 @@ def main(argv=None):
             print("FAIL — --against is required for exploration-evidence gate")
             return 2
         kwargs["evidence_text"] = Path(args.against).read_text(encoding="utf-8")
+        kwargs["repo_root"] = args.repo_root or os.getcwd()
+    elif args.gate == "query-plan":
+        reg = yaml.safe_load(
+            (Path(__file__).resolve().parents[2] / "profiles" / "capability-registry.yaml")
+            .read_text(encoding="utf-8")
+        ) or {}
+        caps = reg.get("capabilities") or {}
+        kwargs["valid_capabilities"] = set(caps)
+        coverable = set()
+        for spec_ in caps.values():
+            coverable.update(spec_.get("preferred_evidence") or [])
+        kwargs["coverable_evidence"] = coverable
     elif args.gate == "spec":
         if not args.against:
             print("FAIL — --against is required for spec gate (CHANGE.yaml)")

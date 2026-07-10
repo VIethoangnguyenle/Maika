@@ -22,6 +22,8 @@ def test_init_workspace_creates_minimal_layout(tmp_path):
     assert (ws / "RECONCILIATION.md").exists()
     assert (ws / "exploration" / "GROUNDING.yaml").exists()
     assert (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").exists()
+    for art in ("QUERY_PLAN.yaml", "TOOL_HEALTH.yaml", "CONFLICTS.yaml", "COVERAGE.yaml"):
+        assert (ws / "exploration" / art).exists(), art
     for sub in ("generated", "briefs", "results", "reviews"):
         assert (ws / sub).is_dir()
     change = vs._load_yaml(ws / "CHANGE.yaml")

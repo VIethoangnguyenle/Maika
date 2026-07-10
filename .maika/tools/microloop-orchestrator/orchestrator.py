@@ -186,6 +186,7 @@ def main(argv=None):
         evidence_res = gates.validate_exploration_evidence(
             (ws / "exploration" / "GROUNDING.yaml").read_text(encoding="utf-8"),
             (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_text(encoding="utf-8"),
+            repo_root=args.repo_root,
         )
         ok = intent_res.ok and evidence_res.ok
         (ws / "generated" / "EXPLORATION_VALIDATION.json").write_text(json.dumps({

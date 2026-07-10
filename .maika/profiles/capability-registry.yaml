@@ -4,39 +4,50 @@ capabilities:
     description: Khám phá module, boundary và flow kiến trúc.
     tools: [search_code, graph_stats, index_code]
     freshness: [code_index]
+    preferred_evidence: [architecture_node, domain_node, domain_flow, relationship_edge, document_node]
   exact_source_inspection:
     description: Đọc source/symbol hiện tại với thẩm quyền tối cao (authoritative).
     tools: [get_symbol, read_file]
     freshness: [code_index]
+    authoritative_for: [exact_code_fact]
+    preferred_evidence: [file_symbol, source_range, test_symbol, configuration_entry, exact_code_fact]
   dependency_analysis:
     description: Truy vết dependency path và phạm vi ảnh hưởng (blast radius).
     tools: [trace_flow, get_dependencies]
     freshness: [code_index]
+    preferred_evidence: [symbol_node, dependency_path, call_path, blast_radius, code_graph_edge]
   historical_context_retrieval:
     description: Truy hồi incident cũ, quyết định trước, rejected approach và review pattern lặp lại.
     tools: [dynamic_memory_recall, dynamic_memory_search]
     health: [dynamic_memory]
+    preferred_evidence: [memory_reference, incident_reference, decision_reference, rejected_approach, review_pattern]
   business_knowledge_retrieval:
     description: Truy hồi tri thức sản phẩm, domain, tài liệu và memory.
     tools: [search_docs, dynamic_memory_recall]
     health: [dynamic_memory]
+    preferred_evidence: [business_rule, business_document, domain_flow]
   convention_retrieval:
     description: Truy hồi Author DNA, conventions và rule ID.
     tools: [read_file, search_text]
+    preferred_evidence: [author_dna_rule, convention_rule]
   database_schema_inspection:
     description: Kiểm tra table/column/constraint/index/package/procedure ở chế độ read-only.
     tools: [db_query]
     health: [database]
+    preferred_evidence: [database_object, database_column, database_constraint, database_index, database_package, database_procedure]
   database_dependency_analysis:
     description: Phân tích phụ thuộc DB và consumer SQL/package ở chế độ read-only.
     tools: [db_query]
     health: [database]
+    preferred_evidence: [database_dependency, sql_consumer, package_consumer]
   runtime_verification:
     description: Chạy lệnh build/test/lint/verification thật và đọc output.
     tools: [run_command, command_status]
+    preferred_evidence: [command_result, test_result, runtime_probe]
   version_control:
     description: Đọc và ghi bằng chứng version-control (commit SHA, diff, trạng thái).
     tools: [run_command]
+    preferred_evidence: [commit_ref, diff_ref, vcs_status]
   task_dispatch:
     description: Dispatch một task implementation theo worker contract chung.
     platform_capability: task_dispatch

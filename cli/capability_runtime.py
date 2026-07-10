@@ -33,6 +33,45 @@ def capability_ids() -> set[str]:
     return set(CANONICAL_CAPABILITIES)
 
 
+def _evidence_to_capability(registry=None) -> dict[str, list[str]]:
+    """Inverse index: evidence_type -> capability_ids that prefer it."""
+    registry = registry or CANONICAL_CAPABILITIES
+    index: dict[str, list[str]] = {}
+    for cap_id in sorted(registry):
+        for etype in registry[cap_id].get("preferred_evidence") or []:
+            index.setdefault(etype, []).append(cap_id)
+    return index
+
+
+def route_question(required_evidence_types, *, registry=None) -> dict:
+    """Resolve which capabilities can supply a question's required evidence types.
+
+    Pure lookup over the canonical registry's ``preferred_evidence`` (no I/O,
+    no provider probing — that is ``route_capability``'s job). Returns the set
+    of candidate capabilities, the per-evidence-type mapping, and any evidence
+    type no capability serves (``uncovered`` — the retrieval plan cannot cover
+    it and must degrade or block).
+    """
+    index = _evidence_to_capability(registry)
+    by_evidence: dict[str, list[str]] = {}
+    capabilities: list[str] = []
+    uncovered: list[str] = []
+    for etype in required_evidence_types or []:
+        serving = index.get(etype, [])
+        by_evidence[etype] = list(serving)
+        if serving:
+            for cap_id in serving:
+                if cap_id not in capabilities:
+                    capabilities.append(cap_id)
+        else:
+            uncovered.append(etype)
+    return {
+        "capabilities": capabilities,
+        "by_evidence": by_evidence,
+        "uncovered": uncovered,
+    }
+
+
 def route_capability(platform, capability_id: str, *, health=None, freshness=None) -> dict:
     """Route one capability for a platform.
 

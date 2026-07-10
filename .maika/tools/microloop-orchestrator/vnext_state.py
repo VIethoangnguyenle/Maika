@@ -69,6 +69,26 @@ def init_workspace(changes_root, change_id, klass, title):
         "change_id": change_id,
         "claims": [],
     }, ws / "exploration" / "EVIDENCE_MANIFEST.yaml")
+    # W2 grounding package skeletons (filled during exploration; gated later).
+    _dump_yaml({
+        "version": 1,
+        "change_id": change_id,
+        "questions": [],
+    }, ws / "exploration" / "QUERY_PLAN.yaml")
+    _dump_yaml({
+        "version": 1,
+        "providers": {},
+    }, ws / "exploration" / "TOOL_HEALTH.yaml")
+    _dump_yaml({
+        "version": 1,
+        "conflicts": [],
+    }, ws / "exploration" / "CONFLICTS.yaml")
+    _dump_yaml({
+        "version": 1,
+        "questions": {"total": 0, "answered": 0, "blocked": 0},
+        "required_evidence": {"covered": [], "missing": []},
+        "verdict": "NEEDS_CONTEXT",
+    }, ws / "exploration" / "COVERAGE.yaml")
     (ws / "RECONCILIATION.md").write_text("# Reconciliation\n\n", encoding="utf-8")
     return ws
 

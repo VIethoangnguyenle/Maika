@@ -482,8 +482,13 @@ def validate_intent(text: str, change_text: str = "") -> Result:
     return Result(True)
 
 
-def validate_exploration_evidence(text: str, evidence_text: str = "") -> Result:
-    """Gate `exploration-evidence` — three-lens grounding + claim manifest."""
+def validate_exploration_evidence(text: str, evidence_text: str = "", repo_root=None) -> Result:
+    """Gate `exploration-evidence` — three-lens grounding + claim manifest.
+
+    When ``repo_root`` is given, every verified ``exact_code_fact`` source is
+    checked for authenticity: the file must exist, its current sha256 must match
+    the declared ``file_hash``, and the ``symbol`` must appear in the file. This
+    rejects fake path, fake symbol, and fabricated/stale hash (DoD #9, #27)."""
     grounding = yaml.safe_load(text) or {}
     for lens in ("codebase", "business", "conventions"):
         if not isinstance(grounding.get(lens), dict) or not grounding[lens]:
@@ -519,12 +524,26 @@ def validate_exploration_evidence(text: str, evidence_text: str = "") -> Result:
             if not isinstance(sources, list) or not sources:
                 return Result(False, f"{cid}: verified code fact requires sources")
             for i, source in enumerate(sources, 1):
-                if not source.get("file"):
+                file = source.get("file")
+                symbol = source.get("symbol")
+                fhash = str(source.get("file_hash", ""))
+                if not file:
                     return Result(False, f"{cid}: source {i} missing file")
-                if not source.get("symbol"):
+                if not symbol:
                     return Result(False, f"{cid}: source {i} missing symbol")
-                if not _SHA256_FMT.match(str(source.get("file_hash", ""))):
+                if not _SHA256_FMT.match(fhash):
                     return Result(False, f"{cid}: source {i} missing file_hash")
+                if repo_root:
+                    import hashlib
+                    p = file if os.path.isabs(file) else os.path.join(repo_root, file)
+                    if not os.path.isfile(p):
+                        return Result(False, f"{cid}: source {i} file not found: {file}")
+                    raw = open(p, "rb").read()
+                    actual = "sha256:" + hashlib.sha256(raw).hexdigest()
+                    if actual != fhash:
+                        return Result(False, f"{cid}: source {i} file_hash mismatch (stale/fabricated): {file}")
+                    if symbol not in raw.decode("utf-8", errors="replace"):
+                        return Result(False, f"{cid}: source {i} symbol '{symbol}' not found in {file}")
     return Result(True)
 
 
@@ -735,4 +754,139 @@ def validate_final_review(text: str, queue_doc=None) -> Result:
         return Result(False, "final review verdict must be APPROVED or CHANGES_REQUIRED")
     if verdict != "APPROVED":
         return Result(False, "final review has unresolved findings")
+    return Result(True)
+
+
+# ── W2 grounding-package validators (query plan, tool health, conflicts, ──────
+#    coverage, database context). Pure: capability membership is passed in.
+
+def validate_query_plan(text, valid_capabilities=None, coverable_evidence=None) -> Result:
+    """Gate `query-plan` — every question declares real capabilities and its
+    required evidence types are coverable by some capability (or the question is
+    explicitly blocked with a reason). Rejects fabricated capability names and
+    evidence types no provider can supply."""
+    doc = yaml.safe_load(text) or {}
+    questions = doc.get("questions")
+    if not isinstance(questions, list) or not questions:
+        return Result(False, "QUERY_PLAN.yaml requires a non-empty questions list")
+    ids = set()
+    for q in questions:
+        qid = q.get("id")
+        if not qid:
+            return Result(False, "query-plan question missing id")
+        if qid in ids:
+            return Result(False, f"duplicate question id: {qid}")
+        ids.add(qid)
+        if not str(q.get("question") or "").strip():
+            return Result(False, f"{qid}: question text required")
+        caps = q.get("required_capabilities")
+        if not isinstance(caps, list) or not caps:
+            return Result(False, f"{qid}: required_capabilities required")
+        if valid_capabilities is not None:
+            for c in caps:
+                if c not in valid_capabilities:
+                    return Result(False, f"{qid}: unknown capability '{c}'")
+        etypes = q.get("required_evidence_types")
+        if not isinstance(etypes, list) or not etypes:
+            return Result(False, f"{qid}: required_evidence_types required")
+        status = q.get("status", "pending")
+        if status not in {"pending", "answered", "blocked"}:
+            return Result(False, f"{qid}: invalid status '{status}'")
+        if status == "blocked":
+            if not str(q.get("blocked_reason") or "").strip():
+                return Result(False, f"{qid}: blocked question requires blocked_reason")
+            continue
+        if coverable_evidence is not None:
+            for e in etypes:
+                if e not in coverable_evidence:
+                    return Result(False, f"{qid}: evidence type '{e}' not coverable by any capability")
+    return Result(True)
+
+
+def validate_tool_health(text) -> Result:
+    """Gate `tool-health` — a `ready` provider must carry a real probe with
+    observed output and freshness (registration != data); a degraded/unavailable
+    provider must carry a structured degradation record. No silent 'ready'."""
+    doc = yaml.safe_load(text) or {}
+    providers = doc.get("providers")
+    if not isinstance(providers, dict) or not providers:
+        return Result(False, "TOOL_HEALTH.yaml requires a non-empty providers map")
+    for name, p in providers.items():
+        if not isinstance(p, dict):
+            return Result(False, f"{name}: provider must be a mapping")
+        status = p.get("status")
+        if status not in {"ready", "degraded", "unavailable", "unsupported"}:
+            return Result(False, f"{name}: invalid status '{status}'")
+        if status == "ready":
+            probe = p.get("probe")
+            if not isinstance(probe, dict) or not probe.get("operation"):
+                return Result(False, f"{name}: ready status requires a real probe (operation)")
+            if not str(probe.get("observed") or "").strip():
+                return Result(False, f"{name}: ready probe requires observed output (registration != data)")
+            if not str(p.get("freshness") or "").strip():
+                return Result(False, f"{name}: ready status requires freshness")
+        elif status in {"degraded", "unavailable"}:
+            deg = p.get("degradation")
+            if not isinstance(deg, dict) or not deg:
+                return Result(False, f"{name}: {status} status requires a structured degradation record")
+    return Result(True)
+
+
+def validate_conflicts(text) -> Result:
+    """Gate `conflicts` — an `open` (unresolved material) conflict blocks design;
+    resolved needs resolution + resolved_by; deferred needs a reason."""
+    doc = yaml.safe_load(text) or {}
+    conflicts = doc.get("conflicts")
+    if conflicts is None:
+        return Result(False, "CONFLICTS.yaml requires a conflicts list (use [] for none)")
+    if not isinstance(conflicts, list):
+        return Result(False, "conflicts must be a list")
+    for c in conflicts:
+        cid = c.get("id")
+        if not cid:
+            return Result(False, "conflict missing id")
+        status = c.get("status")
+        if status not in {"resolved", "deferred", "open"}:
+            return Result(False, f"{cid}: invalid status '{status}'")
+        if status == "open":
+            return Result(False, f"{cid}: unresolved (open) conflict blocks design")
+        if status == "resolved" and (not str(c.get("resolution") or "").strip() or not c.get("resolved_by")):
+            return Result(False, f"{cid}: resolved conflict requires resolution + resolved_by")
+        if status == "deferred" and not str(c.get("reason") or "").strip():
+            return Result(False, f"{cid}: deferred conflict requires reason")
+    return Result(True)
+
+
+def validate_coverage(text) -> Result:
+    """Gate `coverage` — question counts must be consistent and a READY verdict
+    forbids missing evidence or blocked questions."""
+    doc = yaml.safe_load(text) or {}
+    q = doc.get("questions") or {}
+    total, answered, blocked = q.get("total"), q.get("answered"), q.get("blocked")
+    if not all(isinstance(x, int) for x in (total, answered, blocked)):
+        return Result(False, "COVERAGE.yaml questions.total/answered/blocked must be integers")
+    if answered + blocked > total:
+        return Result(False, "coverage counts inconsistent: answered+blocked > total")
+    missing = (doc.get("required_evidence") or {}).get("missing") or []
+    verdict = doc.get("verdict")
+    if verdict not in {"READY", "NEEDS_CONTEXT", "BLOCKED"}:
+        return Result(False, f"invalid coverage verdict: {verdict}")
+    if verdict == "READY":
+        if missing:
+            return Result(False, f"verdict READY but evidence still missing: {missing}")
+        if blocked:
+            return Result(False, "verdict READY but has blocked questions")
+    return Result(True)
+
+
+def validate_database_context(text) -> Result:
+    """Gate `database-context` — exploration is read-only and must carry either
+    real DB objects or a structured degradation record (DB unreachable)."""
+    doc = yaml.safe_load(text) or {}
+    if doc.get("read_only") is not True:
+        return Result(False, "DATABASE_CONTEXT.yaml requires read_only: true")
+    objects = doc.get("objects") or []
+    degradation = doc.get("degradation")
+    if not objects and not (isinstance(degradation, dict) and degradation):
+        return Result(False, "DATABASE_CONTEXT.yaml requires DB objects or a structured degradation record")
     return Result(True)

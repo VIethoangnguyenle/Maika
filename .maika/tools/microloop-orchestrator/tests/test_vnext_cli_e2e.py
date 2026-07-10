@@ -6,7 +6,13 @@ import yaml
 import pytest
 
 
-def _write_valid_reasoning(ws):
+def _write_valid_reasoning(ws, repo_root):
+    import hashlib
+    src_dir = Path(repo_root) / "src"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    code_file = src_dir / "demo_mod.py"
+    code_file.write_text("def demo_func():\n    return 1\n", encoding="utf-8")
+    real_hash = "sha256:" + hashlib.sha256(code_file.read_bytes()).hexdigest()
     (ws / "INTENT.md").write_text("Summary: Implement standard reasoning validation.\n", encoding="utf-8")
     (ws / "exploration" / "GROUNDING.yaml").write_text(
         yaml.safe_dump({
@@ -52,14 +58,14 @@ def _write_valid_reasoning(ws):
             "change_id": "demo",
             "claims": [{
                 "id": "CODE-001",
-                "statement": "The orchestrator has vNext commands.",
+                "statement": "demo_mod defines demo_func.",
                 "category": "exact_code_fact",
                 "status": "verified",
                 "sources": [{
                     "type": "file_symbol",
-                    "file": ".maika/tools/microloop-orchestrator/orchestrator.py",
-                    "symbol": "main",
-                    "file_hash": "sha256:" + "a" * 64,
+                    "file": "src/demo_mod.py",
+                    "symbol": "demo_func",
+                    "file_hash": real_hash,
                 }],
             }],
         }, sort_keys=False),
@@ -256,7 +262,7 @@ def test_vnext_reasoning_and_spec_validation_commands(tmp_path):
     state = yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))
     state["state"] = "EXPLORING"
     (ws / "STATE.yaml").write_text(yaml.safe_dump(state), encoding="utf-8")
-    _write_valid_reasoning(ws)
+    _write_valid_reasoning(ws, tmp_path)
 
     res = subprocess.run(cmd + ["vnext-validate-reasoning", "--workspace", str(ws), "--repo-root", str(tmp_path)], capture_output=True, text=True)
     assert res.returncode == 0

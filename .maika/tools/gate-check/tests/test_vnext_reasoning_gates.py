@@ -172,6 +172,29 @@ def test_exploration_evidence_requires_three_lenses_and_verified_sources():
     assert not res.ok and "file_hash" in res.reason
 
 
+def test_exploration_evidence_authenticity_rejects_fake_path_symbol_hash(tmp_path):
+    _repo(tmp_path)  # creates src/a.py = "class A:\n    pass\n" + tests/test_a.py
+    real_hash = "sha256:" + hashlib.sha256((tmp_path / "src" / "a.py").read_bytes()).hexdigest()
+
+    def _ev(file="src/a.py", symbol="A", fhash=real_hash):
+        return yaml.safe_dump({
+            "version": 1, "change_id": "demo",
+            "claims": [{
+                "id": "CODE-001", "statement": "A exists.",
+                "category": "exact_code_fact", "status": "verified",
+                "sources": [{"type": "file_symbol", "file": file, "symbol": symbol, "file_hash": fhash}],
+            }],
+        }, sort_keys=False)
+
+    assert gates.validate_exploration_evidence(_grounding(), _ev(), repo_root=str(tmp_path)).ok
+    r = gates.validate_exploration_evidence(_grounding(), _ev(file="src/ghost.py"), repo_root=str(tmp_path))
+    assert not r.ok and "not found" in r.reason
+    r = gates.validate_exploration_evidence(_grounding(), _ev(symbol="Zzz"), repo_root=str(tmp_path))
+    assert not r.ok and "symbol" in r.reason
+    r = gates.validate_exploration_evidence(_grounding(), _ev(fhash="sha256:" + "a" * 64), repo_root=str(tmp_path))
+    assert not r.ok and "hash mismatch" in r.reason
+
+
 def test_spec_gate_requires_small_contract_and_evidence_refs():
     assert gates.validate_vnext_spec(_small_spec(), change_class="small").ok
     res = gates.validate_vnext_spec(_small_spec().replace("## Evidence References", "## Evidence"), change_class="small")
