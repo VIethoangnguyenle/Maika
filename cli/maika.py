@@ -166,6 +166,22 @@ def main():
     mcp_parser.add_argument("--fix", action="store_true")
     mcp_parser.add_argument("--yes", action="store_true")
 
+    # ─── vnext ───
+    vnext_parser = subparsers.add_parser("vnext", help="vNext development tools")
+    vnext_subparsers = vnext_parser.add_subparsers(dest="vnext_command")
+
+    vnext_compile = vnext_subparsers.add_parser("compile", help="Compile implementation plan")
+    vnext_compile.add_argument("workspace")
+    vnext_compile.add_argument("--source", default=None)
+
+    vnext_dispatch = vnext_subparsers.add_parser("dispatch", help="Run planning dispatch")
+    vnext_dispatch.add_argument("workspace")
+    vnext_dispatch.add_argument("--source", default=None)
+
+    vnext_e2e = vnext_subparsers.add_parser("e2e", help="Compile and dispatch end-to-end")
+    vnext_e2e.add_argument("workspace")
+    vnext_e2e.add_argument("--source", default=None)
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -202,6 +218,17 @@ def main():
     elif args.command == "doctor" and args.doctor_command == "mcp":
         from cli.commands.doctor import run_doctor_mcp
         run_doctor_mcp(target_dir=args.target, fix=args.fix, assume_yes=args.yes)
+    elif args.command == "vnext":
+        from cli.commands.vnext import run_compile, run_dispatch, run_e2e
+        if args.vnext_command == "compile":
+            run_compile(args.workspace, args.source)
+        elif args.vnext_command == "dispatch":
+            run_dispatch(args.workspace, args.source)
+        elif args.vnext_command == "e2e":
+            run_e2e(args.workspace, args.source)
+        else:
+            vnext_parser.print_help()
+            sys.exit(1)
     else:
         parser.print_help()
         sys.exit(1)
