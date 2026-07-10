@@ -1,0 +1,107 @@
+version: 1
+baseline_commit: a31dc30
+
+artifacts:
+  TASK_QUEUE.md:
+    producers:
+      - path: .maika/tools/microloop-orchestrator/orchestrator.py
+        note: initialize_runtime_queue
+    consumers:
+      - path: .maika/tools/microloop-orchestrator/orchestrator.py
+        note: update_task_status / resume
+      - path: cli/dashboard/reader.py
+        note: dashboard đọc queue
+  TASK_HANDOFF.md:
+    producers:
+      - path: .maika/tools/microloop-orchestrator/README.md
+        note: conceptual
+    consumers:
+      - path: .maika/tools/microloop-orchestrator/tests/test_contract.py
+        note: validate
+  TASK_RESULT.md:
+    producers:
+      - path: .maika/tools/microloop-orchestrator/README.md
+        note: doc
+    consumers:
+      - path: .maika/tools/microloop-orchestrator/tests/test_contract.py
+        note: validate
+  PARENT_BRAIN.md:
+    producers:
+      - path: cli/dashboard/brain.py
+        note: write
+    consumers:
+      - path: .maika/workflows/task.md
+        note: read
+  EXTRACTION_INPUT.md:
+    producers:
+      - path: .maika/procedures/reviewer.md
+        note: generate
+    consumers: []
+  EXTRACTION_REPORT.md:
+    producers:
+      - path: .maika/procedures/reviewer.md
+        note: report
+    consumers:
+      - path: .maika/workflows/task.md
+        note: embed
+  ACTIVITY_LOG.jsonl:
+    producers:
+      - path: .maika/tools/microloop-orchestrator/orchestrator.py
+        note: write
+    consumers:
+      - path: cli/dashboard/reader.py
+        note: read
+  knowledge-index.yaml:
+    producers:
+      - path: .maika/tools/knowledge-index/generate_index.py
+        note: generate
+    consumers:
+      - path: .maika/procedures/context-loader.md
+        note: load
+  skill-index.yaml:
+    producers:
+      - path: .maika/tools/skill-index/generate_index.py
+        note: generate
+    consumers:
+      - path: .maika/procedures/bootstrap.md
+        note: bootstrap
+  author-dna.yaml:
+    producers:
+      - path: .maika/skills/author-dna-builder/SKILL.md
+        note: build
+    consumers:
+      - path: .maika/tools/rule-projector/projector.py
+        note: project
+  conventions.yaml:
+    producers:
+      - path: .maika/skills/convention-intelligence-builder/SKILL.md
+        note: build
+    consumers:
+      - path: .maika/tools/rule-projector/projector.py
+        note: project
+  execution-mode.yaml:
+    producers:
+      - path: .maika/profiles/README.md
+        note: define
+    consumers:
+      - path: .maika/tools/microloop-orchestrator/orchestrator.py
+        note: consume
+  resolved-config.yaml:
+    producers:
+      - path: cli/platforms/base.py
+        note: load
+    consumers:
+      - path: cli/commands/status.py
+        note: read
+  rules.json:
+    producers:
+      - path: .maika/tools/rule-projector/projector.py
+        note: project
+    consumers:
+      - path: cli/renderer.py
+        note: load
+  checkstyle.generated.xml:
+    producers:
+      - path: .maika/tools/rule-projector/backends/checkstyle.py
+        note: generate
+    consumers: []
