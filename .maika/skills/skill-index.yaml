@@ -198,3 +198,13 @@ skills:
       - phase: pha-2
         condition: phase_done
         on_fail: "ABORT — spec chưa được sinh (phase_state chưa đạt phase-2-done)"
+  -
+    name: writing-plan
+    version: '1.0'
+    description: >
+      Sinh IMPLEMENTATION_PLAN.md code-level cho một change vNext: frontmatter máy-đọc
+      (base_commit, spec_hash, evidence_hash), mỗi task một section TASK-NNN với
+      implementation_mode exact|guided|intent, files/symbols/anchors, TDD steps, commands
+      + expected. Dùng khi: SPEC.md đã được duyệt và change ở state PLANNING (mọi class).
+      KHÔNG dùng cho: brainstorm (W2), review plan (planning_dispatch đảm nhiệm),
+      task legacy OpenSpec.
