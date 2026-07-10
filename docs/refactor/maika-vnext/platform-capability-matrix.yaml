@@ -7,20 +7,20 @@ platforms:
       evidence: ".maika/profiles/execution-mode.yaml:3 — tier `subagent` (Claude); Task tool"
       verified_at: 2026-07-10
     fresh_session:
-      supported: false
-      evidence: "Claude Code CLI không có flag tương đương worker_command cô lập session."
+      supported: true
+      evidence: "`claude --help` → `-p, --print  Print response and exit` — CLI print mode chạy session mới không tương tác (cùng pattern agy -p / codex exec)."
       verified_at: 2026-07-10
     hook_pre_tool_use:
       supported: true
       evidence: ".maika/hooks/claude-code/settings.json:1"
       verified_at: 2026-07-10
     hook_session_start:
-      supported: false
-      evidence: "Không thấy hook session_start trong .maika/hooks/claude-code/settings.json"
+      supported: true
+      evidence: "Platform hỗ trợ SessionStart hook event — verify trực tiếp trong live Claude Code session 2026-07-10 (SessionStart:startup hooks fire). Lưu ý: config Maika tại .maika/hooks/claude-code/settings.json hiện CHƯA wire event này."
       verified_at: 2026-07-10
     model_selection:
-      supported: false
-      evidence: "Không tìm thấy parameter model cho claude_code.py qua grep."
+      supported: true
+      evidence: "Claude Code Agent/Task tool nhận param `model` (sonnet|opus|haiku...) per-dispatch; agent definition .claude/agents/*.md hỗ trợ frontmatter `model:` — verify trực tiếp trong live session 2026-07-10. (Grep cli/platforms/claude_code.py không ra chỉ chứng minh adapter Maika chưa dùng, không phải platform thiếu capability.)"
       verified_at: 2026-07-10
   codex:
     subagent_spawn:
@@ -37,7 +37,7 @@ platforms:
       verified_at: 2026-07-10
     hook_session_start:
       supported: false
-      evidence: "Không tìm thấy session_start trong .maika/hooks/codex/hooks.json"
+      evidence: "Config Maika (.maika/hooks/codex/hooks.json) không wire event này; capability phía platform CHƯA xác minh độc lập — giữ false cho đến khi có evidence platform-level (R4)."
       verified_at: 2026-07-10
     model_selection:
       supported: true
@@ -58,7 +58,7 @@ platforms:
       verified_at: 2026-07-10
     hook_session_start:
       supported: false
-      evidence: "Không tìm thấy trong .maika/hooks/antigravity/hooks.json"
+      evidence: "Config Maika (.maika/hooks/antigravity/hooks.json) không wire event này; capability phía platform CHƯA xác minh độc lập — giữ false cho đến khi có evidence platform-level (R4)."
       verified_at: 2026-07-10
     model_selection:
       supported: true
