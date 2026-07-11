@@ -63,13 +63,16 @@ def test_generic_install_omits_verify_hint(tmp_path, monkeypatch, capsys):
 
 
 def test_verify_platform_flag_reaches_tier_two(tmp_path, monkeypatch):
+    binary = tmp_path / "codex"
+    binary.write_text("#!/bin/sh\necho codex 1.0\n", encoding="utf-8")
+    binary.chmod(0o755)
     monkeypatch.setattr(
         probe, "detect_binary",
-        lambda name, timeout=5: probe.BinaryProbe(name, True, f"/bin/{name}", "1.0", True),
+        lambda name, timeout=5: probe.BinaryProbe(name, True, str(binary), "1.0", True),
     )
     monkeypatch.setattr(
         probe, "run_worker_smoke_test",
-        lambda profile, prompt: {"state": "verified", "returncode": 0, "output": "ok"},
+        lambda profile, prompt, **_kwargs: {"state": "verified", "returncode": 0, "output": "ok"},
     )
     target = tmp_path / "proj"
     _init(target, "codex", verify_platform=True)

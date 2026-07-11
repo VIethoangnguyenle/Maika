@@ -212,7 +212,7 @@ def make_worker_runner(worker, ws, repo_root, timeout=900):
     return runner
 
 
-def _worker_runner(config, ws, repo_root, platform_key=None):
+def _worker_runner(config, ws, repo_root, platform_key=None, *, allow_primary_fallback=False):
     from cli.config import project as project_cfg
     from cli.runtime.worker_resolver import (
         FRESH_PROCESS, WorkerResolutionError, resolve_worker_profile,
@@ -220,8 +220,10 @@ def _worker_runner(config, ws, repo_root, platform_key=None):
 
     config = config or {}
     worker = config.get("worker")
-    primary = platform_key or project_cfg.load(Path(repo_root))["platforms"]["primary"]
-    if primary is None and isinstance(worker, dict):
+    primary = platform_key
+    if primary is None and allow_primary_fallback:
+        primary = project_cfg.load(Path(repo_root))["platforms"]["primary"]
+    if primary is None and allow_primary_fallback and isinstance(worker, dict):
         primary = worker.get("platform", "generic")
     if primary is None:
         print("Refused: missing active or primary platform; pass an explicit platform")

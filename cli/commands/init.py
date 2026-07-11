@@ -205,7 +205,7 @@ def run_init(
     ua_mcp_dir: Optional[str] = None,
     migration_files: Optional[dict[str, Path]] = None,
     verify_platform: bool = False,
-) -> None:
+) -> "OperationResult":
     """Main init command — scaffold Maika into a target project."""
     target = Path(target_dir).resolve()
     maika = asset_root(maika_root)
@@ -231,7 +231,8 @@ def run_init(
     print(f"  Target:    {target}\n{'─' * 50}")
     if not assume_yes and input("\nTiến hành scaffold? [Y/n]: ").strip().lower() == "n":
         print("\n❌ Đã huỷ.")
-        return
+        from cli.runtime.result import OperationResult
+        return OperationResult("blocked", False, exit_code=2, message="cancelled")
 
     context = platform.build_render_context(selected_mcps, language)
     jinja_env = create_renderer(str(maika))
@@ -252,7 +253,9 @@ def run_init(
             for p in offenders:
                 print(f"     • {p.relative_to(staging)}")
             print("  Target was NOT modified.")
-            return
+            from cli.runtime.result import OperationResult
+            return OperationResult("blocked", False, exit_code=1,
+                                   message="unresolved template markers")
         # Build the complete desired tree in staging, then apply atomically.
         stage_managed_entrypoint(staging, target, platform.config_entry_point)
         stage_managed_json_configs(staging, target)
@@ -278,9 +281,9 @@ def run_init(
         # project. Persists real binary detection so a fresh install reports its
         # true tier instead of advertising a worker the orchestrator refuses (F2).
         from cli.platforms.probe import probe_and_persist
-        probe_and_persist(staging, platform_key, verify=verify_platform)
+        probe_result = probe_and_persist(staging, platform_key, verify=verify_platform)
         plan = build_plan(staging, target, "init", framework_root)
-        Transaction(staging, target, backups).apply(plan)
+        journal = Transaction(staging, target, backups).apply(plan)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
         shutil.rmtree(backups, ignore_errors=True)
@@ -301,3 +304,13 @@ def run_init(
         print(f"  4. Run MCP diagnostics: maika doctor mcp --target {target}\n")
     if UA_MCP_KEY in selected_mcps:
         print(f"  5. Wire Understand-Anything: see {platform.framework_root}/MCP_SETUP.md\n")
+    from cli.runtime.result import OperationResult
+    if verify_platform and probe_result.verification.get("worker") != "verified":
+        return OperationResult(
+            "partial-safe", True, exit_code=1,
+            transaction_id=journal.get("transaction_id"),
+            message="installation committed but platform worker verification failed",
+        )
+    return OperationResult("committed", True,
+                           transaction_id=journal.get("transaction_id"),
+                           message="installation committed")

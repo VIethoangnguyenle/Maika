@@ -11,6 +11,7 @@ root from cwd, reads stdin, and emits the runtime-specific decision.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -55,6 +56,28 @@ def run_hook_write_gate(runtime: str, platform: Optional[str] = None,
     allow with a diagnostic — a hook that hard-blocks every write in a project
     without the gate installed would be worse than the status quo.
     """
+    if stdin_text is None:
+        stdin_text = sys.stdin.read()
+    try:
+        payload = json.loads(stdin_text) if stdin_text.strip() else {}
+    except json.JSONDecodeError:
+        payload = {}
+    payload_identity = next((payload.get(key) for key in
+                             ("session_id", "sessionId", "conversation_id")
+                             if isinstance(payload.get(key), str) and payload.get(key)), None)
+    env_identity = os.environ.get("MAIKA_SESSION_ID")
+    if payload_identity:
+        logical_session_id, identity_source, identity_quality = payload_identity, "hook-payload", "high"
+    elif env_identity:
+        logical_session_id, identity_source, identity_quality = env_identity, "environment", "high"
+    elif os.getppid() > 1:
+        logical_session_id = f"{runtime}-parent-{os.getppid()}"
+        identity_source, identity_quality = "parent-agent-process", "medium"
+    else:
+        import uuid
+        logical_session_id = f"{runtime}-fallback-{uuid.uuid4()}"
+        identity_source, identity_quality = "generated-fallback", "low"
+
     cwd = Path.cwd()
     root = _locate_project_root(cwd)
     config_path = root / ".maika/config/project.yaml"
@@ -88,10 +111,10 @@ def run_hook_write_gate(runtime: str, platform: Optional[str] = None,
             # the per-session registry means it would no longer conflict, but a
             # verify still should not pollute the session registry.)
             if not os.environ.get("MAIKA_HOOK_SMOKE"):
-                session_id = (os.environ.get("MAIKA_SESSION_ID")
-                              or f"{runtime}-{os.getppid()}-{os.getpid()}")
                 record_session(root, platform, source="native-hook",
-                               session_id=session_id)
+                               session_id=logical_session_id,
+                               identity_source=identity_source,
+                               identity_quality=identity_quality)
         except (SessionError, PlatformProfileError) as exc:
             print(f"maika hook write-gate: {exc}", file=sys.stderr)
             return 2

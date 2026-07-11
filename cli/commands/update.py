@@ -45,7 +45,7 @@ def _stage_index_inputs(target: Path, staging: Path, framework_root: str) -> Non
         shutil.copytree(project_knowledge, dst / "project-knowledge", dirs_exist_ok=True)
 
 
-def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: bool = False) -> None:
+def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: bool = False):
     """Re-render framework files into an existing Maika project."""
     target = Path(target_dir).resolve()
     maika = asset_root(maika_root)
@@ -54,7 +54,9 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
     if resolved is None:
         print(f"\n  ❌ No Maika installation found in {target}")
         print(f"     Run: maika init --target {target}")
-        return
+        from cli.runtime.result import OperationResult
+        return OperationResult("blocked", False, exit_code=2,
+                               message="Maika installation not found")
 
     manifest = load_asset_manifest(maika)
 
@@ -103,7 +105,9 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
             for p in offenders:
                 print(f"     • {p.relative_to(staging)}")
             print("  Target was NOT modified.")
-            return
+            from cli.runtime.result import OperationResult
+            return OperationResult("blocked", False, exit_code=1,
+                                   message="unresolved template markers")
         # Build the complete desired tree in staging, then apply atomically.
         for entrypoint in sorted({adapter.config_entry_point for adapter in adapter_platforms}):
             stage_managed_entrypoint(staging, target, entrypoint)
@@ -122,7 +126,10 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
             ua_dir = resolve_ua_mcp_dir(selected_mcps, None, assume_yes=False)
             emit_mcp_setup_files(staging, platform, platform_key, selected_mcps, manifest, ua_dir)
         plan = build_plan(staging, target, "update", framework_root)
-        Transaction(staging, target, backups).apply(plan)
+        if not plan["actions"]:
+            from cli.runtime.result import OperationResult
+            return OperationResult("no-op", False, message="already up to date")
+        journal = Transaction(staging, target, backups).apply(plan)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
         shutil.rmtree(backups, ignore_errors=True)
@@ -135,3 +142,7 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
 
     count = sum(1 for a in plan["actions"] if a["kind"] != "delete_framework_file")
     print(f"\n  ✅ Updated {count} framework files. User files preserved.\n")
+    from cli.runtime.result import OperationResult
+    return OperationResult("committed", True,
+                           transaction_id=journal.get("transaction_id"),
+                           message="update committed")

@@ -110,10 +110,10 @@ class Transaction:
         return journal
 
     def _begin_journal(self, plan: dict) -> None:
-        tx_dir = self.target / ".maika/runtime/transactions"
-        backup_base = self.target / ".maika/runtime/backups"
-        for directory in (self.target, self.target / ".maika", self.target / ".maika/runtime",
-                          tx_dir, backup_base):
+        transaction_root = self.target / ".maika-transactions"
+        tx_dir = transaction_root / "journals"
+        backup_base = transaction_root / "backups"
+        for directory in (self.target, transaction_root, tx_dir, backup_base):
             if not directory.exists():
                 directory.mkdir()
                 self._operational_dirs.append(directory)
@@ -253,13 +253,18 @@ def repair_transaction(target: Path, transaction_id: str) -> dict:
     if not re.fullmatch(r"\d{6}-[a-z0-9-]+", transaction_id):
         raise ValueError("invalid transaction id")
     target = Path(target)
-    journal_path = target / ".maika/runtime/transactions" / f"{transaction_id}.yaml"
+    journal_path = target / ".maika-transactions/journals" / f"{transaction_id}.yaml"
+    if not journal_path.is_file():
+        legacy = target / ".maika/runtime/transactions" / f"{transaction_id}.yaml"
+        journal_path = legacy if legacy.is_file() else journal_path
     if not journal_path.is_file():
         raise FileNotFoundError(f"transaction journal not found: {transaction_id}")
     journal = yaml.safe_load(journal_path.read_text(encoding="utf-8")) or {}
     if journal.get("status") == "committed":
         return journal
-    backup_root = target / ".maika/runtime/backups" / transaction_id
+    backup_root = target / ".maika-transactions/backups" / transaction_id
+    if not backup_root.exists():
+        backup_root = target / ".maika/runtime/backups" / transaction_id
     preexisting = journal.get("preexisting") or {}
     applied = list(journal.get("applied") or [])
     if journal.get("pending"):

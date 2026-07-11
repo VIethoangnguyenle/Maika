@@ -18,6 +18,7 @@ from typing import Optional
 from cli.install import ownership
 from cli.install.planner import build_plan
 from cli.install.transaction import Transaction
+from cli.runtime.result import OperationResult
 from cli.scaffold import (
     load_resolved_config,
     remove_maika_json_entry,
@@ -31,7 +32,8 @@ _USER_DATA_DIRS = frozenset({"knowledge", "changes", "archive", "loops"})
 
 
 def _result(status: str, *, mutation: bool, transaction_id: Optional[str] = None,
-            exit_code: Optional[int] = None) -> dict:
+            exit_code: Optional[int] = None, project_data_mutation: bool = False,
+            diagnostic_mutation: bool = False, message: str = "") -> dict:
     """Command result semantics (F10c): exit code aligns with mutation outcome.
 
     status ∈ {no-op, committed, blocked, partial-safe}. no-op/committed exit 0;
@@ -42,8 +44,12 @@ def _result(status: str, *, mutation: bool, transaction_id: Optional[str] = None
     """
     if exit_code is None:
         exit_code = 0 if status in {"no-op", "committed"} else 1
-    return {"status": status, "mutation": mutation, "transaction_id": transaction_id,
-            "exit_code": exit_code}
+    return OperationResult(
+        status=status, mutation=mutation,
+        project_data_mutation=project_data_mutation,
+        diagnostic_mutation=diagnostic_mutation, exit_code=exit_code,
+        transaction_id=transaction_id, message=message,
+    ).to_dict()
 
 
 def _framework_root(target: Path) -> str:
@@ -51,26 +57,12 @@ def _framework_root(target: Path) -> str:
 
 
 def _purge_actions(target: Path, framework_root: str) -> list[dict]:
-    """Full-scope delete actions for a purge, covering every top-level entry under
-    the core EXCEPT ``runtime`` (which holds the live transaction journal/backups
-    and is removed only after commit). Everything here is inside the transaction,
-    so a mid-purge failure rolls back the entire core (F10a)."""
+    """Delete the complete core as one rollback-capable transaction action."""
     root = target / framework_root
-    actions: list[dict] = []
     if not root.is_dir():
-        return actions
-    for entry in sorted(root.iterdir()):
-        if entry.name == "runtime":
-            continue
-        rel = entry.relative_to(target).as_posix()
-        if entry.is_dir():
-            own = ownership.PROJECT if entry.name in _USER_DATA_DIRS else ownership.FRAMEWORK
-            actions.append({"kind": "delete_directory", "path": rel,
-                            "ownership": own, "explicit_project_delete": True})
-        elif entry.is_file():
-            actions.append({"kind": "delete_file", "path": rel,
-                            "ownership": ownership.FRAMEWORK, "explicit_project_delete": True})
-    return actions
+        return []
+    return [{"kind": "delete_directory", "path": framework_root,
+             "ownership": ownership.PROJECT, "explicit_project_delete": True}]
 
 
 def _framework_delete_plan(target: Path, framework_root: str) -> dict:
@@ -146,14 +138,9 @@ def run_uninstall(target_dir: str, purge_project_data: bool = False) -> dict:
     if purge_project_data:
         for path in purged:
             print(f"    • purged {path}")
-        # Only the transaction's own runtime skeleton (journal + backups) remains
-        # under the core — the recovery marker is intentionally the terminal
-        # removal, once the transaction has committed.
-        shutil.rmtree(target / framework_root / "runtime", ignore_errors=True)
-        try:
-            (target / framework_root).rmdir()
-        except OSError:
-            pass
+        # The external transaction state is no longer needed after a committed
+        # purge; no part of the core is removed outside Transaction.apply().
+        shutil.rmtree(target / ".maika-transactions", ignore_errors=True)
         print(f"  Uninstalled Maika and purged project data under {framework_root}")
     else:
         print(f"  Uninstalled Maika core; preserved knowledge/changes/archive/loops "
@@ -179,8 +166,9 @@ def run_repair(target_dir: str, finding_id: Optional[str] = None,
         results = [run_repair(target_dir, f, maika_root)
                    for f in ("managed-entrypoint", "native-hook")]
         mutated = any(r["mutation"] for r in results)
-        if any(r["exit_code"] == 1 for r in results):
-            return _result("blocked", mutation=mutated, exit_code=1)
+        if any(r["exit_code"] != 0 for r in results):
+            return _result("partial-safe" if mutated else "blocked", mutation=mutated,
+                           exit_code=max(r["exit_code"] for r in results))
         return _result("committed" if mutated else "no-op", mutation=mutated)
     if not finding_id:
         print("  ❌ repair requires --finding, --transaction, or --all-safe")
@@ -199,8 +187,7 @@ def run_repair(target_dir: str, finding_id: Optional[str] = None,
 
     if finding_id == "managed-entrypoint":
         from cli.commands.update import run_update
-        run_update(target_dir=str(target), maika_root=maika_root)
-        return _result("committed", mutation=True)
+        return run_update(target_dir=str(target), maika_root=maika_root).to_dict()
     if finding_id == "native-hook":
         from cli.commands.platform import run_platform
         from cli.config import project as project_cfg
@@ -327,10 +314,10 @@ def _apply_migration_resolution(target: Path, decision_path: Path) -> dict:
         logical, choose = item.get("logical_artifact"), item.get("choose")
         if logical not in allowed:
             print(f"  refused: {logical!r} is not an open conflict")
-            return _result("blocked", mutation=False)
+            return _result("blocked", mutation=False, exit_code=2)
         if choose not in allowed[logical]:
             print(f"  refused: {choose!r} is not a recorded candidate for {logical!r}")
-            return _result("blocked", mutation=False)
+            return _result("blocked", mutation=False, exit_code=2)
         source = target / choose
         if not source.is_file():
             print(f"  refused: chosen source missing: {choose}")
@@ -452,7 +439,8 @@ def run_migrate(target_dir: str, apply: bool = False, cleanup_legacy: bool = Fal
                               encoding="utf-8")
             print(f"  migration blocked by {len(conflicts)} divergent artifact(s); no project data "
                   f"mutated. Resolve then re-run — see {report.relative_to(target).as_posix()}")
-            return _result("blocked", mutation=False)
+            return _result("partial-safe", mutation=True, diagnostic_mutation=True,
+                           exit_code=1)
         if not safe:
             print("  nothing to migrate; canonical artifacts already match legacy")
             return _result("no-op", mutation=False)

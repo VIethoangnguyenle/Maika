@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 from typing import Any, Mapping, Optional
+import os
+import signal
 
 from cli.platforms import PLATFORMS, get_platform
 from cli.runtime.executor import (  # canonical strategy constants + selectability
@@ -18,6 +20,8 @@ from cli.runtime.platform_profile import (
     PlatformProfileError,
     load_platform_runtime_profile,
 )
+from cli.runtime.binary_identity import binary_identity, identities_match
+from cli.runtime.worktree import snapshot_worktree
 
 
 _OVERRIDE_FIELDS = frozenset({
@@ -124,8 +128,22 @@ def resolve_worker_profile(
     fresh_verified = runtime.capabilities.get("fresh_session") == "verified"
     if runtime.worker.strategy == FRESH_PROCESS and binary.get("found") \
             and binary.get("version_supported") and fresh_verified and worker_verified:
+        verified_binary = runtime.verification.get("worker_binary")
+        current_binary = binary_identity(runtime.worker.executable, version=binary.get("version"))
+        verified_profile = runtime.verification.get("verified_worker_profile_fingerprint")
+        raw_path = Path(project_root) / ".maika/runtime/platforms" / f"{platform_key}.yaml"
+        try:
+            import yaml
+            raw = yaml.safe_load(raw_path.read_text(encoding="utf-8")) or {}
+        except (OSError, ValueError):
+            raw = {}
+        if not identities_match(verified_binary, current_binary) or \
+                verified_profile != raw.get("profile_fingerprint"):
+            return WorkerProfile(platform_key, DISABLED, None, (), runtime.worker.timeout_seconds,
+                                 False, "verified worker identity changed; run `maika platform verify "
+                                 f"{platform_key}`")
         return validate_worker_profile(WorkerProfile(
-            platform_key, FRESH_PROCESS, runtime.worker.executable, runtime.worker.args,
+            platform_key, FRESH_PROCESS, current_binary["path"], runtime.worker.args,
             runtime.worker.timeout_seconds, runtime.worker.dangerous_permissions,
             "verified fresh-process CLI",
         ))
@@ -174,15 +192,36 @@ def build_worker_argv(
     return argv
 
 
-def run_worker_smoke_test(profile: WorkerProfile, prompt_file: Path) -> dict:
+def run_worker_smoke_test(profile: WorkerProfile, prompt_file: Path, *,
+                          project_root: Optional[Path] = None,
+                          output_cap_bytes: int = 2000) -> dict:
     """Run a no-shell worker probe and return structured evidence without raising."""
     try:
         argv = build_worker_argv(profile, str(prompt_file))
-        proc = subprocess.run(
-            argv, shell=False, capture_output=True, text=True,
-            timeout=profile.timeout_seconds, check=False,
-        )
-        return {"state": "verified" if proc.returncode == 0 else "degraded",
-                "returncode": proc.returncode, "output": (proc.stdout or proc.stderr or "")[-2000:]}
+        root = Path(project_root or prompt_file.parent).resolve()
+        before = snapshot_worktree(root)
+        popen_kwargs = {"cwd": str(root), "shell": False, "stdout": subprocess.PIPE,
+                        "stderr": subprocess.PIPE, "text": True}
+        if os.name == "nt":
+            popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            popen_kwargs["start_new_session"] = True
+        proc = subprocess.Popen(argv, **popen_kwargs)
+        try:
+            stdout, stderr = proc.communicate(timeout=profile.timeout_seconds)
+        except subprocess.TimeoutExpired:
+            if os.name == "nt":
+                proc.kill()
+            else:
+                os.killpg(proc.pid, signal.SIGKILL)
+            proc.communicate()
+            return {"state": "unavailable", "returncode": None, "output": "worker smoke timed out"}
+        after = snapshot_worktree(root)
+        output = (stdout or stderr or "")[-output_cap_bytes:]
+        clean = before == after
+        marker = "MAIKA_WORKER_SMOKE_OK" in (stdout or "")
+        state = "verified" if proc.returncode == 0 and marker and clean else "degraded"
+        return {"state": state, "returncode": proc.returncode, "output": output,
+                "worktree_clean": clean, "snapshot_method": before["method"]}
     except (OSError, subprocess.TimeoutExpired, WorkerResolutionError) as exc:
         return {"state": "unavailable", "returncode": None, "output": str(exc)}

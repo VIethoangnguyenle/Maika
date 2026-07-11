@@ -477,7 +477,9 @@ def test_cli_init_forwards_non_interactive_options(monkeypatch, tmp_path):
         ],
     )
 
-    maika.main()
+    with pytest.raises(SystemExit) as exc:
+        maika.main()
+    assert exc.value.code == 0
 
     assert captured["target_dir"] == str(tmp_path)
     assert captured["platform_key"] == "generic"
@@ -510,7 +512,9 @@ def test_cli_init_preserves_omitted_mcp_as_none(monkeypatch, tmp_path):
         ],
     )
 
-    maika.main()
+    with pytest.raises(SystemExit) as exc:
+        maika.main()
+    assert exc.value.code == 0
 
     assert captured["selected_mcps"] is None
 

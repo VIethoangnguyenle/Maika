@@ -42,6 +42,7 @@ log_dir = Path(os.environ["MAIKA_FAKE_LOG_DIR"])
 log_dir.mkdir(parents=True, exist_ok=True)
 with (log_dir / (name + ".log")).open("a", encoding="utf-8") as fh:
     fh.write(json.dumps({"argv": argv, "cwd": os.getcwd(), "prompt": prompt}) + "\\n")
+print("MAIKA_WORKER_SMOKE_OK")
 print(json.dumps({"status": "ok", "worker": name}))
 sys.exit(0)
 """
@@ -69,7 +70,7 @@ def _init(target, platform):
 
 
 def _enable(target, platform):
-    assert run_platform("enable", str(target), platform, str(REPO_ROOT)) == 0 or True
+    assert run_platform("enable", str(target), platform, str(REPO_ROOT)) == 0
 
 
 def _verify(target, platform):

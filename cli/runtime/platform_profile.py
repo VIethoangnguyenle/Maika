@@ -24,7 +24,7 @@ from cli.runtime.executor import STRATEGIES as WORKER_STRATEGIES
 PROFILE_VERSION = 1
 PROFILE_RELATIVE_DIR = Path(".maika/runtime/platforms")
 CAPABILITY_STATES = frozenset({
-    "unsupported", "advertised", "detected", "verified", "degraded", "unavailable",
+    "unsupported", "advertised", "detected", "verified", "degraded", "unavailable", "unknown",
 })
 _PLATFORM_KEY = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -152,6 +152,13 @@ def build_platform_runtime_profile(platform_key: str, *, enabled: bool = True) -
         name: ("advertised" if advertised else "unavailable")
         for name, advertised in platform.capabilities.items()
     }
+    capabilities.update({
+        "binary": "advertised" if executable else "unsupported",
+        "fresh_process": "advertised" if executable else "unsupported",
+        "native_subagent": "advertised" if platform.capabilities.get("subagent") else "unsupported",
+        "mcp": "advertised",
+        "authentication": "unknown",
+    })
     data = {
         "version": PROFILE_VERSION,
         "platform": platform_key,
@@ -222,6 +229,8 @@ def profile_fingerprint(profile: Mapping[str, Any]) -> str:
         "worker_strategy": worker.get("strategy"),
         "worker_executable": worker.get("executable"),
         "worker_args": list(worker.get("args") or []),
+        "worker_timeout_seconds": worker.get("timeout_seconds", 900),
+        "worker_dangerous_permissions": worker.get("dangerous_permissions", False),
     }
     blob = json.dumps(material, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
@@ -237,6 +246,9 @@ def _fingerprint_change_reason(existing: Mapping[str, Any], generated: Mapping[s
         ("worker strategy", e_worker.get("strategy"), g_worker.get("strategy")),
         ("worker executable", e_worker.get("executable"), g_worker.get("executable")),
         ("worker args", list(e_worker.get("args") or []), list(g_worker.get("args") or [])),
+        ("worker timeout", e_worker.get("timeout_seconds", 900), g_worker.get("timeout_seconds", 900)),
+        ("worker dangerous permissions", e_worker.get("dangerous_permissions", False),
+         g_worker.get("dangerous_permissions", False)),
     ]
     changed = [f"{label} changed ({old!r} → {new!r})" for label, old, new in checks if old != new]
     return "; ".join(changed) or "profile fingerprint changed"

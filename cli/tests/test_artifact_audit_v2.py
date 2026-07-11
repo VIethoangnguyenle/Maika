@@ -91,8 +91,28 @@ def test_file_dispatched_module_passes(tmp_path):
     assert not any(f["check"] == "dead-tool-module" for f in findings)
 
 
-def test_manifest_plugin_module_passes(tmp_path):
-    """A .maika/tools module whose tool directory is a plugin-manifest source → no finding."""
+def test_consumer_report_uses_deterministic_source_order(tmp_path):
+    """The checked report must not depend on filesystem traversal order."""
+    tool = tmp_path / ".maika/tools/example/helper.py"
+    tool.parent.mkdir(parents=True)
+    tool.write_text("VALUE = 1\n", encoding="utf-8")
+    for name in ("z_consumer.py", "a_consumer.py"):
+        consumer = tmp_path / "cli" / name
+        consumer.parent.mkdir(parents=True, exist_ok=True)
+        consumer.write_text("import helper\n", encoding="utf-8")
+    _v2_fixture(tmp_path)
+
+    audit_artifacts(tmp_path, write_report=True)
+
+    report = yaml.safe_load(
+        (tmp_path / "docs/refactor/master-v2/artifact-consumer-audit-v2.yaml").read_text()
+    )
+    helper = next(item for item in report["modules"] if item["path"].endswith("helper.py"))
+    assert helper["consumed_by"] == "python-import:cli/a_consumer.py"
+
+
+def test_manifest_plugin_module_without_consumer_fails(tmp_path):
+    """Manifest membership is producer evidence, never consumer evidence."""
     tool = tmp_path / ".maika/tools/gate-check/gates.py"
     tool.parent.mkdir(parents=True)
     tool.write_text("def validate(): pass\n", encoding="utf-8")
@@ -103,7 +123,7 @@ def test_manifest_plugin_module_passes(tmp_path):
         "copy_dir": True,
     }])
     findings = audit_artifacts(tmp_path)
-    assert not any(f["check"] == "dead-tool-module" for f in findings)
+    assert any(f["check"] == "dead-tool-module" for f in findings)
 
 
 def test_test_only_module_fails(tmp_path):
