@@ -312,8 +312,10 @@ def test_init_templatizes_entry_point_references(tmp_path, maika_root, monkeypat
     entry = (target / "CLAUDE.md").read_text(encoding="utf-8")
     assert "{{ " not in entry
 
+    # Entry-point reference moved to agent/KERNEL.md (PR 2/3); rules must stay
+    # fully rendered and must not leak another platform's entrypoint.
     rules = (target / ".maika" / "rules" / "RULES.md").read_text(encoding="utf-8")
-    assert "CLAUDE.md" in rules
+    assert "{{ " not in rules
     assert "AGENTS.md" not in rules
 
     boot = (target / ".maika" / "procedures" / "bootstrap.md").read_text(encoding="utf-8")

@@ -10,6 +10,7 @@
 .maika/config/install-manifest.yaml
 .maika/config/platforms.yaml
 .maika/config/project.yaml
+.maika/config/workflow-router.yaml
 .maika/hooks/
 .maika/hooks/write-gate/
 .maika/hooks/write-gate/README.md

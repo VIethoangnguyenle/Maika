@@ -22,10 +22,29 @@ authorities:
     source: changes/<change-id>/IMPLEMENTATION_PLAN.md
   task_queue:
     source: changes/<change-id>/generated/TASK_QUEUE.json
+  plan_validation:
+    source: changes/<change-id>/generated/PLAN_VALIDATION.json
+  plan_manifest:
+    source: changes/<change-id>/generated/PLAN_MANIFEST.json
   dispatch_log:
     source: changes/<change-id>/generated/DISPATCH_LOG.jsonl
+  task_briefs:
+    source: changes/<change-id>/briefs/
+  task_results:
+    source: changes/<change-id>/results/
+  task_reviews:
+    source: changes/<change-id>/reviews/
+  # Lightweight workspace (trivial/small): micro-plan + focused evidence + result.
+  micro_plan:
+    source: changes/<change-id>/TASK.yaml
+  focused_evidence:
+    source: changes/<change-id>/EVIDENCE.yaml
+  lightweight_result:
+    source: changes/<change-id>/RESULT.yaml
   verification:
     source: changes/<change-id>/verification/VERIFICATION_REPORT.md
+  archive_manifest:
+    source: changes/<change-id>/ARCHIVE_MANIFEST.yaml
   # Vị trí hiện hành; PR 7 (bootstrap split) sẽ chuyển sang runtime/BOOTSTRAP_ENV_REPORT.yaml
   # + runtime/AGENT_BOOTSTRAP_ACK.yaml và cập nhật entry này.
   bootstrap_report:

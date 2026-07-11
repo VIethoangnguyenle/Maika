@@ -735,6 +735,14 @@ kernel:
 
 # 8. Machine-readable workflow router
 
+> **AMENDED (PR 3, 2026-07-12):** schema ví dụ ở §8.2 dưới đây được viết trước khi
+> đối chiếu state machine thật (`vnext_state.py` — 14 states). Bản triển khai
+> `config/workflow-router.yaml` bind vào states THẬT (không có SPEC_WRITING/
+> EXECUTION_READY/REVIEWING/VERIFIED) và áp các amendment A1 (apply
+> `success_state_by_class`, trivial/small → VERIFYING), A2 (thêm action
+> `validate-spec` SPEC_REVIEW→PLANNING), A3 (thêm action `final-review` dispatch
+> `reviewing-change`). Xem execution plan + router file cho hình dạng chốt.
+
 ## 8.1 File canonical
 
 ```text

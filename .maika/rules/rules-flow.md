@@ -14,8 +14,11 @@
 
 ### [CRITICAL] R-Flow-2: Phase gate (entry + completion)
 
-- **Chuỗi state cố định:** `maika task start` → `explore` → `spec` → `plan` → `review` → `apply`.
-- **Apply-entry:** `maika task apply` yêu cầu `PLAN_VALIDATION.json` approved,
+- **Route theo class, không có chuỗi state cố định chung:** thứ tự action cho change
+  hiện tại resolve từ `config/workflow-router.yaml` theo (class, current state).
+  Trivial/small KHÔNG có spec/plan — micro-plan nằm trong `TASK.yaml`.
+  Dry-run một quyết định route: `maika task route --id <id> --action <action>`.
+- **Apply-entry (standard/architectural):** `maika task apply` yêu cầu `PLAN_VALIDATION.json` approved,
   `reviews/plan-review.md` approved, immutable briefs, và `TASK_QUEUE.json` khớp
   `PLAN_MANIFEST.json`.
 - **Completion:** KHÔNG phát "Done" cho tới khi structured result, task review,
@@ -32,7 +35,7 @@
   - Khi `task.md` yêu cầu confirm trước → **không được** skip dù context có vẻ đã đồng ý.
   - Agent runtime defaults (kể cả planning mode của các tool như Cursor, Antigravity, v.v.) là **secondary** — chỉ dùng
     khi workflow không có chỉ thị gì về hành động đó.
-- Thứ tự ưu tiên: xem chuỗi canonical tại `RULES.md` §1 (Scope & Priority); agent runtime defaults luôn xếp cuối.
+- Thứ tự ưu tiên: xem chuỗi canonical tại `agent/KERNEL.md` §2 (Canonical Authority); agent runtime defaults luôn xếp cuối.
 
 
 ### [CRITICAL] R-Flow-4: Over-verification hardstop — ghi Assumption, không loop

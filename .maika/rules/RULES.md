@@ -8,14 +8,9 @@
 ## 1. Scope & Priority
 
 - **Scope**: áp dụng cho tất cả agent, tool, skill, workflow trong repo này.
-- **Ưu tiên** (chuỗi canonical — R-Flow-3 tham chiếu về đây):
-  1. Policy tổ chức / luật pháp (nếu có).
-  2. Rules trong `RULES.md`.
-  3. Workflow trong `{{ platform.framework_root }}/workflows/*.md` (đặc biệt `[CRITICAL]` block).
-  4. Hướng dẫn trong `{{ platform.config_entry_point }}`.
-  5. Hướng dẫn trong từng `SKILL.md`.
-  6. Chat trực tiếp với user.
-  (Agent runtime defaults — planning mode, artifact convention của runtime — luôn xếp cuối.)
+- **Ưu tiên**: chuỗi precedence canonical nằm DUY NHẤT ở `agent/KERNEL.md` §2
+  (Canonical Authority) — không lặp lại ở đây. Agent runtime defaults (planning
+  mode, artifact convention của runtime) luôn xếp cuối chuỗi đó.
 
 ## Importance Markers
 

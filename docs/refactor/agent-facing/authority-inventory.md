@@ -60,9 +60,10 @@ thêm `legacy-reference-scan` cơ học từ danh sách `deprecated` trong regis
 
 ## 5. Critical paths — không còn unknown
 
-Toàn bộ artifact active được phân loại vào registry (13 decisions) hoặc deprecated (5
-paths). Các path generated còn lại (`generated/PLAN_VALIDATION.json`, `PLAN_MANIFEST.json`,
-`CONTEXT_PACKAGE.*.yaml`, `briefs/`, `results/`, `reviews/`) là derived artifacts của các
-authority trên (producer: microloop-orchestrator), không phải authority độc lập — không
-đưa vào registry để giữ "one authority per decision" (chúng theo `task_queue`/
-`implementation_plan`/`verification`).
+Toàn bộ artifact active được phân loại vào registry hoặc deprecated (5 paths).
+PR 3 mở rộng registry lên 22 decisions khi cross-validate với workflow router:
+`plan_validation`, `plan_manifest`, `task_briefs`, `task_results`, `task_reviews`,
+`archive_manifest`, và bộ lightweight (`micro_plan` TASK.yaml, `focused_evidence`
+EVIDENCE.yaml, `lightweight_result` RESULT.yaml) — đều là decision record thật do
+runtime tạo hôm nay. Chỉ `generated/CONTEXT_PACKAGE.*.yaml` giữ nguyên là derived
+(theo dispatch, không phải decision độc lập).

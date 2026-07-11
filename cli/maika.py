@@ -141,7 +141,7 @@ def main():
     content_parser = subparsers.add_parser(
         "content", help="Validate agent-facing content (authority registry, ...)",
     )
-    content_parser.add_argument("action", choices=["validate-authority"])
+    content_parser.add_argument("action", choices=["validate-authority", "validate-router"])
     content_parser.add_argument("--target", default=".")
 
     skill_parser = subparsers.add_parser("skill", help="Promote or reject a reviewed skill candidate")
@@ -164,6 +164,7 @@ def main():
             "resume", "cancel",
             "approve-command",
             "force-unlock",
+            "route",
         ],
     )
     task_parser.add_argument("--target", default=".")
@@ -173,6 +174,8 @@ def main():
     task_parser.add_argument("--command-id", default=None)
     task_parser.add_argument("--platform", default=None,
                              help="Active host platform for this task command")
+    task_parser.add_argument("--action", dest="action_arg", default=None,
+                             help="Routed action for `task route` dry-run")
 
     runtime_parser = subparsers.add_parser(
         "runtime", help="Inspect or select the current host runtime",
@@ -375,6 +378,7 @@ def main():
             title=args.title,
             command_id=args.command_id,
             platform_key=args.platform,
+            action_arg=args.action_arg,
         )
         sys.exit(rc)
     elif args.command == "dashboard":

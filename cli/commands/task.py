@@ -691,6 +691,30 @@ def _approve_command(target: Path, framework_root: str, change_id: str, command_
     return 0
 
 
+def _route_dry_run(target: Path, framework_root: str, change_id: str, action_arg: str) -> int:
+    from cli.agent_content.router import load_router, resolve_route
+
+    ws = _workspace(target, framework_root, change_id)
+    if not (ws / "STATE.yaml").exists():
+        print(f"No such vNext task workspace: {change_id}")
+        return 2
+    change = _load_yaml(ws / "CHANGE.yaml")
+    state = _load_yaml(ws / "STATE.yaml")
+    klass = change.get("effective_class") or change.get("class") or "small"
+    try:
+        router = load_router(target / framework_root)
+        route = resolve_route(router, action_arg, klass, state.get("state"))
+    except FileNotFoundError as exc:
+        print(f"Refused: no workflow router at {exc}")
+        return 2
+    except KeyError:
+        print(f"Refused: unknown routed action {action_arg}")
+        return 2
+    payload = {"change_id": change_id, "selected_skill": route.pop("skill"), **route}
+    print(yaml.safe_dump(payload, sort_keys=False, allow_unicode=True), end="")
+    return 0
+
+
 def run_task(
     action: str,
     target_dir: str = ".",
@@ -699,12 +723,18 @@ def run_task(
     title: str | None = None,
     command_id: str | None = None,
     platform_key: str | None = None,
+    action_arg: str | None = None,
 ) -> int:
     target = Path(target_dir).resolve()
     framework_root = _framework_root(target)
     orchestrator = _orchestrator(target, framework_root)
     if action == "status":
         return _print_status(target, framework_root, change_id)
+    if action == "route":
+        if not change_id or not action_arg:
+            print("task route requires --id and --action")
+            return 2
+        return _route_dry_run(target, framework_root, change_id, action_arg)
     if action == "cancel":
         if not change_id:
             print("task cancel requires --id")

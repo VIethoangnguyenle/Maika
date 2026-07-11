@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from cli.agent_content.authority import load_registry, validate_registry
+from cli.agent_content.router import load_router, validate_router
 from cli.scaffold import load_resolved_config
 
 
@@ -35,6 +36,23 @@ def run_content(action: str, target_dir: str = ".") -> int:
             return 1
         print(f"authority registry valid: {len(doc.get('authorities') or {})} decisions, "
               f"{len(doc.get('deprecated') or [])} deprecated paths")
+        return 0
+    if action == "validate-router":
+        framework = _framework_dir(target)
+        try:
+            doc = load_router(framework)
+        except FileNotFoundError as exc:
+            print(f"Refused: no workflow router at {exc}")
+            return 2
+        except ValueError as exc:
+            print(f"Refused: {exc}")
+            return 1
+        errors = validate_router(doc, framework)
+        if errors:
+            for error in errors:
+                print(f"router: {error}")
+            return 1
+        print(f"workflow router valid: {len(doc.get('actions') or {})} actions")
         return 0
     print(f"Unknown content action: {action}")
     return 2

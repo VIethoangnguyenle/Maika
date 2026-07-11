@@ -1,0 +1,201 @@
+# Workflow router — authority DUY NHẤT cho route resolution (action × class × state).
+# Bind vào state machine THẬT: tools/microloop-orchestrator/vnext_state.py
+# (STATES/ALLOWED/BLOCK_REASONS). Không có fixed phase chain toàn cục.
+# Validator: `maika content validate-router`; dry-run: `maika task route --id <id> --action <a>`.
+# skill: null = contract chạy bởi orchestrator/parent, chưa có skill riêng
+# (trivial/small apply nhận skill lightweight-change ở PR 5).
+version: 1
+
+actions:
+  start:
+    requires_worker: false
+    dispatch: parent
+    allowed_from: [NONE]
+    classes: [trivial, small, standard, architectural]
+    skill: intent-analysis
+    role: intent
+    produces: [CHANGE.yaml, STATE.yaml]
+    produces_by_class:
+      trivial: [TASK.yaml]
+      small: [TASK.yaml, EVIDENCE.yaml, RESULT.yaml]
+      standard: [INTENT.md]
+      architectural: [INTENT.md]
+    completion_gates: [intent]
+    success_state: INTAKE
+
+  explore:
+    requires_worker: true
+    dispatch: isolated
+    context_route: grounding
+    allowed_from: [INTAKE]
+    classes: [standard, architectural]
+    skill: grounding-explorer
+    role: grounding
+    produces:
+      - exploration/QUERY_PLAN.yaml
+      - exploration/TOOL_HEALTH.yaml
+      - exploration/GROUNDING.yaml
+      - exploration/EVIDENCE_MANIFEST.yaml
+      - exploration/CONFLICTS.yaml
+      - exploration/COVERAGE.yaml
+    completion_gates: [query-plan, tool-health, exploration-evidence, coverage]
+    success_state: RECONCILING
+    failure_routes:
+      missing_context: {state: BLOCKED, reason: grounding}
+      provider_unavailable: {state: BLOCKED, reason: capability}
+      material_conflict: {state: BLOCKED, reason: user_input}
+
+  reconcile:
+    requires_worker: true
+    dispatch: isolated
+    context_route: reconciliation
+    allowed_from: [RECONCILING]
+    classes: [standard, architectural]
+    skill: architecture-reconciler
+    role: reconciliation
+    produces: [RECONCILIATION.md, exploration/CONFLICTS.yaml]
+    completion_gates: [conflicts, knowledge-trace]
+    success_state: BRAINSTORMING
+    failure_routes:
+      material_conflict: {state: BLOCKED, reason: user_input}
+
+  brainstorm:
+    requires_worker: true
+    dispatch: isolated
+    context_route: brainstorming
+    allowed_from: [BRAINSTORMING]
+    classes: [standard, architectural]
+    optional: true
+    optional_when: [multiple_viable_approaches, human_decision_required]
+    skip_when: [single_evidence_bound_solution]
+    skill: grounded-brainstorming
+    role: brainstorming
+    produces: [RECONCILIATION.md]
+    completion_gates: [knowledge-trace]
+    success_state: BRAINSTORMING
+
+  spec:
+    requires_worker: true
+    dispatch: isolated
+    context_route: specification
+    allowed_from: [BRAINSTORMING]
+    classes: [standard, architectural]
+    skill: writing-spec
+    role: specification
+    produces: [SPEC.md]
+    completion_gates: [spec, knowledge-trace]
+    success_state: SPEC_REVIEW
+
+  # A2: cầu SPEC_REVIEW → PLANNING (mechanical gate, không dispatch worker).
+  validate-spec:
+    requires_worker: false
+    dispatch: parent
+    allowed_from: [SPEC_REVIEW]
+    classes: [standard, architectural]
+    skill: null
+    role: spec-review
+    produces: []
+    completion_gates: [spec]
+    success_state: PLANNING
+
+  plan:
+    requires_worker: true
+    dispatch: isolated
+    context_route: planning
+    allowed_from: [PLANNING]
+    classes: [standard, architectural]
+    skill: writing-plan
+    role: planning
+    produces: [IMPLEMENTATION_PLAN.md, briefs/]
+    completion_gates: [vnext-plan]
+    success_state: PLAN_REVIEW
+
+  validate-plan:
+    requires_worker: true
+    dispatch: isolated
+    context_route: plan-review
+    allowed_from: [PLAN_REVIEW]
+    classes: [standard, architectural]
+    skill: validating-plan
+    role: plan-review
+    produces:
+      - generated/PLAN_VALIDATION.json
+      - generated/PLAN_MANIFEST.json
+      - generated/TASK_QUEUE.json
+    completion_gates: [vnext-plan, plan-review]
+    success_state: EXECUTING
+    retry_states: [PLANNING]
+    failure_routes:
+      stale_evidence: {state: BLOCKED, reason: grounding}
+
+  apply:
+    requires_worker: true
+    dispatch: isolated
+    allowed_from: [INTAKE, EXECUTING]
+    classes: [trivial, small, standard, architectural]
+    skill_by_class:
+      trivial: null
+      small: null
+      standard: executing-task
+      architectural: executing-task
+    role: implementation
+    context_route_by_class:
+      trivial: lightweight
+      small: lightweight
+      standard: implementation
+      architectural: implementation
+    produces_by_class:
+      trivial: [RESULT.yaml]
+      small: [RESULT.yaml]
+      standard: [results/]
+      architectural: [results/]
+    completion_gates: [result-contract]
+    # A1: trivial/small không có final-review action → thoát sang VERIFYING,
+    # không được để kẹt ở state không action nào nhận.
+    success_state_by_class:
+      trivial: VERIFYING
+      small: VERIFYING
+      standard: FINAL_REVIEW
+      architectural: FINAL_REVIEW
+    failure_routes:
+      scope_escape: {state: BLOCKED, reason: stale_plan}
+      retry_budget_exhausted: {state: BLOCKED, reason: verification}
+
+  # A3: reviewing-change phải được route tường minh (trước đây không action nào gọi).
+  final-review:
+    requires_worker: true
+    dispatch: isolated
+    context_route: final-review
+    allowed_from: [FINAL_REVIEW]
+    classes: [standard, architectural]
+    skill: reviewing-change
+    role: final-review
+    produces: [reviews/FINAL_REVIEW.md, reviews/KNOWLEDGE_IMPACT.yaml]
+    completion_gates: [final-review, knowledge-impact]
+    success_state: VERIFYING
+    failure_routes:
+      material_finding: {state: BLOCKED, reason: verification}
+
+  verify:
+    requires_worker: false
+    dispatch: parent
+    allowed_from: [VERIFYING]
+    classes: [trivial, small, standard, architectural]
+    skill: verification-before-completion
+    role: verification
+    produces: [verification/VERIFICATION_REPORT.md]
+    completion_gates: [verification-report]
+    success_state: COMPLETED
+    failure_routes:
+      verification_failed: {state: BLOCKED, reason: verification}
+
+  archive:
+    requires_worker: false
+    dispatch: parent
+    allowed_from: [COMPLETED]
+    classes: [trivial, small, standard, architectural]
+    skill: knowledge-curator
+    role: knowledge-curator
+    produces: [ARCHIVE_MANIFEST.yaml]
+    completion_gates: [knowledge-impact, skill-feedback]
+    success_state: ARCHIVED
