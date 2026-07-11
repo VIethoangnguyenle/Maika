@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, master-v2]
   pull_request:
 
 env:
@@ -44,7 +44,9 @@ jobs:
           $settings = Get-Content "$env:RUNNER_TEMP\demo\.claude\settings.json" -Raw
           if ($settings -match '/usr/bin/python3') { throw "Unix python path leaked into Windows hooks" }
           if ($settings -match '\$\(git rev-parse') { throw "Unix shell substitution leaked into Windows hooks" }
-          if ($settings -notmatch 'write_gate\.py') { throw "write-gate hook command missing" }
+          if ($settings -notmatch 'maika\.write-gate\.v1') { throw "canonical write-gate hook id missing" }
+          if ($settings -notmatch 'maika hook write-gate') { throw "canonical write-gate command missing" }
+          if ($settings -notmatch '--platform claude-code') { throw "write-gate platform arg missing" }
           if (-not (Test-Path "$env:RUNNER_TEMP\demo\.maika\runtime\platforms\claude-code.yaml")) { throw "canonical runtime profile missing" }
       - name: Bare update preserves launcher (regression 1A, E2E)
         shell: pwsh
