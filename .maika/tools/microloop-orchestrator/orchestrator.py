@@ -226,8 +226,7 @@ def _worker_runner(config, ws, repo_root, platform_key=None):
     if primary is None:
         print("Refused: missing active or primary platform; pass an explicit platform")
         return None
-    runtime_policy = config.get("runtime_policy") or config
-    timeout = int(runtime_policy.get("worker_timeout_seconds", 900))
+    timeout = ar.load_runtime_policy(config).worker_timeout_seconds
     override = None
     if isinstance(worker, dict) and worker.get("executable"):
         override = {
@@ -539,7 +538,7 @@ def _main_unlocked(argv=None):
                 try:
                     contract = ar.build_lightweight_execution_contract(
                         ws, Path(args.repo_root), task, state, ar.RuntimeOwner(
-                            lease_seconds=int((config or {}).get("worker_timeout_seconds", 900)) + 60
+                            lease_seconds=runtime_policy.worker_timeout_seconds + 60
                         ),
                     )
                 except (OSError, RuntimeError, ValueError) as exc:

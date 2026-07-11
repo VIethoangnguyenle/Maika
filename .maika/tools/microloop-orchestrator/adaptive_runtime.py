@@ -20,8 +20,17 @@ from pathlib import Path
 
 import yaml
 
+from cli.runtime.policy import (  # canonical runtime-policy source of truth
+    DEFAULT_TOKEN_BUDGET,
+    RuntimePolicy,
+    TASK_CLASSES,
+    load_runtime_policy,
+)
 
-CLASS_ORDER = ("trivial", "small", "standard", "architectural")
+
+# CLASS_ORDER is the risk/authority taxonomy; it aliases the canonical budget
+# classes so the two can never drift.
+CLASS_ORDER = TASK_CLASSES
 AUTHORITY_RANK = {name: index for index, name in enumerate(CLASS_ORDER)}
 STANDARD_SIGNALS = (
     "public_contract_changed", "database_changed", "event_contract_changed",
@@ -43,38 +52,6 @@ ESCALATION_SIGNALS = STANDARD_SIGNALS + ARCHITECTURAL_SIGNALS + (
     "unresolved_evidence", "unexpected_test_failure", "retry_changed",
     "timeout_changed", "permission_changed",
 )
-
-DEFAULT_TOKEN_BUDGET = {
-    "version": 1,
-    "trivial": {"max_context_tokens": 8000, "max_worker_calls": 1, "max_evidence_items": 5},
-    "small": {"max_context_tokens": 20000, "max_worker_calls": 2, "max_evidence_items": 12},
-    "standard": {"max_context_tokens": 60000, "max_worker_calls": 6, "max_evidence_items": 30},
-    "architectural": {"max_context_tokens": 120000, "max_worker_calls": 12, "max_evidence_items": 60},
-}
-
-
-@dataclass(frozen=True)
-class RuntimePolicy:
-    token_budget: dict
-    command_policy: dict
-    worker_timeout_seconds: int = 900
-    max_retries: int = 2
-
-    @classmethod
-    def from_config(cls, config: dict | None = None) -> "RuntimePolicy":
-        config = config or {}
-        budgets = {name: dict(DEFAULT_TOKEN_BUDGET[name]) for name in CLASS_ORDER}
-        override = config.get("token_budget") or {}
-        for task_class in CLASS_ORDER:
-            if isinstance(override.get(task_class), dict):
-                budgets[task_class].update(override[task_class])
-        return cls(
-            token_budget=budgets,
-            command_policy=dict(config.get("command_policy") or {}),
-            worker_timeout_seconds=int(config.get("worker_timeout_seconds", 900)),
-            max_retries=int(config.get("max_retries", 2)),
-        )
-
 
 def estimate_tokens(text: str) -> int:
     return (len(text) + 3) // 4

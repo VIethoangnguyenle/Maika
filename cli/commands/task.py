@@ -17,6 +17,7 @@ import yaml
 
 from cli.scaffold import load_resolved_config
 from cli.provider_actions import build_learning_executors
+from cli.runtime.policy import load_runtime_policy
 from cli.knowledge_control import (
     apply_project_learning,
     validate_markdown_knowledge_trace,
@@ -216,7 +217,7 @@ def _run_declared_commands(target: Path, framework_root: str, declared: list,
     if not config_path.exists():
         config_path = profiles_dir / "execution-mode.yaml"
     config = _load_yaml(config_path) if config_path.exists() else {}
-    command_policy = config.get("command_policy") or {}
+    command_policy = load_runtime_policy(config).command_policy
     policy_module = _runtime_hardening(target, framework_root)
     registry = policy_module.load_verification_profiles(profiles_dir / "verification-profiles.yaml")
     for item in declared or []:
