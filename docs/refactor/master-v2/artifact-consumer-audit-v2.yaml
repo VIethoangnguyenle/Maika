@@ -6,7 +6,7 @@ modules:
 - path: .maika/tools/gate-check/capability.py
   consumed_by: file-dispatch:.maika/tools/gate-check/cli.py
 - path: .maika/tools/gate-check/cli.py
-  consumed_by: python-import:cli/scaffold.py; cli-entrypoint:.maika/procedures/bootstrap.md
+  consumed_by: python-import:cli/commands/status.py; cli-entrypoint:.maika/procedures/bootstrap.md
 - path: .maika/tools/gate-check/gates.py
   consumed_by: file-dispatch:cli/commands/bootstrap.py
 - path: .maika/tools/knowledge-index/__init__.py
@@ -16,7 +16,8 @@ modules:
 - path: .maika/tools/mcp-bridge/mcp_client.py
   consumed_by: file-dispatch:cli/provider_actions.py
 - path: .maika/tools/microloop-orchestrator/adaptive_runtime.py
-  consumed_by: python-import:.maika/tools/microloop-orchestrator/vnext_state.py; file-dispatch:.maika/tools/microloop-orchestrator/vnext_state.py
+  consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py;
+    file-dispatch:.maika/tools/microloop-orchestrator/plan_compiler.py
 - path: .maika/tools/microloop-orchestrator/loop_engineer.py
   consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py
 - path: .maika/tools/microloop-orchestrator/loop_governance.py
@@ -36,10 +37,10 @@ modules:
   consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py;
     file-dispatch:.maika/tools/microloop-orchestrator/vnext_dispatch.py
 - path: .maika/tools/microloop-orchestrator/plan_parser.py
-  consumed_by: file-dispatch:.maika/tools/microloop-orchestrator/plan_compiler.py
+  consumed_by: file-dispatch:.maika/tools/gate-check/cli.py
 - path: .maika/tools/microloop-orchestrator/runtime_hardening.py
   consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py;
-    file-dispatch:cli/commands/task.py; dynamic-consumer:cli/commands/task.py:orchestrator
+    file-dispatch:cli/commands/skill.py; dynamic-consumer:cli/commands/task.py:orchestrator
     + vnext_state + runtime_hardening loaded via spec_from_file_location
 - path: .maika/tools/microloop-orchestrator/vnext_dispatch.py
   consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py

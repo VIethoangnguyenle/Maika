@@ -40,7 +40,7 @@ def _production_texts(root: Path):
     roots = [root / "cli", root / ".maika", root / "scripts", root / ".github",
              root / "README.md", root / "docs/architecture", root / "docs/tdd"]
     for base in roots:
-        paths = [base] if base.is_file() else base.rglob("*") if base.exists() else []
+        paths = [base] if base.is_file() else sorted(base.rglob("*")) if base.exists() else []
         for path in paths:
             if not path.is_file() or "tests" in path.parts or "__pycache__" in path.parts:
                 continue
@@ -88,7 +88,7 @@ def _check_tool_consumers(
         ep_dir = root / ".maika" / dirname
         if not ep_dir.exists():
             continue
-        for md_file in ep_dir.rglob("*"):
+        for md_file in sorted(ep_dir.rglob("*")):
             if not md_file.is_file():
                 continue
             try:
