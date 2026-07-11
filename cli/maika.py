@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """Maika CLI — the working OS for AI coding agents.
 
-Usage:
-    maika init [--target DIR] [--source DIR]
-    maika update [--target DIR] [--source DIR] [--reconfigure]
-    maika status [--target DIR]
-    maika task <action> [--target DIR] [--id ID]
-    maika --version
-    maika --help
-
 Commands:
-    init      Scaffold Maika framework into a target project
-    update    Re-render framework files, preserving user-owned files
-    status    Show current Maika configuration in a project
-    task      Run public vNext task workflow commands
-    bootstrap Produce provider-aware BOOTSTRAP_REPORT.yaml
+    init       Scaffold Maika framework into a target project
+    update     Re-render framework files, preserving user-owned files
+    status     Show Maika configuration in a project ([--json] snapshot)
+    task       Run public vNext task workflow commands
+    platform   Manage host adapters over one shared .maika core
+    bootstrap  Produce provider-aware BOOTSTRAP_REPORT.yaml
+    hook       Host-hook entrypoint: `maika hook write-gate --runtime <r>`
+    doctor     Diagnostics: `doctor mcp`, `doctor setup [--json]`
+    loop       Operate a change-level Loop Engineer loop
+    migrate    Inventory legacy roots / migrate onto the canonical .maika core
+    repair     Apply a safe fix for a `doctor setup` finding
+    uninstall  Remove the Maika core; preserves knowledge/changes by default
+    skill      Promote or reject a reviewed skill candidate
+    dashboard  Register projects / print run progress
+
+    maika --version | --help
 """
 
 import argparse
@@ -99,6 +102,28 @@ def main():
         default=".",
         help="Project directory to check (default: current directory)",
     )
+    status_parser.add_argument("--json", dest="as_json", action="store_true")
+
+    # ─── migrate / repair / uninstall (lifecycle) ───
+    migrate_parser = subparsers.add_parser(
+        "migrate", help="Inventory legacy roots and migrate onto the canonical .maika core",
+    )
+    migrate_parser.add_argument("--target", default=".")
+    migrate_parser.add_argument("--apply", action="store_true", help="Apply (default: --dry-run)")
+
+    repair_parser = subparsers.add_parser(
+        "repair", help="Apply a safe fix for a `maika doctor setup` finding",
+    )
+    repair_parser.add_argument("--target", default=".")
+    repair_parser.add_argument("--finding", required=True)
+    repair_parser.add_argument("--source", default=None)
+
+    uninstall_parser = subparsers.add_parser(
+        "uninstall", help="Remove the Maika core; preserves knowledge/changes by default",
+    )
+    uninstall_parser.add_argument("--target", default=".")
+    uninstall_parser.add_argument("--purge-project-data", dest="purge_project_data",
+                                  action="store_true")
 
     bootstrap_parser = subparsers.add_parser(
         "bootstrap", help="Probe configured providers and create BOOTSTRAP_REPORT.yaml",
@@ -276,7 +301,16 @@ def main():
         ))
     elif args.command == "status":
         from cli.commands.status import run_status
-        run_status(target_dir=args.target)
+        run_status(target_dir=args.target, as_json=args.as_json)
+    elif args.command == "migrate":
+        from cli.commands.lifecycle import run_migrate
+        sys.exit(run_migrate(target_dir=args.target, apply=args.apply))
+    elif args.command == "repair":
+        from cli.commands.lifecycle import run_repair
+        sys.exit(run_repair(target_dir=args.target, finding_id=args.finding, maika_root=args.source))
+    elif args.command == "uninstall":
+        from cli.commands.lifecycle import run_uninstall
+        sys.exit(run_uninstall(target_dir=args.target, purge_project_data=args.purge_project_data))
     elif args.command == "bootstrap":
         from cli.commands.bootstrap import run_bootstrap
         sys.exit(run_bootstrap(args.target))

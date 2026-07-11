@@ -54,7 +54,7 @@ cd maika
 # Headless (CI/script): .\install.ps1 C:\path\to\project -Yes -Platform claude-code -Language python
 ```
 
-> ⚠️ **Giới hạn mixed-OS:** file hook được render theo OS của máy chạy `maika init/update` gần nhất. Team dùng chung repo trên cả Windows lẫn Linux sẽ thấy hook command đổi qua lại trong git — mỗi máy cần chạy lại `maika update` sau khi checkout từ OS khác. Thiết kế hook cross-OS chung là follow-up riêng khi team multi-OS cần.
+> ℹ️ **Hook cross-OS:** host hook chạy một lệnh OS-agnostic duy nhất — `maika hook write-gate --runtime <claude|codex|antigravity>` — giống hệt trên Windows lẫn Linux, nên không còn đổi qua lại trong git. Lệnh này định vị project root, đọc canonical config rồi uỷ quyền cho write-gate của chính project (không nhân bản policy). Yêu cầu `maika` có trên PATH của mỗi máy.
 
 Installer sẽ:
 
@@ -177,7 +177,8 @@ Các công cụ hỗ trợ runtime:
 - `microloop-orchestrator`: điều phối contract DAG cho apply phase phức tạp.
 - `write-gate`: chặn write khi phase/spec/session boundary chưa đạt điều kiện.
 - `execution-mode`: chọn dispatch mode `subagent`, `fresh-session`, hoặc `inline-reload` theo platform.
-- CLI `maika init/update/status`: scaffold, re-render, kiểm trạng thái install.
+- CLI `maika init/update/status`: scaffold, re-render, kiểm trạng thái install (`status --json` cho snapshot máy đọc được).
+- CLI vận hành: `maika platform` (multi-host), `maika hook write-gate` (host hook OS-agnostic), `maika doctor setup` (health đầy đủ, `--json`), `maika loop` (điều phối change-loop: status/inspect/approve/reject/resume/close), `maika migrate/repair/uninstall` (lifecycle — giữ nguyên knowledge/changes mặc định).
 
 ---
 

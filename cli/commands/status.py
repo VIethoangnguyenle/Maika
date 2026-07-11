@@ -4,6 +4,7 @@ Reads resolved-config.yaml and reports the current platform, MCPs,
 language, and installed skills/workflows.
 """
 
+import json
 from pathlib import Path
 
 from cli import CANONICAL_FRAMEWORK_ROOT
@@ -11,9 +12,43 @@ from cli.platforms import get_platform
 from cli.scaffold import load_resolved_config
 
 
-def run_status(target_dir: str) -> None:
+def _snapshot(target: Path) -> dict:
+    """Machine-readable lifecycle snapshot (consumed by `maika status --json`)."""
+    resolved = load_resolved_config(target) or {}
+    platform = resolved.get("platform", "generic")
+    try:
+        framework_root = resolved.get("framework_root") or get_platform(platform).framework_root
+    except ValueError:
+        framework_root = resolved.get("framework_root", CANONICAL_FRAMEWORK_ROOT)
+    root = target / framework_root
+    skills = sorted(d.name for d in (root / "skills").iterdir() if d.is_dir()) \
+        if (root / "skills").is_dir() else []
+    workflows = sorted(f.stem for f in (root / "workflows").iterdir()
+                       if f.is_file() and f.suffix == ".md") if (root / "workflows").is_dir() else []
+    from cli.config import project as project_cfg
+    cfg = project_cfg.load(target)
+    return {
+        "project": str(target),
+        "installed": (target / framework_root).is_dir() and bool(resolved),
+        "framework_version": resolved.get("framework_version", "unknown"),
+        "platform": platform,
+        "mcps": resolved.get("mcps", []),
+        "language": resolved.get("language", "unknown"),
+        "framework_root": framework_root,
+        "skills": skills,
+        "workflows": workflows,
+        "enabled_platforms": cfg["platforms"]["enabled"],
+        "primary": cfg["platforms"]["primary"],
+    }
+
+
+def run_status(target_dir: str, as_json: bool = False) -> None:
     """Show Maika status for a target project."""
     target = Path(target_dir).resolve()
+
+    if as_json:
+        print(json.dumps(_snapshot(target), ensure_ascii=False, indent=2))
+        return
 
     # ─── Check for Maika installation ───
     # Resolve the entry-point file from the recorded platform; fall back to
