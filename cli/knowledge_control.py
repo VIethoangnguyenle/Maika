@@ -123,6 +123,35 @@ def candidate_triggered(observations: list[dict]) -> bool:
     )
 
 
+def macro_observation_from_loop(loop: dict, *, skill: str, verified: bool = False,
+                                reproducible: bool = False, impact: str = "unknown",
+                                evaluation_ready: bool = False, recommendation: str = "",
+                                category: str = "behavioral", severity: str = "important") -> dict:
+    """A learning observation for a recurring change-loop root cause (W8).
+
+    Keyed by root cause so the existing recurrence machinery clusters it across
+    changes, and it *references* the loop artifact (``loop_ref``) rather than
+    copying spec/plan bodies. It only becomes a candidate through the unchanged
+    distinct-change threshold, poisoning guard, evaluation, and canary gates.
+    """
+    root_cause = loop.get("root_cause")
+    return {
+        "version": 1,
+        "change_id": loop["change_id"],
+        "recurrence_key": f"loop:{root_cause}",
+        "skill": skill,
+        "category": category,
+        "severity": severity,
+        "verified": verified,
+        "reproducible": reproducible,
+        "impact": impact,
+        "evaluation_ready": evaluation_ready,
+        "recommendation": recommendation,
+        "statement": f"recurring {root_cause} routed to {loop.get('route')}",
+        "loop_ref": {"loop_id": loop["loop_id"], "artifact": "LOOP.yaml"},
+    }
+
+
 _POISON = (
     "ignore rules", "disable verification", "skip mcp", "modify skill directly",
 )
@@ -241,8 +270,11 @@ class LearningStore:
     def cluster_candidate(self, recurrence_key: str) -> dict:
         observations = [_yaml(path.read_text(encoding="utf-8")) for path in self.feedback.glob("*.yaml")]
         observations = [item for item in observations if item.get("recurrence_key") == recurrence_key]
+        # Poisoned evidence is quarantined — it can never count toward a candidate.
+        observations = [item for item in observations if not item.get("poisoning_flags")]
         if not candidate_triggered(observations):
             raise ValueError("candidate threshold not met")
+        source_anchors = [item["loop_ref"] for item in observations if item.get("loop_ref")]
         return {
             "version": 1, "candidate_id": f"SC-{_slug(recurrence_key)}",
             "target_skill": observations[0].get("skill"), "status": "proposed",
@@ -251,7 +283,7 @@ class LearningStore:
                         "recurrence_key": recurrence_key, "severity": observations[0].get("severity", "important"),
                         "occurrences": len(observations)},
             "evidence": {"changes": sorted({item["change_id"] for item in observations}),
-                         "reviews": [], "incidents": [], "source_anchors": [],
+                         "reviews": [], "incidents": [], "source_anchors": source_anchors,
                          "verified": True,
                          "critical_incident": any(item.get("critical_incident") for item in observations),
                          "user_directive": any(item.get("user_directive") for item in observations),

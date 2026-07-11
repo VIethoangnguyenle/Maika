@@ -554,6 +554,26 @@ entries:
     scheduled_wave: W7
     reviewed_at: 2026-07-11
 
+  - id: ENF-026
+    mechanism: macro-learning-candidate-boundary
+    type: gate
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: >-
+        A recurring change-loop root cause becomes a skill candidate only across
+        >=2 distinct changes past the recurrence threshold; a single change cannot,
+        poisoned evidence is quarantined from the cluster, and candidate evidence
+        references the loop artifact (loop_ref) rather than copying spec/plan bodies.
+        No automatic global mutation — promotion still requires evaluation + canary.
+      litmus:
+        command: /usr/bin/python3 -m pytest "cli/tests/test_macro_learning.py" -q
+    implementation:
+      files: [cli/knowledge_control.py]
+      consumers: [cli/knowledge_control.py, cli/commands/skill.py]
+    scheduled_wave: W8
+    reviewed_at: 2026-07-11
+
   # ---- deferred change-loop triggers (no discrete runtime signal yet) ----
   - id: DEF-005
     mechanism: change-loop-stale-contract
