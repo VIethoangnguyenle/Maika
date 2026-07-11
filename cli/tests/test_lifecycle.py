@@ -61,13 +61,13 @@ def test_repair_restores_corrupted_managed_entrypoint(tmp_path):
     entry = tmp_path / "CLAUDE.md"
     entry.write_text("# hand-written, block deleted\n", encoding="utf-8")
     # doctor would flag managed-entrypoint as not-ok; repair re-renders it
-    assert run_repair(str(tmp_path), "managed-entrypoint", maika_root=str(REPO)) == 0
+    assert run_repair(str(tmp_path), "managed-entrypoint", maika_root=str(REPO))["exit_code"] == 0
     assert "maika:begin" in entry.read_text(encoding="utf-8")
 
 
 def test_repair_unknown_finding_is_refused(tmp_path):
     _init(tmp_path)
-    assert run_repair(str(tmp_path), "no-such-finding", maika_root=str(REPO)) == 2
+    assert run_repair(str(tmp_path), "no-such-finding", maika_root=str(REPO))["exit_code"] == 2
 
 
 def test_migrate_dry_run_does_not_mutate(tmp_path, capsys):

@@ -23,5 +23,5 @@ def test_old_hook_python_key_is_ignored_reported_and_repaired(tmp_path):
     assert finding["ok"] is False
     assert "hook_python" in finding["evidence"]
 
-    assert run_repair(str(tmp_path), "deprecated-config") == 0
+    assert run_repair(str(tmp_path), "deprecated-config")["exit_code"] == 0
     assert "hook_python" not in load_resolved_config(tmp_path)

@@ -30,15 +30,20 @@ _LEGACY_ROOTS = (".maika", ".agents", ".claude")
 _USER_DATA_DIRS = frozenset({"knowledge", "changes", "archive", "loops"})
 
 
-def _result(status: str, *, mutation: bool, transaction_id: Optional[str] = None) -> dict:
+def _result(status: str, *, mutation: bool, transaction_id: Optional[str] = None,
+            exit_code: Optional[int] = None) -> dict:
     """Command result semantics (F10c): exit code aligns with mutation outcome.
 
     status ∈ {no-op, committed, blocked, partial-safe}. no-op/committed exit 0;
     blocked/partial-safe exit non-zero. A blocked command must report
-    mutation=False so callers can trust nothing was written.
+    mutation=False so callers can trust nothing was written. ``exit_code`` may be
+    given explicitly to preserve a command's own contract (repair uses 2 for a
+    config/CLI error, per the vNext exit-code contract).
     """
+    if exit_code is None:
+        exit_code = 0 if status in {"no-op", "committed"} else 1
     return {"status": status, "mutation": mutation, "transaction_id": transaction_id,
-            "exit_code": 0 if status in {"no-op", "committed"} else 1}
+            "exit_code": exit_code}
 
 
 def _framework_root(target: Path) -> str:
@@ -158,26 +163,28 @@ def run_uninstall(target_dir: str, purge_project_data: bool = False) -> dict:
 
 def run_repair(target_dir: str, finding_id: Optional[str] = None,
                maika_root: Optional[str] = None, transaction_id: Optional[str] = None,
-               all_safe: bool = False) -> int:
+               all_safe: bool = False) -> dict:
     if transaction_id:
         from cli.install.transaction import repair_transaction
         try:
             result = repair_transaction(Path(target_dir).resolve(), transaction_id)
         except (OSError, ValueError) as exc:
             print(f"  ❌ {exc}")
-            return 2
+            return _result("blocked", mutation=False, exit_code=2)
+        rolled = result.get("status") == "rolled_back"
         print(f"  transaction {transaction_id}: {result['status']}")
-        return 0
+        return _result("committed" if rolled else "no-op", mutation=rolled,
+                       transaction_id=transaction_id)
     if all_safe:
-        rc = 0
-        for safe_finding in ("managed-entrypoint", "native-hook"):
-            result = run_repair(target_dir, safe_finding, maika_root)
-            if result not in {0, 2}:
-                rc = result
-        return rc
+        results = [run_repair(target_dir, f, maika_root)
+                   for f in ("managed-entrypoint", "native-hook")]
+        mutated = any(r["mutation"] for r in results)
+        if any(r["exit_code"] == 1 for r in results):
+            return _result("blocked", mutation=mutated, exit_code=1)
+        return _result("committed" if mutated else "no-op", mutation=mutated)
     if not finding_id:
         print("  ❌ repair requires --finding, --transaction, or --all-safe")
-        return 2
+        return _result("blocked", mutation=False, exit_code=2)
     from cli.commands.doctor import build_setup_findings
 
     target = Path(target_dir).resolve()
@@ -185,29 +192,31 @@ def run_repair(target_dir: str, finding_id: Optional[str] = None,
     finding = findings.get(finding_id)
     if finding is None:
         print(f"  ❌ unknown finding: {finding_id}")
-        return 2
+        return _result("blocked", mutation=False, exit_code=2)
     if finding["ok"]:
         print(f"  {finding_id} is already healthy — nothing to repair")
-        return 0
+        return _result("no-op", mutation=False)
 
     if finding_id == "managed-entrypoint":
         from cli.commands.update import run_update
         run_update(target_dir=str(target), maika_root=maika_root)
-        return 0
+        return _result("committed", mutation=True)
     if finding_id == "native-hook":
         from cli.commands.platform import run_platform
         from cli.config import project as project_cfg
         primary = project_cfg.load(target)["platforms"]["primary"]
         if primary is None:
             print("  ❌ no primary platform to reinstall")
-            return 2
-        return run_platform("enable", str(target), primary, maika_root)
+            return _result("blocked", mutation=False, exit_code=2)
+        rc = run_platform("enable", str(target), primary, maika_root)
+        return _result("committed" if rc == 0 else "blocked", mutation=(rc == 0),
+                       exit_code=None if rc == 0 else rc)
     if finding_id == "deprecated-config":
         import yaml
         path = target / ".maika/resolved-config.yaml"
         if not path.is_file():
             print("  deprecated config path is missing")
-            return 2
+            return _result("blocked", mutation=False, exit_code=2)
         doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         resolved = doc.get("resolved") or {}
         resolved.pop("hook_python", None)
@@ -218,15 +227,15 @@ def run_repair(target_dir: str, finding_id: Optional[str] = None,
             staged.parent.mkdir(parents=True, exist_ok=True)
             staged.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
             plan = build_plan(staging, target, "repair-deprecated-config", ".maika")
-            Transaction(staging, target, backups).apply(plan)
+            journal = Transaction(staging, target, backups).apply(plan)
         finally:
             shutil.rmtree(staging, ignore_errors=True)
             shutil.rmtree(backups, ignore_errors=True)
         print("  removed deprecated config keys")
-        return 0
+        return _result("committed", mutation=True, transaction_id=journal.get("transaction_id"))
 
     print(f"  no safe automatic repair for {finding_id}; see `maika doctor setup`")
-    return 2
+    return _result("blocked", mutation=False, exit_code=2)
 
 
 _MIGRATION_SUBTREES = ("knowledge/active", "knowledge/long-term", "knowledge/skill-evolution",

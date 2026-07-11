@@ -342,7 +342,7 @@ def main():
         from cli.commands.lifecycle import run_repair
         sys.exit(run_repair(target_dir=args.target, finding_id=args.finding,
                             maika_root=args.source, transaction_id=args.transaction,
-                            all_safe=args.all_safe))
+                            all_safe=args.all_safe)["exit_code"])
     elif args.command == "uninstall":
         from cli.commands.lifecycle import run_uninstall
         sys.exit(run_uninstall(target_dir=args.target,

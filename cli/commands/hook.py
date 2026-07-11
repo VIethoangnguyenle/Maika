@@ -83,9 +83,10 @@ def run_hook_write_gate(runtime: str, platform: Optional[str] = None,
             if not profile.adapter.enabled:
                 raise SessionError(f"platform {platform} runtime profile is disabled")
             # A capability-verification smoke exercises the full pipeline but must
-            # not record a runtime session — that side effect is for real host
-            # events, and under the single global session it would spuriously
-            # conflict when verifying a second host (F8; fixed by the registry).
+            # not record a runtime session: session records describe real host
+            # activity, not a probe. (This is intentional, not an F8 workaround —
+            # the per-session registry means it would no longer conflict, but a
+            # verify still should not pollute the session registry.)
             if not os.environ.get("MAIKA_HOOK_SMOKE"):
                 session_id = (os.environ.get("MAIKA_SESSION_ID")
                               or f"{runtime}-{os.getppid()}-{os.getpid()}")
