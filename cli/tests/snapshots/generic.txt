@@ -1,4 +1,8 @@
 .maika/
+.maika/config/
+.maika/config/install-manifest.yaml
+.maika/config/platforms.yaml
+.maika/config/project.yaml
 .maika/knowledge/
 .maika/knowledge/README.md
 .maika/knowledge/active/

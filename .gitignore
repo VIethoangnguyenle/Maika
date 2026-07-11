@@ -7,6 +7,13 @@ __pycache__/
 .venv
 .worktrees/
 
+# Packaging build artifacts (wheel bundle is staged into build/ at build time,
+# never the source tree; see setup.py).
+build/
+dist/
+*.whl
+cli/_assets/
+
 # Workspace scratch cho handoff/review artifact tạm (xem README §Repo hygiene)
 .superpowers/
 

@@ -46,6 +46,35 @@ def test_classifier_never_downgrades_confirmed_class():
     assert "monotonic_class_floor:standard" in result["classification"]["evidence"]
 
 
+@pytest.mark.parametrize(("klass", "expected"), [
+    ("trivial", {"spec_loop": "skipped", "plan_loop": "skipped", "plan_mode": "none", "audit_spec": False, "audit_plan": False, "human_gate": False}),
+    ("small", {"spec_loop": "skipped", "plan_loop": "micro", "plan_mode": "none", "audit_spec": False, "audit_plan": False, "human_gate": False}),
+    ("standard", {"spec_loop": "conditional", "plan_loop": "compact", "plan_mode": "fast", "audit_spec": False, "audit_plan": False, "human_gate": False}),
+    ("architectural", {"spec_loop": "required", "plan_loop": "full", "plan_mode": "deep", "audit_spec": True, "audit_plan": True, "human_gate": True}),
+])
+def test_workflow_requirements_follow_task_class(klass, expected):
+    workflow = ar.classify_workflow_requirements(klass)
+    assert workflow["dev_loop"] == "required"
+    assert workflow["execution_contract"] == "required"
+    for key, value in expected.items():
+        assert workflow[key] == value
+
+
+def test_ambiguity_enables_spec_without_forcing_full_plan():
+    workflow = ar.classify_workflow_requirements("small", ambiguity=True)
+    assert workflow["spec_loop"] == "required"
+    assert workflow["plan_loop"] == "micro"
+    assert workflow["plan_mode"] == "none"
+
+
+def test_workspace_persists_consumable_workflow_contract(tmp_path):
+    ws = vs.init_workspace(tmp_path, "small", "small", "Small")
+    task = yaml.safe_load((ws / "TASK.yaml").read_text(encoding="utf-8"))
+    assert task["workflow"] == ar.classify_workflow_requirements("small")
+    change = yaml.safe_load((ws / "CHANGE.yaml").read_text(encoding="utf-8"))
+    assert change["workflow"] == ar.classify_workflow_requirements("small")
+
+
 @pytest.mark.parametrize(("path", "expected", "signal"), [
     ("docs/guide.md", "trivial", None),
     ("src/service.py", "small", "application_code_changed"),

@@ -4,22 +4,15 @@ description: Workflow task chuẩn của Maika (knowledge-native).
 
 # /task
 
-Maika chạy một workflow plan-first, knowledge-native:
+Maika chạy workflow adaptive, knowledge-native. Mọi task có execution contract và
+Dev Loop; Spec Loop và Plan Loop chỉ chạy theo `workflow` được classifier ghi vào
+`CHANGE.yaml` (và `TASK.yaml` cho lightweight task):
 
 ```text
-intent-analysis
-→ grounding-explorer
-→ database-explorer (khi persistence-sensitive)
-→ architecture-reconciler
-→ grounded-brainstorming
-→ writing-spec
-→ writing-plan
-→ validating-plan
-→ executing-task
-→ reviewing-task
-→ reviewing-change
-→ verification-before-completion
-→ knowledge-curator
+trivial       Inspect → Change → Static Check
+small         Focused Evidence → Micro-plan → Implement → Verify
+standard      Focused Grounding → Conditional Spec → Compact Plan → Implement → Review → Verify
+architectural Grounding → Spec/Audit → Full Plan/Audit → Implement → Review → Verify → Human Gate
 ```
 
 ## Lệnh public
@@ -57,7 +50,7 @@ Mọi reconciliation/spec/plan/review/verification material decision phải pass
 Workflow chạy thật end-to-end — người dùng **không** phải tự sửa `STATE.yaml`,
 grounding artifact, result, review, queue, hay verification report.
 
-## Thứ tự artifact
+## Thứ tự artifact đầy đủ (standard/architectural)
 
 ```text
 CHANGE.yaml
@@ -88,6 +81,9 @@ ARCHIVE_MANIFEST.yaml
 
 ## Rules
 
+- Trivial/small không bị ép tạo `SPEC.md` hoặc `IMPLEMENTATION_PLAN.md`; micro-plan
+  nằm trong `TASK.yaml`.
+- `workflow.execution_contract` và `workflow.dev_loop` luôn là `required`.
 - Change standard và architectural cần grounding đa nguồn (query plan → provider
   probe → evidence → reconcile) trước khi chốt thiết kế.
 - Provider ưu tiên khỏe không được skip im lặng; provider absent phải ghi

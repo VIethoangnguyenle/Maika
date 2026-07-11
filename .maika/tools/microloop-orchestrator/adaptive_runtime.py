@@ -395,6 +395,42 @@ def classify_risk(risk_signals: dict | None, current_class: str | None = None) -
     }
 
 
+def classify_workflow_requirements(task_class: str, ambiguity: bool = False) -> dict:
+    """Resolve the smallest deterministic workflow that satisfies task risk.
+
+    The returned mapping is an execution contract consumed by workspace state;
+    it does not open a Loop Engineer change loop on the happy path.
+    """
+    _rank(task_class)
+    matrix = {
+        "trivial": {
+            "spec_loop": "skipped", "plan_loop": "skipped", "plan_mode": "none",
+            "audit_spec": False, "audit_plan": False, "human_gate": False,
+        },
+        "small": {
+            "spec_loop": "skipped", "plan_loop": "micro", "plan_mode": "none",
+            "audit_spec": False, "audit_plan": False, "human_gate": False,
+        },
+        "standard": {
+            "spec_loop": "conditional", "plan_loop": "compact", "plan_mode": "fast",
+            "audit_spec": False, "audit_plan": False, "human_gate": False,
+        },
+        "architectural": {
+            "spec_loop": "required", "plan_loop": "full", "plan_mode": "deep",
+            "audit_spec": True, "audit_plan": True, "human_gate": True,
+        },
+    }
+    workflow = {
+        "version": 1,
+        "execution_contract": "required",
+        "dev_loop": "required",
+        **matrix[task_class],
+    }
+    if ambiguity and workflow["spec_loop"] != "required":
+        workflow["spec_loop"] = "required"
+    return workflow
+
+
 def evaluate_escalation(current_class: str, task: dict, observed: dict) -> dict:
     """Fail closed when observations invalidate a lightweight task envelope."""
     triggers: list[str] = []

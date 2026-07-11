@@ -5,17 +5,20 @@ import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from cli.assets import asset_root, load_asset_manifest
+from cli.install.planner import build_plan
+from cli.install.transaction import Transaction
 from cli.mcp import ua_setup
 from cli.platforms import PLATFORMS, get_platform
 from cli.renderer import create_renderer
 from cli.scaffold import (
-    load_manifest,
     scaffold_plugins,
     scaffold_native_skill_exports,
     generate_resolved_config,
     generate_knowledge_index,
     verify_no_unresolved,
-    sync_tree,
+    stage_managed_entrypoint,
+    stage_managed_json_configs,
 )
 
 
@@ -174,6 +177,7 @@ def emit_mcp_setup_files(target, platform, platform_key, selected_mcps, manifest
     Shared by init and update --reconfigure."""
     mcp_caps = manifest.get("mcp_capabilities", {})
     setup_path = target / platform.framework_root / "MCP_SETUP.md"
+    setup_path.parent.mkdir(parents=True, exist_ok=True)
     wrote = False
     for mcp_key in selected_mcps:
         capability = mcp_caps.get(mcp_key, {})
@@ -203,12 +207,12 @@ def run_init(
 ) -> None:
     """Main init command — scaffold Maika into a target project."""
     target = Path(target_dir).resolve()
-    maika = Path(maika_root).resolve() if maika_root else Path(__file__).resolve().parent.parent.parent
+    maika = asset_root(maika_root)
 
     print(f"\n  Maika Framework v3.0 — init")
     print(f"  Target: {target}\n  Source: {maika}")
 
-    manifest = load_manifest(maika)
+    manifest = load_asset_manifest(maika)
     platform_key, selected_mcps, language = resolve_init_choices(
         manifest,
         platform_key=platform_key,
@@ -232,7 +236,9 @@ def run_init(
     jinja_env = create_renderer(str(maika))
     print("\nScaffolding Maika framework...\n")
 
+    framework_root = platform.framework_root
     staging = Path(tempfile.mkdtemp(prefix="maika-init-"))
+    backups = Path(tempfile.mkdtemp(prefix="maika-backup-"))
     try:
         stats = scaffold_plugins(
             manifest.get("plugins", []), maika, staging, context, jinja_env,
@@ -246,14 +252,26 @@ def run_init(
                 print(f"     • {p.relative_to(staging)}")
             print("  Target was NOT modified.")
             return
-        sync_tree(staging, target)
+        # Build the complete desired tree in staging, then apply atomically.
+        stage_managed_entrypoint(staging, target, platform.config_entry_point)
+        stage_managed_json_configs(staging, target)
+        generate_knowledge_index(maika, staging, framework_root)
+        generate_resolved_config(staging, platform, selected_mcps, language, hook_python=hook_python)
+        emit_mcp_setup_files(staging, platform, platform_key, selected_mcps, manifest, ua_dir)
+        plan = build_plan(staging, target, "init", framework_root)
+        Transaction(staging, target, backups).apply(plan)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(backups, ignore_errors=True)
 
-    generate_knowledge_index(maika, target, platform.framework_root)
-    generate_resolved_config(target, platform, selected_mcps, language, hook_python=hook_python)
-
-    emit_mcp_setup_files(target, platform, platform_key, selected_mcps, manifest, ua_dir)
+    # Establish canonical config with the chosen platform enabled (multi-host
+    # ready). The core is already installed; this only records adapter state.
+    from cli.config import platforms as platforms_cfg
+    from cli.config import project as project_cfg
+    project_config = project_cfg.enable(project_cfg.load(target), platform_key)
+    project_cfg.save(target, project_config)
+    platforms_cfg.write_platforms_config(target, project_config["platforms"]["enabled"])
+    platforms_cfg.record_install(target, platform_key, platforms_cfg.adapter_files(platform_key))
 
     total = stats["rendered"] + stats["copied"] + stats["dirs"]
     print(f"\n{'═' * 50}")

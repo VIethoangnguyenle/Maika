@@ -8,8 +8,9 @@ class CodexPlatform(BasePlatform):
     name = "codex"
     display_name = "OpenAI Codex CLI"
     config_entry_point = "AGENTS.md"
-    framework_root = ".agents"
     native_skill_export = None
+    worker_binary = "codex"
+    worker_base_args = ["exec"]
 
     tool_mapping = {
         # Codex CLI does not publicly document its internal tool names the
@@ -74,8 +75,8 @@ class CodexPlatform(BasePlatform):
 
     notes = [
         "AGENTS.md is the config entry point (developers.openai.com/codex/guides/agents-md)",
-        "Maika runtime scaffolds into .agents/",
+        "Maika canonical runtime lives in .maika/",
         "tool_mapping is abstract passthrough — Codex CLI's internal tool names are not "
         "publicly documented; map manually if your Maika skills need concrete tool calls",
-        "Skills/workflows export directly into the .agents/ framework root",
+        "Skills/workflows are shared from the .maika/ project core",
     ]

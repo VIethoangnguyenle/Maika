@@ -14,12 +14,64 @@ from cli.scaffold import (
     scaffold_plugin,
     scaffold_plugins,
     verify_no_unresolved,
+    merge_managed_json,
+    merge_managed_markdown,
+    stage_managed_entrypoint,
 )
 
 
 def test_get_ownership_defaults_to_framework():
     assert get_ownership({"name": "x"}) == "framework"
     assert get_ownership({"name": "x", "ownership": "user"}) == "user"
+
+
+def test_managed_json_merge_preserves_host_config_and_replaces_maika_hook():
+    existing = {
+        "permissions": {"allow": ["Read"]},
+        "hooks": {"PreToolUse": [
+            {"hooks": [{"command": "team-check"}]},
+            {"hooks": [{"command": "python .maika/hooks/write-gate/old.py"}]},
+        ]},
+    }
+    managed = {
+        "hooks": {"PreToolUse": [
+            {"hooks": [{"command": "python .maika/hooks/write-gate/write_gate.py"}]},
+        ]},
+    }
+
+    merged = merge_managed_json(existing, managed)
+
+    assert merged["permissions"] == {"allow": ["Read"]}
+    commands = [item["hooks"][0]["command"] for item in merged["hooks"]["PreToolUse"]]
+    assert commands == ["team-check", "python .maika/hooks/write-gate/write_gate.py"]
+
+
+def test_merge_managed_markdown_rejects_duplicate_blocks():
+    doubled = (
+        "<!-- maika:begin -->\na\n<!-- maika:end -->\n"
+        "<!-- maika:begin -->\nb\n<!-- maika:end -->\n"
+    )
+    with pytest.raises(ValueError, match="malformed Maika managed block"):
+        merge_managed_markdown(doubled, "new")
+
+
+def test_managed_markdown_malformed_block_fails_before_target_mutation(tmp_path):
+    staging = tmp_path / "staging"
+    target = tmp_path / "target"
+    staging.mkdir()
+    target.mkdir()
+    (staging / "AGENTS.md").write_text("managed body\n", encoding="utf-8")
+    # Target holds a malformed block: a begin marker with no matching end.
+    malformed = "# Host rules\n\n<!-- maika:begin -->\nstale\n"
+    (target / "AGENTS.md").write_text(malformed, encoding="utf-8")
+    staged_before = (staging / "AGENTS.md").read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="malformed Maika managed block"):
+        stage_managed_entrypoint(staging, target, "AGENTS.md")
+
+    # Fail closed: host target left byte-identical and staging not partially rewritten.
+    assert (target / "AGENTS.md").read_text(encoding="utf-8") == malformed
+    assert (staging / "AGENTS.md").read_text(encoding="utf-8") == staged_before
 
 
 def test_load_manifest_has_plugins(maika_root):
@@ -154,7 +206,7 @@ def test_scaffold_plugins_includes_platform_capability_plugin_when_present(
     )
 
     assert stats["copied"] + stats["rendered"] == 1
-    assert (tmp_path / ".claude" / "hooks" / "write-gate" / "TOKEN_LOG.tpl.md").exists()
+    assert (tmp_path / ".maika" / "hooks" / "write-gate" / "TOKEN_LOG.tpl.md").exists()
 
 
 def test_scaffold_plugins_skips_platform_specific_plugin_for_other_platform(
@@ -233,7 +285,7 @@ def test_resolved_config_candidates_derive_from_platform_registry(tmp_path):
         p.relative_to(tmp_path).as_posix() for p in resolved_config_candidates(tmp_path)
     ]
     # Every platform's framework_root is represented (derived, not hardcoded).
-    expected_roots = {get_platform(k).framework_root for k in PLATFORMS}
+    expected_roots = {get_platform(k).framework_root for k in PLATFORMS} | {".agents", ".claude"}
     assert {c.split("/")[0] for c in candidates} == expected_roots
     # Canonical root is first → load fallback is deterministic.
     assert candidates[0] == ".maika/resolved-config.yaml"
@@ -247,12 +299,11 @@ def test_generate_resolved_config_uses_platform_framework_root(tmp_path):
     platform = get_platform("antigravity")
     generate_resolved_config(tmp_path, platform, ["codebase-memory-mcp"], "python")
 
-    config = tmp_path / ".agents" / "resolved-config.yaml"
+    config = tmp_path / ".maika" / "resolved-config.yaml"
     assert config.exists()
-    assert not (tmp_path / ".maika").exists()
     body = config.read_text(encoding="utf-8")
     assert "platform: antigravity" in body
-    assert "framework_root: .agents" in body
+    assert "framework_root: .maika" in body
 
 
 def test_load_resolved_config_reads_agents_config(tmp_path):
@@ -281,7 +332,7 @@ def test_load_resolved_config_returns_dict_when_valid(tmp_path):
     assert resolved["platform"] == "claude-code"
     assert resolved["mcps"] == []
     assert resolved["language"] == "python"
-    assert resolved["framework_root"] == ".claude"
+    assert resolved["framework_root"] == ".maika"
 
 
 def test_load_resolved_config_returns_none_when_missing(tmp_path):
@@ -503,7 +554,7 @@ def test_read_resolved_config_returns_none_for_top_level_scalar(tmp_path):
     assert _read_resolved_config(p) is None
 
 
-def test_generate_resolved_config_sweeps_stale_maika_config(tmp_path):
+def test_generate_resolved_config_replaces_canonical_config(tmp_path):
     from cli.platforms import get_platform
 
     # Stale Maika-generated config left from a previous (generic) install.
@@ -520,12 +571,12 @@ def test_generate_resolved_config_sweeps_stale_maika_config(tmp_path):
 
     generate_resolved_config(tmp_path, get_platform("antigravity"), ["codebase-memory-mcp"], "python")
 
-    assert (tmp_path / ".agents" / "resolved-config.yaml").exists()   # active written
-    assert not stale.exists()                                         # stale swept
+    assert stale.exists()                                             # active replaced
+    assert "platform: antigravity" in stale.read_text(encoding="utf-8")
     assert bystander.read_text(encoding="utf-8") == "other: value\n"  # bystander kept
 
 
-def test_generate_resolved_config_sweep_survives_directory_at_candidate(tmp_path):
+def test_generate_resolved_config_rejects_directory_at_canonical_path(tmp_path):
     from cli.platforms import get_platform
 
     # A directory sitting where a candidate resolved-config.yaml would be must
@@ -533,10 +584,10 @@ def test_generate_resolved_config_sweep_survives_directory_at_candidate(tmp_path
     bogus = tmp_path / ".maika" / "resolved-config.yaml"
     bogus.mkdir(parents=True)
 
-    generate_resolved_config(tmp_path, get_platform("antigravity"), ["codebase-memory-mcp"], "python")
+    with pytest.raises(IsADirectoryError):
+        generate_resolved_config(tmp_path, get_platform("antigravity"), ["codebase-memory-mcp"], "python")
 
-    assert (tmp_path / ".agents" / "resolved-config.yaml").exists()  # active written
-    assert bogus.is_dir()  # bogus directory left untouched
+    assert bogus.is_dir()
 
 
 def test_manifest_omits_framework_dev_only_tools(maika_root):

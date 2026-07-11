@@ -12,7 +12,7 @@ import tempfile
 import yaml
 
 try:
-    from adaptive_runtime import classify_risk
+    from adaptive_runtime import classify_risk, classify_workflow_requirements
 except ModuleNotFoundError:  # importlib callers may not place this directory on sys.path
     _adaptive_path = Path(__file__).with_name("adaptive_runtime.py")
     _adaptive_spec = importlib.util.spec_from_file_location("maika_adaptive_runtime", _adaptive_path)
@@ -20,6 +20,7 @@ except ModuleNotFoundError:  # importlib callers may not place this directory on
     sys.modules[_adaptive_spec.name] = _adaptive_module
     _adaptive_spec.loader.exec_module(_adaptive_module)
     classify_risk = _adaptive_module.classify_risk
+    classify_workflow_requirements = _adaptive_module.classify_workflow_requirements
 
 STATES = [
     "INTAKE", "EXPLORING", "RECONCILING", "BRAINSTORMING", "SPEC_REVIEW",
@@ -107,11 +108,12 @@ def init_workspace(changes_root, change_id, klass, title):
         raise ValueError(f"bad change class: {klass}")
     ws = Path(changes_root) / change_id
     ws.mkdir(parents=True, exist_ok=True)
+    workflow = classify_workflow_requirements(klass)
     _dump_yaml({
         "version": 1, "change_id": change_id, "class": klass,
         "requested_class": klass, "effective_class": klass,
         "classification": {"source": "requested", "classified_at": _now(), "evidence": []},
-        "title": title, "created_at": _now(),
+        "workflow": workflow, "title": title, "created_at": _now(),
     }, ws / "CHANGE.yaml")
     _dump_yaml({"version": 1, "change_id": change_id, "state": "INTAKE",
                 "updated_at": _now(), "blocked": None}, ws / "STATE.yaml")
@@ -120,6 +122,7 @@ def init_workspace(changes_root, change_id, klass, title):
         _dump_yaml({
             "version": 1, "change_id": change_id, "class": klass,
             "intent": {"summary": title},
+            "workflow": workflow,
             "risk_signals": signals,
             **classify_risk(signals, current_class=klass),
             "scope": {"files": {"modify": [], "test": []}},

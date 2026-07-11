@@ -8,17 +8,26 @@ from typing import Any
 
 import yaml
 
+from cli.assets import asset_root
 
-ROOT = Path(__file__).resolve().parents[1]
-REGISTRY_PATH = ROOT / ".maika" / "profiles" / "capability-registry.yaml"
+
 READY = "ready"
 DEGRADED = "degraded"
 UNSUPPORTED = "unsupported"
 
 
+def _default_registry_path() -> Path:
+    """Resolve the capability registry via the canonical asset root.
+
+    Bundle-aware so it works from a wheel install (packaged assets) as well as
+    a source checkout — not hard-coded relative to this file's location.
+    """
+    return asset_root() / ".maika" / "profiles" / "capability-registry.yaml"
+
+
 def load_capability_registry(path: Path | None = None) -> dict[str, dict[str, Any]]:
     """Load canonical capability definitions keyed by capability id."""
-    source = path or REGISTRY_PATH
+    source = path or _default_registry_path()
     doc = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
     caps = doc.get("capabilities") or {}
     if not isinstance(caps, dict) or not caps:

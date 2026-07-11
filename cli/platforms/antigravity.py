@@ -8,8 +8,9 @@ class AntigravityPlatform(BasePlatform):
     name = "antigravity"
     display_name = "Google Antigravity (Gemini)"
     config_entry_point = "AGENTS.md"
-    framework_root = ".agents"
     native_skill_export = None
+    worker_binary = "agy"
+    worker_base_args = []
 
     tool_mapping = {
         # ── File Operations ──
@@ -85,7 +86,7 @@ class AntigravityPlatform(BasePlatform):
 
     notes = [
         "AGENTS.md is loaded via user_rules in Antigravity config",
-        "Maika runtime scaffolds into .agents/",
+        "Maika canonical runtime lives in .maika/",
         "MCP tools use prefix: mcp_<server>_<tool>",
         "Supports browser_subagent for visual tasks",
     ]

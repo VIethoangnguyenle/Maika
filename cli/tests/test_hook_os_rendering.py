@@ -10,9 +10,9 @@ from cli.renderer import render_string
 
 # (template path relative to repo root, platform key, runtime, framework_root)
 HOOKS = [
-    (".maika/hooks/claude-code/settings.json", "claude-code", "claude", ".claude"),
-    (".maika/hooks/codex/hooks.json", "codex", "codex", ".agents"),
-    (".maika/hooks/antigravity/hooks.json", "antigravity", "antigravity", ".agents"),
+    (".maika/hooks/claude-code/settings.json", "claude-code", "claude", ".maika"),
+    (".maika/hooks/codex/hooks.json", "codex", "codex", ".maika"),
+    (".maika/hooks/antigravity/hooks.json", "antigravity", "antigravity", ".maika"),
 ]
 
 
@@ -31,9 +31,9 @@ def _command(jinja_env, maika_root, template_rel, platform_key, is_windows):
 
 # Exact Linux command strings (post-render). Byte-identical guard.
 LINUX_EXPECTED = {
-    "claude": 'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/write-gate/write_gate.py --framework-root .claude --runtime claude',
-    "codex": '/usr/bin/python3 "$(git rev-parse --show-toplevel)/.agents/hooks/write-gate/write_gate.py" --framework-root .agents --runtime codex',
-    "antigravity": '/usr/bin/python3 "$(git rev-parse --show-toplevel)/.agents/hooks/write-gate/write_gate.py" --framework-root .agents --runtime antigravity',
+    "claude": 'python3 "$CLAUDE_PROJECT_DIR"/.maika/hooks/write-gate/write_gate.py --framework-root .maika --runtime claude',
+    "codex": '/usr/bin/python3 "$(git rev-parse --show-toplevel)/.maika/hooks/write-gate/write_gate.py" --framework-root .maika --runtime codex',
+    "antigravity": '/usr/bin/python3 "$(git rev-parse --show-toplevel)/.maika/hooks/write-gate/write_gate.py" --framework-root .maika --runtime antigravity',
 }
 
 
@@ -41,9 +41,9 @@ LINUX_EXPECTED = {
 # %CLAUDE_PROJECT_DIR% (cwd-drift, claude-code#50960); codex/antigravity stay
 # cwd-relative until their Windows runtimes are validated (review 2B).
 WINDOWS_EXPECTED = {
-    "claude": '{hp} "%CLAUDE_PROJECT_DIR%/.claude/hooks/write-gate/write_gate.py" --framework-root .claude --runtime claude',
-    "codex": "{hp} .agents/hooks/write-gate/write_gate.py --framework-root .agents --runtime codex",
-    "antigravity": "{hp} .agents/hooks/write-gate/write_gate.py --framework-root .agents --runtime antigravity",
+    "claude": '{hp} "%CLAUDE_PROJECT_DIR%/.maika/hooks/write-gate/write_gate.py" --framework-root .maika --runtime claude',
+    "codex": "{hp} .maika/hooks/write-gate/write_gate.py --framework-root .maika --runtime codex",
+    "antigravity": "{hp} .maika/hooks/write-gate/write_gate.py --framework-root .maika --runtime antigravity",
 }
 
 

@@ -8,8 +8,10 @@ class ClaudeCodePlatform(BasePlatform):
     name = "claude-code"
     display_name = "Anthropic Claude Code"
     config_entry_point = "CLAUDE.md"
-    framework_root = ".claude"
     native_skill_export = None
+    worker_binary = "claude"
+    worker_base_args = ["-p", "--prompt-file"]
+    dangerous_permission_flag = "--dangerously-skip-permissions"
 
     tool_mapping = {
         # ── File Operations ──
@@ -81,7 +83,7 @@ class ClaudeCodePlatform(BasePlatform):
 
     notes = [
         "CLAUDE.md is the config entry point",
-        "Maika runtime scaffolds into .claude/",
+        "Maika canonical runtime lives in .maika/",
         "MCP tools use double underscore prefix: mcp__<server>__<tool>",
         "Claude Code uses Task tool for subagent delegation",
     ]

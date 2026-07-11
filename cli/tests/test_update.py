@@ -33,13 +33,13 @@ def test_update_uses_resolved_framework_root(tmp_path, maika_root, monkeypatch):
     _interactive(monkeypatch, "antigravity")
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
-    skill = target / ".agents" / "skills" / "grounding-explorer" / "SKILL.md"
+    skill = target / ".maika" / "skills" / "grounding-explorer" / "SKILL.md"
     skill.write_text("tampered\n", encoding="utf-8")
 
     run_update(target_dir=str(target), maika_root=str(maika_root))
 
     assert "tampered" not in skill.read_text(encoding="utf-8")
-    assert not (target / ".maika").exists()
+    assert (target / ".maika").exists()
 
 
 def test_update_aborts_when_no_config(tmp_path, maika_root, capsys):
@@ -67,7 +67,7 @@ def test_update_preserves_live_skill_evolution_history(tmp_path, maika_root):
     assert accepted.read_text(encoding="utf-8") == "candidate_id: SC-OLD\n"
 
 
-def test_reconfigure_to_claude_writes_claude_root_and_warns_about_legacy_maika(
+def test_reconfigure_to_claude_keeps_canonical_core(
     tmp_path, maika_root, monkeypatch, capsys,
 ):
     target = tmp_path / "proj"
@@ -78,10 +78,9 @@ def test_reconfigure_to_claude_writes_claude_root_and_warns_about_legacy_maika(
     _interactive(monkeypatch, "claude-code", inputs=())
     run_update(target_dir=str(target), maika_root=str(maika_root), reconfigure=True)
 
-    assert (target / ".claude" / "resolved-config.yaml").exists()
-    assert (target / ".claude" / "skills" / "intent-analysis" / "SKILL.md").exists()
+    assert (target / ".maika" / "resolved-config.yaml").exists()
+    assert (target / ".maika" / "skills" / "intent-analysis" / "SKILL.md").exists()
     assert (target / ".maika").exists()
-    assert "legacy .maika" in capsys.readouterr().out
 
 
 def test_reconfigure_reemits_mcp_setup_for_ua(tmp_path, maika_root, monkeypatch):
@@ -90,7 +89,7 @@ def test_reconfigure_reemits_mcp_setup_for_ua(tmp_path, maika_root, monkeypatch)
         target_dir=str(target), maika_root=str(maika_root),
         platform_key="codex", selected_mcps=[], language="python", assume_yes=True,
     )
-    assert not (target / ".agents" / "MCP_SETUP.md").exists()
+    assert not (target / ".maika" / "MCP_SETUP.md").exists()
 
     # reconfigure: platform codex, mcps understand-anything (triggers UA dir prompt)
     _interactive(
@@ -98,6 +97,6 @@ def test_reconfigure_reemits_mcp_setup_for_ua(tmp_path, maika_root, monkeypatch)
     )
     run_update(target_dir=str(target), maika_root=str(maika_root), reconfigure=True)
 
-    setup_md = target / ".agents" / "MCP_SETUP.md"
+    setup_md = target / ".maika" / "MCP_SETUP.md"
     assert setup_md.exists()
     assert "/srv/ua-mcp" in setup_md.read_text(encoding="utf-8")

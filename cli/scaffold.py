@@ -5,6 +5,7 @@ Used by both `maika init` (writes directly to target) and `maika update`
 """
 
 import importlib.util
+import json
 import shutil
 from pathlib import Path
 from typing import List, Optional
@@ -33,6 +34,100 @@ SOURCE_MAP = {
 
 # File extensions eligible for single-file Jinja auto-render.
 _RENDERABLE_SUFFIXES = {".md", ".yaml", ".yml", ".txt"}
+
+MANAGED_BLOCK_BEGIN = "<!-- maika:begin -->"
+MANAGED_BLOCK_END = "<!-- maika:end -->"
+
+
+def merge_managed_markdown(existing: str, managed: str) -> str:
+    """Insert or replace Maika's block without changing host-owned content."""
+    begin_count = existing.count(MANAGED_BLOCK_BEGIN)
+    end_count = existing.count(MANAGED_BLOCK_END)
+    if begin_count != end_count or begin_count > 1:
+        raise ValueError("malformed Maika managed block in host entrypoint")
+    block = f"{MANAGED_BLOCK_BEGIN}\n{managed.rstrip()}\n{MANAGED_BLOCK_END}\n"
+    if begin_count == 1:
+        start = existing.index(MANAGED_BLOCK_BEGIN)
+        end = existing.index(MANAGED_BLOCK_END, start) + len(MANAGED_BLOCK_END)
+        suffix = existing[end:]
+        if suffix.startswith("\n"):
+            suffix = suffix[1:]
+        return existing[:start] + block + suffix
+    if not existing:
+        return block
+    separator = "\n" if existing.endswith("\n") else "\n\n"
+    return existing + separator + block
+
+
+def stage_managed_entrypoint(staging: Path, target: Path, entrypoint: str) -> None:
+    """Merge a staged Maika entrypoint with an existing shared host file."""
+    staged_path = staging / entrypoint
+    if not staged_path.exists():
+        return
+    target_path = target / entrypoint
+    existing = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
+    managed = staged_path.read_text(encoding="utf-8")
+    staged_path.write_text(merge_managed_markdown(existing, managed), encoding="utf-8")
+
+
+def strip_managed_markdown(existing: str) -> str:
+    """Remove Maika's managed block, preserving host-owned content (inverse of
+    merge_managed_markdown). No block present → returned unchanged."""
+    if MANAGED_BLOCK_BEGIN not in existing:
+        return existing
+    start = existing.index(MANAGED_BLOCK_BEGIN)
+    end = existing.index(MANAGED_BLOCK_END, start) + len(MANAGED_BLOCK_END)
+    suffix = existing[end:]
+    if suffix.startswith("\n"):
+        suffix = suffix[1:]
+    return existing[:start] + suffix
+
+
+def _is_maika_json(value: object) -> bool:
+    payload = json.dumps(value, sort_keys=True).lower()
+    return "write-gate" in payload and ".maika" in payload
+
+
+def remove_maika_json_entry(value: object) -> object:
+    """Return value with Maika-owned hook entries removed, host keys preserved
+    (inverse of the list-merge in merge_managed_json)."""
+    if isinstance(value, dict):
+        return {key: remove_maika_json_entry(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [remove_maika_json_entry(item) for item in value if not _is_maika_json(item)]
+    return value
+
+
+def merge_managed_json(existing: object, managed: object) -> object:
+    """Merge namespaced Maika hook entries while preserving host-owned JSON."""
+    if isinstance(existing, dict) and isinstance(managed, dict):
+        result = dict(existing)
+        for key, value in managed.items():
+            result[key] = merge_managed_json(result[key], value) if key in result else value
+        return result
+    if isinstance(existing, list) and isinstance(managed, list):
+        preserved = [item for item in existing if not _is_maika_json(item)]
+        for item in managed:
+            if item not in preserved:
+                preserved.append(item)
+        return preserved
+    return managed
+
+
+def stage_managed_json_configs(staging: Path, target: Path) -> None:
+    """Structurally merge every staged host JSON config before target sync."""
+    for relative in (".claude/settings.json", ".codex/hooks.json", ".agents/hooks.json"):
+        staged_path = staging / relative
+        target_path = target / relative
+        if not staged_path.exists() or not target_path.exists():
+            continue
+        try:
+            existing = json.loads(target_path.read_text(encoding="utf-8"))
+            managed = json.loads(staged_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"cannot merge malformed host JSON config: {relative}") from exc
+        merged = merge_managed_json(existing, managed)
+        staged_path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
 
 
 def resolve_source_path(maika_root: Path, source: str) -> Path:
@@ -71,7 +166,9 @@ def resolved_config_candidates(target: Path) -> List[Path]:
     """
     from cli.platforms import PLATFORMS, get_platform
 
-    roots = {get_platform(k).framework_root for k in PLATFORMS}
+    # Legacy roots remain readable during the compatibility window, but every
+    # new write targets the canonical project core.
+    roots = {get_platform(k).framework_root for k in PLATFORMS} | {".agents", ".claude"}
     ordered = [CANONICAL_FRAMEWORK_ROOT, *sorted(roots - {CANONICAL_FRAMEWORK_ROOT})]
     return [target / root / "resolved-config.yaml" for root in ordered]
 
@@ -402,56 +499,3 @@ def generate_knowledge_index(maika_root: Path, target: Path, framework_root: str
         encoding="utf-8",
     )
     print(f"  ✅ knowledge-index.yaml ({len(entries)} entries)")
-
-
-def sync_tree(src: Path, dst: Path) -> int:
-    """Copy every file from src over dst (overwrite). Returns file count."""
-    count = 0
-    for item in src.rglob("*"):
-        if not item.is_file():
-            continue
-        rel = item.relative_to(src)
-        target = dst / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(item, target)
-        count += 1
-    return count
-
-
-def prune_orphans(staging: Path, target: Path, framework_root: str) -> List[Path]:
-    """Delete framework files removed from the manifest but still in target.
-
-    sync_tree only adds/overwrites; a plugin dropped from the manifest leaves
-    its stale output behind downstream (e.g. deleted legacy workflow files). The
-    staging tree is the authoritative set of framework files for this update,
-    so any file in a staged directory that is absent from staging is an orphan.
-
-    Scope is restricted to directories staging actually wrote into, EXCLUDING
-    the target root and the framework root itself — those two mix framework
-    output (AGENTS.md, hooks.json) with files staging never produces (the
-    user's own project files at root; resolved-config.yaml / MCP_SETUP.md
-    generated separately under framework_root). Pruning them would delete
-    user/generated files. Purely framework-owned subtrees (workflows/, rules/,
-    skills/, tools/, hooks/, procedures/, knowledge/templates/) are safe.
-
-    Returns the list of target-relative paths removed.
-    """
-    staged_rel = {f.relative_to(staging) for f in staging.rglob("*") if f.is_file()}
-    managed_dirs = {r.parent for r in staged_rel}
-    excluded = {Path("."), Path(framework_root)}
-
-    removed = []
-    for managed in managed_dirs:
-        if managed in excluded:
-            continue
-        target_dir = target / managed
-        if not target_dir.is_dir():
-            continue
-        for item in target_dir.iterdir():
-            if not item.is_file():
-                continue
-            rel = item.relative_to(target)
-            if rel not in staged_rel:
-                item.unlink()
-                removed.append(rel)
-    return removed

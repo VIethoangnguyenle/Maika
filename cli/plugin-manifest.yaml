@@ -367,7 +367,7 @@ plugins:
     type: hook
     source: hooks/claude-code/settings.json
     template: true
-    output: "{{ platform.framework_root }}/settings.json"
+    output: ".claude/settings.json"
     requires_platform_capability: write_gate_hook
     requires_platform: claude-code
 
@@ -383,7 +383,7 @@ plugins:
     type: hook
     source: hooks/antigravity/hooks.json
     template: true
-    output: "{{ platform.framework_root }}/hooks.json"
+    output: ".agents/hooks.json"
     requires_platform_capability: write_gate_hook
     requires_platform: antigravity
 

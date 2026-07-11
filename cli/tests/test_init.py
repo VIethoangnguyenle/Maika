@@ -238,42 +238,39 @@ def test_run_init_non_interactive_generic(tmp_path, maika_root):
     assert (target / "AGENTS.md").exists()
 
 
-def test_init_antigravity_uses_agents_as_only_framework_root(tmp_path, maika_root, monkeypatch):
+def test_init_antigravity_uses_canonical_framework_root(tmp_path, maika_root, monkeypatch):
     target = tmp_path / "proj"
     _interactive(monkeypatch, "antigravity")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
-    assert not (target / ".maika").exists()
-    assert (target / ".agents" / "resolved-config.yaml").exists()
-    assert (target / ".agents" / "rules" / "RULES.md").exists()
-    assert (target / ".agents" / "skills" / "intent-analysis" / "SKILL.md").exists()
-    assert (target / ".agents" / "knowledge" / "long-term" / "author-dna.yaml").exists()
-    assert (target / ".agents" / "knowledge" / "long-term" / "knowledge-index.yaml").exists()
+    assert (target / ".maika" / "resolved-config.yaml").exists()
+    assert (target / ".maika" / "rules" / "RULES.md").exists()
+    assert (target / ".maika" / "skills" / "intent-analysis" / "SKILL.md").exists()
+    assert (target / ".maika" / "knowledge" / "long-term" / "author-dna.yaml").exists()
+    assert (target / ".maika" / "knowledge" / "long-term" / "knowledge-index.yaml").exists()
     assert (target / "AGENTS.md").exists()
 
 
-def test_init_codex_uses_agents_as_only_framework_root(tmp_path, maika_root, monkeypatch):
+def test_init_codex_uses_canonical_framework_root(tmp_path, maika_root, monkeypatch):
     target = tmp_path / "proj"
     _interactive(monkeypatch, "codex")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
-    assert not (target / ".maika").exists()
-    assert (target / ".agents" / "resolved-config.yaml").exists()
-    assert (target / ".agents" / "skills" / "intent-analysis" / "SKILL.md").exists()
+    assert (target / ".maika" / "resolved-config.yaml").exists()
+    assert (target / ".maika" / "skills" / "intent-analysis" / "SKILL.md").exists()
 
 
-def test_init_claude_uses_claude_as_only_framework_root(tmp_path, maika_root, monkeypatch):
+def test_init_claude_uses_canonical_framework_root(tmp_path, maika_root, monkeypatch):
     target = tmp_path / "proj"
     _interactive(monkeypatch, "claude-code")
 
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
-    assert not (target / ".maika").exists()
-    assert (target / ".claude" / "resolved-config.yaml").exists()
-    assert (target / ".claude" / "rules" / "RULES.md").exists()
-    assert (target / ".claude" / "skills" / "intent-analysis" / "SKILL.md").exists()
+    assert (target / ".maika" / "resolved-config.yaml").exists()
+    assert (target / ".maika" / "rules" / "RULES.md").exists()
+    assert (target / ".maika" / "skills" / "intent-analysis" / "SKILL.md").exists()
     assert (target / "CLAUDE.md").exists()
 
 
@@ -315,11 +312,11 @@ def test_init_templatizes_entry_point_references(tmp_path, maika_root, monkeypat
     entry = (target / "CLAUDE.md").read_text(encoding="utf-8")
     assert "{{ " not in entry
 
-    rules = (target / ".claude" / "rules" / "RULES.md").read_text(encoding="utf-8")
+    rules = (target / ".maika" / "rules" / "RULES.md").read_text(encoding="utf-8")
     assert "CLAUDE.md" in rules
     assert "AGENTS.md" not in rules
 
-    boot = (target / ".claude" / "procedures" / "bootstrap.md").read_text(encoding="utf-8")
+    boot = (target / ".maika" / "procedures" / "bootstrap.md").read_text(encoding="utf-8")
     assert "AGENTS.md" not in boot
 
 
@@ -338,7 +335,7 @@ def test_antigravity_rendered_framework_files_do_not_reference_active_maika_path
         if path.suffix.lower() not in {".md", ".yaml", ".yml", ".txt"} and path.name != "AGENTS.md":
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
-        if ".maika/" in text and "legacy .maika" not in text and "source repo" not in text:
+        if ".agents/knowledge/" in text or ".claude/knowledge/" in text:
             offenders.append(path.relative_to(target).as_posix())
     assert offenders == []
 
@@ -358,7 +355,7 @@ def test_codex_rendered_framework_files_do_not_reference_active_maika_paths(
         if path.suffix.lower() not in {".md", ".yaml", ".yml", ".txt"} and path.name != "AGENTS.md":
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
-        if ".maika/" in text and "legacy .maika" not in text and "source repo" not in text:
+        if ".agents/knowledge/" in text or ".claude/knowledge/" in text:
             offenders.append(path.relative_to(target).as_posix())
     assert offenders == []
 
@@ -378,7 +375,7 @@ def test_claude_code_rendered_framework_files_do_not_reference_active_maika_path
         if path.suffix.lower() not in {".md", ".yaml", ".yml", ".txt"} and path.name != "AGENTS.md":
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
-        if ".maika/" in text and "legacy .maika" not in text and "source repo" not in text:
+        if ".agents/knowledge/" in text or ".claude/knowledge/" in text:
             offenders.append(path.relative_to(target).as_posix())
     assert offenders == []
 
@@ -390,8 +387,39 @@ def test_init_next_steps_use_platform_framework_root(tmp_path, maika_root, monke
     run_init(target_dir=str(target), maika_root=str(maika_root))
 
     out = capsys.readouterr().out
-    assert "Customize .agents/knowledge/long-term/persona.yaml" in out
-    assert ".maika/knowledge/long-term/persona.yaml" not in out
+    assert "Customize .maika/knowledge/long-term/persona.yaml" in out
+
+
+def test_init_preserves_existing_entrypoint_outside_managed_block(
+    tmp_path, maika_root, monkeypatch,
+):
+    target = tmp_path / "proj"
+    target.mkdir()
+    entrypoint = target / "AGENTS.md"
+    entrypoint.write_text("# Team rules\n\nKeep this line.\n", encoding="utf-8")
+    _interactive(monkeypatch, "codex")
+
+    run_init(target_dir=str(target), maika_root=str(maika_root))
+
+    body = entrypoint.read_text(encoding="utf-8")
+    assert body.startswith("# Team rules\n\nKeep this line.\n")
+    assert body.count("<!-- maika:begin -->") == 1
+    assert body.count("<!-- maika:end -->") == 1
+
+
+def test_reinit_replaces_managed_entrypoint_block_without_duplication(
+    tmp_path, maika_root,
+):
+    target = tmp_path / "proj"
+    for _ in range(2):
+        run_init(
+            target_dir=str(target), maika_root=str(maika_root),
+            platform_key="codex", selected_mcps=[], language="python", assume_yes=True,
+        )
+
+    body = (target / "AGENTS.md").read_text(encoding="utf-8")
+    assert body.count("<!-- maika:begin -->") == 1
+    assert body.count("<!-- maika:end -->") == 1
 
 
 def test_init_scaffolds_mcp_bridge_when_platform_supports_tools(tmp_path, maika_root):
@@ -405,7 +433,7 @@ def test_init_scaffolds_mcp_bridge_when_platform_supports_tools(tmp_path, maika_
         assume_yes=True,
     )
 
-    assert (target / ".agents" / "tools" / "mcp-bridge" / "mcp_client.py").exists()
+    assert (target / ".maika" / "tools" / "mcp-bridge" / "mcp_client.py").exists()
 
 
 def test_init_prints_mcp_doctor_hint_when_mcps_selected(tmp_path, maika_root, capsys):
@@ -511,7 +539,7 @@ def test_init_emits_mcp_setup_when_ua_selected(tmp_path):
         platform_key="codex", selected_mcps=["understand-anything"],
         language="python", assume_yes=True, ua_mcp_dir="/srv/ua-mcp",
     )
-    setup_md = tmp_path / ".agents" / "MCP_SETUP.md"
+    setup_md = tmp_path / ".maika" / "MCP_SETUP.md"
     assert setup_md.exists()
     text = setup_md.read_text(encoding="utf-8")
     assert "/srv/ua-mcp" in text
@@ -534,8 +562,8 @@ def test_emit_mcp_setup_files_writes_then_removes_stale(tmp_path):
 
     platform = get_platform("codex")
     manifest = load_manifest(MAIKA_ROOT)
-    (tmp_path / ".agents").mkdir()
-    setup_md = tmp_path / ".agents" / "MCP_SETUP.md"
+    (tmp_path / ".maika").mkdir()
+    setup_md = tmp_path / ".maika" / "MCP_SETUP.md"
 
     wrote = emit_mcp_setup_files(
         tmp_path, platform, "codex", ["understand-anything"], manifest, "/srv/ua",
@@ -554,10 +582,10 @@ def test_init_scaffold_diet_ships_only_consumed_tooling(tmp_path, maika_root):
         target_dir=str(target), maika_root=str(maika_root), platform_key="claude-code",
         selected_mcps=[], language="python", assume_yes=True,
     )
-    tools = target / ".claude" / "tools"
+    tools = target / ".maika" / "tools"
     assert (tools / "gate-check" / "cli.py").exists()
     assert (tools / "README.md").exists()                                  # meta-prompt trỏ tới
     assert not (tools / "skill-lint").exists()                             # framework-dev only
     assert not (tools / "gate-check" / "tests").exists()                   # CI framework không ship
     assert not (target / ".claude" / "hooks" / "write-gate" / "tests").exists()
-    assert (target / ".claude" / "skills" / "skill-index.yaml").exists()   # bootstrap READ
+    assert (target / ".maika" / "skills" / "skill-index.yaml").exists()    # bootstrap READ

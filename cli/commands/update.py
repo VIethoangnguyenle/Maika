@@ -10,31 +10,45 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from cli.platforms import PLATFORMS, get_platform
+from cli.assets import asset_root, load_asset_manifest
+from cli.install.planner import build_plan
+from cli.install.transaction import Transaction
+from cli.platforms import get_platform
 from cli.renderer import create_renderer
 from cli.scaffold import (
-    load_manifest,
     load_resolved_config,
     scaffold_plugins,
     scaffold_native_skill_exports,
     verify_no_unresolved,
-    sync_tree,
-    prune_orphans,
     generate_resolved_config,
     generate_knowledge_index,
+    stage_managed_entrypoint,
+    stage_managed_json_configs,
 )
 
 
-def warn_legacy_maika(target: Path, platform) -> None:
-    legacy = target / ".maika"
-    if platform.framework_root != ".maika" and legacy.exists():
-        print(f"  ⚠️  legacy .maika remains at {legacy}; not removed automatically.")
+def _stage_index_inputs(target: Path, staging: Path, framework_root: str) -> None:
+    """Copy the target's knowledge seeds into staging so the knowledge index can
+    be regenerated and synced without re-writing the (user-owned) seeds
+    themselves (the planner preserves existing project-owned files)."""
+    src = target / framework_root / "knowledge" / "long-term"
+    if not src.is_dir():
+        return
+    dst = staging / framework_root / "knowledge" / "long-term"
+    dst.mkdir(parents=True, exist_ok=True)
+    for name in ("author-dna.yaml", "conventions.yaml", "knowledge-snapshot.md"):
+        seed = src / name
+        if seed.exists():
+            shutil.copy2(seed, dst / name)
+    project_knowledge = src / "project-knowledge"
+    if project_knowledge.is_dir():
+        shutil.copytree(project_knowledge, dst / "project-knowledge", dirs_exist_ok=True)
 
 
 def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: bool = False, hook_python: Optional[str] = None) -> None:
     """Re-render framework files into an existing Maika project."""
     target = Path(target_dir).resolve()
-    maika = Path(maika_root).resolve() if maika_root else Path(__file__).resolve().parent.parent.parent
+    maika = asset_root(maika_root)
 
     resolved = load_resolved_config(target)
     if resolved is None:
@@ -42,7 +56,7 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
         print(f"     Run: maika init --target {target}")
         return
 
-    manifest = load_manifest(maika)
+    manifest = load_asset_manifest(maika)
 
     if reconfigure:
         from cli.commands.init import gather_choices
@@ -61,6 +75,7 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
 
     print(f"\n  Updating Maika ({platform.display_name})...\n")
     staging = Path(tempfile.mkdtemp(prefix="maika-update-"))
+    backups = Path(tempfile.mkdtemp(prefix="maika-backup-"))
     try:
         scaffold_plugins(
             manifest.get("plugins", []), maika, staging, context, jinja_env,
@@ -75,42 +90,28 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
                 print(f"     • {p.relative_to(staging)}")
             print("  Target was NOT modified.")
             return
-        count = sync_tree(staging, target)
-        pruned = prune_orphans(staging, target, framework_root)
+        # Build the complete desired tree in staging, then apply atomically.
+        stage_managed_entrypoint(staging, target, platform.config_entry_point)
+        stage_managed_json_configs(staging, target)
+        _stage_index_inputs(target, staging, framework_root)
+        generate_knowledge_index(maika, staging, framework_root)
+        if reconfigure or (hook_python and hook_python != resolved.get("hook_python")):
+            generate_resolved_config(staging, platform, selected_mcps, language, hook_python=effective_hook_python)
+        if reconfigure:
+            from cli.commands.init import resolve_ua_mcp_dir, emit_mcp_setup_files
+            ua_dir = resolve_ua_mcp_dir(selected_mcps, None, assume_yes=False)
+            emit_mcp_setup_files(staging, platform, platform_key, selected_mcps, manifest, ua_dir)
+        plan = build_plan(staging, target, "update", framework_root)
+        Transaction(staging, target, backups).apply(plan)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(backups, ignore_errors=True)
 
+    pruned = [a["path"] for a in plan["actions"] if a["kind"] == "delete_framework_file"]
     if pruned:
         print(f"  🗑️  Pruned {len(pruned)} orphaned framework file(s):")
         for p in pruned:
             print(f"     • {p}")
 
-    generate_knowledge_index(maika, target, framework_root)
-
-    if reconfigure:
-        generate_resolved_config(target, platform, selected_mcps, language, hook_python=effective_hook_python)
-        from cli.commands.init import resolve_ua_mcp_dir, emit_mcp_setup_files
-        ua_dir = resolve_ua_mcp_dir(selected_mcps, None, assume_yes=False)
-        emit_mcp_setup_files(target, platform, platform_key, selected_mcps, manifest, ua_dir)
-        # Remove stale entry-point files left by the previous platform.
-        current_entry = platform.config_entry_point
-        for key in PLATFORMS:
-            other_entry = get_platform(key).config_entry_point
-            if other_entry != current_entry:
-                stale = target / other_entry
-                if stale.exists():
-                    stale.unlink()
-                    print(f"  🗑️  Removed stale entry point: {other_entry}")
-        for root in [".agents", ".claude", ".maika"]:
-            root_path = target / root
-            if root != platform.framework_root and root_path.exists():
-                print(f"  ⚠️  stale framework root detected: {root_path}")
-    else:
-        framework_root = resolved.get("framework_root", framework_root)
-
-    if not reconfigure and hook_python and hook_python != resolved.get("hook_python"):
-        generate_resolved_config(target, platform, selected_mcps, language, hook_python=hook_python)
-
-    warn_legacy_maika(target, platform)
-
+    count = sum(1 for a in plan["actions"] if a["kind"] != "delete_framework_file")
     print(f"\n  ✅ Updated {count} framework files. User files preserved.\n")

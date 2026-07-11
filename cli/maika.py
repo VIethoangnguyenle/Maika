@@ -156,6 +156,21 @@ def main():
         help="Python invocation the write-gate hook uses on Windows (e.g. 'python' or 'py -3'). Default: python.",
     )
 
+    # ─── platform ───
+    platform_parser = subparsers.add_parser(
+        "platform",
+        help="Manage host adapters over one shared .maika core",
+    )
+    platform_parser.add_argument(
+        "action", choices=["list", "enable", "disable", "primary"],
+    )
+    platform_parser.add_argument(
+        "platform_key", nargs="?", default=None,
+        help="Platform key (required for enable/disable/primary)",
+    )
+    platform_parser.add_argument("--target", default=".")
+    platform_parser.add_argument("--source", default=None)
+
     # ─── dashboard ───
     dashboard_parser = subparsers.add_parser(
         "dashboard",
@@ -222,6 +237,12 @@ def main():
     elif args.command == "update":
         from cli.commands.update import run_update
         run_update(target_dir=args.target, maika_root=args.source, reconfigure=args.reconfigure, hook_python=args.hook_python)
+    elif args.command == "platform":
+        from cli.commands.platform import run_platform
+        sys.exit(run_platform(
+            action=args.action, target_dir=args.target,
+            platform_key=args.platform_key, maika_root=args.source,
+        ))
     elif args.command == "status":
         from cli.commands.status import run_status
         run_status(target_dir=args.target)

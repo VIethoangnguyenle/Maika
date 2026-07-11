@@ -20,7 +20,7 @@ def test_generate_resolved_config_persists_hook_python(tmp_path):
 def test_generate_resolved_config_omits_hook_python_when_none(tmp_path):
     platform = get_platform("claude-code")
     generate_resolved_config(tmp_path, platform, [], "python")
-    raw = (tmp_path / ".claude" / "resolved-config.yaml").read_text(encoding="utf-8")
+    raw = (tmp_path / ".maika" / "resolved-config.yaml").read_text(encoding="utf-8")
     assert "hook_python" not in raw
 
 

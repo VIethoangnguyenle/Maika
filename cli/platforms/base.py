@@ -148,6 +148,21 @@ class BasePlatform(ABC):
         return ".maika"
 
     @property
+    def worker_binary(self) -> Optional[str]:
+        """CLI binary used to launch a fresh-process worker, or None (no CLI)."""
+        return None
+
+    @property
+    def worker_base_args(self) -> List[str]:
+        """Base argv between the binary and the prompt file for a fresh-process worker."""
+        return []
+
+    @property
+    def dangerous_permission_flag(self) -> Optional[str]:
+        """Opt-in-only flag bypassing host permission prompts. Never a default."""
+        return None
+
+    @property
     def notes(self) -> List[str]:
         """Platform-specific notes shown during init."""
         return []

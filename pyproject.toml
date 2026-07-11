@@ -49,6 +49,8 @@ Repository = "https://github.com/VIethoangnguyenle/Maika"
 
 [tool.setuptools.packages.find]
 include = ["cli*"]
+# Framework-only tests are not part of the distributed runtime.
+exclude = ["cli.tests*"]
 
 [tool.setuptools.package-data]
 cli = [

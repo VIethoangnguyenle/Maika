@@ -13,10 +13,7 @@ from cli.platforms.generic import GenericPlatform
 
 
 def test_platform_framework_roots():
-    assert get_platform("antigravity").framework_root == ".agents"
-    assert get_platform("codex").framework_root == ".agents"
-    assert get_platform("claude-code").framework_root == ".claude"
-    assert get_platform("generic").framework_root == ".maika"
+    assert {get_platform(key).framework_root for key in PLATFORMS} == {".maika"}
 
 
 def test_native_root_platforms_do_not_need_skill_mirror():
@@ -27,7 +24,7 @@ def test_native_root_platforms_do_not_need_skill_mirror():
 
 def test_render_context_includes_framework_root():
     ctx = get_platform("antigravity").build_render_context(["codebase-memory-mcp"], "python")
-    assert ctx["platform"]["framework_root"] == ".agents"
+    assert ctx["platform"]["framework_root"] == ".maika"
 
 
 def test_write_gate_hook_capability_matrix():

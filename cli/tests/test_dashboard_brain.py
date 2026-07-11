@@ -6,12 +6,12 @@ from cli.dashboard import brain
 
 def _make_antigravity_project(tmp_path):
     proj = tmp_path / "proj"
-    active = proj / ".agents" / "knowledge" / "active"
+    active = proj / ".maika" / "knowledge" / "active"
     active.mkdir(parents=True)
-    (proj / ".agents" / "resolved-config.yaml").write_text(
+    (proj / ".maika" / "resolved-config.yaml").write_text(
         "resolved:\n"
         "  platform: antigravity\n"
-        "  framework_root: .agents\n"
+        "  framework_root: .maika\n"
         "  language: python\n"
         "  framework_version: '3.0'\n",
         encoding="utf-8",
