@@ -49,10 +49,10 @@ authorities:
     source: changes/<change-id>/verification/VERIFICATION_REPORT.md
   archive_manifest:
     source: changes/<change-id>/ARCHIVE_MANIFEST.yaml
-  # Vị trí hiện hành; PR 7 (bootstrap split) sẽ chuyển sang runtime/BOOTSTRAP_ENV_REPORT.yaml
-  # + runtime/AGENT_BOOTSTRAP_ACK.yaml và cập nhật entry này.
   bootstrap_report:
-    source: knowledge/active/BOOTSTRAP_REPORT.yaml
+    source: runtime/BOOTSTRAP_ENV_REPORT.yaml
+  bootstrap_ack:
+    source: runtime/AGENT_BOOTSTRAP_ACK.yaml
   durable_knowledge:
     source: knowledge/long-term/
   archive:
@@ -71,3 +71,5 @@ deprecated:
     replacement: null
   - path: knowledge/active/ideation/
     replacement: changes/<change-id>/RECONCILIATION.md
+  - path: knowledge/active/BOOTSTRAP_REPORT.yaml
+    replacement: runtime/BOOTSTRAP_ENV_REPORT.yaml

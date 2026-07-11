@@ -11,9 +11,10 @@ Các tầng:
 
 - **`long-term/`** — *long-term memory*: judgment sống + bản đồ kiến trúc,
   **source-of-truth** (tích luỹ, không reset).
-- **`active/`** — chỉ còn giữ artifact bootstrap runtime (`BOOTSTRAP_REPORT.yaml`);
-  các file working-memory cũ đã được thay bằng `changes/<change-id>/` — xem mục
-  `deprecated` trong `config/artifact-authority.yaml`; migrate target cũ bằng
+- **`active/`** — legacy landing zone, không còn artifact canonical nào (bootstrap
+  runtime nay ở `{{ platform.framework_root }}/runtime/`); các file working-memory cũ
+  đã được thay bằng `changes/<change-id>/` — xem mục `deprecated` trong
+  `config/artifact-authority.yaml`; migrate target cũ bằng
   `maika content migrate-legacy --target <repo> --apply`.
 - **`archive/`** — episodic memory legacy (đường archive canonical của change:
   `{{ platform.framework_root }}/archive/<change-id>/`).
@@ -29,7 +30,7 @@ Các tầng:
 ```
 {{ platform.framework_root }}/knowledge/
 ├── README.md                 ← File này
-├── active/                   ← Runtime bootstrap artifact (BOOTSTRAP_REPORT.yaml)
+├── active/                   ← Legacy landing zone (runtime artifact nay ở ../runtime/)
 ├── long-term/                ← Long-term memory — judgment sống + source-of-truth (không reset)
 │   ├── knowledge-snapshot.md  ← Bản đồ kiến trúc hệ thống (tích luỹ qua nhiều task)
 │   ├── knowledge-index.yaml   ← Entry list cho JIT slice tại decision-gate (generated)

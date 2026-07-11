@@ -153,29 +153,36 @@ Format (Giới hạn dưới 5 dòng):
 ```
 
 Đồng thời ghi machine-readable report tại
-`{{ platform.framework_root }}/knowledge/active/BOOTSTRAP_REPORT.yaml`:
+`{{ platform.framework_root }}/runtime/BOOTSTRAP_ENV_REPORT.yaml` (environment FACTS —
+file tồn tại là `rules_present`, không được gọi là "loaded"):
 
 ```yaml
-version: 1
+version: 2
 completed: true
 timestamp:
 repository_commit:
 entry_point:
-rules_loaded: []
+rules_present: []
 knowledge_index:
   status:
   entries:
 configured_providers: []
 provider_probes: []
 episodic_provider_health:
-active_state:
-resume_state:
+active_changes: []
+resume_state: new | resume | ambiguous
 degradation: []
 ```
 
 Chạy gate `bootstrap-complete`. Thiếu report, `completed != true`, thiếu bất kỳ core
 rule, chưa probe provider configured, hoặc degradation không được ghi thì **ABORT**.
-Mọi downstream context package và dispatch log phải cite path report này.
+
+**Acknowledgment (bắt buộc, sau khi ĐÃ ĐỌC kernel + rules + skill-index):**
+chạy `maika bootstrap --ack` (nhiều active change → thêm `--id <change-id>`) để ghi
+`{{ platform.framework_root }}/runtime/AGENT_BOOTSTRAP_ACK.yaml` — pin hash của
+kernel/router/skill-index đã đọc. Gate `bootstrap-ack` kiểm cấu trúc; runtime từ chối
+task command khi hash lệch (kernel/router/index đổi sau ack → bootstrap lại).
+Mọi downstream context package và dispatch log phải cite path env report + ack.
 
 > **Bắt buộc sau khi nạp**:
 > - `knowledge-index.yaml` đã nạp → report ghi `🧠 Knowledge-index: loaded — {n entries}`.

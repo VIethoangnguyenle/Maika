@@ -21,7 +21,8 @@
 | final review | `reviews/FINAL_REVIEW.md` | `final-review` |
 | MCP-probe | dòng MCP-status (bootstrap report / transparency) | `mcp-status` |
 | agent kernel | `agent/KERNEL.md` + platform entry point | `agent-kernel` |
-| bootstrap | `knowledge/active/BOOTSTRAP_REPORT.yaml` | `bootstrap-complete` |
+| bootstrap env | `runtime/BOOTSTRAP_ENV_REPORT.yaml` | `bootstrap-complete` |
+| bootstrap ack | `runtime/AGENT_BOOTSTRAP_ACK.yaml` | `bootstrap-ack` |
 | context package | `generated/CONTEXT_PACKAGE.<role>.yaml` | `context-package` |
 | dispatch prompt | dispatch log/prompt | `dispatch-kernel` |
 | material decision | trace block/artifact | `knowledge-trace` |

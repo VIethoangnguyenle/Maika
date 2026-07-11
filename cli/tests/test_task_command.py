@@ -11,6 +11,39 @@ import yaml
 from cli.commands.task import run_task, _run_declared_commands, _runtime_hardening
 
 
+
+def _write_bootstrap_fixtures(fw):
+    """Env report v2 + hash-fresh ack (bootstrap split, PR 7)."""
+    import hashlib
+    from cli.commands.bootstrap import content_hashes
+    for rel, stub in (("agent/KERNEL.md", "# kernel stub\n"),
+                      ("config/workflow-router.yaml", "version: 1\nactions: {}\n"),
+                      ("skills/skill-index.yaml", "skills: []\n")):
+        path = fw / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            path.write_text(stub, encoding="utf-8")
+    runtime = fw / "runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+    report = runtime / "BOOTSTRAP_ENV_REPORT.yaml"
+    report.write_text(yaml.safe_dump({
+        "version": 2, "completed": True, "timestamp": datetime.now(timezone.utc).isoformat(),
+        "repository_commit": "unavailable", "entry_point": "AGENTS.md",
+        "rules_present": ["RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
+                          "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"],
+        "knowledge_index": {"status": "loaded", "entries": 1}, "configured_providers": [],
+        "provider_probes": [], "episodic_provider_health": "not-configured",
+        "active_changes": [], "resume_state": "new", "degradation": [],
+    }, sort_keys=False), encoding="utf-8")
+    (runtime / "AGENT_BOOTSTRAP_ACK.yaml").write_text(yaml.safe_dump({
+        "version": 1, "timestamp": datetime.now(timezone.utc).isoformat(),
+        **content_hashes(fw),
+        "env_report_hash": "sha256:" + hashlib.sha256(report.read_bytes()).hexdigest(),
+        "selected_change": None, "current_state": None, "selected_route": [],
+        "rules_loaded": ["RULES.md"], "unresolved_contradictions": [],
+        "acknowledged_by": "test",
+    }, sort_keys=False), encoding="utf-8")
+
 def _target(tmp_path):
     root = tmp_path / "proj"
     fw = root / ".maika"
@@ -19,17 +52,7 @@ def _target(tmp_path):
     tool.mkdir(parents=True)
     profiles.mkdir(parents=True)
     (profiles / "execution-mode.yaml").write_text("workflow_engine: vnext\n", encoding="utf-8")
-    active = fw / "knowledge" / "active"
-    active.mkdir(parents=True)
-    (active / "BOOTSTRAP_REPORT.yaml").write_text(yaml.safe_dump({
-        "version": 1, "completed": True, "timestamp": datetime.now(timezone.utc).isoformat(), "repository_commit": "unavailable",
-        "entry_point": "AGENTS.md",
-        "rules_loaded": ["RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
-                         "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"],
-        "knowledge_index": {"status": "loaded", "entries": 1}, "configured_providers": [], "provider_probes": [],
-        "episodic_provider_health": "not-configured", "active_state": "empty",
-        "resume_state": "new", "degradation": [],
-    }, sort_keys=False), encoding="utf-8")
+    _write_bootstrap_fixtures(fw)
     (fw / "resolved-config.yaml").write_text(
         "resolved:\n"
         "  platform: generic\n"

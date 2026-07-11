@@ -31,6 +31,7 @@ SOURCE_MAP = {
     "knowledge-active/":    ".maika/knowledge/active/",
     "knowledge-long-term/": ".maika/knowledge/long-term/",
     "agent/":               ".maika/agent/",
+    "runtime/":             ".maika/runtime/",
 }
 
 # File extensions eligible for single-file Jinja auto-render.

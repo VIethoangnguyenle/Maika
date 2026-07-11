@@ -43,6 +43,7 @@ VALIDATORS = {
     "verification-report": "validate_verification_report",
     "agent-kernel": "validate_agent_kernel",
     "bootstrap-complete": "validate_bootstrap_complete",
+    "bootstrap-ack": "validate_bootstrap_ack",
     "context-package": "validate_context_package",
     "dispatch-kernel": "validate_dispatch_kernel",
     "knowledge-trace": "validate_knowledge_trace",

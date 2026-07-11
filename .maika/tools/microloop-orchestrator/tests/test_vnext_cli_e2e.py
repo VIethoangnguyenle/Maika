@@ -9,16 +9,40 @@ from datetime import datetime, timezone
 
 
 def _write_bootstrap(framework_root):
-    path = Path(framework_root) / "knowledge" / "active" / "BOOTSTRAP_REPORT.yaml"
+    import hashlib
+    fw = Path(framework_root)
+    for rel, stub in (("agent/KERNEL.md", "# kernel stub\n"),
+                      ("config/workflow-router.yaml", "version: 1\nactions: {}\n"),
+                      ("skills/skill-index.yaml", "skills: []\n")):
+        surface = fw / rel
+        surface.parent.mkdir(parents=True, exist_ok=True)
+        if not surface.exists():
+            surface.write_text(stub, encoding="utf-8")
+    path = fw / "runtime" / "BOOTSTRAP_ENV_REPORT.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump({
-        "version": 1, "completed": True, "timestamp": datetime.now(timezone.utc).isoformat(), "repository_commit": "unavailable",
+        "version": 2, "completed": True, "timestamp": datetime.now(timezone.utc).isoformat(), "repository_commit": "unavailable",
         "entry_point": "AGENTS.md",
-        "rules_loaded": ["RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
-                         "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"],
+        "rules_present": ["RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
+                          "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"],
         "knowledge_index": {"status": "loaded", "entries": 1},
         "configured_providers": [], "provider_probes": [], "episodic_provider_health": "not-configured",
-        "active_state": "empty", "resume_state": "new", "degradation": [],
+        "active_changes": [], "resume_state": "new", "degradation": [],
+    }, sort_keys=False), encoding="utf-8")
+
+    def _sha(rel):
+        target = fw / rel
+        return "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest()
+
+    (fw / "runtime" / "AGENT_BOOTSTRAP_ACK.yaml").write_text(yaml.safe_dump({
+        "version": 1, "timestamp": datetime.now(timezone.utc).isoformat(),
+        "kernel_hash": _sha("agent/KERNEL.md"),
+        "router_hash": _sha("config/workflow-router.yaml"),
+        "skill_index_hash": _sha("skills/skill-index.yaml"),
+        "env_report_hash": "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest(),
+        "selected_change": None, "current_state": None, "selected_route": [],
+        "rules_loaded": ["RULES.md"], "unresolved_contradictions": [],
+        "acknowledged_by": "test",
     }, sort_keys=False), encoding="utf-8")
 
 

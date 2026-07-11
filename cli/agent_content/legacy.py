@@ -25,6 +25,7 @@ LEGACY_TOKENS = (
     "AGENT_TRANSPARENCY",
     "TOKEN_LOG",
     "active/ideation",
+    "knowledge/active/BOOTSTRAP_REPORT",
 )
 ARCHIVE_IMPORT_DIR = "legacy-active-import"
 

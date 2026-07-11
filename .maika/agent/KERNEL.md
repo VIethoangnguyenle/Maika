@@ -87,8 +87,10 @@ organizational policy
 ## 8. Resume & Bootstrap
 
 - Đầu mỗi fresh/resumed session: execute `procedures/bootstrap.md`
-  (`maika bootstrap --target <repo>`). `BOOTSTRAP_REPORT.yaml` chưa tồn tại hoặc
-  gate `bootstrap-complete` fail → không được reasoning, planning, dispatch, write.
+  (`maika bootstrap --target <repo>`), rồi acknowledge sau khi đã đọc kernel/rules:
+  `maika bootstrap --ack`. Thiếu `runtime/BOOTSTRAP_ENV_REPORT.yaml`, thiếu
+  `runtime/AGENT_BOOTSTRAP_ACK.yaml`, hoặc gate `bootstrap-complete`/`bootstrap-ack`
+  fail → không được reasoning, planning, dispatch, write.
 - Resume CHỈ dựa `changes/<change-id>/STATE.yaml`: 0 active → task mới;
   1 active → resume; >1 active → yêu cầu explicit change-id.
 - Load order sau bootstrap: `rules/RULES.md` theo manifest →

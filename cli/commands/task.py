@@ -87,11 +87,14 @@ def _runtime_hardening(target: Path, framework_root: str):
 
 
 def _bootstrap_ready(target: Path, framework_root: str) -> tuple[bool, str]:
-    report = target / framework_root / "knowledge" / "active" / "BOOTSTRAP_REPORT.yaml"
+    from cli.commands.bootstrap import ACK_REL, ENV_REPORT_REL, verify_ack_freshness
+
+    framework = target / framework_root
+    report = framework / ENV_REPORT_REL
     if not report.exists():
-        return False, "missing knowledge/active/BOOTSTRAP_REPORT.yaml"
+        return False, f"missing {ENV_REPORT_REL} (run `maika bootstrap`)"
     candidates = [
-        target / framework_root / "tools" / "gate-check" / "gates.py",
+        framework / "tools" / "gate-check" / "gates.py",
         Path(__file__).resolve().parents[2] / ".maika" / "tools" / "gate-check" / "gates.py",
     ]
     module_path = next((path for path in candidates if path.exists()), None)
@@ -101,7 +104,15 @@ def _bootstrap_ready(target: Path, framework_root: str) -> tuple[bool, str]:
     gates = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gates)
     result = gates.validate_bootstrap_complete(report.read_text(encoding="utf-8"))
-    return result.ok, result.reason
+    if not result.ok:
+        return False, result.reason
+    ack = framework / ACK_REL
+    if not ack.exists():
+        return False, f"missing {ACK_REL} (run `maika bootstrap --ack`)"
+    ack_result = gates.validate_bootstrap_ack(ack.read_text(encoding="utf-8"))
+    if not ack_result.ok:
+        return False, ack_result.reason
+    return verify_ack_freshness(framework)
 
 
 def _now() -> str:

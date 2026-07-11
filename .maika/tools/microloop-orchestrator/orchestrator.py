@@ -106,9 +106,9 @@ def _require_vnext(framework_path: Path) -> tuple[Path, dict] | tuple[None, None
 
 
 def _require_bootstrap(framework_path: Path, gates, repo_root: Path) -> bool:
-    report = Path(framework_path) / "knowledge" / "active" / "BOOTSTRAP_REPORT.yaml"
+    report = Path(framework_path) / "runtime" / "BOOTSTRAP_ENV_REPORT.yaml"
     if not report.exists():
-        print("Refused: bootstrap-complete requires knowledge/active/BOOTSTRAP_REPORT.yaml")
+        print("Refused: bootstrap-complete requires runtime/BOOTSTRAP_ENV_REPORT.yaml")
         return False
     result = gates.validate_bootstrap_complete(report.read_text(encoding="utf-8"))
     if not result.ok:

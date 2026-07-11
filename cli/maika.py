@@ -134,9 +134,14 @@ def main():
                                   action="store_true")
 
     bootstrap_parser = subparsers.add_parser(
-        "bootstrap", help="Probe configured providers and create BOOTSTRAP_REPORT.yaml",
+        "bootstrap",
+        help="Create runtime/BOOTSTRAP_ENV_REPORT.yaml (--ack: acknowledge kernel/router/index)",
     )
     bootstrap_parser.add_argument("--target", default=".")
+    bootstrap_parser.add_argument("--ack", action="store_true",
+                                  help="Write AGENT_BOOTSTRAP_ACK.yaml after reading the kernel")
+    bootstrap_parser.add_argument("--id", dest="change_id", default=None,
+                                  help="Explicit active change for --ack when several are active")
 
     content_parser = subparsers.add_parser(
         "content", help="Validate agent-facing content (authority registry, ...)",
@@ -366,6 +371,9 @@ def main():
         sys.exit(run_uninstall(target_dir=args.target,
                                purge_project_data=args.purge_project_data)["exit_code"])
     elif args.command == "bootstrap":
+        if args.ack:
+            from cli.commands.bootstrap import run_bootstrap_ack
+            sys.exit(run_bootstrap_ack(args.target, change_id=args.change_id))
         from cli.commands.bootstrap import run_bootstrap
         sys.exit(run_bootstrap(args.target))
     elif args.command == "content":

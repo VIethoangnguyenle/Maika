@@ -63,6 +63,7 @@
 .maika/rules/rules-skill-evolution.md
 .maika/rules/rules-tool.md
 .maika/runtime/
+.maika/runtime/.gitignore
 .maika/runtime/platforms/
 .maika/runtime/platforms/codex.yaml
 .maika/skills/

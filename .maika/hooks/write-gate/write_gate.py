@@ -567,6 +567,9 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
     policy_path = _policy_path(project_root, target_path)
     rel = policy_path.as_posix()
     bootstrap_outputs = {
+        f"{framework_root}/runtime/BOOTSTRAP_ENV_REPORT.yaml",
+        f"{framework_root}/runtime/AGENT_BOOTSTRAP_ACK.yaml",
+        # Legacy targets (compatibility window §23.3, removed in PR 16):
         f"{framework_root}/knowledge/active/BOOTSTRAP_REPORT.yaml",
         f"{framework_root}/knowledge/active/AGENT_TRANSPARENCY.md",
     }

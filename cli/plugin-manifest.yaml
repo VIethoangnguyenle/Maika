@@ -170,6 +170,12 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/config/workflow-router.yaml"
 
+  - name: runtime-skeleton
+    type: profile
+    source: runtime/.gitignore
+    template: false
+    output: "{{ platform.framework_root }}/runtime/.gitignore"
+
   # ─── SKILLS ───
   - name: lightweight-change
     type: skill

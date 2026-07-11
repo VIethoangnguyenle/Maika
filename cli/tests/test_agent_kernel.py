@@ -50,7 +50,7 @@ def test_gate_rejects_kernel_violations():
 def test_kernel_requires_bootstrap_before_work():
     text = KERNEL.read_text(encoding="utf-8")
     assert "procedures/bootstrap.md" in text
-    assert "BOOTSTRAP_REPORT.yaml" in text
+    assert "BOOTSTRAP_ENV_REPORT.yaml" in text
     assert "không được reasoning" in text.lower() or "không được tiếp tục" in text.lower()
 
 

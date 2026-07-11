@@ -1116,7 +1116,7 @@ def validate_agent_kernel(text: str) -> Result:
     required = (
         "KERNEL_ID: maika-agent-kernel-v1",
         "knowledge-grounded engineering agent", "Không có material decision",
-        "procedures/bootstrap.md", "BOOTSTRAP_REPORT.yaml",
+        "procedures/bootstrap.md", "BOOTSTRAP_ENV_REPORT.yaml", "AGENT_BOOTSTRAP_ACK.yaml",
         "artifact-authority.yaml", "STATE.yaml",
     )
     absent = [item for item in required if item.lower() not in text.lower()]
@@ -1138,21 +1138,53 @@ def validate_agent_kernel(text: str) -> Result:
     return Result(True)
 
 
+def validate_bootstrap_ack(text: str) -> Result:
+    """Gate `bootstrap-ack` — agent acknowledgment structure (plan §14).
+
+    Hash FRESHNESS (ack vs current kernel/router/index) is enforced at runtime
+    by cli.commands.bootstrap.verify_ack_freshness; this gate checks shape.
+    """
+    data, error = _yaml_mapping(text, "bootstrap ack")
+    if error:
+        return error
+    required = ("version", "timestamp", "kernel_hash", "router_hash", "skill_index_hash",
+                "env_report_hash", "selected_change", "current_state", "selected_route",
+                "rules_loaded", "unresolved_contradictions", "acknowledged_by")
+    missing = [key for key in required if key not in data]
+    if missing:
+        return Result(False, "bootstrap ack missing: " + ", ".join(missing))
+    for key in ("kernel_hash", "router_hash", "skill_index_hash", "env_report_hash"):
+        value = str(data.get(key) or "")
+        if not value.startswith("sha256:") or len(value) != len("sha256:") + 64:
+            return Result(False, f"bootstrap ack {key} must be a sha256 content hash")
+    if not data.get("rules_loaded"):
+        return Result(False, "bootstrap ack rules_loaded cannot be empty")
+    if not str(data.get("acknowledged_by") or "").strip():
+        return Result(False, "bootstrap ack acknowledged_by cannot be empty")
+    try:
+        datetime.fromisoformat(str(data["timestamp"]).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return Result(False, "bootstrap ack timestamp must be ISO-8601")
+    return Result(True)
+
+
 def validate_bootstrap_complete(text: str) -> Result:
     data, error = _yaml_mapping(text, "bootstrap report")
     if error:
         return error
-    required = ("version", "completed", "timestamp", "repository_commit", "entry_point", "rules_loaded",
-                "knowledge_index", "configured_providers", "provider_probes", "episodic_provider_health", "active_state",
-                "resume_state", "degradation")
+    required = ("version", "completed", "timestamp", "repository_commit", "entry_point", "rules_present",
+                "knowledge_index", "configured_providers", "provider_probes", "episodic_provider_health",
+                "active_changes", "resume_state", "degradation")
     missing = [key for key in required if key not in data]
     if missing:
         return Result(False, "bootstrap report missing: " + ", ".join(missing))
     if data.get("completed") is not True:
         return Result(False, "bootstrap report is not completed")
-    for key in ("timestamp", "entry_point", "episodic_provider_health", "active_state", "resume_state"):
+    for key in ("timestamp", "entry_point", "episodic_provider_health", "resume_state"):
         if data.get(key) in (None, "", []):
             return Result(False, f"bootstrap report {key} cannot be empty")
+    if data.get("resume_state") not in ("new", "resume", "ambiguous"):
+        return Result(False, "bootstrap resume_state must be new|resume|ambiguous")
     try:
         timestamp = datetime.fromisoformat(str(data["timestamp"]).replace("Z", "+00:00"))
         age = datetime.now(timezone.utc) - timestamp.astimezone(timezone.utc)
@@ -1162,11 +1194,11 @@ def validate_bootstrap_complete(text: str) -> Result:
         return Result(False, "bootstrap report is stale for this session/day")
     if not str(data.get("repository_commit") or "").strip():
         return Result(False, "bootstrap repository_commit cannot be empty")
-    rules = set(data.get("rules_loaded") or [])
+    rules = set(data.get("rules_present") or [])
     required_rules = {"RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
                       "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"}
     if not required_rules <= rules:
-        return Result(False, "bootstrap did not load every core rule")
+        return Result(False, "bootstrap environment is missing a core rule file")
     index = data.get("knowledge_index") or {}
     if index.get("status") != "loaded" or not isinstance(index.get("entries"), int):
         return Result(False, "bootstrap knowledge_index must be loaded with integer entries")
