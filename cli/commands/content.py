@@ -37,6 +37,20 @@ def run_content(action: str, target_dir: str = ".") -> int:
         print(f"authority registry valid: {len(doc.get('authorities') or {})} decisions, "
               f"{len(doc.get('deprecated') or [])} deprecated paths")
         return 0
+    if action == "validate-skills":
+        framework = _framework_dir(target)
+        from cli.agent_content.skill_contract import validate_skill_contracts
+        try:
+            errors = validate_skill_contracts(framework)
+        except FileNotFoundError as exc:
+            print(f"Refused: missing contract surface: {exc}")
+            return 2
+        if errors:
+            for error in errors:
+                print(f"skill-contract: {error}")
+            return 1
+        print("skill contracts valid")
+        return 0
     if action == "validate-router":
         framework = _framework_dir(target)
         try:

@@ -1,12 +1,35 @@
 ---
 name: validating-plan
-version: '2.0'
-description: >
-  Dùng khi writing-plan tạo IMPLEMENTATION_PLAN.md và trước khi compile/dispatch:
+version: '3.0'
+description: 'Dùng khi writing-plan tạo IMPLEMENTATION_PLAN.md và trước khi compile/dispatch:
   kiểm hai tầng — mechanical (metadata/hash/anchor/DAG/AC/write-scope/capsule) và
-  knowledge integrity (freshness/provider obligation/DNA/convention/incident/DB/conflict).
+  knowledge integrity (freshness/provider obligation/DNA/convention/incident/DB/conflict).'
+routing:
+  mode: workflow
+  actions:
+  - validate-plan
+  states:
+  - PLAN_REVIEW
+  classes:
+  - standard
+  - architectural
+capabilities:
+  required:
+  - convention_retrieval
+  - dependency_analysis
+  - exact_source_inspection
+  - historical_context_retrieval
+  - runtime_verification
+outputs:
+  required:
+  - generated/PLAN_VALIDATION.json
+  optional:
+  - generated/PLAN_MANIFEST.json
+  - generated/TASK_QUEUE.json
+gates:
+- vnext-plan
+- plan-review
 ---
-
 # Validating Plan
 
 ## Mục tiêu

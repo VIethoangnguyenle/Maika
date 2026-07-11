@@ -1,114 +1,440 @@
-# TỰ ĐỘNG TẠO BỞI generate_index.py - KHÔNG CHỈNH SỬA THỦ CÔNG
+# TỰ ĐỘNG TẠO BỞI SKILL EVOLUTION — KHÔNG CHỈNH SỬA THỦ CÔNG
 skills:
-  -
-    name: architecture-reconciler
-    version: '2.0'
-    description: >
-      Dùng khi gói grounding đã có evidence đa nguồn cần đối chiếu: dựng claim matrix
-      giữa UA/CBM/source/memory/DB/durable knowledge, phân loại và giải quyết conflict
-      theo thứ tự authority trước khi brainstorming/spec.
-  -
-    name: author-dna-builder
-    version: '2.0'
-    description: >
-      Dùng khi review lặp lại một triết lý kỹ thuật hoặc user xác nhận nguyên tắc định
-      hướng: quản lý candidate lifecycle của Author DNA với confidence, provenance,
-      positive/counterexample, scope, enforcement mapping, supersession và consumer list.
-  -
-    name: convention-intelligence-builder
-    version: '2.0'
-    description: >
-      Dùng khi onboarding, sau refactor lớn, hoặc khi review lộ convention gap: trích
-      convention cụ thể (naming/structure/testing/boundary) từ verified source với evidence
-      threshold, examples/counterexamples, applies-to tags, scope matcher, enforcement type.
-  -
-    name: database-explorer
-    version: '1.0'
-    description: >
-      Dùng khi change chạm persistence (entity, repository, native SQL, table, column,
-      index, constraint, package, procedure, migration, transaction, locking, job/outbox,
-      audit): probe DB read-only và phát ra DATABASE_CONTEXT.yaml có evidence hoặc degradation.
-  -
-    name: executing-task
-    version: '2.0'
-    description: >
-      Dùng khi một task PENDING trong TASK_QUEUE.json sẵn sàng chạy: đọc brief +
-      knowledge capsule, verify freshness, re-read source anchor, chỉ implement scope
-      đã khai, và request re-grounding khi source khác evidence.
-  -
-    name: grounded-brainstorming
-    version: '2.0'
-    description: >
-      Dùng khi reconciliation READY và change có nhiều thiết kế khả dĩ: so sánh các
-      approach dựa trên evidence đã reconcile, mỗi approach kèm extension seam, blast
-      radius, convention, historical failure, DB/migration/security impact và lý do loại.
-  -
-    name: grounding-explorer
-    version: '2.0'
-    description: >
-      Dùng khi một change hạng standard/architectural cần thu thập bằng chứng trước
-      thiết kế: điều phối truy xuất đa nguồn (kiến trúc, dependency, source, lịch sử,
-      DB, convention), ghi evidence có provenance, phát hiện conflict và trả readiness.
-  -
-    name: infra-tdd
-    version: '2.0'
-    description: >
-      Dùng khi CHANGE.yaml class architectural và change cần operational architecture:
-      thu infra evidence (K8s topology, deployment manifest, service graph, Kafka
-      topic/group, DB capacity/index, log/metric, incident memory, rollout/rollback command).
-  -
-    name: intent-analysis
-    version: '2.0'
-    description: >
-      Dùng khi một request/ticket mới vào hoặc workspace resume thiếu INTENT.md:
-      recall lịch sử, tra Author DNA/convention, tìm source touchpoint, nhận diện tín
-      hiệu rủi ro, phân loại change và sinh QUERY_PLAN.yaml trước khi thiết kế.
-  -
-    name: knowledge-curator
-    version: '2.0'
-    description: >
-      Dùng khi cần vận hành vòng đời tri thức (trước/trong/sau implementation) theo bốn
-      mode retrieve/record/reconcile/curate: promote verified knowledge, supersede stale,
-      save episodic memory, update DNA/convention, regenerate index, trigger graph refresh.
-  -
-    name: reviewing-change
-    version: '2.0'
-    description: >
-      Dùng khi mọi task review đã pass và trước verification: review toàn change, kiểm
-      integration/deleted-reference/verification, và ghi KNOWLEDGE_IMPACT.yaml (stale
-      knowledge, superseded decision, new candidate, graph refresh, memory save).
-  -
-    name: reviewing-task
-    version: '2.0'
-    description: >
-      Dùng khi một task result qua result-contract gate: review độc lập tìm
-      counter-evidence — kiểm ít nhất một source anchor cho mỗi material behavior,
-      public contract, deleted file, persistence/async/security boundary, incident, convention.
-  -
-    name: validating-plan
-    version: '2.0'
-    description: >
-      Dùng khi writing-plan tạo IMPLEMENTATION_PLAN.md và trước khi compile/dispatch:
-      kiểm hai tầng — mechanical (metadata/hash/anchor/DAG/AC/write-scope/capsule) và
-      knowledge integrity (freshness/provider obligation/DNA/convention/incident/DB/conflict).
-  -
-    name: verification-before-completion
-    version: '2.0'
-    description: >
-      Dùng khi sắp tuyên bố hoàn thành task/wave/change hoặc trước archive: chạy lệnh thật
-      (build/test/static/contract/migration/smoke/deleted-scan/hash/freshness/DB), ghi
-      command+expected+observed+exit+timestamp+interpretation, không complete bằng marker.
-  -
-    name: writing-plan
-    version: '2.0'
-    description: >
-      Dùng khi SPEC.md đã duyệt và state là PLANNING: kiểm precondition, targeted
-      re-grounding, dựng implementation graph (contract→producer→consumer→migration→
-      verification→cleanup), phân rã task có write scope + evidence + AC + knowledge capsule.
-  -
-    name: writing-spec
-    version: '2.0'
-    description: >
-      Dùng khi reconciliation/brainstorming đã xong và cần SPEC.md class-aware: map
-      requirement→evidence, delta current→desired, behavior/state model, contract
-      ownership, persistence/async/security impact, AC test được và evidence coverage.
+- name: architecture-reconciler
+  version: '3.0'
+  description: 'Dùng khi gói grounding đã có evidence đa nguồn cần đối chiếu: dựng
+    claim matrix giữa UA/CBM/source/memory/DB/durable knowledge, phân loại và giải
+    quyết conflict theo thứ tự authority trước khi brainstorming/spec.'
+  routing:
+    mode: workflow
+    actions:
+    - reconcile
+    states:
+    - RECONCILING
+    classes:
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - architecture_discovery
+    - dependency_analysis
+    - exact_source_inspection
+    - historical_context_retrieval
+  outputs:
+    required:
+    - RECONCILIATION.md
+    - exploration/CONFLICTS.yaml
+  gates:
+  - conflicts
+  - knowledge-trace
+- name: author-dna-builder
+  version: '3.0'
+  description: 'Dùng khi review lặp lại một triết lý kỹ thuật hoặc user xác nhận nguyên
+    tắc định hướng: quản lý candidate lifecycle của Author DNA với confidence, provenance,
+    positive/counterexample, scope, enforcement mapping, supersession và consumer
+    list.'
+  routing:
+    mode: conditional
+    states: []
+    classes:
+    - trivial
+    - small
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - convention_retrieval
+    - exact_source_inspection
+    - historical_context_retrieval
+  outputs:
+    required:
+    - knowledge/long-term/author-dna.yaml
+  gates:
+  - teaching-moment
+- name: convention-intelligence-builder
+  version: '3.0'
+  description: 'Dùng khi onboarding, sau refactor lớn, hoặc khi review lộ convention
+    gap: trích convention cụ thể (naming/structure/testing/boundary) từ verified source
+    với evidence threshold, examples/counterexamples, applies-to tags, scope matcher,
+    enforcement type.'
+  routing:
+    mode: conditional
+    states: []
+    classes:
+    - trivial
+    - small
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - architecture_discovery
+    - dependency_analysis
+    - exact_source_inspection
+  outputs:
+    required:
+    - knowledge/long-term/conventions.yaml
+- name: database-explorer
+  version: '3.0'
+  description: 'Dùng khi change chạm persistence (entity, repository, native SQL,
+    table, column, index, constraint, package, procedure, migration, transaction,
+    locking, job/outbox, audit): probe DB read-only và phát ra DATABASE_CONTEXT.yaml
+    có evidence hoặc degradation.'
+  routing:
+    mode: conditional
+    states: []
+    classes:
+    - trivial
+    - small
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - database_schema_inspection
+    - database_dependency_analysis
+    - exact_source_inspection
+  outputs:
+    required:
+    - exploration/DATABASE_CONTEXT.yaml
+  gates:
+  - database-context
+- name: executing-task
+  version: '3.0'
+  description: 'Dùng khi một task PENDING trong TASK_QUEUE.json sẵn sàng chạy: đọc
+    brief + knowledge capsule, verify freshness, re-read source anchor, chỉ implement
+    scope đã khai, và request re-grounding khi source khác evidence.'
+  routing:
+    mode: workflow
+    actions:
+    - apply
+    states:
+    - EXECUTING
+    classes:
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - exact_source_inspection
+    - runtime_verification
+    - version_control
+  outputs:
+    required:
+    - results/
+  gates:
+  - result-contract
+- name: grounded-brainstorming
+  version: '3.0'
+  description: 'Dùng khi reconciliation READY và change có nhiều thiết kế khả dĩ:
+    so sánh các approach dựa trên evidence đã reconcile, mỗi approach kèm extension
+    seam, blast radius, convention, historical failure, DB/migration/security impact
+    và lý do loại.'
+  routing:
+    mode: workflow
+    actions:
+    - brainstorm
+    states:
+    - BRAINSTORMING
+    classes:
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - business_knowledge_retrieval
+    - convention_retrieval
+    - dependency_analysis
+    - historical_context_retrieval
+  outputs:
+    required:
+    - RECONCILIATION.md
+  gates:
+  - knowledge-trace
+- name: grounding-explorer
+  version: '3.0'
+  description: 'Dùng khi một change hạng standard/architectural cần thu thập bằng
+    chứng trước thiết kế: điều phối truy xuất đa nguồn (kiến trúc, dependency, source,
+    lịch sử, DB, convention), ghi evidence có provenance, phát hiện conflict và trả
+    readiness.'
+  routing:
+    mode: workflow
+    actions:
+    - explore
+    states:
+    - INTAKE
+    classes:
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - architecture_discovery
+    - dependency_analysis
+    - exact_source_inspection
+    - historical_context_retrieval
+    - business_knowledge_retrieval
+    - convention_retrieval
+  outputs:
+    required:
+    - exploration/GROUNDING.yaml
+    - exploration/EVIDENCE_MANIFEST.yaml
+    - exploration/TOOL_HEALTH.yaml
+    - exploration/CONFLICTS.yaml
+    - exploration/COVERAGE.yaml
+    optional:
+    - exploration/QUERY_PLAN.yaml
+    - exploration/DATABASE_CONTEXT.yaml
+  gates:
+  - query-plan
+  - tool-health
+  - exploration-evidence
+  - coverage
+- name: infra-tdd
+  version: '3.0'
+  description: 'Dùng khi CHANGE.yaml class architectural và change cần operational
+    architecture: thu infra evidence (K8s topology, deployment manifest, service graph,
+    Kafka topic/group, DB capacity/index, log/metric, incident memory, rollout/rollback
+    command).'
+  routing:
+    mode: conditional
+    states: []
+    classes:
+    - architectural
+  capabilities:
+    required:
+    - architecture_discovery
+    - database_schema_inspection
+    - dependency_analysis
+    - historical_context_retrieval
+    - runtime_verification
+- name: intent-analysis
+  version: '3.0'
+  description: 'Dùng khi một request/ticket mới vào hoặc workspace resume thiếu INTENT.md:
+    recall lịch sử, tra Author DNA/convention, tìm source touchpoint, nhận diện tín
+    hiệu rủi ro, phân loại change và sinh QUERY_PLAN.yaml trước khi thiết kế.'
+  routing:
+    mode: workflow
+    actions:
+    - start
+    states:
+    - NONE
+    classes:
+    - trivial
+    - small
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - business_knowledge_retrieval
+    - convention_retrieval
+    - exact_source_inspection
+    - historical_context_retrieval
+  outputs:
+    required:
+    - CHANGE.yaml
+    - STATE.yaml
+    optional:
+    - INTENT.md
+    - exploration/QUERY_PLAN.yaml
+    - TASK.yaml
+    - EVIDENCE.yaml
+    - RESULT.yaml
+  gates:
+  - intent
+- name: knowledge-curator
+  version: '3.0'
+  description: 'Dùng khi cần vận hành vòng đời tri thức (trước/trong/sau implementation)
+    theo bốn mode retrieve/record/reconcile/curate: promote verified knowledge, supersede
+    stale, save episodic memory, update DNA/convention, regenerate index, trigger
+    graph refresh.'
+  routing:
+    mode: workflow
+    actions:
+    - archive
+    states:
+    - COMPLETED
+    classes:
+    - trivial
+    - small
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - business_knowledge_retrieval
+    - convention_retrieval
+    - historical_context_retrieval
+    - version_control
+  outputs:
+    required:
+    - ARCHIVE_MANIFEST.yaml
+    optional:
+    - knowledge/long-term/knowledge-index.yaml
+  gates:
+  - knowledge-impact
+  - skill-feedback
+- name: reviewing-change
+  version: '3.0'
+  description: 'Dùng khi mọi task review đã pass và trước verification: review toàn
+    change, kiểm integration/deleted-reference/verification, và ghi KNOWLEDGE_IMPACT.yaml
+    (stale knowledge, superseded decision, new candidate, graph refresh, memory save).'
+  routing:
+    mode: workflow
+    actions:
+    - final-review
+    states:
+    - FINAL_REVIEW
+    classes:
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - dependency_analysis
+    - exact_source_inspection
+    - historical_context_retrieval
+    - runtime_verification
+  outputs:
+    required:
+    - reviews/FINAL_REVIEW.md
+    - reviews/KNOWLEDGE_IMPACT.yaml
+    optional:
+    - reviews/FINDINGS.yaml
+  gates:
+  - final-review
+  - knowledge-impact
+- name: reviewing-task
+  version: '3.0'
+  description: 'Dùng khi một task result qua result-contract gate: review độc lập
+    tìm counter-evidence — kiểm ít nhất một source anchor cho mỗi material behavior,
+    public contract, deleted file, persistence/async/security boundary, incident,
+    convention.'
+  routing:
+    mode: dispatch
+    states:
+    - EXECUTING
+    classes:
+    - small
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - dependency_analysis
+    - exact_source_inspection
+    - historical_context_retrieval
+    - review_dispatch
+    - runtime_verification
+  outputs:
+    required:
+    - reviews/
+  gates:
+  - task-review
+- name: validating-plan
+  version: '3.0'
+  description: 'Dùng khi writing-plan tạo IMPLEMENTATION_PLAN.md và trước khi compile/dispatch:
+    kiểm hai tầng — mechanical (metadata/hash/anchor/DAG/AC/write-scope/capsule) và
+    knowledge integrity (freshness/provider obligation/DNA/convention/incident/DB/conflict).'
+  routing:
+    mode: workflow
+    actions:
+    - validate-plan
+    states:
+    - PLAN_REVIEW
+    classes:
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - convention_retrieval
+    - dependency_analysis
+    - exact_source_inspection
+    - historical_context_retrieval
+    - runtime_verification
+  outputs:
+    required:
+    - generated/PLAN_VALIDATION.json
+    optional:
+    - generated/PLAN_MANIFEST.json
+    - generated/TASK_QUEUE.json
+  gates:
+  - vnext-plan
+  - plan-review
+- name: verification-before-completion
+  version: '3.0'
+  description: 'Dùng khi sắp tuyên bố hoàn thành task/wave/change hoặc trước archive:
+    chạy lệnh thật (build/test/static/contract/migration/smoke/deleted-scan/hash/freshness/DB),
+    ghi command+expected+observed+exit+timestamp+interpretation, không complete bằng
+    marker.'
+  routing:
+    mode: workflow
+    actions:
+    - verify
+    states:
+    - VERIFYING
+    classes:
+    - trivial
+    - small
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - exact_source_inspection
+    - runtime_verification
+    - version_control
+  outputs:
+    required:
+    - verification/VERIFICATION_REPORT.md
+    optional:
+    - verification/COMMANDS.yaml
+  gates:
+  - verification-report
+- name: writing-plan
+  version: '3.0'
+  description: 'Dùng khi SPEC.md đã duyệt và state là PLANNING: kiểm precondition,
+    targeted re-grounding, dựng implementation graph (contract→producer→consumer→migration→
+    verification→cleanup), phân rã task có write scope + evidence + AC + knowledge
+    capsule.'
+  routing:
+    mode: workflow
+    actions:
+    - plan
+    states:
+    - PLANNING
+    classes:
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - dependency_analysis
+    - exact_source_inspection
+    - historical_context_retrieval
+    - runtime_verification
+  outputs:
+    required:
+    - IMPLEMENTATION_PLAN.md
+    optional:
+    - briefs/
+  gates:
+  - vnext-plan
+- name: writing-spec
+  version: '3.0'
+  description: 'Dùng khi reconciliation/brainstorming đã xong và cần SPEC.md class-aware:
+    map requirement→evidence, delta current→desired, behavior/state model, contract
+    ownership, persistence/async/security impact, AC test được và evidence coverage.'
+  routing:
+    mode: workflow
+    actions:
+    - spec
+    states:
+    - BRAINSTORMING
+    classes:
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - business_knowledge_retrieval
+    - convention_retrieval
+    - dependency_analysis
+    - exact_source_inspection
+  outputs:
+    required:
+    - SPEC.md
+    optional:
+    - generated/SPEC_VALIDATION.json
+  gates:
+  - spec
+  - knowledge-trace

@@ -1,12 +1,28 @@
 ---
 name: author-dna-builder
-version: '2.0'
-description: >
-  Dùng khi review lặp lại một triết lý kỹ thuật hoặc user xác nhận nguyên tắc định
-  hướng: quản lý candidate lifecycle của Author DNA với confidence, provenance,
-  positive/counterexample, scope, enforcement mapping, supersession và consumer list.
+version: '3.0'
+description: 'Dùng khi review lặp lại một triết lý kỹ thuật hoặc user xác nhận nguyên
+  tắc định hướng: quản lý candidate lifecycle của Author DNA với confidence, provenance,
+  positive/counterexample, scope, enforcement mapping, supersession và consumer list.'
+routing:
+  mode: conditional
+  states: []
+  classes:
+  - trivial
+  - small
+  - standard
+  - architectural
+capabilities:
+  required:
+  - convention_retrieval
+  - exact_source_inspection
+  - historical_context_retrieval
+outputs:
+  required:
+  - knowledge/long-term/author-dna.yaml
+gates:
+- teaching-moment
 ---
-
 # Author DNA Builder
 
 ## Mục tiêu

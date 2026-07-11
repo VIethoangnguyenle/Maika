@@ -1,12 +1,29 @@
 ---
 name: executing-task
-version: '2.0'
-description: >
-  Dùng khi một task PENDING trong TASK_QUEUE.json sẵn sàng chạy: đọc brief +
-  knowledge capsule, verify freshness, re-read source anchor, chỉ implement scope
-  đã khai, và request re-grounding khi source khác evidence.
+version: '3.0'
+description: 'Dùng khi một task PENDING trong TASK_QUEUE.json sẵn sàng chạy: đọc brief
+  + knowledge capsule, verify freshness, re-read source anchor, chỉ implement scope
+  đã khai, và request re-grounding khi source khác evidence.'
+routing:
+  mode: workflow
+  actions:
+  - apply
+  states:
+  - EXECUTING
+  classes:
+  - standard
+  - architectural
+capabilities:
+  required:
+  - exact_source_inspection
+  - runtime_verification
+  - version_control
+outputs:
+  required:
+  - results/
+gates:
+- result-contract
 ---
-
 # Executing Task
 
 ## Mục tiêu

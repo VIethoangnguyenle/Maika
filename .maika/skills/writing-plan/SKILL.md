@@ -1,12 +1,32 @@
 ---
 name: writing-plan
-version: '2.0'
-description: >
-  Dùng khi SPEC.md đã duyệt và state là PLANNING: kiểm precondition, targeted
-  re-grounding, dựng implementation graph (contract→producer→consumer→migration→
-  verification→cleanup), phân rã task có write scope + evidence + AC + knowledge capsule.
+version: '3.0'
+description: 'Dùng khi SPEC.md đã duyệt và state là PLANNING: kiểm precondition, targeted
+  re-grounding, dựng implementation graph (contract→producer→consumer→migration→ verification→cleanup),
+  phân rã task có write scope + evidence + AC + knowledge capsule.'
+routing:
+  mode: workflow
+  actions:
+  - plan
+  states:
+  - PLANNING
+  classes:
+  - standard
+  - architectural
+capabilities:
+  required:
+  - dependency_analysis
+  - exact_source_inspection
+  - historical_context_retrieval
+  - runtime_verification
+outputs:
+  required:
+  - IMPLEMENTATION_PLAN.md
+  optional:
+  - briefs/
+gates:
+- vnext-plan
 ---
-
 # Writing Plan
 
 ## Mục tiêu

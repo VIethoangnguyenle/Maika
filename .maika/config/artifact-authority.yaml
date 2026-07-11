@@ -22,6 +22,8 @@ authorities:
     source: changes/<change-id>/IMPLEMENTATION_PLAN.md
   task_queue:
     source: changes/<change-id>/generated/TASK_QUEUE.json
+  spec_validation:
+    source: changes/<change-id>/generated/SPEC_VALIDATION.json
   plan_validation:
     source: changes/<change-id>/generated/PLAN_VALIDATION.json
   plan_manifest:
@@ -41,6 +43,8 @@ authorities:
     source: changes/<change-id>/EVIDENCE.yaml
   lightweight_result:
     source: changes/<change-id>/RESULT.yaml
+  verification_commands:
+    source: changes/<change-id>/verification/COMMANDS.yaml
   verification:
     source: changes/<change-id>/verification/VERIFICATION_REPORT.md
   archive_manifest:

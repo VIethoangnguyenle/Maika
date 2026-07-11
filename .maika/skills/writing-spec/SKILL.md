@@ -1,12 +1,33 @@
 ---
 name: writing-spec
-version: '2.0'
-description: >
-  Dùng khi reconciliation/brainstorming đã xong và cần SPEC.md class-aware: map
-  requirement→evidence, delta current→desired, behavior/state model, contract
-  ownership, persistence/async/security impact, AC test được và evidence coverage.
+version: '3.0'
+description: 'Dùng khi reconciliation/brainstorming đã xong và cần SPEC.md class-aware:
+  map requirement→evidence, delta current→desired, behavior/state model, contract
+  ownership, persistence/async/security impact, AC test được và evidence coverage.'
+routing:
+  mode: workflow
+  actions:
+  - spec
+  states:
+  - BRAINSTORMING
+  classes:
+  - standard
+  - architectural
+capabilities:
+  required:
+  - business_knowledge_retrieval
+  - convention_retrieval
+  - dependency_analysis
+  - exact_source_inspection
+outputs:
+  required:
+  - SPEC.md
+  optional:
+  - generated/SPEC_VALIDATION.json
+gates:
+- spec
+- knowledge-trace
 ---
-
 # Writing Spec
 
 ## Mục tiêu

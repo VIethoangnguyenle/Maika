@@ -1,12 +1,39 @@
 ---
 name: intent-analysis
-version: '2.0'
-description: >
-  Dùng khi một request/ticket mới vào hoặc workspace resume thiếu INTENT.md:
+version: '3.0'
+description: 'Dùng khi một request/ticket mới vào hoặc workspace resume thiếu INTENT.md:
   recall lịch sử, tra Author DNA/convention, tìm source touchpoint, nhận diện tín
-  hiệu rủi ro, phân loại change và sinh QUERY_PLAN.yaml trước khi thiết kế.
+  hiệu rủi ro, phân loại change và sinh QUERY_PLAN.yaml trước khi thiết kế.'
+routing:
+  mode: workflow
+  actions:
+  - start
+  states:
+  - NONE
+  classes:
+  - trivial
+  - small
+  - standard
+  - architectural
+capabilities:
+  required:
+  - business_knowledge_retrieval
+  - convention_retrieval
+  - exact_source_inspection
+  - historical_context_retrieval
+outputs:
+  required:
+  - CHANGE.yaml
+  - STATE.yaml
+  optional:
+  - INTENT.md
+  - exploration/QUERY_PLAN.yaml
+  - TASK.yaml
+  - EVIDENCE.yaml
+  - RESULT.yaml
+gates:
+- intent
 ---
-
 # Intent Analysis
 
 ## Mục tiêu

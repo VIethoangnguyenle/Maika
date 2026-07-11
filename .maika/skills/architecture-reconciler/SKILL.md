@@ -1,12 +1,32 @@
 ---
 name: architecture-reconciler
-version: '2.0'
-description: >
-  Dùng khi gói grounding đã có evidence đa nguồn cần đối chiếu: dựng claim matrix
-  giữa UA/CBM/source/memory/DB/durable knowledge, phân loại và giải quyết conflict
-  theo thứ tự authority trước khi brainstorming/spec.
+version: '3.0'
+description: 'Dùng khi gói grounding đã có evidence đa nguồn cần đối chiếu: dựng claim
+  matrix giữa UA/CBM/source/memory/DB/durable knowledge, phân loại và giải quyết conflict
+  theo thứ tự authority trước khi brainstorming/spec.'
+routing:
+  mode: workflow
+  actions:
+  - reconcile
+  states:
+  - RECONCILING
+  classes:
+  - standard
+  - architectural
+capabilities:
+  required:
+  - architecture_discovery
+  - dependency_analysis
+  - exact_source_inspection
+  - historical_context_retrieval
+outputs:
+  required:
+  - RECONCILIATION.md
+  - exploration/CONFLICTS.yaml
+gates:
+- conflicts
+- knowledge-trace
 ---
-
 # Architecture Reconciler
 
 ## Mục tiêu

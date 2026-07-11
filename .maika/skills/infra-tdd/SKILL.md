@@ -1,12 +1,22 @@
 ---
 name: infra-tdd
-version: '2.0'
-description: >
-  Dùng khi CHANGE.yaml class architectural và change cần operational architecture:
-  thu infra evidence (K8s topology, deployment manifest, service graph, Kafka
-  topic/group, DB capacity/index, log/metric, incident memory, rollout/rollback command).
+version: '3.0'
+description: 'Dùng khi CHANGE.yaml class architectural và change cần operational architecture:
+  thu infra evidence (K8s topology, deployment manifest, service graph, Kafka topic/group,
+  DB capacity/index, log/metric, incident memory, rollout/rollback command).'
+routing:
+  mode: conditional
+  states: []
+  classes:
+  - architectural
+capabilities:
+  required:
+  - architecture_discovery
+  - database_schema_inspection
+  - dependency_analysis
+  - historical_context_retrieval
+  - runtime_verification
 ---
-
 # Infra TDD
 
 ## Mục tiêu

@@ -1,12 +1,42 @@
 ---
 name: grounding-explorer
-version: '2.0'
-description: >
-  Dùng khi một change hạng standard/architectural cần thu thập bằng chứng trước
-  thiết kế: điều phối truy xuất đa nguồn (kiến trúc, dependency, source, lịch sử,
-  DB, convention), ghi evidence có provenance, phát hiện conflict và trả readiness.
+version: '3.0'
+description: 'Dùng khi một change hạng standard/architectural cần thu thập bằng chứng
+  trước thiết kế: điều phối truy xuất đa nguồn (kiến trúc, dependency, source, lịch
+  sử, DB, convention), ghi evidence có provenance, phát hiện conflict và trả readiness.'
+routing:
+  mode: workflow
+  actions:
+  - explore
+  states:
+  - INTAKE
+  classes:
+  - standard
+  - architectural
+capabilities:
+  required:
+  - architecture_discovery
+  - dependency_analysis
+  - exact_source_inspection
+  - historical_context_retrieval
+  - business_knowledge_retrieval
+  - convention_retrieval
+outputs:
+  required:
+  - exploration/GROUNDING.yaml
+  - exploration/EVIDENCE_MANIFEST.yaml
+  - exploration/TOOL_HEALTH.yaml
+  - exploration/CONFLICTS.yaml
+  - exploration/COVERAGE.yaml
+  optional:
+  - exploration/QUERY_PLAN.yaml
+  - exploration/DATABASE_CONTEXT.yaml
+gates:
+- query-plan
+- tool-health
+- exploration-evidence
+- coverage
 ---
-
 # Grounding Explorer
 
 ## Mục tiêu

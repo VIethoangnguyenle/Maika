@@ -1,12 +1,30 @@
 ---
 name: reviewing-task
-version: '2.0'
-description: >
-  Dùng khi một task result qua result-contract gate: review độc lập tìm
-  counter-evidence — kiểm ít nhất một source anchor cho mỗi material behavior,
-  public contract, deleted file, persistence/async/security boundary, incident, convention.
+version: '3.0'
+description: 'Dùng khi một task result qua result-contract gate: review độc lập tìm
+  counter-evidence — kiểm ít nhất một source anchor cho mỗi material behavior, public
+  contract, deleted file, persistence/async/security boundary, incident, convention.'
+routing:
+  mode: dispatch
+  states:
+  - EXECUTING
+  classes:
+  - small
+  - standard
+  - architectural
+capabilities:
+  required:
+  - dependency_analysis
+  - exact_source_inspection
+  - historical_context_retrieval
+  - review_dispatch
+  - runtime_verification
+outputs:
+  required:
+  - reviews/
+gates:
+- task-review
 ---
-
 # Reviewing Task
 
 ## Mục tiêu

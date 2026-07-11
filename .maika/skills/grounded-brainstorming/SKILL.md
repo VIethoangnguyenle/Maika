@@ -1,12 +1,31 @@
 ---
 name: grounded-brainstorming
-version: '2.0'
-description: >
-  Dùng khi reconciliation READY và change có nhiều thiết kế khả dĩ: so sánh các
-  approach dựa trên evidence đã reconcile, mỗi approach kèm extension seam, blast
-  radius, convention, historical failure, DB/migration/security impact và lý do loại.
+version: '3.0'
+description: 'Dùng khi reconciliation READY và change có nhiều thiết kế khả dĩ: so
+  sánh các approach dựa trên evidence đã reconcile, mỗi approach kèm extension seam,
+  blast radius, convention, historical failure, DB/migration/security impact và lý
+  do loại.'
+routing:
+  mode: workflow
+  actions:
+  - brainstorm
+  states:
+  - BRAINSTORMING
+  classes:
+  - standard
+  - architectural
+capabilities:
+  required:
+  - business_knowledge_retrieval
+  - convention_retrieval
+  - dependency_analysis
+  - historical_context_retrieval
+outputs:
+  required:
+  - RECONCILIATION.md
+gates:
+- knowledge-trace
 ---
-
 # Grounded Brainstorming
 
 ## Mục tiêu

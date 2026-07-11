@@ -1,12 +1,27 @@
 ---
 name: convention-intelligence-builder
-version: '2.0'
-description: >
-  Dùng khi onboarding, sau refactor lớn, hoặc khi review lộ convention gap: trích
-  convention cụ thể (naming/structure/testing/boundary) từ verified source với evidence
-  threshold, examples/counterexamples, applies-to tags, scope matcher, enforcement type.
+version: '3.0'
+description: 'Dùng khi onboarding, sau refactor lớn, hoặc khi review lộ convention
+  gap: trích convention cụ thể (naming/structure/testing/boundary) từ verified source
+  với evidence threshold, examples/counterexamples, applies-to tags, scope matcher,
+  enforcement type.'
+routing:
+  mode: conditional
+  states: []
+  classes:
+  - trivial
+  - small
+  - standard
+  - architectural
+capabilities:
+  required:
+  - architecture_discovery
+  - dependency_analysis
+  - exact_source_inspection
+outputs:
+  required:
+  - knowledge/long-term/conventions.yaml
 ---
-
 # Convention Intelligence Builder
 
 ## Mục tiêu

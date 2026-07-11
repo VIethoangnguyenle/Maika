@@ -141,7 +141,9 @@ def main():
     content_parser = subparsers.add_parser(
         "content", help="Validate agent-facing content (authority registry, ...)",
     )
-    content_parser.add_argument("action", choices=["validate-authority", "validate-router"])
+    content_parser.add_argument(
+        "action", choices=["validate-authority", "validate-router", "validate-skills"]
+    )
     content_parser.add_argument("--target", default=".")
 
     skill_parser = subparsers.add_parser("skill", help="Promote or reject a reviewed skill candidate")

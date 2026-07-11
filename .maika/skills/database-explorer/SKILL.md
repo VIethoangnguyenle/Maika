@@ -1,12 +1,29 @@
 ---
 name: database-explorer
-version: '1.0'
-description: >
-  Dùng khi change chạm persistence (entity, repository, native SQL, table, column,
-  index, constraint, package, procedure, migration, transaction, locking, job/outbox,
-  audit): probe DB read-only và phát ra DATABASE_CONTEXT.yaml có evidence hoặc degradation.
+version: '3.0'
+description: 'Dùng khi change chạm persistence (entity, repository, native SQL, table,
+  column, index, constraint, package, procedure, migration, transaction, locking,
+  job/outbox, audit): probe DB read-only và phát ra DATABASE_CONTEXT.yaml có evidence
+  hoặc degradation.'
+routing:
+  mode: conditional
+  states: []
+  classes:
+  - trivial
+  - small
+  - standard
+  - architectural
+capabilities:
+  required:
+  - database_schema_inspection
+  - database_dependency_analysis
+  - exact_source_inspection
+outputs:
+  required:
+  - exploration/DATABASE_CONTEXT.yaml
+gates:
+- database-context
 ---
-
 # Database Explorer
 
 ## Mục tiêu

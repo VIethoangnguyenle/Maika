@@ -1,12 +1,36 @@
 ---
 name: knowledge-curator
-version: '2.0'
-description: >
-  Dùng khi cần vận hành vòng đời tri thức (trước/trong/sau implementation) theo bốn
-  mode retrieve/record/reconcile/curate: promote verified knowledge, supersede stale,
-  save episodic memory, update DNA/convention, regenerate index, trigger graph refresh.
+version: '3.0'
+description: 'Dùng khi cần vận hành vòng đời tri thức (trước/trong/sau implementation)
+  theo bốn mode retrieve/record/reconcile/curate: promote verified knowledge, supersede
+  stale, save episodic memory, update DNA/convention, regenerate index, trigger graph
+  refresh.'
+routing:
+  mode: workflow
+  actions:
+  - archive
+  states:
+  - COMPLETED
+  classes:
+  - trivial
+  - small
+  - standard
+  - architectural
+capabilities:
+  required:
+  - business_knowledge_retrieval
+  - convention_retrieval
+  - historical_context_retrieval
+  - version_control
+outputs:
+  required:
+  - ARCHIVE_MANIFEST.yaml
+  optional:
+  - knowledge/long-term/knowledge-index.yaml
+gates:
+- knowledge-impact
+- skill-feedback
 ---
-
 # Knowledge Curator
 
 ## Mục tiêu

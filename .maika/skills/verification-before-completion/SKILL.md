@@ -1,12 +1,34 @@
 ---
 name: verification-before-completion
-version: '2.0'
-description: >
-  Dùng khi sắp tuyên bố hoàn thành task/wave/change hoặc trước archive: chạy lệnh thật
-  (build/test/static/contract/migration/smoke/deleted-scan/hash/freshness/DB), ghi
-  command+expected+observed+exit+timestamp+interpretation, không complete bằng marker.
+version: '3.0'
+description: 'Dùng khi sắp tuyên bố hoàn thành task/wave/change hoặc trước archive:
+  chạy lệnh thật (build/test/static/contract/migration/smoke/deleted-scan/hash/freshness/DB),
+  ghi command+expected+observed+exit+timestamp+interpretation, không complete bằng
+  marker.'
+routing:
+  mode: workflow
+  actions:
+  - verify
+  states:
+  - VERIFYING
+  classes:
+  - trivial
+  - small
+  - standard
+  - architectural
+capabilities:
+  required:
+  - exact_source_inspection
+  - runtime_verification
+  - version_control
+outputs:
+  required:
+  - verification/VERIFICATION_REPORT.md
+  optional:
+  - verification/COMMANDS.yaml
+gates:
+- verification-report
 ---
-
 # Verification Before Completion
 
 ## Mục tiêu

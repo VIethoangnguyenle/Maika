@@ -1,12 +1,34 @@
 ---
 name: reviewing-change
-version: '2.0'
-description: >
-  Dùng khi mọi task review đã pass và trước verification: review toàn change, kiểm
-  integration/deleted-reference/verification, và ghi KNOWLEDGE_IMPACT.yaml (stale
-  knowledge, superseded decision, new candidate, graph refresh, memory save).
+version: '3.0'
+description: 'Dùng khi mọi task review đã pass và trước verification: review toàn
+  change, kiểm integration/deleted-reference/verification, và ghi KNOWLEDGE_IMPACT.yaml
+  (stale knowledge, superseded decision, new candidate, graph refresh, memory save).'
+routing:
+  mode: workflow
+  actions:
+  - final-review
+  states:
+  - FINAL_REVIEW
+  classes:
+  - standard
+  - architectural
+capabilities:
+  required:
+  - dependency_analysis
+  - exact_source_inspection
+  - historical_context_retrieval
+  - runtime_verification
+outputs:
+  required:
+  - reviews/FINAL_REVIEW.md
+  - reviews/KNOWLEDGE_IMPACT.yaml
+  optional:
+  - reviews/FINDINGS.yaml
+gates:
+- final-review
+- knowledge-impact
 ---
-
 # Reviewing Change
 
 ## Mục tiêu
