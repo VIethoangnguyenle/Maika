@@ -38,7 +38,9 @@ def test_migrate_preserves_divergent_conflict_for_decision(tmp_path):
     (legacy / "knowledge/long-term/team.md").write_text("legacy\n", encoding="utf-8")
 
     result = run_migrate(str(tmp_path), apply=True)
-    assert result["status"] == "blocked" and result["mutation"] is False  # F10b: no mutation on conflict
+    assert result["status"] == "partial-safe" and result["mutation"] is True
+    assert result["diagnostic_mutation"] is True
+    assert result["project_data_mutation"] is False
     assert canonical.read_text(encoding="utf-8") == "canonical\n"
     conflicts = yaml.safe_load(
         (tmp_path / ".maika/runtime/migration-conflicts.yaml").read_text(encoding="utf-8")
@@ -63,7 +65,7 @@ def test_conflict_blocks_without_copying_the_safe_artifact(tmp_path):
 
     result = run_migrate(str(tmp_path), apply=True)
 
-    assert result["status"] == "blocked" and result["mutation"] is False
+    assert result["status"] == "partial-safe" and result["diagnostic_mutation"] is True
     assert canonical.read_text(encoding="utf-8") == "canonical\n"
     # the safe artifact must NOT have been copied while the migration was blocked
     assert not (tmp_path / ".maika/knowledge/long-term/safe.md").exists()
@@ -77,7 +79,7 @@ def _blocked_conflict(tmp_path: Path):
     canonical = tmp_path / ".maika/knowledge/long-term/team.md"
     canonical.write_text("canonical\n", encoding="utf-8")
     (legacy / "knowledge/long-term/team.md").write_text("legacy\n", encoding="utf-8")
-    assert run_migrate(str(tmp_path), apply=True)["status"] == "blocked"
+    assert run_migrate(str(tmp_path), apply=True)["status"] == "partial-safe"
     return canonical
 
 

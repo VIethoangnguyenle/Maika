@@ -22,6 +22,15 @@ def _write_bootstrap(framework_root):
     }, sort_keys=False), encoding="utf-8")
 
 
+def _enable_public_codex(framework_root):
+    path = Path(framework_root) / "config" / "project.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump({
+        "version": 1, "framework": {"core_root": ".maika"},
+        "platforms": {"enabled": ["codex"], "primary": "codex"},
+    }, sort_keys=False), encoding="utf-8")
+
+
 def _write_valid_reasoning(ws, repo_root):
     import hashlib
     src_dir = Path(repo_root) / "src"
@@ -455,6 +464,7 @@ def test_public_small_happy_path_completes_with_one_worker_call(tmp_path):
     fw_root = tmp_path / ".maika"
     shutil.copytree(source_framework, fw_root)
     _write_bootstrap(fw_root)
+    _enable_public_codex(fw_root)
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "a.py").write_text("before\n", encoding="utf-8")
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
@@ -496,7 +506,7 @@ out.write_text(yaml.safe_dump({'version': 1, 'status': 'success', 'touched_files
     evidence["items"] = [{"id": "CODE-1", "statement": "a.py is the target"}]
     (ws / "EVIDENCE.yaml").write_text(yaml.safe_dump(evidence), encoding="utf-8")
 
-    apply = public("apply", "--id", "small")
+    apply = public("apply", "--id", "small", "--platform", "codex")
     assert apply.returncode == 0, apply.stdout + apply.stderr
     verify = public("verify", "--id", "small")
     assert verify.returncode == 0, verify.stdout + verify.stderr
@@ -513,6 +523,7 @@ def test_scope_escape_opens_one_change_loop(tmp_path):
     fw_root = tmp_path / ".maika"
     shutil.copytree(source_framework, fw_root)
     _write_bootstrap(fw_root)
+    _enable_public_codex(fw_root)
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "a.py").write_text("before\n", encoding="utf-8")
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
@@ -551,7 +562,7 @@ out.write_text(yaml.safe_dump({'version': 1, 'status': 'success', 'touched_files
     evidence["items"] = [{"id": "CODE-1", "statement": "a.py is the target"}]
     (ws / "EVIDENCE.yaml").write_text(yaml.safe_dump(evidence), encoding="utf-8")
 
-    apply = public("apply", "--id", "esc")
+    apply = public("apply", "--id", "esc", "--platform", "codex")
     assert apply.returncode != 0, apply.stdout + apply.stderr  # blocked on scope escape
     assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["state"] == "BLOCKED"
 

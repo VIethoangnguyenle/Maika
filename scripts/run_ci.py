@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
 
     repo = Path(__file__).resolve().parents[1]
     audit = subprocess.run(
-        [sys.executable, "scripts/audit_artifacts.py"], cwd=repo, check=False,
+        [sys.executable, "scripts/audit_artifacts.py", "--check"], cwd=repo, check=False,
     )
     if audit.returncode != 0:
         return audit.returncode

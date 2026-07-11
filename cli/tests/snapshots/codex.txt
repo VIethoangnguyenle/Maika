@@ -65,11 +65,8 @@
 .maika/rules/rules-skill-evolution.md
 .maika/rules/rules-tool.md
 .maika/runtime/
-.maika/runtime/backups/
 .maika/runtime/platforms/
 .maika/runtime/platforms/codex.yaml
-.maika/runtime/transactions/
-.maika/runtime/transactions/000001-init.yaml
 .maika/skills/
 .maika/skills/architecture-reconciler/
 .maika/skills/architecture-reconciler/SKILL.md
@@ -110,7 +107,6 @@
 .maika/tools/gate-check/__init__.py
 .maika/tools/gate-check/capability.py
 .maika/tools/gate-check/cli.py
-.maika/tools/gate-check/complexity.py
 .maika/tools/gate-check/gates.py
 .maika/tools/knowledge-index/
 .maika/tools/knowledge-index/__init__.py
@@ -149,4 +145,8 @@
 .maika/tools/rule-projector/requirements.txt
 .maika/workflows/
 .maika/workflows/task.md
+.maika-transactions/
+.maika-transactions/backups/
+.maika-transactions/journals/
+.maika-transactions/journals/000001-init.yaml
 AGENTS.md

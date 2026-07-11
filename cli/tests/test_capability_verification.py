@@ -13,7 +13,8 @@ import pytest
 import yaml
 
 from cli.platforms import probe
-from cli.runtime.platform_profile import write_platform_runtime_profile
+from cli.runtime.platform_profile import profile_fingerprint, write_platform_runtime_profile
+from cli.runtime.binary_identity import binary_identity
 
 POSIX_ONLY = pytest.mark.skipif(os.name == "nt", reason="fake exec scripts are POSIX-only")
 
@@ -72,12 +73,18 @@ def test_missing_binary_auth_is_unavailable(monkeypatch):
 def _verified_codex(tmp_path):
     path = write_platform_runtime_profile(tmp_path, "codex")
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    data["detection"]["binary"].update({"found": True, "version_supported": True})
+    executable = _fake_bin(tmp_path, "codex", "print('codex 1.0')\n")
+    data["worker"]["executable"] = str(executable)
+    data["profile_fingerprint"] = profile_fingerprint(data)
+    data["detection"]["binary"].update({"found": True, "version_supported": True,
+                                         "path": str(executable), "version": "1.0"})
     data["capabilities"]["fresh_session"] = "verified"
     data["verification"] = {
         "entrypoint_smoke_test": "pass", "hook_smoke_test": "pass",
         "worker_smoke_test": "pass", "mcp_smoke_test": "detected",
         "support_tier": 2, "last_verified_at": "2026-01-01T00:00:00+00:00",
+        "worker_binary": binary_identity(str(executable), version="1.0"),
+        "verified_worker_profile_fingerprint": data["profile_fingerprint"],
     }
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     (tmp_path / "AGENTS.md").write_text("# entry", encoding="utf-8")
@@ -89,8 +96,9 @@ def _verified_codex(tmp_path):
 
 def test_verify_false_preserves_prior_worker_verification(tmp_path, monkeypatch):
     path = _verified_codex(tmp_path)
+    binary_path = yaml.safe_load(path.read_text())["detection"]["binary"]["path"]
     monkeypatch.setattr(probe, "detect_binary", lambda name: probe.BinaryProbe(
-        name=name, found=True, path=f"/bin/{name}", version="1.0", version_supported=True))
+        name=name, found=True, path=binary_path, version="1.0", version_supported=True))
 
     probe.probe_and_persist(tmp_path, "codex", verify=False)  # a detect-only pass
 

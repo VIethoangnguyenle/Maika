@@ -191,8 +191,8 @@ def test_persists_journal_before_first_target_write_and_commits(tmp_path, monkey
     observed = {"journal_before_write": False}
 
     def observing_write(dest, data, mode_src=None):
-        if ".maika/runtime/transactions" not in dest.as_posix():
-            journals = list((target / ".maika/runtime/transactions").glob("*.yaml"))
+        if ".maika-transactions/journals" not in dest.as_posix():
+            journals = list((target / ".maika-transactions/journals").glob("*.yaml"))
             observed["journal_before_write"] = bool(journals)
         return real(dest, data, mode_src=mode_src)
 

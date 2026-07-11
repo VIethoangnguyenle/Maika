@@ -14,7 +14,8 @@ def test_detected_binary_does_not_claim_verified(monkeypatch):
     result = probe.probe_platform("claude-code")
     assert result.binary.found is True
     assert "verified" not in result.capabilities.values()
-    assert all(state in {"detected", "unavailable"} for state in result.capabilities.values())
+    assert all(state in {"advertised", "detected", "unavailable", "unknown", "unsupported"}
+               for state in result.capabilities.values())
 
 
 def test_probe_persists_detected_facts_and_tier_one(tmp_path, monkeypatch):
@@ -42,14 +43,26 @@ def test_verify_promotes_only_successful_smoke_paths(tmp_path, monkeypatch):
     (tmp_path / "AGENTS.md").write_text("# entry", encoding="utf-8")
     hook = tmp_path / ".codex/hooks.json"
     hook.parent.mkdir()
-    hook.write_text('{"hooks": {"PreToolUse": []}}', encoding="utf-8")
+    hook.write_text('{"hooks": {"PreToolUse": [{"hooks": ['
+                    '{"id": "maika.write-gate.v1", "command": '
+                    '"maika hook write-gate --runtime codex --platform codex"}]}]}}',
+                    encoding="utf-8")
     import shutil
     source = Path(__file__).resolve().parents[2] / ".maika/hooks/write-gate/write_gate.py"
     evaluator = tmp_path / ".maika/hooks/write-gate/write_gate.py"
     evaluator.parent.mkdir(parents=True)
     shutil.copy2(source, evaluator)
+    fake_binary = tmp_path / "codex"
+    fake_binary.write_text("#!/bin/sh\necho MAIKA_WORKER_SMOKE_OK\n", encoding="utf-8")
+    fake_binary.chmod(0o755)
+    profile_path = tmp_path / ".maika/runtime/platforms/codex.yaml"
+    profile_doc = yaml.safe_load(profile_path.read_text())
+    profile_doc["worker"]["executable"] = str(fake_binary)
+    from cli.runtime.platform_profile import profile_fingerprint
+    profile_doc["profile_fingerprint"] = profile_fingerprint(profile_doc)
+    profile_path.write_text(yaml.safe_dump(profile_doc, sort_keys=False))
     monkeypatch.setattr(probe, "detect_binary", lambda name: probe.BinaryProbe(
-        name=name, found=True, path=f"/bin/{name}", version="1.0",
+        name=name, found=True, path=str(fake_binary), version="1.0",
         version_supported=True,
     ))
     result = probe.probe_and_persist(

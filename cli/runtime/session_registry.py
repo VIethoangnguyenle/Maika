@@ -94,6 +94,8 @@ def record_session(
     source: str,
     session_id: Optional[str] = None,
     stale_after_seconds: int = DEFAULT_STALE_AFTER_SECONDS,
+    identity_source: Optional[str] = None,
+    identity_quality: Optional[str] = None,
 ) -> dict:
     """Write/refresh a per-session file.  No cross-platform conflict."""
     project_root = Path(project_root)
@@ -140,6 +142,8 @@ def record_session(
             "source": source,
             "started_at": started,
             "last_seen_at": now,
+            "identity_source": identity_source or "caller-supplied",
+            "identity_quality": identity_quality or "high",
         }
         _atomic_write(path, yaml.safe_dump(record, sort_keys=False))
     finally:

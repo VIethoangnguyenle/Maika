@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -17,8 +18,10 @@ import yaml
 
 from cli.config.platforms import adapter_descriptor
 from cli.platforms import get_platform
-from cli.runtime.platform_profile import load_platform_runtime_profile, profile_path
+from cli.runtime.platform_profile import load_platform_runtime_profile, profile_fingerprint, profile_path
 from cli.runtime.worker_resolver import FRESH_PROCESS, WorkerProfile, run_worker_smoke_test
+from cli.runtime.binary_identity import binary_identity, identities_match
+from cli.install.json_merge import MAIKA_WRITE_GATE_ID
 
 # Directory that contains the ``cli`` package — put on PYTHONPATH for the hook
 # smoke subprocess so ``python -m cli.maika`` resolves in dev and wheel installs.
@@ -102,18 +105,42 @@ def _verify_hook(project_root: Path, platform_key: str) -> str:
         return "degraded"
     if not (project_root / ".maika/hooks/write-gate/write_gate.py").is_file():
         return "unavailable"
-    # Actual hook-command smoke: drive the real CLI entry with a safe allow
-    # payload so verification proves CLI resolution + platform-profile load +
-    # evaluator load + the runtime decision contract + exit code — not merely
-    # that the evaluator module imports.
+    managed = []
+
+    def collect(value):
+        if isinstance(value, dict):
+            if value.get("id") == MAIKA_WRITE_GATE_ID:
+                managed.append(value)
+            for child in value.values():
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(doc["hooks"])
+    if len(managed) != 1 or not isinstance(managed[0].get("command"), str):
+        return "degraded"
+    command = managed[0]["command"]
+    if any(token in command for token in (";", "&&", "||", "|", "`", "$(")):
+        return "degraded"
+    try:
+        argv = shlex.split(command, posix=os.name != "nt")
+    except ValueError:
+        return "degraded"
     runtime = _HOOK_RUNTIME.get(platform_key, "claude")
+    expected = ["hook", "write-gate", "--runtime", runtime, "--platform", platform_key]
+    if len(argv) < 2 or argv[1:] != expected:
+        return "degraded"
+    executable = shutil.which(argv[0])
+    if not executable:
+        return "degraded"
+    argv[0] = str(Path(executable).resolve())
     payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": "README.md"}})
     env = {**os.environ, "MAIKA_HOOK_SMOKE": "1", "PYTHONPATH": os.pathsep.join(
         part for part in (str(_PKG_PARENT), os.environ.get("PYTHONPATH", "")) if part)}
     try:
         proc = subprocess.run(
-            [sys.executable, "-m", "cli.maika", "hook", "write-gate",
-             "--runtime", runtime, "--platform", platform_key],
+            argv,
             cwd=str(project_root), input=payload, capture_output=True, text=True,
             timeout=30, check=False, env=env,
         )
@@ -121,7 +148,19 @@ def _verify_hook(project_root: Path, platform_key: str) -> str:
         return "degraded"
     if any(fragment in (proc.stderr or "") for fragment in _HOOK_SHORT_CIRCUIT):
         return "degraded"  # the pipeline did not actually evaluate the payload
-    return "verified" if proc.returncode == 0 else "degraded"
+    if proc.returncode != 0:
+        return "degraded"
+    if runtime == "claude":
+        return "verified"
+    try:
+        output = json.loads((proc.stdout or "").strip())
+    except json.JSONDecodeError:
+        return "degraded"
+    if runtime == "codex":
+        decision = ((output.get("hookSpecificOutput") or {}).get("permissionDecision"))
+    else:
+        decision = output.get("decision")
+    return "verified" if decision == "allow" else "degraded"
 
 
 def support_tier(verification: Mapping[str, str], *, adapter_enabled: bool = True) -> int:
@@ -146,10 +185,19 @@ def probe_platform(
     platform = get_platform(platform_key)
     binary = detect_binary(platform.worker_binary)
     capabilities = {
-        name: ("detected" if advertised and binary.found else
+        name: ("detected" if advertised and binary.found and name == "fresh_session" else
                "advertised" if advertised else "unavailable")
         for name, advertised in platform.capabilities.items()
     }
+    capabilities.update({
+        "binary": "detected" if binary.found else "unavailable",
+        "fresh_process": ("detected" if binary.found and binary.version_supported
+                          else "degraded" if binary.found else "unavailable"),
+        "native_subagent": ("advertised" if platform.capabilities.get("subagent")
+                            else "unsupported"),
+        "mcp": "advertised",
+        "authentication": "unknown" if binary.found else "unavailable",
+    })
     verification = {"entrypoint": "not-run", "hook": "not-run",
                     "worker": "not-run", "mcp": "not-run"}
     if project_root is not None:
@@ -169,17 +217,21 @@ def probe_platform(
         if binary.found and binary.version_supported and platform.worker_binary:
             stored = load_platform_runtime_profile(root, platform_key)
             candidate = WorkerProfile(
-                platform_key, FRESH_PROCESS, stored.worker.executable, stored.worker.args,
+                platform_key, FRESH_PROCESS, str(Path(binary.path).resolve()), stored.worker.args,
                 stored.worker.timeout_seconds, False, "capability verification probe",
             )
             prompt = root / ".maika/runtime/worker-smoke-prompt.txt"
             prompt.parent.mkdir(parents=True, exist_ok=True)
             prompt.write_text(
-                "Read the project entrypoint without writing files and return a structured OK response.\n",
+                "Read the project entrypoint without writing files and print exactly "
+                "MAIKA_WORKER_SMOKE_OK. Do not create or modify files.\n",
                 encoding="utf-8",
             )
             try:
-                result = (smoke_runner or run_worker_smoke_test)(candidate, prompt)
+                if smoke_runner is not None:
+                    result = smoke_runner(candidate, prompt)
+                else:
+                    result = run_worker_smoke_test(candidate, prompt, project_root=root)
                 worker_state = result.get("state", "degraded")
             finally:
                 prompt.unlink(missing_ok=True)
@@ -189,9 +241,17 @@ def probe_platform(
                 "verified" if worker_state == "verified" else
                 "degraded" if binary.found else "advertised"
             )
+        capabilities["fresh_process"] = (
+            "verified" if worker_state == "verified" else
+            "degraded" if binary.found else "unavailable"
+        )
+        if platform.capabilities.get("write_gate_hook"):
+            capabilities["write_gate_hook"] = (
+                "verified" if verification["hook"] == "verified" else "degraded"
+            )
         # Provider visibility is detected from config, but only an injected
         # provider smoke can promote it in a future adapter-specific verifier.
-        verification["mcp"] = "detected" if platform.capabilities else "unsupported"
+        verification["mcp"] = "not-run"
     tier = support_tier(verification)
     return PlatformProbeResult(
         platform=platform_key,
@@ -241,6 +301,18 @@ def probe_and_persist(
             "mcp_smoke_test": result.verification["mcp"],
             "last_verified_at": datetime.now(timezone.utc).isoformat(),
         }
+        if worker == "pass":
+            identity = binary_identity(
+                result.binary.path, version=result.binary.version,
+            )
+            if identity is None:
+                verification["worker_smoke_test"] = "fail"
+                data["capabilities"]["fresh_session"] = "degraded"
+            else:
+                verification["worker_binary"] = identity
+                verification["verified_worker_profile_fingerprint"] = (
+                    data.get("profile_fingerprint") or profile_fingerprint(data)
+                )
     else:
         # A non-verifying probe re-detects the binary but must never erase or
         # downgrade prior verification evidence (F3): the worker/mcp smoke did not
@@ -248,8 +320,12 @@ def probe_and_persist(
         prior = data.get("verification") or {}
         prior_caps = data.get("capabilities") or {}
         caps = dict(result.capabilities)
+        current_identity = binary_identity(
+            result.binary.path, version=result.binary.version,
+        )
+        identity_unchanged = identities_match(prior.get("worker_binary"), current_identity)
         for name, state in prior_caps.items():
-            if state == "verified":
+            if state == "verified" and identity_unchanged:
                 caps[name] = "verified"
         data["capabilities"] = caps
         verification = {
@@ -259,10 +335,18 @@ def probe_and_persist(
             "hook_smoke_test": "pass" if (prior.get("hook_smoke_test") == "pass"
                                           and hook != "unavailable") else hook,
             # worker/mcp smoke did not run: preserve the prior verification result.
-            "worker_smoke_test": prior.get("worker_smoke_test", "not-run"),
+            "worker_smoke_test": (prior.get("worker_smoke_test", "not-run")
+                                  if identity_unchanged else "not-run"),
             "mcp_smoke_test": prior.get("mcp_smoke_test", result.verification["mcp"]),
-            "last_verified_at": prior.get("last_verified_at"),
+            "last_verified_at": prior.get("last_verified_at") if identity_unchanged else None,
         }
+        if identity_unchanged:
+            for key in ("worker_binary", "verified_worker_profile_fingerprint"):
+                if key in prior:
+                    verification[key] = prior[key]
+        elif prior.get("worker_smoke_test") == "pass":
+            data["verification_invalidated_reason"] = "worker binary identity changed"
+            caps["fresh_session"] = "degraded" if result.binary.found else "unavailable"
     verification["support_tier"] = _persisted_support_tier(verification, adapter_enabled)
     data["verification"] = verification
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")

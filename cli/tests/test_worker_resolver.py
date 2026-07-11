@@ -13,14 +13,24 @@ from cli.runtime.worker_resolver import (
     build_worker_argv,
     resolve_worker_profile,
 )
+from cli.runtime.binary_identity import binary_identity
+from cli.runtime.platform_profile import profile_fingerprint
 
 
 def _verified_profile(root: Path, platform: str) -> None:
     path = write_platform_runtime_profile(root, platform)
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    data["detection"]["binary"].update({"found": True, "version_supported": True})
+    executable = root / f"fake-{platform}"
+    executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    executable.chmod(0o755)
+    data["worker"]["executable"] = str(executable)
+    data["profile_fingerprint"] = profile_fingerprint(data)
+    data["detection"]["binary"].update({"found": True, "version_supported": True,
+                                         "path": str(executable), "version": "1.0"})
     data["capabilities"]["fresh_session"] = "verified"
     data["verification"]["worker_smoke_test"] = "pass"
+    data["verification"]["worker_binary"] = binary_identity(str(executable), version="1.0")
+    data["verification"]["verified_worker_profile_fingerprint"] = data["profile_fingerprint"]
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
@@ -29,7 +39,7 @@ def test_verified_fresh_process_uses_profile_for_requested_platform(tmp_path):
     profile = resolve_worker_profile(tmp_path, "codex")
     assert profile.platform == "codex"
     assert profile.strategy == FRESH_PROCESS
-    assert profile.executable == "codex"
+    assert Path(profile.executable).is_absolute()
     assert profile.dangerous_permissions is False
 
 
@@ -57,6 +67,8 @@ def test_dangerous_permission_requires_all_three_gates(tmp_path):
     path = tmp_path / ".maika/runtime/platforms/claude-code.yaml"
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     data["worker"]["dangerous_permissions"] = True
+    data["profile_fingerprint"] = profile_fingerprint(data)
+    data["verification"]["verified_worker_profile_fingerprint"] = data["profile_fingerprint"]
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
     profile = resolve_worker_profile(tmp_path, "claude-code")

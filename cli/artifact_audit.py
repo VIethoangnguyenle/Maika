@@ -29,7 +29,7 @@ _DISPATCH_PATTERNS = [
 ]
 
 # Directories containing text documents that serve as CLI entrypoint consumers.
-_ENTRYPOINT_DIRS = ("procedures", "skills", "workflows")
+_ENTRYPOINT_DIRS = ("procedures", "skills", "workflows", "rules")
 
 
 def _finding(check: str, path: str, message: str, severity: str = "high") -> dict:
@@ -82,15 +82,6 @@ def _check_tool_consumers(
     # Pre-compute production .py texts (non-test) for import/dispatch checks
     py_texts = [(rel, text) for rel, text in production_texts if rel.endswith(".py")]
 
-    # Pre-compute plugin manifest tool directories (source entries of type "tool")
-    plugin_tool_dirs: set[str] = set()
-    for plugin in manifest.get("plugins") or []:
-        if plugin.get("type") == "tool":
-            source = plugin.get("source", "")
-            # Normalize: "tools/gate-check/" -> ".maika/tools/gate-check"
-            if source.startswith("tools/"):
-                plugin_tool_dirs.add(".maika/" + source.rstrip("/"))
-
     # Pre-compute entrypoint reference texts from procedures/skills/workflows
     entrypoint_texts: list[tuple[str, str]] = []
     for dirname in _ENTRYPOINT_DIRS:
@@ -114,6 +105,12 @@ def _check_tool_consumers(
         rel = py_file.relative_to(root).as_posix()
         basename = py_file.stem  # e.g. "gates", "loop_state"
         evidences: list[str] = []
+
+        # Package markers are structural Python artifacts, not executable
+        # runtime modules, and are exempt from consumer requirements.
+        if py_file.name == "__init__.py":
+            consumer_report.append({"path": rel, "consumed_by": "package-marker-exemption"})
+            continue
 
         # ── Mechanism 1: Python import ──
         import_pattern = re.compile(
@@ -158,16 +155,12 @@ def _check_tool_consumers(
             pattern = entry.get("pattern", "")
             loader = entry.get("loader", "")
             if fnmatch.fnmatch(rel, pattern):
-                # Verify loader file exists
-                if (root / loader).is_file():
+                # A registry declaration is evidence only when the loader also
+                # contains an actual dispatch reference for this module.
+                loader_path = root / loader
+                loader_text = loader_path.read_text(encoding="utf-8") if loader_path.is_file() else ""
+                if loader_path.is_file() and (basename in loader_text or rel in loader_text):
                     evidences.append(f"dynamic-consumer:{loader}:{entry.get('reason', '')}")
-                break
-
-        # ── Mechanism 5: plugin-manifest tool plugin ──
-        # The module's tool directory is a plugin source
-        for plugin_dir in plugin_tool_dirs:
-            if rel.startswith(plugin_dir + "/"):
-                evidences.append(f"plugin-manifest:{plugin_dir}")
                 break
 
         consumed_by = "; ".join(evidences) if evidences else "NONE"
@@ -178,7 +171,7 @@ def _check_tool_consumers(
                 "dead-tool-module", rel,
                 "tool module has no real production consumer "
                 "(not imported, not file-dispatched, not a CLI entrypoint, "
-                "not in dynamic_consumers, not in plugin manifest)"))
+                "not in a verified dynamic consumer mapping)"))
 
     return findings, consumer_report
 
@@ -198,7 +191,8 @@ def emit_consumer_audit_report(root: Path, consumer_report: list[dict]) -> None:
     )
 
 
-def audit_artifacts(root: Path) -> list[dict]:
+def audit_artifacts(root: Path, *, write_report: bool = False,
+                    check_report: bool = False) -> list[dict]:
     root = Path(root).resolve()
     registry_path = root / ".maika/config/artifact-registry.yaml"
     if not registry_path.is_file():
@@ -282,8 +276,21 @@ def audit_artifacts(root: Path) -> list[dict]:
     tool_findings, consumer_report = _check_tool_consumers(
         root, production_texts, dynamic_consumers, manifest)
     findings.extend(tool_findings)
-    if consumer_report:
+    if consumer_report and write_report:
         emit_consumer_audit_report(root, consumer_report)
+    elif consumer_report and check_report:
+        report_path = root / "docs/refactor/master-v2/artifact-consumer-audit-v2.yaml"
+        expected = yaml.safe_dump({
+            "version": 2,
+            "description": "Mechanical consumer detection for .maika/tools/**/*.py modules",
+            "modules": consumer_report,
+        }, sort_keys=False, allow_unicode=True, default_flow_style=False)
+        actual = report_path.read_text(encoding="utf-8") if report_path.is_file() else ""
+        if actual != expected:
+            findings.append(_finding(
+                "stale-consumer-report", report_path.relative_to(root).as_posix(),
+                "consumer audit report is stale; run audit with --write-report",
+            ))
 
     coverage_files = []
     for base, pattern in ((root / "cli", "*.py"), (root / ".maika", "*.py"),

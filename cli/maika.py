@@ -310,7 +310,7 @@ def main():
         selected_mcps = (
             parse_multi_values(args.mcp) if args.mcp is not None else None
         )
-        run_init(
+        result = run_init(
             target_dir=args.target,
             maika_root=args.source,
             platform_key=args.platform,
@@ -320,9 +320,12 @@ def main():
             ua_mcp_dir=args.ua_mcp_dir,
             verify_platform=args.verify_platform,
         )
+        sys.exit(result.exit_code if result is not None else 0)
     elif args.command == "update":
         from cli.commands.update import run_update
-        run_update(target_dir=args.target, maika_root=args.source, reconfigure=args.reconfigure)
+        result = run_update(target_dir=args.target, maika_root=args.source,
+                            reconfigure=args.reconfigure)
+        sys.exit(result.exit_code if result is not None else 0)
     elif args.command == "platform":
         from cli.commands.platform import run_platform
         sys.exit(run_platform(

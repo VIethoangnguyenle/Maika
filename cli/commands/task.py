@@ -37,6 +37,10 @@ COMMAND_MAP = {
 }
 
 
+def action_requires_worker(action: str) -> bool:
+    return action in {"review", "apply"}
+
+
 def _framework_root(target: Path) -> str:
     resolved = load_resolved_config(target)
     return (resolved or {}).get("framework_root", ".maika")
@@ -790,15 +794,14 @@ def run_task(
         "--workspace", str(ws),
         "--repo-root", str(target),
     ]
-    try:
-        from cli.runtime.session import resolve_active_platform
-        active_platform, _source = resolve_active_platform(
-            target, explicit_platform=platform_key,
-        )
-    except ValueError:
-        # Compatibility for pre-profile fixtures/projects: the canonical
-        # orchestrator will still fail closed unless a trusted local override exists.
-        active_platform = None
-    if active_platform:
+    if action_requires_worker(action):
+        try:
+            from cli.runtime.session import SessionError, resolve_active_platform
+            active_platform, _source = resolve_active_platform(
+                target, explicit_platform=platform_key,
+            )
+        except SessionError as exc:
+            print(f"Refused: {exc}")
+            return 2
         command.extend(["--platform", active_platform])
     return _run(command, target)

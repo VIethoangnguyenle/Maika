@@ -91,8 +91,8 @@ def test_file_dispatched_module_passes(tmp_path):
     assert not any(f["check"] == "dead-tool-module" for f in findings)
 
 
-def test_manifest_plugin_module_passes(tmp_path):
-    """A .maika/tools module whose tool directory is a plugin-manifest source → no finding."""
+def test_manifest_plugin_module_without_consumer_fails(tmp_path):
+    """Manifest membership is producer evidence, never consumer evidence."""
     tool = tmp_path / ".maika/tools/gate-check/gates.py"
     tool.parent.mkdir(parents=True)
     tool.write_text("def validate(): pass\n", encoding="utf-8")
@@ -103,7 +103,7 @@ def test_manifest_plugin_module_passes(tmp_path):
         "copy_dir": True,
     }])
     findings = audit_artifacts(tmp_path)
-    assert not any(f["check"] == "dead-tool-module" for f in findings)
+    assert any(f["check"] == "dead-tool-module" for f in findings)
 
 
 def test_test_only_module_fails(tmp_path):
