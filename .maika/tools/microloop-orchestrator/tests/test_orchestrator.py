@@ -87,6 +87,18 @@ def test_worker_runner_substitutes_context_placeholders(tmp_path):
     assert out.read_text(encoding="utf-8") == ws.name  # {task_id} -> workspace name
 
 
+def test_worker_runner_refuses_unverified_with_remediation(tmp_path, capsys):
+    """An unverified worker must refuse dispatch with actionable remediation
+    (F2), not a bare strategy name."""
+    from cli.runtime.platform_profile import write_platform_runtime_profile
+    write_platform_runtime_profile(tmp_path, "codex")  # fresh scaffold → unverified
+    ws = _ws(tmp_path)
+    assert orch._worker_runner({}, ws, str(tmp_path), platform_key="codex") is None
+    out = capsys.readouterr().out
+    assert "Refused" in out
+    assert "maika platform verify codex" in out
+
+
 # ── exit-code contract (Phase 4, §8.1) ───────────────────────────────────────
 #   0 ok   1 blocked/runtime   2 config/CLI   3 human   4 budget   5 stale
 

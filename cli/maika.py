@@ -86,6 +86,12 @@ def main():
         default=None,
         help="Absolute path to the Understand-Anything-MCP clone (when understand-anything is selected)",
     )
+    init_parser.add_argument(
+        "--verify-platform",
+        dest="verify_platform",
+        action="store_true",
+        help="Run worker/hook verification during install (default: detect binary only)",
+    )
 
     # ─── status ───
     status_parser = subparsers.add_parser(
@@ -307,6 +313,7 @@ def main():
             language=args.language,
             assume_yes=args.yes,
             ua_mcp_dir=args.ua_mcp_dir,
+            verify_platform=args.verify_platform,
         )
     elif args.command == "update":
         from cli.commands.update import run_update

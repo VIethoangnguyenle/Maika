@@ -242,7 +242,10 @@ def _worker_runner(config, ws, repo_root, platform_key=None):
     try:
         profile = resolve_worker_profile(Path(repo_root), primary, override)
         if profile.strategy != FRESH_PROCESS:
-            print(f"Refused: worker strategy {profile.strategy}: {profile.reason}")
+            print(f"Refused: no verified worker for {primary} "
+                  f"({profile.strategy}: {profile.reason})")
+            print(f"  Remediation: run `maika platform verify {primary}` "
+                  "to detect the CLI and run the worker smoke test.")
             return None
         return make_worker_runner({
             "platform": profile.platform,

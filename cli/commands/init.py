@@ -204,6 +204,7 @@ def run_init(
     assume_yes: bool = False,
     ua_mcp_dir: Optional[str] = None,
     migration_files: Optional[dict[str, Path]] = None,
+    verify_platform: bool = False,
 ) -> None:
     """Main init command — scaffold Maika into a target project."""
     target = Path(target_dir).resolve()
@@ -259,6 +260,10 @@ def run_init(
         generate_resolved_config(staging, platform, selected_mcps, language)
         from cli.runtime.platform_profile import write_platform_runtime_profile
         write_platform_runtime_profile(staging, platform_key)
+        from cli.platforms.probe import probe_and_persist
+        # Persist real binary detection so a fresh install reports its true tier
+        # instead of advertising a worker the orchestrator would refuse (F2).
+        probe_and_persist(staging, platform_key, verify=verify_platform)
         for logical, source in (migration_files or {}).items():
             destination = staging / ".maika" / logical
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -283,6 +288,9 @@ def run_init(
     print(f"  Done! Maika scaffolded for {platform.display_name}")
     print(f"  {total} plugins installed, {stats['skipped']} skipped")
     print(f"{'═' * 50}")
+    if platform.worker_binary and not verify_platform:
+        print("\n  ⚠  Worker not verified yet — run before dispatching tasks:")
+        print(f"       maika platform verify {platform_key}")
     print("\n  Next steps:")
     print(f"  1. Customize {platform.framework_root}/knowledge/long-term/persona.yaml")
     print("  2. Start your first task: maika task start --id <id> --title '<title>'")
