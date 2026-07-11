@@ -334,7 +334,7 @@ def main():
         from cli.commands.lifecycle import run_migrate
         sys.exit(run_migrate(target_dir=args.target,
                              apply=args.apply or args.cleanup_legacy,
-                             cleanup_legacy=args.cleanup_legacy))
+                             cleanup_legacy=args.cleanup_legacy)["exit_code"])
     elif args.command == "repair":
         from cli.commands.lifecycle import run_repair
         sys.exit(run_repair(target_dir=args.target, finding_id=args.finding,
@@ -342,7 +342,8 @@ def main():
                             all_safe=args.all_safe))
     elif args.command == "uninstall":
         from cli.commands.lifecycle import run_uninstall
-        sys.exit(run_uninstall(target_dir=args.target, purge_project_data=args.purge_project_data))
+        sys.exit(run_uninstall(target_dir=args.target,
+                               purge_project_data=args.purge_project_data)["exit_code"])
     elif args.command == "bootstrap":
         from cli.commands.bootstrap import run_bootstrap
         sys.exit(run_bootstrap(args.target))

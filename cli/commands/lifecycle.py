@@ -27,10 +27,45 @@ from cli.scaffold import (
 _SHARED_HOST = ("AGENTS.md", "CLAUDE.md", ".claude/settings.json",
                 ".codex/hooks.json", ".agents/hooks.json")
 _LEGACY_ROOTS = (".maika", ".agents", ".claude")
+_USER_DATA_DIRS = frozenset({"knowledge", "changes", "archive", "loops"})
+
+
+def _result(status: str, *, mutation: bool, transaction_id: Optional[str] = None) -> dict:
+    """Command result semantics (F10c): exit code aligns with mutation outcome.
+
+    status ∈ {no-op, committed, blocked, partial-safe}. no-op/committed exit 0;
+    blocked/partial-safe exit non-zero. A blocked command must report
+    mutation=False so callers can trust nothing was written.
+    """
+    return {"status": status, "mutation": mutation, "transaction_id": transaction_id,
+            "exit_code": 0 if status in {"no-op", "committed"} else 1}
 
 
 def _framework_root(target: Path) -> str:
     return (load_resolved_config(target) or {}).get("framework_root", ".maika")
+
+
+def _purge_actions(target: Path, framework_root: str) -> list[dict]:
+    """Full-scope delete actions for a purge, covering every top-level entry under
+    the core EXCEPT ``runtime`` (which holds the live transaction journal/backups
+    and is removed only after commit). Everything here is inside the transaction,
+    so a mid-purge failure rolls back the entire core (F10a)."""
+    root = target / framework_root
+    actions: list[dict] = []
+    if not root.is_dir():
+        return actions
+    for entry in sorted(root.iterdir()):
+        if entry.name == "runtime":
+            continue
+        rel = entry.relative_to(target).as_posix()
+        if entry.is_dir():
+            own = ownership.PROJECT if entry.name in _USER_DATA_DIRS else ownership.FRAMEWORK
+            actions.append({"kind": "delete_directory", "path": rel,
+                            "ownership": own, "explicit_project_delete": True})
+        elif entry.is_file():
+            actions.append({"kind": "delete_file", "path": rel,
+                            "ownership": ownership.FRAMEWORK, "explicit_project_delete": True})
+    return actions
 
 
 def _framework_delete_plan(target: Path, framework_root: str) -> dict:
@@ -53,68 +88,72 @@ def _framework_delete_plan(target: Path, framework_root: str) -> dict:
     return {"version": 1, "operation": "uninstall", "actions": actions}
 
 
-def run_uninstall(target_dir: str, purge_project_data: bool = False) -> int:
+def _host_strip_actions(target: Path, staging: Path) -> list[dict]:
+    actions = []
+    for rel in _SHARED_HOST:
+        path = target / rel
+        if not path.is_file():
+            continue
+        if rel.endswith(".json"):
+            cleaned = json.dumps(
+                remove_maika_json_entry(json.loads(path.read_text(encoding="utf-8"))),
+                indent=2,
+            ) + "\n"
+        else:
+            cleaned = strip_managed_markdown(path.read_text(encoding="utf-8"))
+        if cleaned.strip() in {"", "{}"}:
+            actions.append({"kind": "delete_file", "path": rel, "ownership": ownership.SHARED_HOST})
+        else:
+            staged = staging / rel
+            staged.parent.mkdir(parents=True, exist_ok=True)
+            staged.write_text(cleaned, encoding="utf-8")
+            actions.append({"kind": "replace", "path": rel, "ownership": ownership.SHARED_HOST})
+    return actions
+
+
+def run_uninstall(target_dir: str, purge_project_data: bool = False) -> dict:
     target = Path(target_dir).resolve()
     framework_root = _framework_root(target)
-    plan = _framework_delete_plan(target, framework_root)
 
     staging = Path(tempfile.mkdtemp(prefix="maika-uninstall-"))
     backups = Path(tempfile.mkdtemp(prefix="maika-uninstall-bak-"))
+    journal = {}
     try:
-        host_actions = []
-        for rel in _SHARED_HOST:
-            path = target / rel
-            if not path.is_file():
-                continue
-            if rel.endswith(".json"):
-                cleaned = json.dumps(
-                    remove_maika_json_entry(json.loads(path.read_text(encoding="utf-8"))),
-                    indent=2,
-                ) + "\n"
-            else:
-                cleaned = strip_managed_markdown(path.read_text(encoding="utf-8"))
-            if cleaned.strip() in {"", "{}"}:
-                host_actions.append({"kind": "delete_file", "path": rel,
-                                     "ownership": ownership.SHARED_HOST})
-            else:
-                staged = staging / rel
-                staged.parent.mkdir(parents=True, exist_ok=True)
-                staged.write_text(cleaned, encoding="utf-8")
-                host_actions.append({"kind": "replace", "path": rel,
-                                     "ownership": ownership.SHARED_HOST})
-        plan["actions"].extend(host_actions)
         if purge_project_data:
-            purge_roots = []
-            for subtree in ("knowledge/active", "knowledge/long-term", "knowledge/skill-evolution",
-                            "changes", "archive", "loops"):
-                rel = f"{framework_root}/{subtree}"
-                if (target / rel).is_dir():
-                    purge_roots.append(rel)
-                    plan["actions"].append({
-                        "kind": "delete_directory", "path": rel,
-                        "ownership": ownership.PROJECT, "explicit_project_delete": True,
-                    })
-            # A directory backup subsumes every file below it; remove narrower
-            # actions to avoid overlapping backups/restores.
-            plan["actions"] = [
-                action for action in plan["actions"]
-                if not any(action["path"] != root and action["path"].startswith(root + "/")
-                           for root in purge_roots)
-            ]
-        Transaction(staging, target, backups).apply(plan)
+            # Full-scope purge, entirely inside the transaction: every top-level
+            # core entry except runtime/ is a delete action, so a mid-purge
+            # failure rolls the whole core back. No blind post-transaction rmtree.
+            plan = {"version": 1, "operation": "uninstall-purge",
+                    "actions": _host_strip_actions(target, staging) + _purge_actions(target, framework_root)}
+            purged = [a["path"] for a in plan["actions"] if a["path"].startswith(framework_root + "/")
+                      or a["path"] == framework_root]
+        else:
+            plan = _framework_delete_plan(target, framework_root)
+            plan["actions"].extend(_host_strip_actions(target, staging))
+            purged = []
+        if not plan["actions"]:
+            return _result("no-op", mutation=False)
+        journal = Transaction(staging, target, backups).apply(plan)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
         shutil.rmtree(backups, ignore_errors=True)
 
     if purge_project_data:
-        # The committed uninstall journal is the final remaining core artifact;
-        # explicit purge removes that recovery marker and its now-empty parents.
-        shutil.rmtree(target / framework_root, ignore_errors=True)
+        for path in purged:
+            print(f"    • purged {path}")
+        # Only the transaction's own runtime skeleton (journal + backups) remains
+        # under the core — the recovery marker is intentionally the terminal
+        # removal, once the transaction has committed.
+        shutil.rmtree(target / framework_root / "runtime", ignore_errors=True)
+        try:
+            (target / framework_root).rmdir()
+        except OSError:
+            pass
         print(f"  Uninstalled Maika and purged project data under {framework_root}")
     else:
         print(f"  Uninstalled Maika core; preserved knowledge/changes/archive/loops "
               f"under {framework_root}")
-    return 0
+    return _result("committed", mutation=True, transaction_id=journal.get("transaction_id"))
 
 
 def run_repair(target_dir: str, finding_id: Optional[str] = None,
@@ -220,7 +259,7 @@ def _migration_candidates(target: Path) -> dict[str, list[Path]]:
     return candidates
 
 
-def _cleanup_legacy_data(target: Path) -> int:
+def _cleanup_legacy_data(target: Path) -> dict:
     staging = Path(tempfile.mkdtemp(prefix="maika-migrate-cleanup-"))
     backups = Path(tempfile.mkdtemp(prefix="maika-migrate-bak-"))
     actions = []
@@ -238,17 +277,19 @@ def _cleanup_legacy_data(target: Path) -> int:
                 actions.append({"kind": "delete_file",
                                 "path": resolved.relative_to(target).as_posix(),
                                 "ownership": ownership.FRAMEWORK})
-        Transaction(staging, target, backups).apply({
+        journal = Transaction(staging, target, backups).apply({
             "version": 1, "operation": "migration-cleanup", "actions": actions,
         })
     finally:
         shutil.rmtree(staging, ignore_errors=True)
         shutil.rmtree(backups, ignore_errors=True)
     print(f"  cleaned {len(actions)} legacy project-data artifact(s); native host config preserved")
-    return 0
+    if not actions:
+        return _result("no-op", mutation=False)
+    return _result("committed", mutation=True, transaction_id=journal.get("transaction_id"))
 
 
-def run_migrate(target_dir: str, apply: bool = False, cleanup_legacy: bool = False) -> int:
+def run_migrate(target_dir: str, apply: bool = False, cleanup_legacy: bool = False) -> dict:
     target = Path(target_dir).resolve()
     inventory = {}
     for root in _LEGACY_ROOTS:
@@ -268,12 +309,12 @@ def run_migrate(target_dir: str, apply: bool = False, cleanup_legacy: bool = Fal
 
     if not apply:
         print("  dry-run: no changes made")
-        return 0
+        return _result("no-op", mutation=False)
 
     if cleanup_legacy:
         if not canonical_present:
             print("  canonical core missing; cleanup refused")
-            return 1
+            return _result("blocked", mutation=False)
         return _cleanup_legacy_data(target)
 
     if not canonical_present and legacy_present:
@@ -289,7 +330,7 @@ def run_migrate(target_dir: str, apply: bool = False, cleanup_legacy: bool = Fal
         if preflight_conflicts:
             print("  migration refused before mutation; divergent legacy artifacts: "
                   + ", ".join(preflight_conflicts))
-            return 1
+            return _result("blocked", mutation=False)
         resolved = next((cfg for cfg in (
             _legacy_resolved(target / ".agents"), _legacy_resolved(target / ".claude")
         ) if cfg), {})
@@ -304,48 +345,58 @@ def run_migrate(target_dir: str, apply: bool = False, cleanup_legacy: bool = Fal
             )
         except (OSError, ValueError) as exc:
             print(f"  canonical install failed: {exc}")
-            return 1
+            return _result("blocked", mutation=False)
         canonical_present = True
         print(f"  migrated {len(migration_files)} logical project artifact(s) atomically; "
               "legacy roots preserved read-only")
-        return 0
+        return _result("committed", mutation=True)
     if canonical_present and legacy_present:
         candidates = _migration_candidates(target)
+        # Preflight ALL conflicts before any mutation. A divergent artifact must
+        # never be silently resolved, and the presence of any conflict must not
+        # commit even the non-conflicting artifacts (F10b).
+        conflicts = []
+        safe = {}  # logical -> source path (identical across legacy, absent canonical)
+        for logical, paths in sorted(candidates.items()):
+            canonical = target / ".maika" / logical
+            all_paths = ([canonical] if canonical.is_file() else []) + paths
+            hashes = [hashlib.sha256(path.read_bytes()).hexdigest() for path in all_paths]
+            if len(set(hashes)) == 1:
+                if not canonical.is_file():
+                    safe[logical] = paths[0]
+                continue
+            conflicts.append({
+                "logical_artifact": logical,
+                "candidates": [path.relative_to(target).as_posix() for path in all_paths],
+                "hashes": hashes,
+                "decision_required": True,
+            })
+        if conflicts:
+            # Report-only: write the conflict diagnostic; mutate NO project data.
+            import yaml
+            report = target / ".maika/runtime/migration-conflicts.yaml"
+            report.parent.mkdir(parents=True, exist_ok=True)
+            report.write_text(yaml.safe_dump({"version": 1, "conflicts": conflicts}, sort_keys=False),
+                              encoding="utf-8")
+            print(f"  migration blocked by {len(conflicts)} divergent artifact(s); no project data "
+                  f"mutated. Resolve then re-run — see {report.relative_to(target).as_posix()}")
+            return _result("blocked", mutation=False)
+        if not safe:
+            print("  nothing to migrate; canonical artifacts already match legacy")
+            return _result("no-op", mutation=False)
         staging = Path(tempfile.mkdtemp(prefix="maika-migrate-"))
         backups = Path(tempfile.mkdtemp(prefix="maika-migrate-bak-"))
-        conflicts = []
         try:
-            for logical, paths in sorted(candidates.items()):
-                canonical = target / ".maika" / logical
-                all_paths = ([canonical] if canonical.is_file() else []) + paths
-                hashes = [hashlib.sha256(path.read_bytes()).hexdigest() for path in all_paths]
-                if len(set(hashes)) == 1:
-                    if not canonical.is_file():
-                        dest = staging / ".maika" / logical
-                        dest.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(paths[0], dest)
-                    continue
-                conflicts.append({
-                    "logical_artifact": logical,
-                    "candidates": [path.relative_to(target).as_posix() for path in all_paths],
-                    "hashes": hashes,
-                    "decision_required": True,
-                })
-            if conflicts:
-                conflict_path = staging / ".maika/runtime/migration-conflicts.yaml"
-                conflict_path.parent.mkdir(parents=True, exist_ok=True)
-                import yaml
-                conflict_path.write_text(yaml.safe_dump({"version": 1, "conflicts": conflicts},
-                                                        sort_keys=False), encoding="utf-8")
+            for logical, source in safe.items():
+                dest = staging / ".maika" / logical
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, dest)
             plan = build_plan(staging, target, "migration", ".maika")
-            Transaction(staging, target, backups).apply(plan)
+            journal = Transaction(staging, target, backups).apply(plan)
         finally:
             shutil.rmtree(staging, ignore_errors=True)
             shutil.rmtree(backups, ignore_errors=True)
-        if conflicts:
-            print(f"  migration blocked by {len(conflicts)} divergent artifact(s); decisions required")
-            return 1
-        print(f"  migrated {len(candidates)} logical project artifact(s); legacy roots preserved read-only")
-        return 0
+        print(f"  migrated {len(safe)} logical project artifact(s); legacy roots preserved read-only")
+        return _result("committed", mutation=True, transaction_id=journal.get("transaction_id"))
     print("  nothing to migrate")
-    return 0
+    return _result("no-op", mutation=False)

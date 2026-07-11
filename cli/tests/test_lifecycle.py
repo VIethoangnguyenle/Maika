@@ -38,7 +38,8 @@ def test_uninstall_preserves_user_data_and_strips_host(tmp_path):
     (tmp_path / ".maika" / "changes" / "C-1").mkdir(parents=True)
     (tmp_path / ".maika" / "changes" / "C-1" / "STATE.yaml").write_text("state: INTAKE\n", encoding="utf-8")
 
-    assert run_uninstall(str(tmp_path)) == 0
+    result = run_uninstall(str(tmp_path))
+    assert result["status"] == "committed" and result["exit_code"] == 0
 
     assert not (tmp_path / ".maika" / "rules" / "RULES.md").exists()   # framework removed
     assert note.exists() and note.read_text() == "my work\n"          # user data preserved
@@ -50,7 +51,8 @@ def test_uninstall_preserves_user_data_and_strips_host(tmp_path):
 def test_uninstall_purge_removes_everything(tmp_path):
     _init(tmp_path)
     (tmp_path / ".maika" / "knowledge" / "active" / "MYNOTES.md").write_text("x", encoding="utf-8")
-    assert run_uninstall(str(tmp_path), purge_project_data=True) == 0
+    result = run_uninstall(str(tmp_path), purge_project_data=True)
+    assert result["status"] == "committed" and result["mutation"] is True
     assert not (tmp_path / ".maika").exists()
 
 
@@ -72,7 +74,7 @@ def test_migrate_dry_run_does_not_mutate(tmp_path, capsys):
     _init(tmp_path)
     before = {p.relative_to(tmp_path).as_posix(): p.read_bytes()
               for p in sorted((tmp_path / ".maika").rglob("*")) if p.is_file()}
-    assert run_migrate(str(tmp_path), apply=False) == 0
+    assert run_migrate(str(tmp_path), apply=False)["status"] == "no-op"
     after = {p.relative_to(tmp_path).as_posix(): p.read_bytes()
              for p in sorted((tmp_path / ".maika").rglob("*")) if p.is_file()}
     assert before == after

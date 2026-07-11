@@ -154,6 +154,26 @@ def test_rollback_removes_newly_created_empty_dirs(tmp_path, monkeypatch):
     assert not (target / FR).exists()
 
 
+def test_rollback_restores_deleted_directory(tmp_path, monkeypatch):
+    """A mid-purge failure must roll the whole core back — delete_directory
+    actions are backed up and restored, not lost (F10a)."""
+    target = tmp_path / "t"
+    _write(target, f"{FR}/knowledge/active/note.md", "keep me")
+    _write(target, f"{FR}/rules/RULES.md", "framework")
+    (tmp_path / "staging").mkdir()
+    plan = {"version": 1, "operation": "uninstall-purge", "actions": [
+        {"kind": "delete_directory", "path": f"{FR}/knowledge", "ownership": "project",
+         "explicit_project_delete": True},
+        {"kind": "delete_directory", "path": f"{FR}/rules", "ownership": "framework"},
+    ]}
+    before = _digest(target)
+    # Fail on the applied-persist right after the first directory is deleted.
+    monkeypatch.setattr(tx, "_atomic_write", _fail_on(4))
+    with pytest.raises(RuntimeError):
+        tx.Transaction(tmp_path / "staging", target, tmp_path / "bak").apply(plan)
+    assert _digest(target) == before  # both directories restored
+
+
 def test_dry_run_returns_plan_actions_unchanged(tmp_path):
     staging = _make_staging(tmp_path)
     target = tmp_path / "t"
