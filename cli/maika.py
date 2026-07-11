@@ -235,6 +235,19 @@ def main():
         "--runtime", choices=["claude", "codex", "antigravity"], default="claude",
     )
 
+    # ─── loop ───
+    loop_parser = subparsers.add_parser(
+        "loop",
+        help="Operate a change-level Loop Engineer loop (status/inspect/approve/reject/resume/close)",
+    )
+    loop_parser.add_argument(
+        "action", choices=["status", "inspect", "approve", "reject", "resume", "close"],
+    )
+    loop_parser.add_argument("--id", dest="change_id", default=None)
+    loop_parser.add_argument("--decision", dest="decision_id", default=None)
+    loop_parser.add_argument("--proposal-only", dest="proposal_only", action="store_true")
+    loop_parser.add_argument("--target", default=".")
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -300,6 +313,12 @@ def main():
     elif args.command == "hook" and args.hook_action == "write-gate":
         from cli.commands.hook import run_hook_write_gate
         sys.exit(run_hook_write_gate(runtime=args.runtime))
+    elif args.command == "loop":
+        from cli.commands.loop import run_loop
+        sys.exit(run_loop(
+            action=args.action, target_dir=args.target, change_id=args.change_id,
+            decision_id=args.decision_id, proposal_only=args.proposal_only,
+        ))
     else:
         parser.print_help()
         sys.exit(1)

@@ -533,6 +533,27 @@ entries:
     scheduled_wave: W6
     reviewed_at: 2026-07-11
 
+  - id: ENF-025
+    mechanism: change-loop-approval-gate
+    type: gate
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: >-
+        A human-approval loop decision (e.g. scope expansion) may resume only
+        with a trusted CLI-authored approval bound to the change/loop/decision;
+        a missing, tampered, or agent-authored (source != cli-user-action)
+        approval is rejected. Automatic decisions resume with no approval.
+      litmus:
+        command: /usr/bin/python3 -m pytest "cli/tests/test_loop_command.py" -q
+    implementation:
+      files:
+        - .maika/tools/microloop-orchestrator/loop_governance.py
+        - cli/commands/loop.py
+      consumers: [cli/commands/loop.py, cli/maika.py]
+    scheduled_wave: W7
+    reviewed_at: 2026-07-11
+
   # ---- deferred change-loop triggers (no discrete runtime signal yet) ----
   - id: DEF-005
     mechanism: change-loop-stale-contract

@@ -21,7 +21,7 @@ except ModuleNotFoundError:  # importlib callers may not have this dir on sys.pa
     sys.modules[_vs_spec.name] = vs
     _vs_spec.loader.exec_module(vs)
 
-LOOP_STATES = ("diagnosing", "routed", "closed")
+LOOP_STATES = ("diagnosing", "routed", "approved", "rejected", "resumed", "closed")
 
 
 class LoopExists(RuntimeError):
@@ -67,11 +67,36 @@ def record_diagnosis(ws, root_cause: str, route: str) -> dict:
     return loop
 
 
-def close_loop(ws) -> dict:
+def set_decision_status(ws, status: str) -> dict:
+    """Record a human decision (approved/rejected) from a trusted CLI action."""
+    if status not in ("approved", "rejected"):
+        raise ValueError(f"bad decision status: {status}")
+    loop = load_loop(ws)
+    if loop is None:
+        raise ValueError("no LOOP.yaml to decide")
+    loop["decision_status"] = status
+    loop["state"] = status
+    vs._dump_yaml(loop, loop_path(ws))
+    return loop
+
+
+def mark_resumed(ws) -> dict:
+    loop = load_loop(ws)
+    if loop is None:
+        raise ValueError("no LOOP.yaml to resume")
+    loop["state"] = "resumed"
+    vs._dump_yaml(loop, loop_path(ws))
+    return loop
+
+
+def close_loop(ws, proposal_only: bool = False, resolution: str = None) -> dict:
     loop = load_loop(ws)
     if loop is None:
         raise ValueError("no LOOP.yaml to close")
     loop["state"] = "closed"
+    loop["proposal_only"] = proposal_only
+    if resolution:
+        loop["resolution"] = resolution
     vs._dump_yaml(loop, loop_path(ws))
     vs.clear_active_loop(ws)
     return loop
