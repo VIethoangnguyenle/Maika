@@ -309,15 +309,18 @@ Body
     # Run
     # The runner stub in orchestrator will just output stub which is invalid result, so it will block.
     res = subprocess.run(cmd + ["vnext-run", "--workspace", str(ws), "--repo-root", str(tmp_path)], capture_output=True, text=True)
-    assert res.returncode == 0
-    st = yaml.safe_load((ws / "STATE.yaml").read_text())["state"]
-    # state should be EXECUTING because task blocked
-    assert st == "EXECUTING"
+    # Phase 4 exit-code contract: a blocked task is a non-zero outcome and the
+    # workspace transitions to BLOCKED (it does NOT stay EXECUTING with exit 0).
+    assert res.returncode == 1, res.stdout + res.stderr
+    state_doc = yaml.safe_load((ws / "STATE.yaml").read_text())
+    assert state_doc["state"] == "BLOCKED"
+    assert state_doc["blocked"]["resume_state"] == "EXECUTING"
+    assert state_doc["blocked"]["code"] == "blocked"
     
     # Status
     res = subprocess.run(cmd + ["vnext-status", "--workspace", str(ws), "--repo-root", str(tmp_path)], capture_output=True, text=True)
     assert res.returncode == 0
-    assert "State: EXECUTING" in res.stdout
+    assert "State: BLOCKED" in res.stdout
 
 
 def test_vnext_reasoning_and_spec_validation_commands(tmp_path):

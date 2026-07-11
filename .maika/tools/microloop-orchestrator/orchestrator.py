@@ -22,6 +22,52 @@ import adaptive_runtime as ar
 from runtime_hardening import WorkspaceBusy, WorkspaceLock
 
 
+# Exit-code contract (plan §8.1). Shell automation reads these; blocked is
+# never 0.
+EXIT_OK = 0        # success / completed phase
+EXIT_BLOCKED = 1   # runtime failure or generic blocked
+EXIT_CONFIG = 2    # configuration or CLI usage error
+EXIT_HUMAN = 3     # human input required
+EXIT_BUDGET = 4    # budget exhausted
+EXIT_STALE = 5     # stale artifact or contract
+
+
+def _classify_block(reason: str | None) -> tuple[str, str, int]:
+    """Map a blocked outcome's reason to (BLOCK_REASON, code, exit_code).
+
+    BLOCK_REASON is one of vnext_state.BLOCK_REASONS (drives the state machine);
+    code is a stable machine label; exit_code is the process exit code.
+    """
+    text = (reason or "").lower()
+    if "budget" in text:
+        return "capability", "budget_exhausted", EXIT_BUDGET
+    if "stale" in text or "evidence_update_request" in text or "superseded" in text \
+            or "stale_plan" in text:
+        return "stale_plan", "stale_contract", EXIT_STALE
+    if "human" in text or "approval" in text or "confirmation required" in text:
+        return "user_input", "human_required", EXIT_HUMAN
+    return "verification", "blocked", EXIT_BLOCKED
+
+
+_RECOVERY_ACTIONS = {
+    "budget_exhausted": ["raise worker budget in execution-mode config, or escalate the change class"],
+    "stale_contract": ["re-run exploration/plan compile so evidence and hashes are refreshed"],
+    "human_required": ["obtain the required trusted approval, then `task resume`"],
+    "blocked": ["inspect the blocked task's result/review, fix the cause, then `task resume`"],
+}
+
+
+def _blocked_metadata(reason_text: str | None, resume_state: str) -> dict:
+    block_reason, code, exit_code = _classify_block(reason_text)
+    return {
+        "reason": block_reason,
+        "code": code,
+        "resume_state": resume_state,
+        "detail": reason_text,
+        "recovery_actions": _RECOVERY_ACTIONS.get(code, _RECOVERY_ACTIONS["blocked"]),
+    }, exit_code
+
+
 def _execution_config_path(profiles_dir: Path) -> Path:
     local = profiles_dir / "execution-mode.local.yaml"
     if local.exists():
@@ -227,6 +273,10 @@ def _add_vnext_commands(sub):
     status_parser.add_argument("--workspace", required=True)
     status_parser.add_argument("--repo-root", required=True)
 
+    resume_parser = sub.add_parser("vnext-resume")
+    resume_parser.add_argument("--workspace", required=True)
+    resume_parser.add_argument("--repo-root", required=True)
+
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Maika vNext task orchestrator")
@@ -249,7 +299,7 @@ def main(argv=None):
     import vnext_state as vs
 
     gates = _load_gate_check()
-    if args.command not in {"vnext-init", "vnext-status"} and not _require_bootstrap(framework_path, gates, repo_root):
+    if args.command not in {"vnext-init", "vnext-status", "vnext-resume"} and not _require_bootstrap(framework_path, gates, repo_root):
         return 1
 
     if args.command == "vnext-init":
@@ -437,12 +487,14 @@ def main(argv=None):
                     print(f"Run outcome: escalated to {target}")
                     return 1
                 if outcome["status"] != "done":
-                    print(f"Run outcome: blocked: {outcome.get('reason')}")
-                    return 1
+                    blocked_doc, exit_code = _blocked_metadata(outcome.get("reason"), resume_state="INTAKE")
+                    vs.transition(ws, "BLOCKED", blocked=blocked_doc)
+                    print(f"Run outcome: blocked ({blocked_doc['code']}): {outcome.get('reason')}")
+                    return exit_code
                 vs.transition(ws, "EXECUTING")
                 vs.transition(ws, "VERIFYING")
                 print("Run outcome: ready_for_verification")
-                return 0
+                return EXIT_OK
             val = json.loads((ws / "generated" / "PLAN_VALIDATION.json").read_text(encoding="utf-8"))
             rev = (ws / "reviews" / "plan-review.md").read_text(encoding="utf-8") if (ws / "reviews" / "plan-review.md").exists() else ""
             if state["state"] == "PLAN_REVIEW":
@@ -460,21 +512,46 @@ def main(argv=None):
             out = vd.run_queue(ws, args.repo_root, runner)
             if out["status"] == "done":
                 vs.transition(ws, "FINAL_REVIEW")
-            elif out["status"] == "stale_plan":
-                vs.transition(ws, "BLOCKED", blocked={"reason": "stale_plan"})
-            print(f"Run outcome: {out['status']}")
-            return 0
+                print("Run outcome: done")
+                return EXIT_OK
+            blocked_doc, exit_code = _blocked_metadata(out.get("reason"), resume_state="EXECUTING")
+            vs.transition(ws, "BLOCKED", blocked=blocked_doc)
+            print(f"Run outcome: blocked ({blocked_doc['code']}): {out.get('reason')}")
+            return exit_code
         finally:
             lock.release()
 
     if args.command == "vnext-status":
         state = vs.load_state(ws)
         print(f"State: {state['state']}")
+        if state.get("state") == "BLOCKED":
+            blocked = state.get("blocked") or {}
+            print(f"Blocked: code={blocked.get('code')} reason={blocked.get('reason')} "
+                  f"resume_state={blocked.get('resume_state')}")
+            for action in blocked.get("recovery_actions") or []:
+                print(f"  - {action}")
         queue = ws / "generated" / "TASK_QUEUE.json"
         if queue.exists():
             for task in json.loads(queue.read_text(encoding="utf-8")).get("tasks", []):
                 print(f"- {task['id']}: {task['status']}")
-        return 0
+        return EXIT_OK
+
+    if args.command == "vnext-resume":
+        state = vs.load_state(ws)
+        if state.get("state") != "BLOCKED":
+            print(f"Refused: resume requires BLOCKED (found {state.get('state')})")
+            return EXIT_CONFIG
+        blocked = state.get("blocked") or {}
+        resume_state = blocked.get("resume_state")
+        if not resume_state:
+            print("Refused: BLOCKED state has no resume_state")
+            return EXIT_CONFIG
+        # Return the workspace to its resume_state. This does NOT bypass any gate:
+        # the caller must re-run the phase, which re-checks the original blocker.
+        vs.transition(ws, resume_state)
+        print(f"Resumed to {resume_state}; re-run the phase (gates re-check the blocker: "
+              f"{blocked.get('code')}).")
+        return EXIT_OK
 
     print(f"Unknown command: {args.command}")
     return 2

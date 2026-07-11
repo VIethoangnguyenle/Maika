@@ -30,7 +30,7 @@ COMMAND_MAP = {
     "validate-plan": "vnext-compile",
     "review": "vnext-review-plan",
     "apply": "vnext-run",
-    "resume": "vnext-status",
+    "resume": "vnext-resume",
 }
 
 
