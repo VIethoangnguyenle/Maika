@@ -110,9 +110,11 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
         stage_managed_json_configs(staging, target)
         _stage_index_inputs(target, staging, framework_root)
         generate_knowledge_index(maika, staging, framework_root)
-        from cli.runtime.platform_profile import write_platform_runtime_profile
+        from cli.runtime.platform_profile import stage_platform_runtime_profile
         for enabled_platform in enabled:
-            write_platform_runtime_profile(staging, enabled_platform)
+            # Merge framework-owned fields over the target's existing profile so a
+            # re-render never resets detection/verification state (F3).
+            stage_platform_runtime_profile(target, staging, enabled_platform)
         if reconfigure:
             generate_resolved_config(staging, platform, selected_mcps, language)
         if reconfigure:

@@ -92,8 +92,11 @@ def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] =
             raise ValueError(f"unresolved template markers in adapter for {platform_key}")
         stage_managed_entrypoint(staging, target, platform.config_entry_point)
         stage_managed_json_configs(staging, target)
-        from cli.runtime.platform_profile import write_platform_runtime_profile
-        write_platform_runtime_profile(staging, platform_key)
+        from cli.runtime.platform_profile import stage_platform_runtime_profile
+        # Merge over any existing target profile so re-enable preserves
+        # fingerprint-consistent runtime-observed facts before the probe refreshes
+        # detection (F3).
+        stage_platform_runtime_profile(target, staging, platform_key)
         from cli.platforms.probe import probe_and_persist
         probe_and_persist(staging, platform_key, verify=False)
         if project_config is not None:
