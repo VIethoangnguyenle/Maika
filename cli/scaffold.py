@@ -30,7 +30,7 @@ SOURCE_MAP = {
     "knowledge-templates/": ".maika/knowledge/templates/",
     "knowledge-active/":    ".maika/knowledge/active/",
     "knowledge-long-term/": ".maika/knowledge/long-term/",
-    "meta-prompt.md":       ".maika/meta-prompt.md",
+    "agent/":               ".maika/agent/",
 }
 
 # File extensions eligible for single-file Jinja auto-render.

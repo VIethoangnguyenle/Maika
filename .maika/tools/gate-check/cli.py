@@ -41,7 +41,7 @@ VALIDATORS = {
     "plan-review": "validate_plan_review",
     "knowledge-impact": "validate_knowledge_impact",
     "verification-report": "validate_verification_report",
-    "meta-prompt-constitution": "validate_meta_prompt_constitution",
+    "agent-kernel": "validate_agent_kernel",
     "bootstrap-complete": "validate_bootstrap_complete",
     "context-package": "validate_context_package",
     "dispatch-kernel": "validate_dispatch_kernel",

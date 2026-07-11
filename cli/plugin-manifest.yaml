@@ -75,12 +75,20 @@ languages:
 # ═══════════════════════════════════════════════════════════
 plugins:
 
-  # ─── META-PROMPT ───
+  # ─── AGENT KERNEL ───
+  # Rendered into the host entrypoint managed block (always-on constitution).
   - name: agents-md
-    type: meta-prompt
-    source: meta-prompt.md
+    type: kernel-entrypoint
+    source: agent/KERNEL.md
     template: false
     output: "{{ platform.config_entry_point }}"
+
+  # Canonical kernel file in the target tree (hash/ack reference).
+  - name: agent-kernel
+    type: kernel
+    source: agent/KERNEL.md
+    template: false
+    output: "{{ platform.framework_root }}/agent/KERNEL.md"
 
   # ─── RULES (mostly static) ───
   - name: rules-manifest

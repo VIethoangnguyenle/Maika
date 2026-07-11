@@ -37,10 +37,10 @@ from cli.scaffold import (
 
 
 def _adapter_plugins(manifest: dict, platform_key: str) -> List[dict]:
-    """Entrypoint (meta-prompt) + this platform's native hook plugin only."""
+    """Entrypoint (kernel render) + this platform's native hook plugin only."""
     plugins = []
     for plugin in manifest.get("plugins", []):
-        if plugin.get("type") == "meta-prompt":
+        if plugin.get("type") == "kernel-entrypoint":
             plugins.append(plugin)
         elif plugin.get("requires_platform") == platform_key:
             plugins.append(plugin)

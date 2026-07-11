@@ -137,9 +137,9 @@ def test_resolve_source_path_maps_skills(maika_root):
     assert p == maika_root / ".maika/skills/grounding-explorer/"
 
 
-def test_resolve_source_path_maps_meta_prompt(maika_root):
-    p = resolve_source_path(maika_root, "meta-prompt.md")
-    assert p == maika_root / ".maika/meta-prompt.md"
+def test_resolve_source_path_maps_agent_kernel(maika_root):
+    p = resolve_source_path(maika_root, "agent/KERNEL.md")
+    assert p == maika_root / ".maika/agent/KERNEL.md"
 
 
 def test_resolve_source_path_maps_hooks(maika_root):

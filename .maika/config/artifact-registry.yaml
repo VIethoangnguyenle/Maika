@@ -1,6 +1,7 @@
 version: 1
 manifest_consumer_defaults:
-  meta-prompt: host-entrypoint
+  kernel-entrypoint: host-entrypoint
+  kernel: agent-bootstrap-loader
   rule: bootstrap-and-agent-runtime
   profile: runtime-policy-loader
   skill: bootstrap-skill-registry

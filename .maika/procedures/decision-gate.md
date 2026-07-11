@@ -20,7 +20,7 @@
 | task review | `reviews/TASK-*.md` | `task-review` |
 | final review | `reviews/FINAL_REVIEW.md` | `final-review` |
 | MCP-probe | dòng MCP-status (bootstrap report / transparency) | `mcp-status` |
-| meta prompt | platform entry point | `meta-prompt-constitution` |
+| agent kernel | `agent/KERNEL.md` + platform entry point | `agent-kernel` |
 | bootstrap | `knowledge/active/BOOTSTRAP_REPORT.yaml` | `bootstrap-complete` |
 | context package | `generated/CONTEXT_PACKAGE.<role>.yaml` | `context-package` |
 | dispatch prompt | dispatch log/prompt | `dispatch-kernel` |

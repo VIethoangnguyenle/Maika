@@ -17,7 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # The consumed assets that are files (everything else in REQUIRED_ASSETS is a dir).
 _FILE_ASSETS = {
     "cli/plugin-manifest.yaml",
-    ".maika/meta-prompt.md",
+    ".maika/agent/KERNEL.md",
     ".maika/knowledge/README.md",
 }
 

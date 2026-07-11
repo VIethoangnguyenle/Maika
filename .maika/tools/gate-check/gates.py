@@ -1103,31 +1103,38 @@ def _yaml_mapping(text, artifact: str):
     return data, None
 
 
-def validate_meta_prompt_constitution(text: str) -> Result:
+def validate_agent_kernel(text: str) -> Result:
+    """Gate `agent-kernel` — kernel contract (agent-facing plan §7.3/§7.4)."""
     sections = (
-        "Identity", "Core Mission", "Non-negotiable Principles", "Mandatory Bootstrap",
-        "Canonical Knowledge Sources", "Authority Hierarchy",
-        "Knowledge and MCP Operating Reflex", "Canonical Workflow",
-        "Phase-specific Knowledge Obligations", "Context and Knowledge Slice Rules",
-        "Role Boundaries", "Write Boundaries", "Evidence and Knowledge Trace",
-        "Degradation and Stop Conditions", "Project Knowledge Learning Loop",
-        "Skill Evolution Loop", "Load Order", "Handoff Contract",
+        "Identity", "Canonical Authority", "Workflow Routing", "Write Boundary",
+        "Evidence Honesty", "Verification Honesty", "Learning Boundary",
+        "Resume & Bootstrap", "Stop Conditions",
     )
     missing = [name for name in sections if not re.search(rf"^##\s+(?:\d+\.\s+)?{re.escape(name)}\s*$", text, re.MULTILINE)]
     if missing:
-        return Result(False, "meta prompt missing sections: " + ", ".join(missing))
+        return Result(False, "agent kernel missing sections: " + ", ".join(missing))
     required = (
+        "KERNEL_ID: maika-agent-kernel-v1",
         "knowledge-grounded engineering agent", "Không có material decision",
         "procedures/bootstrap.md", "BOOTSTRAP_REPORT.yaml",
-        "live runtime/database state", "current source", "Agent Memory",
-        "Project Knowledge Learning Loop", "Skill Evolution Loop",
+        "artifact-authority.yaml", "STATE.yaml",
     )
     absent = [item for item in required if item.lower() not in text.lower()]
     if absent:
-        return Result(False, "meta prompt missing constitution markers: " + ", ".join(absent))
+        return Result(False, "agent kernel missing markers: " + ", ".join(absent))
+    # §7.2: kernel must not carry legacy active paths, provider doctrine details
+    # or a global fixed phase chain.
+    forbidden = (
+        "knowledge/active/", "REQUIREMENT.md", "EXPLORE_CONTEXT", "AGENT_TRANSPARENCY",
+        "TOKEN_LOG", "Understand-Anything", "Codebase Memory",
+        "explore → spec → plan",
+    )
+    present = [item for item in forbidden if item.lower() in text.lower()]
+    if present:
+        return Result(False, "agent kernel contains forbidden content: " + ", ".join(present))
     lines = len(text.splitlines())
-    if not 120 <= lines <= 220:
-        return Result(False, f"meta prompt length must be 120-220 lines, found {lines}")
+    if lines > 150:
+        return Result(False, f"agent kernel must be at most 150 lines, found {lines}")
     return Result(True)
 
 

@@ -80,7 +80,7 @@ def test_wheel_bundles_consumed_assets_without_tests(wheel):
         "cli/_assets/.maika/knowledge/templates/",
     ):
         assert any(n.startswith(consumed) for n in names), f"missing {consumed}"
-    assert any(n == "cli/_assets/.maika/meta-prompt.md" for n in names)
+    assert any(n == "cli/_assets/.maika/agent/KERNEL.md" for n in names)
 
     # No framework-only tests, caches, or dev-local knowledge state.
     assert not any("_assets/" in n and "/tests/" in n for n in names)

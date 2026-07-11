@@ -33,7 +33,7 @@ _BUNDLE_DIRNAME = "_assets"
 # sync with cli/plugin-manifest.yaml plugin sources and cli.scaffold.SOURCE_MAP.
 REQUIRED_ASSETS = (
     "cli/plugin-manifest.yaml",
-    ".maika/meta-prompt.md",
+    ".maika/agent/KERNEL.md",
     ".maika/rules",
     ".maika/skills",
     ".maika/workflows",

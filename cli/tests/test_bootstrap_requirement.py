@@ -8,18 +8,19 @@ from cli.commands.bootstrap import run_bootstrap
 from cli.commands.init import run_init
 
 
-META = Path(__file__).resolve().parents[2] / ".maika" / "meta-prompt.md"
-GATES_PATH = META.parent / "tools" / "gate-check" / "gates.py"
+FRAMEWORK = Path(__file__).resolve().parents[2] / ".maika"
+KERNEL = FRAMEWORK / "agent" / "KERNEL.md"
+GATES_PATH = FRAMEWORK / "tools" / "gate-check" / "gates.py"
 SPEC = importlib.util.spec_from_file_location("gates_bootstrap", GATES_PATH)
 GATES = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GATES)
 
 
-def test_meta_prompt_requires_bootstrap_report_before_work():
-    text = META.read_text(encoding="utf-8")
+def test_kernel_requires_bootstrap_report_before_work():
+    text = KERNEL.read_text(encoding="utf-8")
     assert "procedures/bootstrap.md" in text
     assert "BOOTSTRAP_REPORT.yaml" in text
-    assert "không được tiếp tục" in text.lower()
+    assert "không được reasoning" in text.lower()
 
 
 def test_bootstrap_complete_gate_requires_every_rule_and_completed_probe_report():

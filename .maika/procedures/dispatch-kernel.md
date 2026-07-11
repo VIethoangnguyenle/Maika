@@ -23,3 +23,12 @@ You are an isolated Maika worker.
 Runtime consumer: `tools/microloop-orchestrator/vnext_dispatch.py:build_prompt`.
 Gate `dispatch-kernel` so sánh mọi dispatch path với `KERNEL_ID` này.
 
+## Handoff Contract
+
+Mỗi handoff truyền: role, change/task ID, state, assigned artifact paths, immutable
+Knowledge Capsule path/hash, evidence IDs, source anchors, allowed writes, required
+verification, missing context, degradation và expected structured output.
+
+Worker phải record knowledge/evidence IDs thực sự dùng; conflict với source phải emit
+`EVIDENCE_UPDATE_REQUEST`; result thiếu contract hoặc vượt write scope bị reject.
+
