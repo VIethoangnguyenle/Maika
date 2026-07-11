@@ -1,7 +1,11 @@
 import importlib.util
+import hashlib
 import json
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import yaml
 
 
 MOD = Path(__file__).resolve().parents[1] / "write_gate.py"
@@ -153,10 +157,65 @@ def _setup_vnext_scope(tmp_path, target="src/App.java", *, state="EXECUTING", en
     return active
 
 
+def _setup_lightweight_scope(tmp_path, target="src/App.java", *, expired=False):
+    framework = tmp_path / ".maika"
+    (framework / "profiles").mkdir(parents=True)
+    (framework / "profiles" / "execution-mode.yaml").write_text(
+        "workflow_engine: vnext\n", encoding="utf-8"
+    )
+    ws = framework / "changes" / "demo"
+    (ws / "generated").mkdir(parents=True)
+    (ws / "STATE.yaml").write_text("change_id: demo\nstate: EXECUTING\n", encoding="utf-8")
+    task = {
+        "version": 1, "change_id": "demo", "class": "small",
+        "scope": {"files": {"modify": [target], "test": []}},
+    }
+    (ws / "TASK.yaml").write_text(yaml.safe_dump(task), encoding="utf-8")
+    (ws / "EVIDENCE.yaml").write_text("version: 1\nitems: []\n", encoding="utf-8")
+    scope = {"create": [], "modify": [target], "delete": [], "test": []}
+    expires = datetime.now(timezone.utc) + timedelta(seconds=-1 if expired else 60)
+    contract = {
+        "version": 1, "change_id": "demo", "task_class": "small",
+        "execution_id": "EXEC-demo-1", "state": "EXECUTING", "status": "active",
+        "task_hash": "sha256:" + hashlib.sha256((ws / "TASK.yaml").read_bytes()).hexdigest(),
+        "evidence_hash": "sha256:" + hashlib.sha256((ws / "EVIDENCE.yaml").read_bytes()).hexdigest(),
+        "scope_hash": wg._canonical_hash(scope), "scope": scope,
+        "role": "application-implementer", "runtime": {"lease_expires_at": expires.isoformat()},
+    }
+    (ws / "generated" / "LIGHTWEIGHT_EXECUTION.yaml").write_text(
+        yaml.safe_dump(contract), encoding="utf-8"
+    )
+    return ws
+
+
 def test_allows_app_write_with_vnext_scope(tmp_path):
     _setup_vnext_scope(tmp_path)
     result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
     assert result.ok is True
+
+
+def test_lightweight_contract_allows_declared_app_and_result_only(tmp_path):
+    _setup_lightweight_scope(tmp_path)
+    assert wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika").ok is True
+    assert wg.evaluate_write(tmp_path, Path(".maika/changes/demo/RESULT.yaml"), framework_root=".maika").ok is True
+    denied = wg.evaluate_write(tmp_path, Path("src/Other.java"), framework_root=".maika")
+    assert denied.ok is False
+    assert "ngoài files" in denied.reason
+
+
+def test_lightweight_contract_rejects_task_tamper_and_expired_lease(tmp_path):
+    ws = _setup_lightweight_scope(tmp_path)
+    (ws / "TASK.yaml").write_text("version: 1\nchange_id: demo\nclass: small\n", encoding="utf-8")
+    assert "hash mismatch" in wg.evaluate_write(
+        tmp_path, Path("src/App.java"), framework_root=".maika"
+    ).reason
+
+    other = tmp_path / "expired"
+    other.mkdir()
+    _setup_lightweight_scope(other, expired=True)
+    assert "hết hạn" in wg.evaluate_write(
+        other, Path("src/App.java"), framework_root=".maika"
+    ).reason
 
 
 def test_blocks_app_write_without_executing_vnext_change(tmp_path):

@@ -51,8 +51,15 @@ def _read_queue(ws):
     return json.loads((Path(ws) / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
 
 
-def _write_queue(ws, doc):
+def _write_queue(ws, doc, expected_generation=None):
     q_path = Path(ws) / "generated" / "TASK_QUEUE.json"
+    current_generation = 0
+    if q_path.exists():
+        current_generation = int(json.loads(q_path.read_text(encoding="utf-8")).get("generation") or 0)
+    if expected_generation is not None and current_generation != int(expected_generation):
+        raise ValueError(f"queue generation mismatch: expected {expected_generation}, found {current_generation}")
+    doc["schema_version"] = int(doc.get("schema_version") or 1)
+    doc["generation"] = current_generation + 1
     doc.setdefault("version", 1)
     payload = json.dumps(doc, ensure_ascii=False, indent=2)
     fd, temp_name = tempfile.mkstemp(prefix=".TASK_QUEUE.", dir=q_path.parent)
@@ -73,6 +80,7 @@ def _write_queue(ws, doc):
 
 def _update_task(ws, tid, **fields):
     doc = _read_queue(ws)
+    generation = int(doc.get("generation") or 0)
     for task in doc["tasks"]:
         if task["id"] == tid:
             if fields.get("status") == "in_progress":
@@ -83,7 +91,7 @@ def _update_task(ws, tid, **fields):
             elif fields.get("status") in {"done", "blocked", "changes_required"}:
                 fields.setdefault("lease", None)
             task.update(fields)
-            return _write_queue(ws, doc)
+            return _write_queue(ws, doc, expected_generation=generation)
     raise ValueError(f"task {tid} not in queue")
 
 
@@ -199,7 +207,26 @@ def _dispatch_to_runner(ws, dispatch_type, task, artifact_rel, output_rel, runne
     queue = _read_queue(ws)
     metrics = queue.setdefault("runtime_metrics", {})
     task_class = queue.get("task_class", "standard")
-    maximum = DEFAULT_TOKEN_BUDGET[task_class]["max_worker_calls"]
+    limits = (queue.get("runtime_limits") or {}).get(task_class) or DEFAULT_TOKEN_BUDGET[task_class]
+    maximum = int(limits["max_worker_calls"])
+    prompt = build_prompt(dispatch_type, ws, artifact_rel, output_rel, extra=extra, task=task)
+    context_bytes = len(prompt.encode("utf-8"))
+    for rel in {artifact_rel, task.get("capsule_path"), task.get("context_package_path"), task.get("review_path")}:
+        path = Path(ws) / rel if rel else None
+        if path and path.is_file():
+            context_bytes += path.stat().st_size
+    estimated_tokens = (context_bytes + 3) // 4
+    metrics.update({
+        "prompt_bytes": len(prompt.encode("utf-8")),
+        "context_bytes": context_bytes,
+        "estimated_tokens": int(metrics.get("estimated_tokens") or 0) + estimated_tokens,
+        "estimation_method": "chars_div_4",
+        "total_tokens": metrics.get("total_tokens", "unavailable"),
+    })
+    if estimated_tokens > int(limits["max_context_tokens"]):
+        _write_queue(ws, queue, expected_generation=int(queue.get("generation") or 0))
+        return 76, (f"{task_class} context budget exceeded "
+                    f"({estimated_tokens}/{limits['max_context_tokens']} estimated tokens)")
     if int(metrics.get("worker_calls") or 0) >= maximum:
         return 75, f"{task_class} worker-call budget exhausted; escalate or block"
     metrics["worker_calls"] = int(metrics.get("worker_calls") or 0) + 1
@@ -207,8 +234,7 @@ def _dispatch_to_runner(ws, dispatch_type, task, artifact_rel, output_rel, runne
         metrics["budget_warning"] = f"worker-call budget reached ({maximum}/{maximum})"
     if dispatch_type == "fix":
         metrics["retry_count"] = int(metrics.get("retry_count") or 0) + 1
-    _write_queue(ws, queue)
-    prompt = build_prompt(dispatch_type, ws, artifact_rel, output_rel, extra=extra, task=task)
+    _write_queue(ws, queue, expected_generation=int(queue.get("generation") or 0))
     _append_dispatch_log(ws, {
         "dispatch_type": dispatch_type,
         "task_id": task.get("id") if task else None,
@@ -445,9 +471,13 @@ def _run_final_review(ws, gates, runner):
     return {"status": "done"}
 
 
-def run_queue(ws, repo_root, runner, max_retries=2):
+def run_queue(ws, repo_root, runner, max_retries=2, runtime_policy=None):
     ws = Path(ws)
     gates = _load("gates", "gate-check/gates.py")
+    if runtime_policy is not None:
+        queue = _read_queue(ws)
+        queue["runtime_limits"] = runtime_policy.token_budget
+        _write_queue(ws, queue, expected_generation=int(queue.get("generation") or 0))
 
     while True:
         doc = _read_queue(ws)

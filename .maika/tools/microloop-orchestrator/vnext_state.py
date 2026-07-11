@@ -27,6 +27,7 @@ STATES = [
     "COMPLETED", "ARCHIVED", "BLOCKED", "CANCELLED",
 ]
 CLASSES = {"trivial", "small", "standard", "architectural"}
+CLASS_RANK = {name: index for index, name in enumerate(("trivial", "small", "standard", "architectural"))}
 BLOCK_REASONS = {"grounding", "stale_plan", "capability", "user_input", "environment", "verification"}
 
 # W1: chỉ các transition mà slice này dùng + BLOCKED/CANCELLED từ mọi state.
@@ -106,8 +107,12 @@ def init_workspace(changes_root, change_id, klass, title):
         raise ValueError(f"bad change class: {klass}")
     ws = Path(changes_root) / change_id
     ws.mkdir(parents=True, exist_ok=True)
-    _dump_yaml({"version": 1, "change_id": change_id, "class": klass, "title": title,
-                "created_at": _now()}, ws / "CHANGE.yaml")
+    _dump_yaml({
+        "version": 1, "change_id": change_id, "class": klass,
+        "requested_class": klass, "effective_class": klass,
+        "classification": {"source": "requested", "classified_at": _now(), "evidence": []},
+        "title": title, "created_at": _now(),
+    }, ws / "CHANGE.yaml")
     _dump_yaml({"version": 1, "change_id": change_id, "state": "INTAKE",
                 "updated_at": _now(), "blocked": None}, ws / "STATE.yaml")
     if klass in {"trivial", "small"}:
@@ -191,6 +196,24 @@ def record_runtime_metrics(ws, metrics):
     return state
 
 
+def record_effective_class(ws, effective_class, signals, evidence):
+    """Persist runtime classification while retaining `class` compatibility."""
+    if effective_class not in CLASSES:
+        raise ValueError(f"bad effective class: {effective_class}")
+    ws = Path(ws)
+    change = _load_yaml(ws / "CHANGE.yaml")
+    requested = change.get("requested_class") or change.get("class")
+    if CLASS_RANK[effective_class] < CLASS_RANK[requested]:
+        effective_class = requested
+    change.update({
+        "requested_class": requested, "effective_class": effective_class, "class": effective_class,
+        "classification": {"source": "runtime", "classified_at": _now(),
+                           "signals": signals, "evidence": list(evidence)},
+    })
+    _dump_yaml(change, ws / "CHANGE.yaml")
+    return change
+
+
 def escalate_to_full(ws, target_class, triggers):
     if target_class not in {"standard", "architectural"}:
         raise ValueError("fast path can only escalate to standard/architectural")
@@ -200,7 +223,11 @@ def escalate_to_full(ws, target_class, triggers):
     if current not in {"trivial", "small"}:
         raise ValueError(f"cannot escalate full workflow from {current}")
     change.update({
-        "class": target_class, "escalated_from": current,
+        "class": target_class, "effective_class": target_class,
+        "requested_class": change.get("requested_class") or current,
+        "classification": {"source": "runtime", "classified_at": _now(),
+                           "evidence": list(triggers)},
+        "escalated_from": current,
         "escalation_triggers": list(triggers), "escalated_at": _now(),
     })
     _dump_yaml(change, ws / "CHANGE.yaml")

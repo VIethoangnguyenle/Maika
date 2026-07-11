@@ -1,7 +1,7 @@
 """Human-controlled skill candidate promotion/rejection commands."""
 
 from pathlib import Path
-import subprocess
+import importlib.util
 
 import yaml
 
@@ -9,20 +9,33 @@ from cli.knowledge_control import promote_skill_candidate, reject_skill_candidat
 from cli.scaffold import load_resolved_config
 
 
-def _run_checks(target: Path, checks: list) -> tuple[bool, list[dict]]:
+def _runtime(target: Path, framework_root: str):
+    path = target / framework_root / "tools" / "microloop-orchestrator" / "runtime_hardening.py"
+    spec = importlib.util.spec_from_file_location("maika_skill_runtime_hardening", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _run_checks(target: Path, framework_root: str, checks: list) -> tuple[bool, list[dict]]:
     results = []
+    runtime = _runtime(target, framework_root)
+    registry = runtime.load_verification_profiles(
+        target / framework_root / "profiles" / "verification-profiles.yaml"
+    )
     for raw in checks or []:
-        item = raw if isinstance(raw, dict) else {"command": str(raw)}
-        command = item.get("command")
-        if not command:
-            results.append({"command": "", "exit_code": 2, "passed": False, "output": "missing command"})
-            continue
-        proc = subprocess.run(command, cwd=target, shell=True, capture_output=True, text=True)
-        output = ((proc.stdout or "") + (proc.stderr or "")).strip()
-        expected = str(item.get("expected") or "")
-        passed = proc.returncode == 0 and (not expected or expected in output)
-        results.append({"command": command, "exit_code": proc.returncode,
-                        "passed": passed, "output": output[-2000:]})
+        item = raw if isinstance(raw, dict) else {}
+        try:
+            command = runtime.compile_verification_command(item, registry, target)
+            record = runtime.execute_command(command, target)
+            output, exit_code = record["observed_output"], record["exit_code"]
+            expected = str(item.get("expected") or "")
+            passed = exit_code == 0 and (not expected or expected in output)
+            results.append({"profile": item.get("profile"), "exit_code": exit_code,
+                            "passed": passed, "output": output[-2000:]})
+        except Exception as exc:
+            results.append({"profile": item.get("profile"), "exit_code": 2,
+                            "passed": False, "output": f"command policy error: {exc}"})
     return bool(results) and all(item["passed"] for item in results), results
 
 
@@ -47,13 +60,18 @@ def run_skill(action: str, target_dir: str, candidate_id: str,
             promotion = yaml.safe_load(Path(promotion_path).read_text(encoding="utf-8")) or {}
             candidate_doc = yaml.safe_load(candidate.read_text(encoding="utf-8")) or {}
             validation = candidate_doc.get("validation") or {}
-            tests_passed, test_results = _run_checks(target, validation.get("required_tests") or [])
+            tests_passed, test_results = _run_checks(target, framework_root, validation.get("required_tests") or [])
             dogfood_items = validation.get("dogfood_scenarios") or []
-            dogfood_passed, dogfood_results = _run_checks(target, dogfood_items)
+            dogfood_passed, dogfood_results = _run_checks(target, framework_root, dogfood_items)
+            canary_items = validation.get("canary_scenarios") or []
+            canary_passed, canary_results = _run_checks(target, framework_root, canary_items)
             if candidate_doc.get("classification") == "editorial" and not dogfood_items:
                 dogfood_passed = True
+            if candidate_doc.get("classification") == "editorial" and not canary_items:
+                canary_passed = True
             promotion.update(tests_passed=tests_passed, dogfood_passed=dogfood_passed,
-                             test_results=test_results, dogfood_results=dogfood_results)
+                             canary_passed=canary_passed, test_results=test_results,
+                             dogfood_results=dogfood_results, canary_results=canary_results)
             result = promote_skill_candidate(target, framework_root, candidate, review, promotion)
         else:
             result = reject_skill_candidate(target, framework_root, candidate, review)

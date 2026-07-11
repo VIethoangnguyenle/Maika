@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
+import json
 import os
 import re
 import shlex
@@ -12,7 +13,7 @@ import signal
 import socket
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -24,8 +25,37 @@ DEFAULT_ALLOWED_EXECUTABLES = {
 }
 CONFIRMATION_EXECUTABLES = {"docker", "kubectl", "terraform", "flyway", "liquibase"}
 DENIED_TOKENS = ("rm -rf", "sudo", "| sh", "| bash", "mkfs", ":(){", "> /dev/")
+# Interpreters that can execute arbitrary inline code. Running them with an
+# inline-code flag turns a "verification command" into arbitrary code execution
+# (plan §2.2: `python -c "import shutil; shutil.rmtree('src')"`), so it is denied.
+_INTERPRETERS = {"python", "python2", "python3", "node", "nodejs", "ruby",
+                 "perl", "bash", "sh", "zsh", "php", "deno"}
+_INLINE_CODE_FLAGS = {"-c", "-e", "--eval", "--command", "-"}
+
+
+def _executable_stem(executable: str) -> str:
+    name = Path(executable).name
+    low = name.lower()
+    for ext in (".exe", ".bat", ".cmd", ".com"):
+        if low.endswith(ext):
+            return name[: -len(ext)]
+    return name
 VERDICTS = {"APPROVED", "CHANGES_REQUESTED", "REJECTED"}
 AUTHORITY_ORDER = {"trivial": 0, "small": 1, "standard": 2, "architectural": 3}
+DEFAULT_VERIFICATION_PROFILES = {
+    "python-version": {"executable": "python", "fixed_args": ["--version"], "allowed_parameters": {}, "category": "test"},
+    "pytest-paths": {"executable": "pytest", "fixed_args": [], "allowed_parameters": {
+        "paths": {"type": "path-list", "must_be_inside_repo": True},
+        "tests": {"flag": "-k", "type": "string", "pattern": r"^[A-Za-z0-9_ .:-]+$"},
+    }, "category": "test"},
+    "gradle-test": {"executable": "./gradlew", "fixed_args": ["test"], "allowed_parameters": {
+        "tests": {"flag": "--tests", "type": "list", "pattern": r"^[A-Za-z0-9_.$*:-]+$"},
+    }, "category": "test"},
+    "gradle-build": {"executable": "./gradlew", "fixed_args": ["build", "--no-daemon"],
+                     "allowed_parameters": {}, "category": "build"},
+    "maika-ci": {"executable": "python", "fixed_args": ["scripts/run_ci.py"],
+                 "allowed_parameters": {}, "category": "test", "trusted_repo_paths": ["scripts/run_ci.py"]},
+}
 
 
 class CommandDenied(ValueError):
@@ -42,6 +72,100 @@ class WorkspaceBusy(RuntimeError):
 
 class ReviewInvalid(ValueError):
     pass
+
+
+def load_verification_profiles(path: Path | None = None) -> dict:
+    if path is None or not Path(path).exists():
+        return {"version": 1, "profiles": DEFAULT_VERIFICATION_PROFILES}
+    doc = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    if doc.get("version") != 1 or not isinstance(doc.get("profiles"), dict):
+        raise CommandDenied("invalid verification profile registry")
+    return doc
+
+
+def compile_verification_command(proposal: dict, profile_registry: dict, repo_root: Path) -> dict:
+    """Compile agent-selected parameters through a trusted command profile."""
+    if not isinstance(proposal, dict) or not isinstance(proposal.get("profile"), str):
+        raise CommandDenied("verification command requires a trusted profile")
+    profile_name = proposal["profile"]
+    profile = (profile_registry.get("profiles") or {}).get(profile_name)
+    if not isinstance(profile, dict):
+        raise CommandDenied(f"unknown verification profile: {profile_name}")
+    parameters = proposal.get("parameters") or {}
+    allowed_parameters = profile.get("allowed_parameters") or {}
+    unknown = set(parameters) - set(allowed_parameters)
+    if unknown:
+        raise CommandDenied(f"unsupported parameters for {profile_name}: {sorted(unknown)}")
+    args = list(profile.get("fixed_args") or [])
+    repo_root = Path(repo_root).resolve()
+    for name, value in parameters.items():
+        rule = allowed_parameters[name]
+        values = value if isinstance(value, list) else [value]
+        if rule.get("type") in {"list", "path-list"} and not isinstance(value, list):
+            raise CommandDenied(f"parameter {name} must be a list")
+        if rule.get("type") == "string" and not isinstance(value, str):
+            raise CommandDenied(f"parameter {name} must be a string")
+        for item in values:
+            if not isinstance(item, str) or not item:
+                raise CommandDenied(f"parameter {name} contains an invalid value")
+            if any(token in item for token in (";", "&&", "||", "\n", "\r", "\0")):
+                raise CommandDenied(f"command separator denied in parameter {name}")
+            pattern = rule.get("pattern")
+            if pattern and not re.fullmatch(pattern, item):
+                raise CommandDenied(f"parameter {name} does not match its profile pattern")
+            if rule.get("type") == "path-list":
+                candidate = (repo_root / item).resolve()
+                try:
+                    candidate.relative_to(repo_root)
+                except ValueError as exc:
+                    raise CommandDenied(f"verification path escapes repo: {item}") from exc
+            if rule.get("flag"):
+                args.append(str(rule["flag"]))
+            args.append(item)
+    executable = profile.get("executable")
+    if not isinstance(executable, str):
+        raise CommandDenied(f"profile {profile_name} has no executable")
+    if executable == Path(executable).name:
+        resolved = shutil.which(executable)
+        if resolved:
+            resolved_path = Path(resolved).resolve()
+            try:
+                resolved_path.relative_to(repo_root)
+            except ValueError:
+                pass
+            else:
+                raise CommandDenied(f"profile executable resolves inside repo: {executable}")
+        elif executable != "python":
+            raise CommandDenied(f"profile executable is unavailable: {executable}")
+    for trusted_path in profile.get("trusted_repo_paths") or []:
+        target = (repo_root / trusted_path).resolve()
+        try:
+            target.relative_to(repo_root)
+        except ValueError as exc:
+            raise CommandDenied(f"trusted profile path escapes repo: {trusted_path}") from exc
+        if not target.is_file():
+            raise CommandDenied(f"trusted profile path is missing: {trusted_path}")
+    return {"version": 1, "profile": profile_name, "executable": executable, "args": args,
+            "category": profile.get("category", "other")}
+
+
+def verification_command_hash(command: dict) -> str:
+    payload = json.dumps({"executable": command.get("executable"), "args": command.get("args") or []},
+                         sort_keys=True, separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def trusted_approval_matches(path: Path, change_id: str, command: dict) -> bool:
+    try:
+        approval = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return False
+    return (
+        approval.get("version") == 1
+        and approval.get("source") == "cli-user-action"
+        and approval.get("change_id") == change_id
+        and approval.get("command_hash") == verification_command_hash(command)
+    )
 
 
 def _now() -> str:
@@ -65,33 +189,42 @@ def normalize_command(command: dict | str) -> dict:
     return {**command, "version": 1, "args": list(args), "category": command.get("category", "other")}
 
 
-def validate_command(command: dict | str, allowed_executables=None, human_confirmed: bool = False) -> dict:
+def validate_command(command: dict | str, allowed_executables=None, human_confirmed: bool = False,
+                     confirmation_executables=None) -> dict:
     spec = normalize_command(command)
     executable = spec["executable"]
-    allowed = set(allowed_executables or DEFAULT_ALLOWED_EXECUTABLES)
+    allowed = set(DEFAULT_ALLOWED_EXECUTABLES if allowed_executables is None else allowed_executables)
+    confirmations = set(CONFIRMATION_EXECUTABLES if confirmation_executables is None else confirmation_executables)
     allowed_identities = allowed | {Path(item).name for item in allowed}
     name = Path(executable).name
-    # On Windows an interpreter's basename carries an extension (python.exe);
-    # match the stem too, but only for real executable extensions so a
-    # "python.py" file cannot masquerade as the "python" interpreter.
-    candidates = {executable, name}
-    low = name.lower()
-    for ext in (".exe", ".bat", ".cmd", ".com"):
-        if low.endswith(ext):
-            candidates.add(name[: -len(ext)])
-    if not (candidates & allowed_identities):
+    stem = _executable_stem(executable)
+    is_path_form = executable != name  # contains a directory separator / is a path
+    if executable in allowed:
+        pass  # explicit allowlist entry (bare name, ./gradlew, or a trusted full path)
+    elif is_path_form:
+        # A path whose basename merely matches ("/tmp/python") is a fake-executable
+        # bypass: the trusted interpreter must be named as a bare command (resolved
+        # from PATH) or allowlisted verbatim.
+        raise CommandDenied(f"path-form executable must be allowlisted verbatim: {executable}")
+    elif not ({name, stem} & allowed_identities):
+        # Only real executable extensions (.exe/.bat/...) are stripped, so a
+        # "python.py" file cannot masquerade as the "python" interpreter.
         raise CommandDenied(f"executable is not allowlisted: {executable}")
+    if (stem in _INTERPRETERS or name in _INTERPRETERS) and \
+            any(arg in _INLINE_CODE_FLAGS for arg in spec["args"]):
+        raise CommandDenied(f"inline interpreter code is not allowed: {executable} {spec['args'][:1]}")
     rendered = " ".join([executable, *spec["args"]]).lower()
     if any(token in rendered for token in DENIED_TOKENS):
         raise CommandDenied(f"dangerous command denied: {rendered}")
-    if Path(executable).name in CONFIRMATION_EXECUTABLES and not human_confirmed:
+    if (name in confirmations or stem in confirmations) and not human_confirmed:
         raise HumanConfirmationRequired(f"human confirmation required for {executable}")
     return spec
 
 
 def execute_command(command: dict | str, working_directory: Path, *, allowed_executables=None,
-                    human_confirmed=False, timeout=600, output_cap=2000) -> dict:
-    spec = validate_command(command, allowed_executables, human_confirmed)
+                    human_confirmed=False, confirmation_executables=None,
+                    timeout=600, output_cap=2000) -> dict:
+    spec = validate_command(command, allowed_executables, human_confirmed, confirmation_executables)
     if spec["executable"] == "python" and shutil.which("python") is None:
         spec["executable"] = sys.executable
     argv = [spec["executable"], *spec["args"]]
@@ -99,13 +232,18 @@ def execute_command(command: dict | str, working_directory: Path, *, allowed_exe
     try:
         process = subprocess.Popen(
             argv, cwd=str(Path(working_directory).resolve()), stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, text=True, shell=False, start_new_session=True,
+            stderr=subprocess.STDOUT, text=True, shell=False,
+            start_new_session=(os.name != "nt"),
+            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
         )
         try:
             output, _ = process.communicate(timeout=timeout)
             exit_code = process.returncode
         except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
+            if os.name == "nt":  # pragma: no cover - Windows CI
+                process.kill()
+            else:
+                os.killpg(process.pid, signal.SIGKILL)
             output, _ = process.communicate()
             output = (output or "") + f"\ncommand timeout after {timeout}s"
             exit_code = 124
@@ -159,10 +297,12 @@ def _process_alive(pid: int) -> bool:
 
 
 class WorkspaceLock:
-    def __init__(self, path: Path, task_id: str, recover_orphans: bool = True):
+    def __init__(self, path: Path, task_id: str, recover_orphans: bool = True,
+                 lease_seconds: int = 900):
         self.path = Path(path)
         self.task_id = task_id
         self.recover_orphans = recover_orphans
+        self.lease_seconds = lease_seconds
         self.acquired = False
         self.recovered_orphan = False
 
@@ -171,6 +311,15 @@ class WorkspaceLock:
             data = yaml.safe_load(self.path.read_text(encoding="utf-8")) or {}
         except (OSError, yaml.YAMLError):
             return False
+        lease = data.get("lease") or {}
+        try:
+            expires = datetime.fromisoformat(str(lease.get("expires_at")))
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+            if expires <= datetime.now(timezone.utc):
+                return True
+        except (TypeError, ValueError):
+            pass
         if data.get("host") != socket.gethostname():
             return False
         try:
@@ -181,9 +330,14 @@ class WorkspaceLock:
 
     def acquire(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        now = datetime.now(timezone.utc)
         payload = yaml.safe_dump({
             "version": 1, "pid": os.getpid(), "host": socket.gethostname(),
-            "started_at": _now(), "task_id": self.task_id,
+            "started_at": now.isoformat(), "task_id": self.task_id,
+            "lease": {"owner": f"{socket.gethostname()}:{os.getpid()}",
+                      "acquired_at": now.isoformat(),
+                      "expires_at": (now + timedelta(seconds=self.lease_seconds)).isoformat(),
+                      "heartbeat_at": now.isoformat()},
         }, sort_keys=False)
         for attempt in range(2):
             try:
@@ -194,10 +348,36 @@ class WorkspaceLock:
                 return self
             except FileExistsError:
                 if attempt == 0 and self.recover_orphans and self._orphaned():
+                    self._audit("recovered_expired_or_orphaned")
                     self.path.unlink(missing_ok=True)
                     self.recovered_orphan = True
                     continue
                 raise WorkspaceBusy(f"workspace is locked: {self.path}")
+
+    def _audit(self, action: str) -> None:
+        audit = self.path.parent / "LOCK_AUDIT.jsonl"
+        record = {"version": 1, "action": action, "task_id": self.task_id,
+                  "actor": f"{socket.gethostname()}:{os.getpid()}", "at": _now()}
+        with audit.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+
+    def heartbeat(self) -> None:
+        if not self.acquired:
+            raise WorkspaceBusy("cannot heartbeat an unowned lock")
+        data = yaml.safe_load(self.path.read_text(encoding="utf-8")) or {}
+        now = datetime.now(timezone.utc)
+        data["lease"] = {**(data.get("lease") or {}), "heartbeat_at": now.isoformat(),
+                         "expires_at": (now + timedelta(seconds=self.lease_seconds)).isoformat()}
+        self.path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+
+    @classmethod
+    def force_unlock(cls, path: Path, task_id: str) -> bool:
+        lock = cls(path, task_id, recover_orphans=False)
+        if not lock.path.exists():
+            return False
+        lock._audit("force_unlock")
+        lock.path.unlink()
+        return True
 
     def release(self):
         if self.acquired:
@@ -213,6 +393,7 @@ class WorkspaceLock:
 
 def parse_review(text: str, review_type: str, reviewed_commit: str | None = None,
                  reviewed_plan_hash: str | None = None) -> dict:
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     if not text.startswith("---\n") or "\n---\n" not in text[4:]:
         raise ReviewInvalid("review requires YAML front matter")
     front, body = text[4:].split("\n---\n", 1)
@@ -233,48 +414,124 @@ def parse_review(text: str, review_type: str, reviewed_commit: str | None = None
     return {**data, "body": body}
 
 
-def load_knowledge_slice(index_path: Path, store: Path, task_type: str, artifact_type: str,
-                         categories: list[str], affected_paths: list[str]) -> dict:
-    index = yaml.safe_load(Path(index_path).read_text(encoding="utf-8")) or {}
-    category_set = set(categories)
-    selected = []
-    for ref in index.get("entries") or []:
-        category_match = not category_set or ref.get("type") in category_set
-        patterns = ref.get("affected_paths") or []
-        path_match = not affected_paths or not patterns or any(
-            fnmatch.fnmatch(path, pattern) for path in affected_paths for pattern in patterns
-        )
-        if category_match and path_match:
-            selected.append(ref)
-    entries = []
-    for ref in selected:
-        item = yaml.safe_load((Path(store) / ref["file"]).read_text(encoding="utf-8")) or {}
-        if item.get("status") == "active":
-            entries.append(item)
-    return {
-        "version": 1, "task_type": task_type, "artifact_type": artifact_type,
-        "categories": categories, "relevant_ids": [item.get("id") for item in entries],
-        "entries": entries,
-    }
+def _knowledge_source_path(item: dict) -> str | None:
+    source = item.get("source")
+    if item.get("source_path"):
+        return str(item["source_path"])
+    if isinstance(source, dict):
+        for key in ("file", "path"):
+            if source.get(key):
+                return str(source[key])
+    paths = item.get("affected_paths") or []
+    if len(paths) == 1 and not any(char in paths[0] for char in "*?["):
+        return str(paths[0])
+    return None
 
 
 def can_reuse_evidence(item: dict, repo_root: Path, task_class: str) -> tuple[bool, str]:
     if item.get("status") != "active" or item.get("superseded_by"):
         return False, "claim is inactive or superseded"
+    if task_class == "trivial":
+        return True, "reusable"
     required = AUTHORITY_ORDER.get(task_class, 2)
     actual = AUTHORITY_ORDER.get(item.get("authority", "trivial"), 0)
     if actual < required:
         return False, "authority is insufficient"
-    paths = item.get("affected_paths") or []
-    if len(paths) != 1:
-        return False, "evidence requires one digest-bound path"
-    path = Path(repo_root) / paths[0]
+    source_path = _knowledge_source_path(item)
+    if not source_path:
+        return False, "evidence requires a digest-bound source path"
+    path = Path(repo_root) / source_path
     if not path.is_file():
         return False, "source path is missing"
     digest = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
     if digest != item.get("source_digest"):
         return False, "source digest changed"
+    if task_class == "architectural" and not (
+        item.get("revalidated_at") or (isinstance(item.get("freshness"), dict)
+                                       and item["freshness"].get("revalidated_at"))
+    ):
+        return False, "architectural evidence requires explicit revalidation"
     return True, "reusable"
+
+
+def select_knowledge_slice(index_path: Path, store: Path, repo_root: Path, task_type: str,
+                           artifact_type: str, categories: list[str], affected_paths: list[str],
+                           task_class: str = "standard", search_terms: set[str] | None = None,
+                           max_items: int | None = None, store_name: str | None = None) -> dict:
+    """Canonical knowledge retrieval, freshness validation, ranking and trimming."""
+    index = yaml.safe_load(Path(index_path).read_text(encoding="utf-8")) or {}
+    category_set = set(categories)
+    terms = {str(term).lower() for term in (search_terms or set())}
+    refs = []
+    retrieved = 0
+    rejected_scope = 0
+    for ref in index.get("entries") or []:
+        if store_name and ref.get("store") != store_name:
+            continue
+        if ref.get("status", "active") != "active" or ref.get("superseded_by"):
+            continue
+        if category_set and ref.get("type") not in category_set:
+            continue
+        applies = {str(value).lower() for value in ref.get("applies_to") or []}
+        haystack = " ".join([str(ref.get("id", "")), str(ref.get("title", "")), *applies]).lower()
+        if terms and not any(term in haystack for term in terms):
+            continue
+        retrieved += 1
+        patterns = ref.get("affected_paths") or []
+        if affected_paths and patterns and not any(
+            fnmatch.fnmatch(path, pattern) for path in affected_paths for pattern in patterns
+        ):
+            rejected_scope += 1
+            continue
+        refs.append(ref)
+
+    metrics = {"retrieved": retrieved, "eligible": 0, "reused": 0,
+               "rejected_stale": 0, "rejected_authority": 0, "rejected_scope": rejected_scope,
+               "revalidated": 0, "newly_created": 0, "evidence_omitted": 0}
+    eligible = []
+    for ref in refs:
+        rel = ref.get("path") or ref.get("file")
+        try:
+            item = yaml.safe_load((Path(store) / rel).read_text(encoding="utf-8")) or {}
+        except (OSError, TypeError, yaml.YAMLError):
+            metrics["rejected_stale"] += 1
+            continue
+        reusable, reason = can_reuse_evidence(item, repo_root, task_class)
+        if not reusable:
+            key = "rejected_authority" if "authority" in reason else "rejected_stale"
+            metrics[key] += 1
+            continue
+        normalized = {
+            **item,
+            "source": item.get("source") or {},
+            "source_digest": item.get("source_digest"),
+            "source_commit": item.get("source_commit"),
+            "authority": item.get("authority", "trivial"),
+            "freshness": item.get("freshness", "verified"),
+            "reuse_decision": "reused",
+        }
+        eligible.append(normalized)
+        if task_class == "architectural":
+            metrics["revalidated"] += 1
+    eligible.sort(key=lambda item: (-AUTHORITY_ORDER.get(item.get("authority", "trivial"), 0),
+                                    str(item.get("id") or "")))
+    metrics["eligible"] = len(eligible)
+    if max_items is not None and len(eligible) > max_items:
+        metrics["evidence_omitted"] = len(eligible) - max_items
+        eligible = eligible[:max_items]
+    metrics["reused"] = len(eligible)
+    return {
+        "version": 1, "task_type": task_type, "artifact_type": artifact_type,
+        "categories": categories, "relevant_ids": [item.get("id") for item in eligible],
+        "entries": eligible, "evidence_metrics": metrics,
+    }
+
+
+def load_knowledge_slice(index_path: Path, store: Path, task_type: str, artifact_type: str,
+                         categories: list[str], affected_paths: list[str]) -> dict:
+    """Compatibility wrapper; production code uses select_knowledge_slice."""
+    return select_knowledge_slice(index_path, store, store, task_type, artifact_type,
+                                  categories, affected_paths, task_class="trivial")
 
 
 LEARNING_SIGNALS = (

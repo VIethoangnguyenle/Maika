@@ -13,7 +13,9 @@ import importlib.util
 import json
 import os
 import re
+import signal
 import subprocess
+import sys
 from pathlib import Path
 
 import yaml
@@ -199,20 +201,28 @@ def make_worker_runner(worker, ws, repo_root, timeout=900):
             else:
                 argv.append(_render(token, prompt_file_path))
         try:
-            proc = subprocess.run(
-                argv,
-                shell=False,
-                cwd=str(repo_root),
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-        except subprocess.TimeoutExpired:
-            return 124, f"worker timeout after {timeout}s"
+            try:
+                proc = subprocess.Popen(
+                    argv, shell=False, cwd=str(repo_root), stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, text=True,
+                    start_new_session=(os.name != "nt"),
+                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
+                )
+            except OSError as exc:
+                return 127, f"worker process error: {exc}"
+            try:
+                output, _ = proc.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                if os.name == "nt":  # pragma: no cover - Windows CI
+                    proc.kill()
+                else:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                proc.communicate()
+                return 124, f"worker timeout after {timeout}s"
         finally:
             if prompt_file is not None:
                 prompt_file.unlink(missing_ok=True)
-        return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+        return proc.returncode, output or ""
 
     return runner
 
@@ -278,7 +288,7 @@ def _add_vnext_commands(sub):
     resume_parser.add_argument("--repo-root", required=True)
 
 
-def main(argv=None):
+def _main_unlocked(argv=None):
     parser = argparse.ArgumentParser(description="Maika vNext task orchestrator")
     sub = parser.add_subparsers(dest="command", required=True)
     _add_vnext_commands(sub)
@@ -461,6 +471,7 @@ def main(argv=None):
         return 0
 
     if args.command == "vnext-run":
+        runtime_policy = ar.RuntimePolicy.from_config(config)
         lock = WorkspaceLock(ws / "generated" / "WORKSPACE.lock", task_id=ws.name)
         try:
             lock.acquire()
@@ -470,6 +481,37 @@ def main(argv=None):
         try:
             state = vs.load_state(ws)
             change = yaml.safe_load((ws / "CHANGE.yaml").read_text(encoding="utf-8")) or {}
+            if change.get("class") in {"trivial", "small"} and (ws / "TASK.yaml").exists():
+                task = yaml.safe_load((ws / "TASK.yaml").read_text(encoding="utf-8")) or {}
+                try:
+                    signals = ar.derive_risk_signals(
+                        task, Path(args.repo_root), rules=(config or {}).get("risk_rules")
+                    )
+                except ValueError as exc:
+                    blocked_doc, exit_code = _blocked_metadata(str(exc), resume_state="INTAKE")
+                    vs.transition(ws, "BLOCKED", blocked=blocked_doc)
+                    print(f"Run outcome: blocked ({blocked_doc['code']}): {exc}")
+                    return exit_code
+                requested = change.get("requested_class") or change.get("class")
+                classified = ar.classify_risk(signals, current_class=requested)
+                target = classified["classification"]["proposed_class"]
+                evidence = classified["classification"].get("evidence") or []
+                if target in {"standard", "architectural"}:
+                    vs.escalate_to_full(ws, target, evidence)
+                    print(f"Run outcome: escalated to {target}")
+                    return EXIT_BLOCKED
+                change = vs.record_effective_class(ws, target, signals, evidence)
+                task["class"] = target
+                task["risk_signals"] = signals
+                task["classification"] = classified["classification"]
+                vs._dump_yaml(task, ws / "TASK.yaml")
+                if target == "small" and not (ws / "EVIDENCE.yaml").exists():
+                    vs._dump_yaml({
+                        "version": 1, "change_id": change.get("change_id"), "items": [],
+                        "evidence_metrics": {"retrieved": 0, "reused": 0, "revalidated": 0, "newly_created": 0},
+                    }, ws / "EVIDENCE.yaml")
+                    vs._dump_yaml({"version": 1, "change_id": change.get("change_id"), "status": "pending",
+                                   "changes": []}, ws / "RESULT.yaml")
             if change.get("class") in {"trivial", "small"}:
                 if state.get("state") != "INTAKE":
                     print(f"Refused: lightweight apply requires INTAKE (found {state.get('state')})")
@@ -477,21 +519,48 @@ def main(argv=None):
                 runner = _worker_runner(config, ws, args.repo_root)
                 if runner is None:
                     return 2
-                outcome = ar.execute_lightweight(ws, runner)
+                try:
+                    contract = ar.build_lightweight_execution_contract(
+                        ws, Path(args.repo_root), task, state, ar.RuntimeOwner(
+                            lease_seconds=int((config or {}).get("worker_timeout_seconds", 900)) + 60
+                        ),
+                    )
+                except (OSError, RuntimeError, ValueError) as exc:
+                    blocked_doc, exit_code = _blocked_metadata(str(exc), resume_state="INTAKE")
+                    vs.transition(ws, "BLOCKED", blocked=blocked_doc)
+                    print(f"Run outcome: blocked ({blocked_doc['code']}): {exc}")
+                    return exit_code
+                # The write gate only accepts the contract while canonical state
+                # is EXECUTING, so dispatch can never occur from INTAKE.
+                vs.transition(ws, "EXECUTING")
+                outcome = ar.execute_lightweight(ws, runner, policy=runtime_policy)
                 metrics = outcome.get("runtime_metrics")
                 if metrics:
                     vs.record_runtime_metrics(ws, metrics)
                 if outcome["status"] == "escalate":
                     target = outcome.get("target_class", "standard")
-                    vs.escalate_to_full(ws, target, outcome.get("triggers") or [])
-                    print(f"Run outcome: escalated to {target}")
-                    return 1
+                    ar.invalidate_lightweight_execution_contract(ws, "escalated")
+                    blocked_doc, exit_code = _blocked_metadata(
+                        f"runtime risk requires escalation to {target}", resume_state="INTAKE"
+                    )
+                    vs.transition(ws, "BLOCKED", blocked=blocked_doc)
+                    print(f"Run outcome: blocked pending escalation to {target}")
+                    return exit_code
                 if outcome["status"] != "done":
+                    ar.invalidate_lightweight_execution_contract(ws, "blocked")
                     blocked_doc, exit_code = _blocked_metadata(outcome.get("reason"), resume_state="INTAKE")
                     vs.transition(ws, "BLOCKED", blocked=blocked_doc)
                     print(f"Run outcome: blocked ({blocked_doc['code']}): {outcome.get('reason')}")
                     return exit_code
-                vs.transition(ws, "EXECUTING")
+                observed = ar.inspect_lightweight_changes(Path(args.repo_root), contract)
+                if observed["outside_scope"]:
+                    reason = "actual worktree changes outside lightweight scope: " + ", ".join(observed["outside_scope"])
+                    ar.invalidate_lightweight_execution_contract(ws, "invalid")
+                    blocked_doc, exit_code = _blocked_metadata(reason, resume_state="INTAKE")
+                    vs.transition(ws, "BLOCKED", blocked=blocked_doc)
+                    print(f"Run outcome: blocked ({blocked_doc['code']}): {reason}")
+                    return exit_code
+                ar.invalidate_lightweight_execution_contract(ws, "completed")
                 vs.transition(ws, "VERIFYING")
                 print("Run outcome: ready_for_verification")
                 return EXIT_OK
@@ -509,7 +578,9 @@ def main(argv=None):
             runner = _worker_runner(config, ws, args.repo_root)
             if runner is None:
                 return 2
-            out = vd.run_queue(ws, args.repo_root, runner)
+            out = vd.run_queue(ws, args.repo_root, runner,
+                               max_retries=runtime_policy.max_retries,
+                               runtime_policy=runtime_policy)
             if out["status"] == "done":
                 vs.transition(ws, "FINAL_REVIEW")
                 print("Run outcome: done")
@@ -555,6 +626,32 @@ def main(argv=None):
 
     print(f"Unknown command: {args.command}")
     return 2
+
+
+def main(argv=None):
+    raw = list(argv) if argv is not None else sys.argv[1:]
+    command = raw[0] if raw else ""
+    lifecycle_mutations = {
+        "vnext-start-exploration", "vnext-transition", "vnext-compile",
+        "vnext-review-plan", "vnext-validate-reasoning", "vnext-validate-spec",
+        "vnext-resume",
+    }
+    if command not in lifecycle_mutations:
+        return _main_unlocked(raw)
+    try:
+        ws = Path(raw[raw.index("--workspace") + 1])
+    except (ValueError, IndexError):
+        return _main_unlocked(raw)
+    lock = WorkspaceLock(ws / "generated" / "WORKSPACE.lock", task_id=ws.name)
+    try:
+        lock.acquire()
+    except WorkspaceBusy as exc:
+        print(f"Refused: {exc}")
+        return EXIT_BLOCKED
+    try:
+        return _main_unlocked(raw)
+    finally:
+        lock.release()
 
 
 if __name__ == "__main__":

@@ -32,8 +32,9 @@ def _sha(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _active_project_knowledge(framework_root, task_header, section_text):
-    """Select the smallest active durable slice for a compiled task."""
+def _active_project_knowledge(framework_root, repo_root, task_header, section_text,
+                              task_class, max_items):
+    """Delegate production selection to the canonical freshness-aware service."""
     long_term = Path(framework_root) / "knowledge" / "long-term"
     index_path = long_term / "knowledge-index.yaml"
     questions = task_header.get("knowledge_questions") or []
@@ -41,36 +42,18 @@ def _active_project_knowledge(framework_root, task_header, section_text):
     scope = [item for values in files.values() for item in (values or [])]
     terms = {word.lower() for value in [*scope, *questions, section_text]
              for word in re.findall(r"[A-Za-z0-9_-]{4,}", str(value))}
+    empty = {"retrieved": 0, "eligible": 0, "reused": 0, "rejected_stale": 0,
+             "rejected_authority": 0, "rejected_scope": 0, "revalidated": 0,
+             "newly_created": 0, "evidence_omitted": 0}
     if not index_path.exists():
-        return [], questions, {"retrieved": 0, "reused": 0, "revalidated": 0, "newly_created": 0}
-    index = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}
-    refs = [item for item in index.get("entries") or []
-            if item.get("store") == "project-knowledge" and item.get("status") == "active"]
-    matched = []
-    selected = []
-    for ref in refs:
-        haystack = " ".join([str(ref.get("id", "")), str(ref.get("title", "")),
-                             " ".join(ref.get("applies_to") or []),
-                             " ".join(ref.get("affected_paths") or [])]).lower()
-        if terms and any(term in haystack for term in terms):
-            selected.append(ref)
-    for ref in selected:
-        path = long_term / ref["path"]
-        item = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        if not isinstance(item, dict) or item.get("status") != "active":
-            continue
-        matched.append({
-            "id": item.get("id"), "type": item.get("type"), "path": str(path),
-            "statement": item.get("statement"), "applies_to": item.get("applies_to") or [],
-            "source": item.get("source") or item.get("provenance") or {},
-            "source_commit": item.get("source_commit"),
-            "affected_paths": item.get("affected_paths") or [],
-            "freshness": item.get("freshness", "verified"),
-            "confidence": item.get("confidence", "medium"), "status": item.get("status"),
-        })
-    metrics = {"retrieved": len(selected), "reused": len(matched),
-               "revalidated": 0, "newly_created": 0}
-    return matched, questions, metrics
+        return [], questions, empty
+    hardening = _load("runtime_hardening_knowledge", "runtime_hardening.py")
+    result = hardening.select_knowledge_slice(
+        index_path, long_term, Path(repo_root), "code-change", "task", [], scope,
+        task_class=task_class, search_terms=terms, max_items=max_items,
+        store_name="project-knowledge",
+    )
+    return result["entries"], questions, result["evidence_metrics"]
 
 
 def compile_plan(ws, repo_root):
@@ -78,6 +61,7 @@ def compile_plan(ws, repo_root):
     pp = _load("plan_parser", "plan_parser.py")
     orch = _load("orchestrator", "orchestrator.py")
     gates = _load("gates", "gate-check/gates.py")
+    adaptive = _load("adaptive_runtime", "adaptive_runtime.py")
     text = (ws / "IMPLEMENTATION_PLAN.md").read_text(encoding="utf-8")
     generated_at = datetime.fromtimestamp(
         (ws / "IMPLEMENTATION_PLAN.md").stat().st_mtime, timezone.utc
@@ -125,6 +109,14 @@ def compile_plan(ws, repo_root):
     queue_tasks = []
     framework_root = ws.parents[1]
     change = yaml.safe_load((ws / "CHANGE.yaml").read_text(encoding="utf-8")) or {}
+    config_path = framework_root / "profiles" / "execution-mode.local.yaml"
+    if not config_path.exists():
+        config_path = framework_root / "profiles" / "execution-mode.yaml"
+    runtime_policy = adaptive.RuntimePolicy.from_config(
+        yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+    )
+    task_class = change.get("class", "standard")
+    evidence_limit = int(runtime_policy.token_budget[task_class]["max_evidence_items"])
     evidence_retrieved = 0
     evidence_reused = 0
     for tid in order:
@@ -139,7 +131,7 @@ def compile_plan(ws, repo_root):
         # W4: Task Knowledge Capsule — smallest relevant knowledge slice + freshness.
         kn = t["header"].get("knowledge") or {}
         project_slice, knowledge_questions, evidence_metrics = _active_project_knowledge(
-            framework_root, t["header"], body
+            framework_root, repo_root, t["header"], body, task_class, evidence_limit
         )
         capsule = {
             "task_id": tid,
@@ -199,7 +191,8 @@ def compile_plan(ws, repo_root):
             "files": t["header"].get("files") or {},
         })
     (gen / "TASK_QUEUE.json").write_text(json.dumps(
-        {"version": 1, "change_id": manifest["change_id"], "base_commit": manifest["base_commit"],
+        {"version": 1, "schema_version": 1, "generation": 1,
+         "change_id": manifest["change_id"], "base_commit": manifest["base_commit"],
          "plan_sha256": plan_sha, "task_class": change.get("class", "standard"),
          "repo_root": str(Path(repo_root).resolve()),
          "runtime_metrics": {

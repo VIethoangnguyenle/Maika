@@ -12,7 +12,11 @@ def candidate():
         "proposed_change": {"sections": ["Output"], "summary": "require capsule", "before": "optional", "after": "required"},
         "expected_effect": {"improvements": ["grounding"], "risks": ["tokens"], "token_impact": "small", "behavior_change": True},
         "compatibility": {"capability_ids_changed": False, "output_contract_changed": False, "runtime_consumer_changed": False, "migration_required": False},
-        "validation": {"required_tests": ["test_capsule"], "dogfood_scenarios": ["two tasks"], "regression_risks": ["prompt size"]},
+        "validation": {"required_tests": ["test_capsule"], "dogfood_scenarios": ["two tasks"],
+                       "canary_scenarios": ["canary task"], "regression_risks": ["prompt size"]},
+        "skill_evaluation": {"evaluation_tasks": [], "before_metrics": {},
+                             "after_metrics": {}, "verdict": "PENDING"},
+        "rollback": {"previous_version": "2.0", "status": "ready"},
     }
 
 

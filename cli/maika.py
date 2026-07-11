@@ -123,12 +123,15 @@ def main():
             "start", "explore", "validate-reasoning", "reconcile", "brainstorm", "spec", "plan",
             "validate-plan", "apply", "review", "verify", "archive", "status",
             "resume", "cancel",
+            "approve-command",
+            "force-unlock",
         ],
     )
     task_parser.add_argument("--target", default=".")
     task_parser.add_argument("--id", dest="change_id", default=None)
     task_parser.add_argument("--class", dest="klass", default="small")
     task_parser.add_argument("--title", default=None)
+    task_parser.add_argument("--command-id", default=None)
 
     # ─── update ───
     update_parser = subparsers.add_parser(
@@ -236,6 +239,7 @@ def main():
             change_id=args.change_id,
             klass=args.klass,
             title=args.title,
+            command_id=args.command_id,
         )
         sys.exit(rc)
     elif args.command == "dashboard":

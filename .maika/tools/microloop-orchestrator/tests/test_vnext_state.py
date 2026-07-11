@@ -29,6 +29,8 @@ def test_init_workspace_creates_minimal_layout(tmp_path):
     change = vs._load_yaml(ws / "CHANGE.yaml")
     assert change["change_id"] == "demo-change"
     assert change["class"] == "standard"
+    assert change["requested_class"] == "standard"
+    assert change["effective_class"] == "standard"
     assert vs.load_state(ws)["state"] == "INTAKE"
 
 

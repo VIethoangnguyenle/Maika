@@ -1,5 +1,6 @@
 # tests/test_vnext_dispatch.py
 import json
+import copy
 import subprocess
 import sys
 from pathlib import Path
@@ -10,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 import vnext_dispatch as vd
 import vnext_state as vs
 import plan_compiler as pc
+import adaptive_runtime as ar
 
 REVIEW_TRACE = """
 ## Knowledge Trace
@@ -130,6 +132,33 @@ def test_review_plan_missing_output(tmp_path):
     def runner(prompt):
         return 1, "failed"
     assert vd.review_plan(ws, runner, output_path=ws / "review_output.txt") == "FINDINGS"
+
+
+def test_full_dispatch_uses_project_worker_budget(tmp_path):
+    ws, root = _setup(tmp_path)
+    calls = []
+    policy = ar.RuntimePolicy.from_config({
+        "token_budget": {"standard": {"max_worker_calls": 0}},
+    })
+    result = vd.run_queue(ws, root, lambda prompt: calls.append(prompt),
+                          runtime_policy=policy, max_retries=0)
+    assert result["status"] == "blocked"
+    assert "worker-call budget exhausted" in result["reason"]
+    assert calls == []
+
+
+def test_queue_generation_compare_and_swap_rejects_stale_writer(tmp_path):
+    ws, _ = _setup(tmp_path)
+    first = vd._read_queue(ws)
+    stale = copy.deepcopy(first)
+    first["runtime_metrics"]["tool_calls"] = 1
+    vd._write_queue(ws, first, expected_generation=first["generation"])
+    stale["runtime_metrics"]["tool_calls"] = 2
+    try:
+        vd._write_queue(ws, stale, expected_generation=stale["generation"])
+        assert False, "stale queue writer should fail"
+    except ValueError as exc:
+        assert "generation mismatch" in str(exc)
 
 
 def _runner_for_w3(ws, calls, *, first_review="APPROVED"):

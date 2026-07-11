@@ -1288,7 +1288,8 @@ def validate_skill_evolution_candidate(text: str) -> Result:
     if error:
         return error
     top = {"version", "candidate_id", "target_skill", "status", "classification", "problem",
-           "evidence", "proposed_change", "expected_effect", "compatibility", "validation"}
+           "evidence", "proposed_change", "expected_effect", "compatibility", "validation",
+           "skill_evaluation", "rollback"}
     if top - set(data):
         return Result(False, "skill candidate missing: " + ", ".join(sorted(top - set(data))))
     if data.get("classification") not in {"editorial", "behavioral", "contractual"}:
@@ -1338,6 +1339,10 @@ def validate_skill_evolution_promotion(text: str) -> Result:
         return Result(False, "promotion requires approved review and regression tests")
     if data.get("classification") in {"behavioral", "contractual"} and data.get("dogfood_passed") is not True:
         return Result(False, "behavioral/contractual promotion requires dogfood")
+    if data.get("classification") in {"behavioral", "contractual"} and (
+        data.get("canary_passed") is not True or not data.get("canary_results")
+    ):
+        return Result(False, "behavioral/contractual promotion requires canary evidence")
     if data.get("classification") == "contractual" and data.get("human_approval") is not True:
         return Result(False, "contractual promotion requires human approval")
     return Result(True)

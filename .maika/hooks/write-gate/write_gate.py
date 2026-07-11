@@ -7,6 +7,7 @@ Command-hook contract:
 - Antigravity: stdout JSON with decision allow|deny.
 """
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -445,7 +446,67 @@ def _is_same_or_child(path: str, parent: str) -> bool:
     return path == parent or path.startswith(parent.rstrip("/") + "/")
 
 
-def _vnext_active_task(project_root: Path, framework_root: str):
+def _canonical_hash(value) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _lightweight_active_task(ws: Path):
+    contract_path = ws / "generated" / "LIGHTWEIGHT_EXECUTION.yaml"
+    task_path = ws / "TASK.yaml"
+    if not contract_path.exists() and not task_path.exists():
+        return None
+    try:
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+        task = yaml.safe_load(task_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return ("deny", "không đọc được lightweight execution contract")
+    if contract.get("version") != 1 or contract.get("status") != "active":
+        return ("deny", "lightweight execution contract không active")
+    if contract.get("state") != "EXECUTING" or contract.get("task_class") not in {"trivial", "small"}:
+        return ("deny", "lightweight execution contract không hợp lệ")
+    task_hash = "sha256:" + hashlib.sha256(task_path.read_bytes()).hexdigest()
+    if contract.get("task_hash") != task_hash:
+        return ("deny", "LIGHTWEIGHT_EXECUTION task hash mismatch")
+    scope = contract.get("scope") or {}
+    if contract.get("scope_hash") != _canonical_hash(scope):
+        return ("deny", "LIGHTWEIGHT_EXECUTION scope hash mismatch")
+    task_files = (task.get("scope") or {}).get("files") or {}
+    task_scope = {key: sorted(set(task_files.get(key) or [])) for key in ("create", "modify", "delete", "test")}
+    if scope != task_scope:
+        return ("deny", "LIGHTWEIGHT_EXECUTION scope không khớp TASK.yaml")
+    if contract.get("change_id") != (task.get("change_id") or ws.name):
+        return ("deny", "LIGHTWEIGHT_EXECUTION change_id mismatch")
+    if contract.get("role") != "application-implementer":
+        return ("deny", "LIGHTWEIGHT_EXECUTION role không hợp lệ")
+    if contract.get("task_class") == "small":
+        evidence_path = ws / "EVIDENCE.yaml"
+        if not evidence_path.is_file():
+            return ("deny", "LIGHTWEIGHT_EXECUTION thiếu EVIDENCE.yaml")
+        evidence_hash = "sha256:" + hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+        if contract.get("evidence_hash") != evidence_hash:
+            return ("deny", "LIGHTWEIGHT_EXECUTION evidence hash mismatch")
+    try:
+        expires = datetime.fromisoformat((contract.get("runtime") or {})["lease_expires_at"])
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+    except (KeyError, TypeError, ValueError):
+        return ("deny", "LIGHTWEIGHT_EXECUTION lease không hợp lệ")
+    if expires <= datetime.now(timezone.utc):
+        return ("deny", "LIGHTWEIGHT_EXECUTION lease đã hết hạn")
+    files = {key: list(scope.get(key) or []) for key in ("create", "modify", "delete", "test")}
+    if not any(files.values()):
+        return ("deny", "LIGHTWEIGHT_EXECUTION scope rỗng")
+    return (ws, {
+        "id": contract.get("execution_id") or "LIGHTWEIGHT",
+        "role": contract.get("role") or "application-implementer",
+        "files": files,
+        "result_path": "RESULT.yaml" if contract.get("task_class") == "small" else None,
+        "contract_type": "lightweight",
+    })
+
+
+def resolve_active_execution(project_root: Path, framework_root: str):
     framework_path = project_root / framework_root
     config_path = _execution_config_path(framework_path)
     try:
@@ -469,6 +530,9 @@ def _vnext_active_task(project_root: Path, framework_root: str):
         return ("deny", "có nhiều change EXECUTING")
 
     ws = executing[0]
+    lightweight = _lightweight_active_task(ws)
+    if lightweight is not None:
+        return lightweight
     gen = ws / "generated"
     try:
         validation = _read_json(gen / "PLAN_VALIDATION.json")
@@ -489,6 +553,11 @@ def _vnext_active_task(project_root: Path, framework_root: str):
     if len(in_progress) != 1:
         return ("deny", "không có đúng một task in_progress")
     return (ws, in_progress[0])
+
+
+def _vnext_active_task(project_root: Path, framework_root: str):
+    """Compatibility alias for callers while the unified contract name rolls out."""
+    return resolve_active_execution(project_root, framework_root)
 
 
 def evaluate_write(project_root: Path, target_path: Path, framework_root: str = ".maika",

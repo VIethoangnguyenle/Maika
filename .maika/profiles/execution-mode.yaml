@@ -9,17 +9,17 @@ execution_mode: fresh-session
 # placeholder hợp lệ: {prompt} {prompt_file} {repo_root} {workspace} {task_id}.
 worker:
   executable: agy
-  args: ["--add-dir", "{repo_root}", "--dangerously-skip-permissions", "-p", "{prompt}"]
+  args: ["--add-dir", "{repo_root}", "--dangerously-skip-permissions", "--prompt-file", "{prompt_file}"]
 {% elif platform.name == "codex" %}
 execution_mode: fresh-session
 worker:
   executable: codex
-  args: ["exec", "--sandbox", "workspace-write", "{prompt}"]
+  args: ["exec", "--sandbox", "workspace-write", "--prompt-file", "{prompt_file}"]
 {% elif platform.name == "claude-code" %}
 execution_mode: fresh-session
 worker:
   executable: claude
-  args: ["-p", "--dangerously-skip-permissions", "{prompt}"]
+  args: ["-p", "--dangerously-skip-permissions", "--prompt-file", "{prompt_file}"]
 {% else %}
 execution_mode: inline-reload
 worker: {}
@@ -39,6 +39,7 @@ token_budget:
 
 command_policy:
   version: 1
+  allowed_profiles: [python-version, pytest-paths, gradle-test, gradle-build, maika-ci]
   allowed_executables: [./gradlew, gradlew, mvn, pytest, python, python3, npm, pnpm, go, cargo, git]
   requires_human_confirmation: [docker, kubectl, terraform, flyway, liquibase]
   timeout_seconds: 600

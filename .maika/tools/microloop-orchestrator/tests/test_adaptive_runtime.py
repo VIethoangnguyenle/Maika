@@ -1,4 +1,5 @@
 import sys
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,15 @@ sys.path.insert(0, str(ROOT))
 
 import adaptive_runtime as ar
 import vnext_state as vs
+
+
+def _git_repo(root: Path):
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
+    (root / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-qm", "seed"], cwd=root, check=True)
 
 
 def test_classifier_is_deterministic_and_risk_floors_are_enforced():
@@ -34,6 +44,50 @@ def test_classifier_never_downgrades_confirmed_class():
     )
     assert result["classification"]["proposed_class"] == "standard"
     assert "monotonic_class_floor:standard" in result["classification"]["evidence"]
+
+
+@pytest.mark.parametrize(("path", "expected", "signal"), [
+    ("docs/guide.md", "trivial", None),
+    ("src/service.py", "small", "application_code_changed"),
+    ("src/api/controller.py", "standard", "public_contract_changed"),
+    ("db/migrations/001.sql", "architectural", "migration_required"),
+    ("src/security/auth.py", "architectural", "security_changed"),
+])
+def test_repo_derived_risk_classification(tmp_path, path, expected, signal):
+    target = tmp_path / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("content\n", encoding="utf-8")
+    task = {"scope": {"files": {"modify": [path]}}}
+    signals = ar.derive_risk_signals(task, tmp_path)
+    result = ar.classify_risk(signals)["classification"]["proposed_class"]
+    assert result == expected
+    if signal:
+        assert signals[signal] is True
+
+
+def test_repo_derived_module_count_uses_gradle_registry(tmp_path):
+    (tmp_path / "settings.gradle").write_text("include ':service-a', ':service-b'\n", encoding="utf-8")
+    for path in ("service-a/src/a.py", "service-b/src/b.py"):
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("x\n", encoding="utf-8")
+    signals = ar.derive_risk_signals({
+        "scope": {"files": {"modify": ["service-a/src/a.py", "service-b/src/b.py"]}}
+    }, tmp_path)
+    assert signals["affected_modules"] == 2
+    assert signals["affected_module_names"] == ["service-a", "service-b"]
+
+
+def test_repo_risk_rules_can_be_overridden(tmp_path):
+    target = tmp_path / "contracts" / "internal.txt"
+    target.parent.mkdir()
+    target.write_text("x\n", encoding="utf-8")
+    signals = ar.derive_risk_signals(
+        {"scope": {"files": {"modify": ["contracts/internal.txt"]}}},
+        tmp_path,
+        rules={"public_contract": ["contracts/**"]},
+    )
+    assert signals["public_contract_changed"] is True
 
 
 def test_class_specific_workspace_artifacts(tmp_path):
@@ -80,6 +134,50 @@ def test_worker_budget_warns_then_blocks_without_dropping_invariants():
         budget.record_worker_call()
 
 
+def test_runtime_policy_merges_project_budget_override():
+    policy = ar.RuntimePolicy.from_config({
+        "token_budget": {"small": {"max_worker_calls": 7, "max_evidence_items": 2}},
+        "worker_timeout_seconds": 12, "max_retries": 4,
+    })
+    assert policy.token_budget["small"]["max_worker_calls"] == 7
+    assert policy.token_budget["small"]["max_context_tokens"] == 20000
+    assert policy.worker_timeout_seconds == 12
+    assert policy.max_retries == 4
+
+
+def test_evidence_budget_is_deterministic_and_required_items_survive():
+    items = [
+        {"id": "B", "authority": "small"},
+        {"id": "REQ", "authority": "trivial", "required": True},
+        {"id": "A", "authority": "architectural"},
+    ]
+    selected, metrics = ar.select_evidence(items, 2)
+    assert [item["id"] for item in selected] == ["REQ", "A"]
+    assert metrics == {"evidence_selected": 2, "evidence_omitted": 1}
+    with pytest.raises(ar.BudgetExceeded, match="required evidence"):
+        ar.select_evidence([{**item, "required": True} for item in items], 2)
+
+
+def test_context_budget_blocks_before_worker_and_records_estimate(tmp_path):
+    ws = vs.init_workspace(tmp_path, "small-budget", "small", "Small")
+    task = yaml.safe_load((ws / "TASK.yaml").read_text(encoding="utf-8"))
+    task["scope"]["files"]["modify"] = ["src/a.py"]
+    (ws / "TASK.yaml").write_text(yaml.safe_dump(task), encoding="utf-8")
+    evidence = yaml.safe_load((ws / "EVIDENCE.yaml").read_text(encoding="utf-8"))
+    evidence["items"] = [{"id": "E-1", "statement": "required context"}]
+    (ws / "EVIDENCE.yaml").write_text(yaml.safe_dump(evidence), encoding="utf-8")
+    called = []
+    policy = ar.RuntimePolicy.from_config({
+        "token_budget": {"small": {"max_context_tokens": 1}},
+    })
+    result = ar.execute_lightweight(ws, lambda prompt: called.append(prompt), policy=policy)
+    assert result["status"] == "blocked"
+    assert "context budget exceeded" in result["reason"]
+    assert called == []
+    assert result["runtime_metrics"]["estimated_tokens"] > 1
+    assert result["runtime_metrics"]["total_tokens"] == "unavailable"
+
+
 def test_small_happy_path_uses_one_worker_call(tmp_path):
     ws = vs.init_workspace(tmp_path, "small-run", "small", "Small run")
     task = yaml.safe_load((ws / "TASK.yaml").read_text(encoding="utf-8"))
@@ -102,3 +200,47 @@ def test_small_happy_path_uses_one_worker_call(tmp_path):
     assert result["status"] == "done"
     assert result["runtime_metrics"]["worker_calls"] == 1
     assert len(calls) == 1
+
+
+def test_lightweight_contract_hashes_scope_and_detects_actual_scope_escape(tmp_path):
+    _git_repo(tmp_path)
+    ws = vs.init_workspace(tmp_path / ".maika" / "changes", "small", "small", "Small")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("old\n", encoding="utf-8")
+    (tmp_path / "src" / "b.py").write_text("old\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "workspace"], cwd=tmp_path, check=True)
+    task = yaml.safe_load((ws / "TASK.yaml").read_text(encoding="utf-8"))
+    task["scope"]["files"]["modify"] = ["src/a.py"]
+    (ws / "TASK.yaml").write_text(yaml.safe_dump(task), encoding="utf-8")
+
+    contract = ar.build_lightweight_execution_contract(
+        ws, tmp_path, task, vs.load_state(ws), ar.RuntimeOwner(pid=7, host="test", lease_seconds=60)
+    )
+    assert contract["status"] == "active"
+    assert contract["task_hash"].startswith("sha256:")
+    assert contract["scope"]["modify"] == ["src/a.py"]
+    (tmp_path / "src" / "a.py").write_text("allowed\n", encoding="utf-8")
+    (tmp_path / "src" / "b.py").write_text("escaped\n", encoding="utf-8")
+
+    observed = ar.inspect_lightweight_changes(tmp_path, contract)
+    assert observed["allowed"] == ["src/a.py"]
+    assert observed["outside_scope"] == ["src/b.py"]
+
+
+def test_lightweight_contract_rejects_empty_scope(tmp_path):
+    _git_repo(tmp_path)
+    ws = vs.init_workspace(tmp_path / ".maika" / "changes", "small", "small", "Small")
+    task = yaml.safe_load((ws / "TASK.yaml").read_text(encoding="utf-8"))
+    with pytest.raises(ValueError, match="non-empty declared scope"):
+        ar.build_lightweight_execution_contract(ws, tmp_path, task, vs.load_state(ws))
+
+
+def test_lightweight_contract_rejects_scope_path_escape(tmp_path):
+    _git_repo(tmp_path)
+    ws = vs.init_workspace(tmp_path / ".maika" / "changes", "small", "small", "Small")
+    task = yaml.safe_load((ws / "TASK.yaml").read_text(encoding="utf-8"))
+    task["scope"]["files"]["modify"] = ["../outside.py"]
+    (ws / "TASK.yaml").write_text(yaml.safe_dump(task), encoding="utf-8")
+    with pytest.raises(ValueError, match="repo-relative POSIX"):
+        ar.build_lightweight_execution_contract(ws, tmp_path, task, vs.load_state(ws))

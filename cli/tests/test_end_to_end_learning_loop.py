@@ -6,6 +6,7 @@ from cli.knowledge_control import (
     LearningStore,
     apply_project_learning,
     promote_skill_candidate,
+    rollback_skill_promotion,
     validate_markdown_knowledge_trace,
 )
 
@@ -17,7 +18,11 @@ def test_task_a_knowledge_is_retrieved_by_task_b_and_feedback_clusters(tmp_path)
     assert [item["id"] for item in package["knowledge_slice"]] == ["PK-1"]
 
     for change in ("A", "A", "B"):
-        store.record_feedback({"change_id": change, "verified": True, "recurrence_key": "missing-idempotency", "skill": "writing-plan"})
+        store.record_feedback({
+            "change_id": change, "verified": True, "recurrence_key": "missing-idempotency",
+            "skill": "writing-plan", "reproducible": True, "impact": "measurable",
+            "evaluation_ready": True,
+        })
     candidate = store.cluster_candidate("missing-idempotency")
     assert candidate["status"] == "proposed"
     assert candidate["problem"]["occurrences"] == 3
@@ -84,6 +89,7 @@ decision:
             "change_id": change, "verified": True, "recurrence_key": "capsule-idempotency",
             "skill": "writing-plan", "category": "behavioral", "severity": "important",
             "statement": "capsule omitted idempotency", "recommendation": "require idempotency evidence",
+            "reproducible": True, "impact": "measurable", "evaluation_ready": True,
         })
     candidate = store.cluster_candidate("capsule-idempotency")
     candidate["proposed_change"] = {
@@ -111,7 +117,14 @@ decision:
         tmp_path, ".maika", candidate_path,
         {"independent": True, "verdict": "approved", "guardrails_preserved": True},
         {"old_version": "2.0", "new_version": "2.1", "independent_review": "approved",
-         "tests_passed": True, "dogfood_passed": True, "human_approval": False},
+         "tests_passed": True, "dogfood_passed": True, "canary_passed": True,
+         "canary_results": [{"task": "TASK-B", "passed": True}], "human_approval": False},
     )
     assert promoted["status"] == "accepted"
     assert "new control" in Path(promoted["skill_path"]).read_text(encoding="utf-8")
+    rolled_back = rollback_skill_promotion(
+        tmp_path, ".maika", Path(promoted["candidate_path"]),
+        [{"task": "CANARY-1", "passed": False, "reason": "regression"}],
+    )
+    assert rolled_back["status"] == "rolled_back"
+    assert "## Output\nold\n" in Path(rolled_back["skill_path"]).read_text(encoding="utf-8")

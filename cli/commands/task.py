@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import getpass
+import re
 import shlex
 import shutil
 import subprocess
@@ -155,6 +157,34 @@ def _cancel(target: Path, framework_root: str, change_id: str) -> int:
     return 0
 
 
+def _with_workspace_lock(target: Path, framework_root: str, change_id: str, operation):
+    policy = _runtime_hardening(target, framework_root)
+    ws = _workspace(target, framework_root, change_id)
+    lock = policy.WorkspaceLock(ws / "generated" / "WORKSPACE.lock", task_id=change_id)
+    try:
+        lock.acquire()
+    except policy.WorkspaceBusy as exc:
+        print(f"Refused: {exc}")
+        return 1
+    try:
+        return operation()
+    finally:
+        archived_lock = _archive_workspace(target, framework_root, change_id) / "generated" / "WORKSPACE.lock"
+        if not lock.path.exists() and archived_lock.exists():
+            lock.path = archived_lock
+        lock.release()
+
+
+def _force_unlock(target: Path, framework_root: str, change_id: str) -> int:
+    policy = _runtime_hardening(target, framework_root)
+    path = _workspace(target, framework_root, change_id) / "generated" / "WORKSPACE.lock"
+    if policy.WorkspaceLock.force_unlock(path, change_id):
+        print(f"Force-unlocked {change_id}; audit record written")
+        return 0
+    print(f"No workspace lock exists for {change_id}")
+    return 1
+
+
 def _read_state(target: Path, framework_root: str, ws: Path) -> dict | None:
     state_path = ws / "STATE.yaml"
     if not state_path.exists():
@@ -174,35 +204,58 @@ def _command_record(name: str, expected: str, observed: str, exit_code: int = 0)
     }
 
 
-def _run_declared_commands(target: Path, framework_root: str, declared: list) -> list[dict]:
+def _run_declared_commands(target: Path, framework_root: str, declared: list,
+                           workspace: Path | None = None) -> list[dict]:
     """Run real verification commands declared in verification/COMMANDS.yaml and
     record command, expected, observed output, exit code, timestamp, interpretation.
     A command passes only when it exits 0 AND (if declared) its expected substring
     is in the observed output — completion never rests on exit code alone."""
     records: list[dict] = []
+    profiles_dir = target / framework_root / "profiles"
+    config_path = profiles_dir / "execution-mode.local.yaml"
+    if not config_path.exists():
+        config_path = profiles_dir / "execution-mode.yaml"
+    config = _load_yaml(config_path) if config_path.exists() else {}
+    command_policy = config.get("command_policy") or {}
+    policy_module = _runtime_hardening(target, framework_root)
+    registry = policy_module.load_verification_profiles(profiles_dir / "verification-profiles.yaml")
     for item in declared or []:
-        command = item if item.get("executable") else item.get("command")
-        if not command:
-            continue
-        name = item.get("name") or item.get("executable") or str(command)
+        command = None
+        name = item.get("name") or item.get("profile") or "verification"
         expected = str(item.get("expected", ""))
         try:
-            policy = _runtime_hardening(target, framework_root)
-            if isinstance(command, dict):
-                command = {**command, "category": item.get("category", command.get("category", "other"))}
-            record = policy.execute_command(
-                command, target, human_confirmed=bool(item.get("human_confirmed")),
-                timeout=int(item.get("timeout", 600)), output_cap=2000,
+            allowed_profiles = command_policy.get("allowed_profiles")
+            if allowed_profiles is not None and item.get("profile") not in allowed_profiles:
+                raise policy_module.CommandDenied(f"verification profile is disabled: {item.get('profile')}")
+            command = policy_module.compile_verification_command(item, registry, target)
+            command_id = str(item.get("id") or item.get("name") or item.get("profile"))
+            approval_path = (
+                workspace / "approvals" / f"{command_id}.yaml"
+                if workspace and re.fullmatch(r"[A-Za-z0-9_.-]+", command_id) else None
+            )
+            human_confirmed = bool(
+                approval_path and policy_module.trusted_approval_matches(
+                    approval_path, workspace.name, command
+                )
+            )
+            record = policy_module.execute_command(
+                command, target,
+                # Agent-authored `human_confirmed` is intentionally ignored.
+                human_confirmed=human_confirmed,
+                allowed_executables=command_policy.get("allowed_executables"),
+                confirmation_executables=command_policy.get("requires_human_confirmation"),
+                timeout=int(command_policy.get("timeout_seconds", 600)),
+                output_cap=int(command_policy.get("output_cap_bytes", 2000)),
             )
             observed, exit_code = record["observed_output"].strip(), record["exit_code"]
         except Exception as exc:
-            record = {"command": str(command), "category": item.get("category", "other"), "shell": False}
+            record = {"command": str(command or item), "category": item.get("category", "other"), "shell": False}
             observed, exit_code = f"command policy error: {exc}", 1
         ok = exit_code == 0 and (expected in observed if expected else True)
         records.append({
             "name": name,
             "command": record["command"],
-            "category": item.get("category", "other"),
+            "category": record.get("category", item.get("category", "other")),
             "expected_output": expected,
             "observed_output": observed[-2000:],
             "exit_code": exit_code,
@@ -345,7 +398,7 @@ def _write_verification(ws: Path, change_id: str, commands: list[dict], verdict:
 def _verify_lightweight(target: Path, framework_root: str, ws: Path, change: dict) -> int:
     task = _load_yaml(ws / "TASK.yaml")
     declared = (task.get("verification") or {}).get("commands") or []
-    commands = _run_declared_commands(target, framework_root, declared) if declared else []
+    commands = _run_declared_commands(target, framework_root, declared, ws) if declared else []
     if any(record["interpretation"] == "fail" for record in commands):
         _write_verification(ws, change["change_id"], commands, "FAILED_VERIFICATION", declared)
         print("Refused: a lightweight verification command failed")
@@ -456,7 +509,7 @@ def _verify(target: Path, framework_root: str, change_id: str) -> int:
 
     # Run real declared verification commands (build/test/lint/...) fresh.
     if declared:
-        declared_records = _run_declared_commands(target, framework_root, declared)
+        declared_records = _run_declared_commands(target, framework_root, declared, ws)
         commands.extend(declared_records)
         if any(record["interpretation"] == "fail" for record in declared_records):
             _write_verification(ws, change_id, commands, "FAILED_VERIFICATION", declared)
@@ -597,12 +650,49 @@ def _transition(
     return 0
 
 
+def _approve_command(target: Path, framework_root: str, change_id: str, command_id: str) -> int:
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", command_id or ""):
+        print("Refused: command id must contain only letters, digits, dot, dash or underscore")
+        return 2
+    ws = _workspace(target, framework_root, change_id)
+    task_path = ws / "TASK.yaml"
+    commands_path = ws / "verification" / "COMMANDS.yaml"
+    if commands_path.exists():
+        declared = _load_yaml(commands_path).get("declared") or []
+    elif task_path.exists():
+        declared = (_load_yaml(task_path).get("verification") or {}).get("commands") or []
+    else:
+        declared = []
+    proposal = next((item for item in declared if str(item.get("id") or item.get("name") or item.get("profile")) == command_id), None)
+    if proposal is None:
+        print(f"Refused: unknown verification command id {command_id}")
+        return 2
+    policy = _runtime_hardening(target, framework_root)
+    registry = policy.load_verification_profiles(target / framework_root / "profiles" / "verification-profiles.yaml")
+    try:
+        command = policy.compile_verification_command(proposal, registry, target)
+    except policy.CommandDenied as exc:
+        print(f"Refused: {exc}")
+        return 2
+    approval = {
+        "version": 1, "approval_id": f"APPROVAL-{change_id}-{command_id}",
+        "change_id": change_id, "command_id": command_id,
+        "command_hash": policy.verification_command_hash(command),
+        "approved_by": getpass.getuser(), "approved_at": _now(), "source": "cli-user-action",
+    }
+    path = ws / "approvals" / f"{command_id}.yaml"
+    _write_yaml(path, approval)
+    print(f"Approved verification command {command_id}")
+    return 0
+
+
 def run_task(
     action: str,
     target_dir: str = ".",
     change_id: str | None = None,
     klass: str = "small",
     title: str | None = None,
+    command_id: str | None = None,
 ) -> int:
     target = Path(target_dir).resolve()
     framework_root = _framework_root(target)
@@ -613,7 +703,23 @@ def run_task(
         if not change_id:
             print("task cancel requires --id")
             return 2
-        return _cancel(target, framework_root, change_id)
+        return _with_workspace_lock(
+            target, framework_root, change_id,
+            lambda: _cancel(target, framework_root, change_id),
+        )
+    if action == "approve-command":
+        if not change_id or not command_id:
+            print("task approve-command requires --id and --command-id")
+            return 2
+        return _with_workspace_lock(
+            target, framework_root, change_id,
+            lambda: _approve_command(target, framework_root, change_id, command_id),
+        )
+    if action == "force-unlock":
+        if not change_id:
+            print("task force-unlock requires --id")
+            return 2
+        return _force_unlock(target, framework_root, change_id)
     if action != "start":
         ready, reason = _bootstrap_ready(target, framework_root)
         if not ready:
@@ -623,22 +729,34 @@ def run_task(
         if not change_id:
             print("task reconcile requires --id")
             return 2
-        return _transition(target, framework_root, change_id, "RECONCILING", "BRAINSTORMING")
+        return _with_workspace_lock(
+            target, framework_root, change_id,
+            lambda: _transition(target, framework_root, change_id, "RECONCILING", "BRAINSTORMING"),
+        )
     if action == "brainstorm":
         if not change_id:
             print("task brainstorm requires --id")
             return 2
-        return _transition(target, framework_root, change_id, "BRAINSTORMING", "SPEC_REVIEW")
+        return _with_workspace_lock(
+            target, framework_root, change_id,
+            lambda: _transition(target, framework_root, change_id, "BRAINSTORMING", "SPEC_REVIEW"),
+        )
     if action == "verify":
         if not change_id:
             print("task verify requires --id")
             return 2
-        return _verify(target, framework_root, change_id)
+        return _with_workspace_lock(
+            target, framework_root, change_id,
+            lambda: _verify(target, framework_root, change_id),
+        )
     if action == "archive":
         if not change_id:
             print("task archive requires --id")
             return 2
-        return _archive(target, framework_root, change_id)
+        return _with_workspace_lock(
+            target, framework_root, change_id,
+            lambda: _archive(target, framework_root, change_id),
+        )
     if not orchestrator.exists():
         print(f"Missing vNext orchestrator: {orchestrator}")
         print("Run `maika update` to refresh the target scaffold.")

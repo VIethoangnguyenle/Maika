@@ -71,11 +71,28 @@ def validate_skill_candidate(text: str) -> Validation:
     data = _yaml(text)
     required = {"version", "candidate_id", "target_skill", "status", "classification",
                 "problem", "evidence", "proposed_change", "expected_effect",
-                "compatibility", "validation"}
+                "compatibility", "validation", "skill_evaluation", "rollback"}
     if required - set(data):
         return Validation(False, "missing candidate fields")
     if data.get("classification") not in {"editorial", "behavioral", "contractual"}:
         return Validation(False, "invalid classification")
+    return Validation(True)
+
+
+def validate_skill_evaluation(evaluation: dict | None) -> Validation:
+    evaluation = evaluation or {}
+    tasks = list(dict.fromkeys(evaluation.get("evaluation_tasks") or []))
+    before = evaluation.get("before_metrics") or {}
+    after = evaluation.get("after_metrics") or {}
+    if len(tasks) < 2:
+        return Validation(False, "skill evaluation requires at least two distinct tasks")
+    if not isinstance(before, dict) or not before or not isinstance(after, dict) or not after:
+        return Validation(False, "skill evaluation requires non-empty before/after metrics")
+    if evaluation.get("verdict") != "PROMOTE":
+        return Validation(False, "skill evaluation verdict must be PROMOTE")
+    shared = set(before) & set(after)
+    if not shared or not any(before[key] != after[key] for key in shared):
+        return Validation(False, "skill evaluation must demonstrate a measurable change")
     return Validation(True)
 
 
@@ -91,23 +108,19 @@ def candidate_threshold_from_document(data: dict) -> bool:
 
 def candidate_triggered(observations: list[dict]) -> bool:
     verified = [item for item in observations if item.get("verified") is True]
-    if any(item.get("critical_incident") or item.get("user_directive") or
-           (item.get("dogfood_failure") and item.get("reproducible")) for item in verified):
-        return True
-    explicit_signals = (
-        "human_correction", "repeated_failure", "unexpected_blast_radius",
-        "reusable_review_finding", "measurable_token_reduction",
-    )
-    if any(any(item.get(signal) for signal in explicit_signals) for item in verified):
-        return True
-    if any(int(item.get("observed_convention_count") or 0) >= 2 for item in verified):
+    if any(item.get("critical_incident") or item.get("user_directive") for item in verified):
         return True
     by_key: dict[str, list[dict]] = {}
     for item in verified:
         if item.get("recurrence_key"):
             by_key.setdefault(item["recurrence_key"], []).append(item)
-    return any(len(items) >= 3 and len({item.get("change_id") for item in items}) >= 2
-               for items in by_key.values())
+    return any(
+        len(items) >= 3 and len({item.get("change_id") for item in items}) >= 2
+        and any(item.get("reproducible") is True for item in items)
+        and any(item.get("impact") in {"measurable", "high", "critical"} for item in items)
+        and any(item.get("evaluation_ready") is True for item in items)
+        for items in by_key.values()
+    )
 
 
 _POISON = (
@@ -169,6 +182,10 @@ def validate_skill_promotion(record: dict) -> Validation:
         return Validation(False, "review/tests required")
     if record.get("classification") in {"behavioral", "contractual"} and record.get("dogfood_passed") is not True:
         return Validation(False, "dogfood required")
+    if record.get("classification") in {"behavioral", "contractual"} and (
+        record.get("canary_passed") is not True or not record.get("canary_results")
+    ):
+        return Validation(False, "successful canary evidence required")
     if record.get("classification") == "contractual" and record.get("human_approval") is not True:
         return Validation(False, "human approval required")
     return Validation(True)
@@ -246,7 +263,8 @@ class LearningStore:
                                 "behavior_change": observations[0].get("category", "behavioral") != "editorial"},
             "compatibility": {"capability_ids_changed": False, "output_contract_changed": False,
                               "runtime_consumer_changed": False, "migration_required": False},
-            "validation": {"required_tests": [], "dogfood_scenarios": [], "regression_risks": []},
+            "validation": {"required_tests": [], "dogfood_scenarios": [],
+                           "canary_scenarios": [], "regression_risks": []},
             "skill_evaluation": {
                 "skill": observations[0].get("skill"), "candidate_version": "1",
                 "evaluation_tasks": [], "before_metrics": {}, "after_metrics": {},
@@ -326,9 +344,9 @@ def promote_skill_candidate(target: Path, framework_root: str, candidate_path: P
         raise ValueError(gate.reason)
     if not candidate_threshold_from_document(candidate):
         raise ValueError("candidate threshold/verified evidence not met")
-    evaluation = candidate.get("skill_evaluation")
-    if evaluation and evaluation.get("verdict") not in {"PROMOTE", "APPROVED"}:
-        raise ValueError("candidate requires successful offline skill evaluation")
+    evaluation_gate = validate_skill_evaluation(candidate.get("skill_evaluation"))
+    if not evaluation_gate.ok:
+        raise ValueError(evaluation_gate.reason)
     if review.get("independent") is not True or review.get("verdict") != "approved" or review.get("guardrails_preserved") is not True:
         raise ValueError("independent approved review preserving guardrails is required")
     promotion = {**promotion, "classification": candidate["classification"]}
@@ -349,9 +367,21 @@ def promote_skill_candidate(target: Path, framework_root: str, candidate_path: P
     regression = validate_skill_regression(before_text, new_text)
     if not regression.ok:
         raise ValueError(regression.reason)
+    rollback_dir = target / framework_root / "knowledge" / "skill-evolution" / "rollback"
+    rollback_dir.mkdir(parents=True, exist_ok=True)
+    backup = rollback_dir / f"{candidate['candidate_id']}.SKILL.md"
+    backup.write_text(before_text, encoding="utf-8")
+    old_digest = "sha256:" + hashlib.sha256(before_text.encode("utf-8")).hexdigest()
+    new_digest = "sha256:" + hashlib.sha256(new_text.encode("utf-8")).hexdigest()
     skill_path.write_text(new_text, encoding="utf-8")
     accepted = target / framework_root / "knowledge" / "skill-evolution" / "accepted" / candidate_path.name
     accepted.parent.mkdir(parents=True, exist_ok=True)
+    promotion.update({"previous_version": promotion["old_version"],
+                      "promotion_commit": new_digest, "rollback_commit": old_digest})
+    candidate["rollback"] = {"previous_version": promotion["old_version"],
+                             "new_version": promotion["new_version"],
+                             "promotion_commit": new_digest, "rollback_commit": old_digest,
+                             "backup_path": str(backup), "status": "ready"}
     candidate.update(status="accepted", review=review, promotion=promotion,
                      promoted_at=_now(), target_path=str(skill_path))
     accepted.write_text(yaml.safe_dump(candidate, sort_keys=False, allow_unicode=True), encoding="utf-8")
@@ -360,6 +390,28 @@ def promote_skill_candidate(target: Path, framework_root: str, candidate_path: P
     skill_index = _regenerate_skill_index(target / framework_root)
     return {"status": "accepted", "candidate_path": str(accepted), "skill_path": str(skill_path),
             "version": promotion["new_version"], "skill_index": str(skill_index)}
+
+
+def rollback_skill_promotion(target: Path, framework_root: str, accepted_path: Path,
+                             canary_results: list[dict]) -> dict:
+    """Restore the exact pre-promotion skill after a canary regression."""
+    target, accepted_path = Path(target), Path(accepted_path)
+    candidate = _yaml(accepted_path.read_text(encoding="utf-8"))
+    if not canary_results or all(item.get("passed") is True for item in canary_results):
+        raise ValueError("rollback requires a failing canary result")
+    rollback = candidate.get("rollback") or {}
+    backup = Path(rollback.get("backup_path") or "")
+    if not backup.is_file():
+        raise ValueError("rollback backup is missing")
+    skill_path = Path(candidate.get("target_path") or "")
+    skill_path.write_text(backup.read_text(encoding="utf-8"), encoding="utf-8")
+    rollback.update(status="rolled_back", rolled_back_at=_now(), canary_results=canary_results)
+    candidate.update(status="rolled_back", rollback=rollback)
+    accepted_path.write_text(yaml.safe_dump(candidate, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    _record_evolution_transition(target / framework_root, "monitored", candidate["candidate_id"])
+    _regenerate_skill_index(target / framework_root)
+    return {"status": "rolled_back", "skill_path": str(skill_path),
+            "rollback_commit": rollback.get("rollback_commit")}
 
 
 def reject_skill_candidate(target: Path, framework_root: str, candidate_path: Path,

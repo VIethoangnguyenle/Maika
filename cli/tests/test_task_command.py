@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-from cli.commands.task import run_task
+from cli.commands.task import run_task, _run_declared_commands, _runtime_hardening
 
 
 def _target(tmp_path):
@@ -121,6 +121,20 @@ def test_task_cancel_marks_workspace_cancelled(tmp_path):
     assert state["state"] == "CANCELLED"
 
 
+def test_verify_and_cancel_refuse_concurrent_workspace_lock(tmp_path, capsys):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo")
+    ws = root / ".maika" / "changes" / "demo"
+    policy = _runtime_hardening(root, ".maika")
+    lock = policy.WorkspaceLock(ws / "generated" / "WORKSPACE.lock", "demo")
+    lock.acquire()
+    try:
+        assert run_task("cancel", target_dir=str(root), change_id="demo") == 1
+        assert "workspace is locked" in capsys.readouterr().out
+    finally:
+        lock.release()
+
+
 def test_task_reconcile_and_brainstorm_transition_states(tmp_path):
     root = _target(tmp_path)
     run_task("start", target_dir=str(root), change_id="demo", title="Demo")
@@ -185,9 +199,9 @@ def _complete_workspace(root: Path, state: str = "FINAL_REVIEW", real_verificati
     (ws / "STATE.yaml").write_text(f"change_id: demo\nstate: {state}\n", encoding="utf-8")
     if real_verification:
         (ws / "verification").mkdir(exist_ok=True)
+        # A real allowlisted command (inline `python -c` is denied by policy).
         (ws / "verification" / "COMMANDS.yaml").write_text(
-            "declared:\n  - name: tests\n    category: test\n"
-            "    command: \"python -c 'print(1)'\"\n",
+            "declared:\n  - name: tests\n    profile: python-version\n",
             encoding="utf-8",
         )
     return ws
@@ -214,12 +228,13 @@ def test_task_verify_runs_real_declared_commands(tmp_path):
     root = _target(tmp_path)
     run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
     ws = _complete_workspace(root)
+    (root / "test_passing.py").write_text("def test_pass():\n    assert True\n", encoding="utf-8")
     (ws / "verification").mkdir(exist_ok=True)
     (ws / "verification" / "COMMANDS.yaml").write_text(
         "declared:\n"
         "  - name: smoke\n"
-        "    category: test\n"
-        "    command: \"python -c 'print(\\\"1 passed\\\")'\"\n"
+        "    profile: pytest-paths\n"
+        "    parameters:\n      paths: [test_passing.py]\n"
         "    expected: \"1 passed\"\n",
         encoding="utf-8",
     )
@@ -240,8 +255,7 @@ def test_architectural_verification_requires_build_and_test(tmp_path, capsys):
     ws = _complete_workspace(root)
     (ws / "verification").mkdir(exist_ok=True)
     (ws / "verification" / "COMMANDS.yaml").write_text(
-        "declared:\n  - name: tests\n    category: test\n"
-        "    command: \"python -c 'print(1)'\"\n",
+        "declared:\n  - name: tests\n    profile: python-version\n",
         encoding="utf-8",
     )
 
@@ -254,9 +268,11 @@ def test_task_verify_fails_when_declared_command_fails(tmp_path, capsys):
     root = _target(tmp_path)
     run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
     ws = _complete_workspace(root)
+    (root / "test_failing.py").write_text("def test_fail():\n    assert False\n", encoding="utf-8")
     (ws / "verification").mkdir(exist_ok=True)
     (ws / "verification" / "COMMANDS.yaml").write_text(
-        "declared:\n  - name: failing\n    command: \"python -c 'import sys; sys.exit(3)'\"\n",
+        "declared:\n  - name: failing\n    profile: pytest-paths\n"
+        "    parameters:\n      paths: [test_failing.py]\n",
         encoding="utf-8",
     )
 
@@ -283,6 +299,53 @@ def test_task_verify_blocks_dangerous_declared_command_without_shell(tmp_path, c
     assert dangerous["interpretation"] == "fail"
     assert dangerous["shell"] is False
     assert "command policy error" in dangerous["observed_output"]
+
+
+def test_task_approve_command_creates_hash_bound_cli_artifact(tmp_path):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="small")
+    ws = root / ".maika" / "changes" / "demo"
+    (ws / "TASK.yaml").write_text(yaml.safe_dump({
+        "verification": {"commands": [{"id": "python-info", "profile": "python-version"}]}
+    }), encoding="utf-8")
+
+    code = run_task(
+        "approve-command", target_dir=str(root), change_id="demo", command_id="python-info"
+    )
+
+    assert code == 0
+    approval = yaml.safe_load((ws / "approvals" / "python-info.yaml").read_text(encoding="utf-8"))
+    assert approval["source"] == "cli-user-action"
+    assert approval["change_id"] == "demo"
+    assert approval["command_hash"].startswith("sha256:")
+
+
+def test_agent_human_confirmed_is_ignored_and_command_config_is_wired(tmp_path):
+    root = _target(tmp_path)
+    profiles = root / ".maika" / "profiles"
+    (profiles / "execution-mode.yaml").write_text(yaml.safe_dump({
+        "workflow_engine": "vnext",
+        "command_policy": {
+            "allowed_profiles": ["docker-info"], "allowed_executables": ["docker"],
+            "requires_human_confirmation": ["docker"], "timeout_seconds": 1,
+            "output_cap_bytes": 32,
+        },
+    }), encoding="utf-8")
+    (profiles / "verification-profiles.yaml").write_text(yaml.safe_dump({
+        "version": 1, "profiles": {"docker-info": {
+            "executable": "docker", "fixed_args": ["info"],
+            "allowed_parameters": {}, "category": "build",
+        }},
+    }), encoding="utf-8")
+    ws = root / ".maika" / "changes" / "demo"
+    ws.mkdir(parents=True)
+
+    records = _run_declared_commands(root, ".maika", [{
+        "id": "docker-info", "profile": "docker-info", "human_confirmed": True,
+    }], ws)
+
+    assert records[0]["interpretation"] == "fail"
+    assert "human confirmation required" in records[0]["observed_output"]
 
 
 def test_task_verify_refuses_unapproved_final_review(tmp_path, capsys):

@@ -455,11 +455,19 @@ def test_public_small_happy_path_completes_with_one_worker_call(tmp_path):
     fw_root = tmp_path / ".maika"
     shutil.copytree(source_framework, fw_root)
     _write_bootstrap(fw_root)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("before\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=tmp_path, check=True)
     worker = tmp_path / "small_worker.py"
     worker.write_text("""import re, sys, yaml
 from pathlib import Path
 prompt = sys.argv[1]
 out = Path(re.search(r'^OUTPUT_FILE: (.+)$', prompt, re.M).group(1))
+Path('src/a.py').write_text('after\\n')
 out.write_text(yaml.safe_dump({'version': 1, 'status': 'success', 'touched_files': ['src/a.py'], 'observed_risk_signals': {}}))
 """, encoding="utf-8")
     (fw_root / "profiles" / "execution-mode.yaml").write_text(yaml.safe_dump({
@@ -475,11 +483,13 @@ out.write_text(yaml.safe_dump({'version': 1, 'status': 'success', 'touched_files
 
     assert public("start", "--id", "small", "--class", "small", "--title", "Small").returncode == 0
     ws = fw_root / "changes" / "small"
+    # A fixed verification script (inline `python -c` is denied by the hardened
+    # command policy). Runs via the allowlisted bare `python` from repo root.
+    (tmp_path / "smoke.py").write_text("print('pass')\n", encoding="utf-8")
     task = yaml.safe_load((ws / "TASK.yaml").read_text(encoding="utf-8"))
     task["scope"]["files"]["modify"] = ["src/a.py"]
     task["verification"]["commands"] = [{
-        "name": "smoke", "version": 1, "executable": sys.executable,
-        "args": ["-c", "print('pass')"], "category": "test", "expected": "pass",
+        "name": "smoke", "profile": "python-version", "expected": "Python",
     }]
     (ws / "TASK.yaml").write_text(yaml.safe_dump(task), encoding="utf-8")
     evidence = yaml.safe_load((ws / "EVIDENCE.yaml").read_text(encoding="utf-8"))

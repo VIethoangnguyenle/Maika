@@ -205,12 +205,14 @@ def test_capsule_carries_declared_slice(tmp_path):
 
 def test_task_b_compilation_retrieves_project_knowledge_saved_by_task_a(tmp_path):
     ws, root = _setup(tmp_path)
+    source_digest = "sha256:" + hashlib.sha256((root / "src" / "a.py").read_bytes()).hexdigest()
     store = ws.parents[1] / "knowledge" / "long-term" / "project-knowledge"
     store.mkdir(parents=True)
     (store / "PK-A.yaml").write_text(
         "version: 1\nid: PK-A\ntype: convention\nstatus: active\n"
         "statement: payment requires idempotency\napplies_to: [payment]\n"
-        "source: task-review\nsource_commit: abc\naffected_paths: [src/payment/**]\n"
+        "source:\n  file: src/a.py\nsource_commit: abc\nsource_digest: " + source_digest + "\n"
+        "authority: standard\naffected_paths: [src/**]\n"
         "confidence: high\nfreshness: verified\n",
         encoding="utf-8",
     )
@@ -218,7 +220,7 @@ def test_task_b_compilation_retrieves_project_knowledge_saved_by_task_a(tmp_path
         "version": 1,
         "entries": [{"id": "PK-A", "store": "project-knowledge", "path": "project-knowledge/PK-A.yaml",
                      "title": "payment requires idempotency", "applies_to": ["payment"],
-                     "affected_paths": ["src/payment/**"], "status": "active"}],
+                     "affected_paths": ["src/**"], "status": "active"}],
     }), encoding="utf-8")
     plan = ws / "IMPLEMENTATION_PLAN.md"
     plan.write_text(plan.read_text(encoding="utf-8").replace("Thân task 1.", "Payment idempotency implementation."), encoding="utf-8")
