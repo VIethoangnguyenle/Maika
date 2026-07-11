@@ -17,8 +17,34 @@ def _framework_dir(target: Path) -> Path:
     return target / ".maika"
 
 
-def run_content(action: str, target_dir: str = ".") -> int:
+def run_content(action: str, target_dir: str = ".", apply: bool = False) -> int:
     target = Path(target_dir).resolve()
+    if action == "scan-legacy":
+        from cli.agent_content.legacy import scan_legacy_references
+        framework = _framework_dir(target)
+        findings = scan_legacy_references(framework)
+        if findings:
+            for item in findings:
+                print(f"legacy-reference: {item['file']}:{item['line']} → {item['token']}")
+            return 1
+        print("legacy-clean: no deprecated active-memory references in agent-facing content")
+        return 0
+    if action == "migrate-legacy":
+        from cli.agent_content.legacy import apply_legacy_migration, plan_legacy_migration
+        framework = _framework_dir(target)
+        moves = plan_legacy_migration(framework)
+        if not moves:
+            print("migrate-legacy: nothing to migrate")
+            return 0
+        for move in moves:
+            print(f"{'apply' if apply else 'dry-run'}: {move['source']} -> {move['target']}"
+                  f" ({move['note']})")
+        if apply:
+            apply_legacy_migration(moves)
+            print(f"migrated {len(moves)} legacy artifacts")
+        else:
+            print("re-run with --apply to perform the moves")
+        return 0
     if action == "validate-authority":
         framework = _framework_dir(target)
         try:

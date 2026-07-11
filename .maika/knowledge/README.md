@@ -1,19 +1,24 @@
-# {{ platform.framework_root }}/knowledge — Working Memory cho Agent
+# {{ platform.framework_root }}/knowledge — Durable Knowledge cho Agent
 
 ## Mục đích
 
-`{{ platform.framework_root }}/knowledge` là **bộ nhớ phân tầng (memory hierarchy)** của agent trong flow:
+`{{ platform.framework_root }}/knowledge` giữ **tri thức bền (durable knowledge)** của
+project. Task-scoped context KHÔNG nằm ở đây — mọi artifact theo task sống trong
+`{{ platform.framework_root }}/changes/<change-id>/` (authority map:
+`config/artifact-authority.yaml`).
 
-> **Ideation → Requirement → Architecture → Spec → Apply**
+Các tầng:
 
-Mọi skill và workflow trong `{{ platform.framework_root }}/` đọc/ghi context thông qua thư mục này.
-
-Bộ nhớ được chia làm 4 tầng:
-
-- **`active/`** — *working memory*: context cho task đang xử lý (reset mỗi task).
-- **`long-term/`** — *long-term memory*: judgment sống + bản đồ kiến trúc, **source-of-truth** (tích luỹ, không reset).
-- **`archive/`** — *episodic memory*: snapshot các task đã hoàn thành theo ticket-id.
-- **`templates/`** — *skeleton tĩnh*: chỉ chứa template để clone khi bootstrap, **không chứa knowledge sống**.
+- **`long-term/`** — *long-term memory*: judgment sống + bản đồ kiến trúc,
+  **source-of-truth** (tích luỹ, không reset).
+- **`active/`** — chỉ còn giữ artifact bootstrap runtime (`BOOTSTRAP_REPORT.yaml`);
+  các file working-memory cũ đã được thay bằng `changes/<change-id>/` — xem mục
+  `deprecated` trong `config/artifact-authority.yaml`; migrate target cũ bằng
+  `maika content migrate-legacy --target <repo> --apply`.
+- **`archive/`** — episodic memory legacy (đường archive canonical của change:
+  `{{ platform.framework_root }}/archive/<change-id>/`).
+- **`templates/`** — skeleton tĩnh để clone (ticket-type, archive metadata,
+  session override, skill feedback/candidate), **không chứa knowledge sống**.
 - **`skill-evolution/`** — feedback cluster và candidate lifecycle; candidates chỉ từ
   verified evidence, accepted/rejected giữ provenance và promotion result.
 
@@ -24,12 +29,7 @@ Bộ nhớ được chia làm 4 tầng:
 ```
 {{ platform.framework_root }}/knowledge/
 ├── README.md                 ← File này
-├── active/                   ← Working memory — context ĐANG DÙNG cho task hiện tại
-│   ├── REQUIREMENT.md         ← Yêu cầu chuẩn hoá
-│   ├── EXPLORE_CONTEXT.md     ← Kết quả khám phá DB + code + kiến trúc
-│   ├── AGENT_TRANSPARENCY.md  ← Audit: nguồn đã đọc, tool đã gọi, cảnh báo
-│   ├── TOKEN_LOG.md           ← Theo dõi token theo từng pha
-│   └── ideation/              ← File ideation cho ý tưởng thô
+├── active/                   ← Runtime bootstrap artifact (BOOTSTRAP_REPORT.yaml)
 ├── long-term/                ← Long-term memory — judgment sống + source-of-truth (không reset)
 │   ├── knowledge-snapshot.md  ← Bản đồ kiến trúc hệ thống (tích luỹ qua nhiều task)
 │   ├── knowledge-index.yaml   ← Entry list cho JIT slice tại decision-gate (generated)
@@ -37,38 +37,36 @@ Bộ nhớ được chia làm 4 tầng:
 │   ├── author-dna.yaml        ← Triết lý code của tác giả (judgment layer)
 │   ├── persona.yaml           ← Phong cách tương tác (local, gitignored)
 │   └── persona.template.yaml  ← Template persona (committed)
-├── archive/                  ← Episodic memory — context task đã hoàn thành (theo ticket-id)
-│   └── {ticket-id}/
+├── archive/                  ← Episodic memory legacy (change mới archive về ../archive/<id>/)
 ├── skill-evolution/          ← candidates/accepted/rejected + canonical index
-└── templates/                ← skeleton .tpl.md để clone khi bootstrap (CHỈ template):
-                                context (REQUIREMENT, EXPLORE_CONTEXT, AGENT_TRANSPARENCY, TOKEN_LOG,
-                                ARCHIVE_META), ticket-type (feature, fixbug, refactor, changerequest,
-                                SESSION_OVERRIDE)
+└── templates/                ← skeleton để clone: ARCHIVE_META, ticket-type
+                                (feature, fixbug, refactor, changerequest), SESSION_OVERRIDE,
+                                SKILL_FEEDBACK, SKILL_CANDIDATE
 ```
 
 ---
 
 ## Quy ước path
 
-Tất cả path knowledge được quy ước tại chính README này (bảng dưới) — nguồn canonical; `rules/rules-knowledge.md` §10 trỏ về đây.
-
-Tóm tắt nhanh:
+Task-scoped path: xem `config/artifact-authority.yaml` (một decision — một source).
+Durable path canonical:
 
 | File | Path đầy đủ |
 |------|-------------|
-| REQUIREMENT | `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md` |
-| EXPLORE_CONTEXT | `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md` |
-| AGENT_TRANSPARENCY | `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md` |
 | Knowledge Snapshot | `{{ platform.framework_root }}/knowledge/long-term/knowledge-snapshot.md` |
-| Ideation | `{{ platform.framework_root }}/knowledge/active/ideation/ideation-*.md` |
+| Knowledge Index | `{{ platform.framework_root }}/knowledge/long-term/knowledge-index.yaml` |
+| Conventions | `{{ platform.framework_root }}/knowledge/long-term/conventions.yaml` |
+| Author DNA | `{{ platform.framework_root }}/knowledge/long-term/author-dna.yaml` |
 
 ---
 
 ## Lifecycle
 
-1. **Bootstrap**: Workflow `/task` tạo/reset file trong `active/` từ template khi bắt đầu task mới.
-2. **Tích luỹ**: Các skill ghi dần vào `active/` qua từng pha.
-3. **Kết thúc**: Sau khi apply xong, context trong `active/` có thể được archive hoặc reset.
+1. **Task**: workflow `/task` tạo workspace `changes/<change-id>/`; skill ghi artifact
+   theo authority map qua từng phase.
+2. **Verified**: sau `VERIFIED`, knowledge-curator promote candidate vào `long-term/`.
+3. **Archive**: `maika task archive` dời workspace sang
+   `{{ platform.framework_root }}/archive/<change-id>/` + regenerate knowledge index.
 
 ---
 
@@ -76,5 +74,5 @@ Tóm tắt nhanh:
 
 - `templates/` + `README.md`: **COMMIT** vào git (skeleton cố định).
 - `long-term/`: **COMMIT** (source-of-truth chung của team) — riêng `persona.yaml` được **GITIGNORE** (config per-user).
-- `archive/`: **COMMIT** (lịch sử episodic theo ticket).
-- `active/`: **GITIGNORE** (context tạm, per-session, không nên commit).
+- `archive/`: **COMMIT** (lịch sử episodic legacy).
+- `active/`: **GITIGNORE** (runtime artifact, per-session).

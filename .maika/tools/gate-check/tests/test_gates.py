@@ -413,9 +413,9 @@ def test_cli_teaching_moment_exit_codes(tmp_path):
     assert cli.main(["teaching-moment", str(f)]) == 1
 
 
-def test_seeded_template_fails_teaching_moment_validator():
-    tpl = Path(__file__).resolve().parents[3] / "knowledge" / "templates" / "AGENT_TRANSPARENCY.tpl.md"
-    content = tpl.read_text(encoding="utf-8")
+def test_seeded_template_skeleton_fails_teaching_moment_validator():
+    # Skeleton kiểu template legacy (field rỗng) không được pass validator.
+    content = _tm("status:\nprinciple:\nnote:\ntarget_updates:\nwarn:\nreason:")
     assert g.validate_teaching_moment(content).ok is False
 
 

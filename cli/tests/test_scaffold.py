@@ -192,14 +192,14 @@ def test_scaffold_plugin_unknown_tool_key_raises_before_target_write(
 def test_scaffold_plugins_skips_platform_capability_plugin_when_absent(
     tmp_path, maika_root, jinja_env, claude_context
 ):
-    source = maika_root / ".maika" / "knowledge" / "templates" / "TOKEN_LOG.tpl.md"
+    source = maika_root / ".maika" / "knowledge" / "templates" / "ARCHIVE_META.tpl.md"
     assert source.exists()
 
     plugins = [{
         "name": "write-gate-settings",
         "type": "hook",
-        "source": "knowledge-templates/TOKEN_LOG.tpl.md",
-        "output": "{{ platform.framework_root }}/hooks/write-gate/TOKEN_LOG.tpl.md",
+        "source": "knowledge-templates/ARCHIVE_META.tpl.md",
+        "output": "{{ platform.framework_root }}/hooks/write-gate/ARCHIVE_META.tpl.md",
         "requires_platform_capability": "write_gate_hook",
     }]
 
@@ -213,7 +213,7 @@ def test_scaffold_plugins_skips_platform_capability_plugin_when_absent(
     )
 
     assert stats["skipped"] == 1
-    assert not (tmp_path / ".claude" / "hooks" / "write-gate" / "TOKEN_LOG.tpl.md").exists()
+    assert not (tmp_path / ".claude" / "hooks" / "write-gate" / "ARCHIVE_META.tpl.md").exists()
 
 
 def test_scaffold_plugins_includes_platform_capability_plugin_when_present(
@@ -222,8 +222,8 @@ def test_scaffold_plugins_includes_platform_capability_plugin_when_present(
     plugins = [{
         "name": "write-gate-settings",
         "type": "hook",
-        "source": "knowledge-templates/TOKEN_LOG.tpl.md",
-        "output": "{{ platform.framework_root }}/hooks/write-gate/TOKEN_LOG.tpl.md",
+        "source": "knowledge-templates/ARCHIVE_META.tpl.md",
+        "output": "{{ platform.framework_root }}/hooks/write-gate/ARCHIVE_META.tpl.md",
         "requires_platform_capability": "write_gate_hook",
     }]
 
@@ -237,7 +237,7 @@ def test_scaffold_plugins_includes_platform_capability_plugin_when_present(
     )
 
     assert stats["copied"] + stats["rendered"] == 1
-    assert (tmp_path / ".maika" / "hooks" / "write-gate" / "TOKEN_LOG.tpl.md").exists()
+    assert (tmp_path / ".maika" / "hooks" / "write-gate" / "ARCHIVE_META.tpl.md").exists()
 
 
 def test_scaffold_plugins_skips_platform_specific_plugin_for_other_platform(
@@ -246,7 +246,7 @@ def test_scaffold_plugins_skips_platform_specific_plugin_for_other_platform(
     plugins = [{
         "name": "codex-write-gate-settings",
         "type": "hook",
-        "source": "knowledge-templates/TOKEN_LOG.tpl.md",
+        "source": "knowledge-templates/ARCHIVE_META.tpl.md",
         "output": ".codex/hooks.json",
         "requires_platform": "codex",
     }]

@@ -19,8 +19,6 @@
 .maika/knowledge/README.md
 .maika/knowledge/active/
 .maika/knowledge/active/.gitignore
-.maika/knowledge/active/ideation/
-.maika/knowledge/active/ideation/.gitkeep
 .maika/knowledge/long-term/
 .maika/knowledge/long-term/author-dna.yaml
 .maika/knowledge/long-term/conventions.yaml
@@ -36,14 +34,10 @@
 .maika/knowledge/skill-evolution/rejected/.gitkeep
 .maika/knowledge/skill-evolution/skill-evolution-index.yaml
 .maika/knowledge/templates/
-.maika/knowledge/templates/AGENT_TRANSPARENCY.tpl.md
 .maika/knowledge/templates/ARCHIVE_META.tpl.md
-.maika/knowledge/templates/EXPLORE_CONTEXT.tpl.md
-.maika/knowledge/templates/REQUIREMENT.tpl.md
 .maika/knowledge/templates/SESSION_OVERRIDE.tpl.md
 .maika/knowledge/templates/SKILL_CANDIDATE.tpl.yaml
 .maika/knowledge/templates/SKILL_FEEDBACK.tpl.yaml
-.maika/knowledge/templates/TOKEN_LOG.tpl.md
 .maika/knowledge/templates/changerequest.tpl.md
 .maika/knowledge/templates/feature.tpl.md
 .maika/knowledge/templates/fixbug.tpl.md

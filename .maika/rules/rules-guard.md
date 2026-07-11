@@ -16,7 +16,8 @@
   4. Nếu **bất kỳ** condition fail → thực hiện `on_fail` action và **ABORT** skill đó.
 - `on_fail` action thường là:
   - `ABORT — <hướng dẫn>`: dừng hoàn toàn, thông báo user.
-  - `WARN — <hướng dẫn>`: tiếp tục nhưng ghi cảnh báo vào AGENT_TRANSPARENCY.
+  - `WARN — <hướng dẫn>`: tiếp tục nhưng ghi cảnh báo vào artifact result/review
+    của phase hiện tại.
 - Không được bypass `pre_conditions` dù context có vẻ đủ — guard phải chạy deterministically.
 - Precondition guards phải chạy trước skill để lỗi không lan sang downstream skills.
 
@@ -74,8 +75,8 @@ Dấu hiệu ghi SAI level: entry author-dna phải liệt kê tên bảng/cột
      `python3 {{ platform.framework_root }}/tools/rule-projector/projector.py --dna <dna> --conventions <conv> --out generated/`
      → `python3 {{ platform.framework_root }}/tools/rule-projector/backends/checkstyle.py --ir generated/rules.json --out generated/checkstyle.generated.xml`
 3. **Không được defer** sang phiên sau — teaching moment phải capture ngay trong phiên.
-4. **Nếu user từ chối**: ghi WARN vào AGENT_TRANSPARENCY:
-   "[R-DNA-7] Teaching moment chưa capture: `{principle}`. Có thể mất sau phiên này."
+4. **Nếu user từ chối**: ghi observation WARN vào `reviews/SKILL_FEEDBACK.yaml` của
+   workspace hiện tại: "[R-DNA-7] Teaching moment chưa capture: `{principle}`."
 
 Điều kiện nhận biết: user dùng "không được", "phải dùng", "sai rồi", "thay bằng",
 hoặc sửa code agent trực tiếp kèm giải thích.
@@ -89,7 +90,7 @@ Khi bootstrap phát hiện external KI (vd: Cursor rules, `.cursorrules`, Antigr
 1. **Bắt buộc** WARN trong bootstrap report.
 2. **Bắt buộc** đề xuất action cleanup cụ thể:
    "Replace nội dung `{ki_file}` bằng: `# Xem {{ platform.framework_root }}/knowledge/long-term/conventions.yaml + author-dna.yaml`"
-3. **Bắt buộc** ghi `[R-KI-1] KI cleanup pending: {path}` vào AGENT_TRANSPARENCY.
+3. **Bắt buộc** ghi degradation `[R-KI-1] KI cleanup pending: {path}` vào bootstrap report.
 4. Nếu KI file duplicate conventions/DNA: **từ chối dùng KI file đó trong phiên** — chỉ dùng `{{ platform.framework_root }}/knowledge/`.
 5. Nhắc lại mỗi bootstrap cho đến khi cleanup xong.
 

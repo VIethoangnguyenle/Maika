@@ -13,7 +13,6 @@ def read_text(rel_path: str) -> str:
 def test_writing_spec_requires_ascii_diagram_capture():
     readme = read_text("README.md")
     skill = read_text(".maika/skills/writing-spec/SKILL.md")
-    requirement_template = read_text(".maika/knowledge/templates/REQUIREMENT.tpl.md")
 
     assert "#### ASCII Flow / State Diagram" in skill
     assert "flow, state, integration, callback, job, hoặc data path" in skill
@@ -22,13 +21,10 @@ def test_writing_spec_requires_ascii_diagram_capture():
     assert "```text" in skill
     assert "writing-spec" in readme
     assert "ASCII Flow / State Diagram" in readme
-    assert "## Flow / State Diagram" in requirement_template
-    assert "Bắt buộc khi task có flow, state, integration, callback, job, hoặc data path" in requirement_template
 
 
 def test_grounded_brainstorming_uses_visual_stance_and_capture():
     skill = read_text(".maika/skills/grounded-brainstorming/SKILL.md")
-    explore_template = read_text(".maika/knowledge/templates/EXPLORE_CONTEXT.tpl.md")
 
     assert "Brainstorming là stance, không phải workflow cứng" in skill
     assert "Visualize tự do" in skill
@@ -36,5 +32,3 @@ def test_grounded_brainstorming_uses_visual_stance_and_capture():
     assert "Do visualize" in skill
     assert "ASCII diagram bắt buộc khi có flow/state/data path" in skill
     assert "vấn đề user nêu" in skill
-    assert "ASCII diagram bắt buộc khi có flow/state/data path" in explore_template
-    assert "Danh sách module chỉ đủ khi không có sequence hoặc boundary đáng kể" in explore_template

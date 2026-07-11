@@ -44,12 +44,14 @@
   bảng trống, config chưa seed):
   - **Không được** quét lại DB/codebase quá **2 lần** để tìm cùng một thông tin.
   - Sau lần thứ 2 không tìm thấy → **hardstop**:
-    1. Ghi nhận vào REQUIREMENT.md section "Giả định & Rủi ro":
+    1. Ghi assumption vào artifact của workspace hiện tại — section "Giả định & Rủi ro"
+       trong `INTENT.md` (standard/architectural) hoặc `TASK.yaml` (trivial/small):
        `[ASSUMPTION] <tên data> chưa tồn tại trong DB. Cần backfill/seed trước khi apply.`
-    2. Ghi vào AGENT_TRANSPARENCY: `[BLOCKED-DATA] <mô tả> — tiếp tục với assumption đã ghi.`
+    2. Ghi `[BLOCKED-DATA] <mô tả>` vào evidence artifact của phase
+       (`exploration/EVIDENCE_MANIFEST.yaml` hoặc `EVIDENCE.yaml`).
     3. **Tiếp tục flow** dựa trên assumption, không chờ data được sửa.
   - Nếu lỗi cấu hình cần user/DBA xử lý: đề xuất rõ action (ví dụ: câu SQL backfill) và
-    chuyển trạng thái task sang **PENDING-BACKFILL** trong AGENT_TRANSPARENCY.
+    chuyển workspace sang **BLOCKED** (reason `user_input`) qua state machine.
 - Sau hardstop, không tiếp tục scan cùng một dữ liệu/cấu hình trong phiên hiện tại.
 
 ### [CRITICAL] R-Flow-5: Orchestrator mỏng — việc nặng chạy trong worker
@@ -76,10 +78,11 @@
 
 ## 6. Spec & Apply Rules
 
-### [CRITICAL] R-Spec-1: Spec chỉ dựa trên REQUIREMENT + context
+### [CRITICAL] R-Spec-1: Spec chỉ dựa trên intent + grounding
 
-- Khi sinh spec, chỉ được dùng thông tin từ:
-  - `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`, `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`, `{{ platform.framework_root }}/knowledge/long-term/knowledge-snapshot.md`, code/DB đã explore.
+- Khi sinh spec, chỉ được dùng thông tin từ workspace hiện tại:
+  - `changes/<id>/INTENT.md`, `changes/<id>/exploration/` (GROUNDING/EVIDENCE_MANIFEST),
+    `changes/<id>/RECONCILIATION.md`, `{{ platform.framework_root }}/knowledge/long-term/knowledge-snapshot.md`, code/DB đã explore.
 
 ### [CRITICAL] R-Spec-2: Không tự động “fix” requirement
 

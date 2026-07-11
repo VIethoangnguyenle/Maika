@@ -129,6 +129,7 @@ Mâu thuẫn material **chưa resolve** thì **block design** (không được �
 
 ## Quy ước path knowledge
 
-Bộ nhớ phân tầng (`active/`, `long-term/`, `archive/`, `templates/`) và path canonical của
-từng file tri thức được quy ước tại **`knowledge/README.md`** (nguồn duy nhất). Artifact
-grounding chính: `GROUNDING.yaml`, `EVIDENCE_MANIFEST.yaml` (chi tiết ở W2 exploration).
+Durable knowledge (`long-term/`, `templates/`, `skill-evolution/`) quy ước tại
+**`knowledge/README.md`**; task-scoped artifact quy ước tại
+**`config/artifact-authority.yaml`** (một decision — một source). Artifact
+grounding chính: `changes/<id>/exploration/GROUNDING.yaml`, `EVIDENCE_MANIFEST.yaml`.

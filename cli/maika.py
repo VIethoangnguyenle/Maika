@@ -142,9 +142,13 @@ def main():
         "content", help="Validate agent-facing content (authority registry, ...)",
     )
     content_parser.add_argument(
-        "action", choices=["validate-authority", "validate-router", "validate-skills"]
+        "action",
+        choices=["validate-authority", "validate-router", "validate-skills",
+                 "scan-legacy", "migrate-legacy"],
     )
     content_parser.add_argument("--target", default=".")
+    content_parser.add_argument("--apply", action="store_true",
+                                help="migrate-legacy: perform the moves (default dry-run)")
 
     skill_parser = subparsers.add_parser("skill", help="Promote or reject a reviewed skill candidate")
     skill_parser.add_argument("action", choices=["promote", "reject"])
@@ -366,7 +370,7 @@ def main():
         sys.exit(run_bootstrap(args.target))
     elif args.command == "content":
         from cli.commands.content import run_content
-        sys.exit(run_content(args.action, args.target))
+        sys.exit(run_content(args.action, args.target, apply=args.apply))
     elif args.command == "skill":
         from cli.commands.skill import run_skill
         sys.exit(run_skill(args.action, args.target, args.candidate, args.review, args.promotion))
