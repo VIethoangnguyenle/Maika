@@ -69,6 +69,53 @@ def test_conflict_blocks_without_copying_the_safe_artifact(tmp_path):
     assert not (tmp_path / ".maika/knowledge/long-term/safe.md").exists()
 
 
+def _blocked_conflict(tmp_path: Path):
+    from cli.commands.init import run_init
+    repo = Path(__file__).resolve().parents[2]
+    run_init(str(tmp_path), str(repo), "codex", [], "python", True)
+    legacy = _legacy(tmp_path)
+    canonical = tmp_path / ".maika/knowledge/long-term/team.md"
+    canonical.write_text("canonical\n", encoding="utf-8")
+    (legacy / "knowledge/long-term/team.md").write_text("legacy\n", encoding="utf-8")
+    assert run_migrate(str(tmp_path), apply=True)["status"] == "blocked"
+    return canonical
+
+
+def test_migrate_resolve_applies_chosen_candidate(tmp_path):
+    canonical = _blocked_conflict(tmp_path)
+    decision = tmp_path / "decision.yaml"
+    decision.write_text(yaml.safe_dump({"version": 1, "resolutions": [
+        {"logical_artifact": "knowledge/long-term/team.md",
+         "choose": ".agents/knowledge/long-term/team.md"}]}), encoding="utf-8")
+
+    result = run_migrate(str(tmp_path), resolve=str(decision))
+
+    assert result["status"] == "committed" and result["mutation"] is True
+    assert canonical.read_text(encoding="utf-8") == "legacy\n"  # resolved to chosen version
+
+
+def test_migrate_resolve_rejects_non_candidate_choice(tmp_path):
+    canonical = _blocked_conflict(tmp_path)
+    (tmp_path / "evil.md").write_text("evil\n", encoding="utf-8")
+    decision = tmp_path / "decision.yaml"
+    decision.write_text(yaml.safe_dump({"version": 1, "resolutions": [
+        {"logical_artifact": "knowledge/long-term/team.md", "choose": "evil.md"}]}), encoding="utf-8")
+
+    result = run_migrate(str(tmp_path), resolve=str(decision))
+
+    assert result["status"] == "blocked" and result["mutation"] is False
+    assert canonical.read_text(encoding="utf-8") == "canonical\n"  # no injection, unchanged
+
+
+def test_migrate_resolve_without_report_is_noop(tmp_path):
+    from cli.commands.init import run_init
+    repo = Path(__file__).resolve().parents[2]
+    run_init(str(tmp_path), str(repo), "codex", [], "python", True)
+    decision = tmp_path / "d.yaml"
+    decision.write_text(yaml.safe_dump({"version": 1, "resolutions": []}), encoding="utf-8")
+    assert run_migrate(str(tmp_path), resolve=str(decision))["status"] == "no-op"
+
+
 def test_cleanup_legacy_requires_explicit_flag_and_preserves_native_config(tmp_path):
     legacy = _legacy(tmp_path)
     (legacy / "knowledge/long-term/team.md").write_text("knowledge\n", encoding="utf-8")

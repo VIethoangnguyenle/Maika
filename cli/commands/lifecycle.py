@@ -289,8 +289,71 @@ def _cleanup_legacy_data(target: Path) -> dict:
     return _result("committed", mutation=True, transaction_id=journal.get("transaction_id"))
 
 
-def run_migrate(target_dir: str, apply: bool = False, cleanup_legacy: bool = False) -> dict:
+def _apply_migration_resolution(target: Path, decision_path: Path) -> dict:
+    """Apply operator conflict decisions (F10b resolution flow).
+
+    Reads the conflict report + a decision file and copies the chosen candidate
+    into the canonical core transactionally. A chosen path is honored only if it
+    is one of that conflict's recorded candidates (no arbitrary path injection).
+    Decision file: {version: 1, resolutions: [{logical_artifact, choose: <candidate>}]}.
+    """
+    import yaml
+    report_path = target / ".maika/runtime/migration-conflicts.yaml"
+    if not report_path.is_file():
+        print("  no migration conflict report to resolve")
+        return _result("no-op", mutation=False)
+    if not decision_path.is_file():
+        print(f"  decision file not found: {decision_path}")
+        return _result("blocked", mutation=False)
+    try:
+        report = yaml.safe_load(report_path.read_text(encoding="utf-8")) or {}
+        decisions = yaml.safe_load(decision_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        print(f"  cannot read conflict report or decision file: {exc}")
+        return _result("blocked", mutation=False)
+    allowed = {c.get("logical_artifact"): set(c.get("candidates") or [])
+               for c in (report.get("conflicts") or [])}
+    chosen: dict[str, Path] = {}
+    for item in decisions.get("resolutions") or []:
+        logical, choose = item.get("logical_artifact"), item.get("choose")
+        if logical not in allowed:
+            print(f"  refused: {logical!r} is not an open conflict")
+            return _result("blocked", mutation=False)
+        if choose not in allowed[logical]:
+            print(f"  refused: {choose!r} is not a recorded candidate for {logical!r}")
+            return _result("blocked", mutation=False)
+        source = target / choose
+        if not source.is_file():
+            print(f"  refused: chosen source missing: {choose}")
+            return _result("blocked", mutation=False)
+        chosen[logical] = source
+    if not chosen:
+        print("  no resolutions to apply")
+        return _result("no-op", mutation=False)
+    staging = Path(tempfile.mkdtemp(prefix="maika-resolve-"))
+    backups = Path(tempfile.mkdtemp(prefix="maika-resolve-bak-"))
+    try:
+        actions = []
+        for logical, source in chosen.items():
+            dest = staging / ".maika" / logical
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, dest)
+            actions.append({"kind": "replace", "path": f".maika/{logical}",
+                            "ownership": ownership.PROJECT, "explicit_project_delete": True})
+        journal = Transaction(staging, target, backups).apply(
+            {"version": 1, "operation": "migration-resolve", "actions": actions})
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(backups, ignore_errors=True)
+    print(f"  applied {len(chosen)} conflict resolution(s) to the canonical core")
+    return _result("committed", mutation=True, transaction_id=journal.get("transaction_id"))
+
+
+def run_migrate(target_dir: str, apply: bool = False, cleanup_legacy: bool = False,
+                resolve: Optional[str] = None) -> dict:
     target = Path(target_dir).resolve()
+    if resolve:
+        return _apply_migration_resolution(target, Path(resolve))
     inventory = {}
     for root in _LEGACY_ROOTS:
         present = (target / root).is_dir()

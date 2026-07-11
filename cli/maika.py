@@ -114,6 +114,8 @@ def main():
     migrate_parser.add_argument("--plan", action="store_true", help="Print migration inventory only")
     migrate_parser.add_argument("--cleanup-legacy", action="store_true",
                                 help="Explicitly remove migrated legacy project data")
+    migrate_parser.add_argument("--resolve", default=None,
+                                help="Apply conflict decisions from a decision file")
 
     repair_parser = subparsers.add_parser(
         "repair", help="Apply a safe fix for a `maika doctor setup` finding",
@@ -334,7 +336,8 @@ def main():
         from cli.commands.lifecycle import run_migrate
         sys.exit(run_migrate(target_dir=args.target,
                              apply=args.apply or args.cleanup_legacy,
-                             cleanup_legacy=args.cleanup_legacy)["exit_code"])
+                             cleanup_legacy=args.cleanup_legacy,
+                             resolve=args.resolve)["exit_code"])
     elif args.command == "repair":
         from cli.commands.lifecycle import run_repair
         sys.exit(run_repair(target_dir=args.target, finding_id=args.finding,
