@@ -9,12 +9,14 @@ purge and legacy cleanup require explicit confirmation.
 from __future__ import annotations
 
 import json
+import hashlib
 import shutil
 import tempfile
 from pathlib import Path
 from typing import Optional
 
 from cli.install import ownership
+from cli.install.planner import build_plan
 from cli.install.transaction import Transaction
 from cli.scaffold import (
     load_resolved_config,
@@ -51,22 +53,6 @@ def _framework_delete_plan(target: Path, framework_root: str) -> dict:
     return {"version": 1, "operation": "uninstall", "actions": actions}
 
 
-def _strip_shared_host(target: Path) -> None:
-    for rel in _SHARED_HOST:
-        path = target / rel
-        if not path.exists():
-            continue
-        if rel.endswith(".json"):
-            cleaned = remove_maika_json_entry(json.loads(path.read_text(encoding="utf-8")))
-            path.write_text(json.dumps(cleaned, indent=2) + "\n", encoding="utf-8")
-        else:
-            stripped = strip_managed_markdown(path.read_text(encoding="utf-8"))
-            if stripped.strip() == "":
-                path.unlink()
-            else:
-                path.write_text(stripped, encoding="utf-8")
-
-
 def run_uninstall(target_dir: str, purge_project_data: bool = False) -> int:
     target = Path(target_dir).resolve()
     framework_root = _framework_root(target)
@@ -75,14 +61,54 @@ def run_uninstall(target_dir: str, purge_project_data: bool = False) -> int:
     staging = Path(tempfile.mkdtemp(prefix="maika-uninstall-"))
     backups = Path(tempfile.mkdtemp(prefix="maika-uninstall-bak-"))
     try:
+        host_actions = []
+        for rel in _SHARED_HOST:
+            path = target / rel
+            if not path.is_file():
+                continue
+            if rel.endswith(".json"):
+                cleaned = json.dumps(
+                    remove_maika_json_entry(json.loads(path.read_text(encoding="utf-8"))),
+                    indent=2,
+                ) + "\n"
+            else:
+                cleaned = strip_managed_markdown(path.read_text(encoding="utf-8"))
+            if cleaned.strip() in {"", "{}"}:
+                host_actions.append({"kind": "delete_file", "path": rel,
+                                     "ownership": ownership.SHARED_HOST})
+            else:
+                staged = staging / rel
+                staged.parent.mkdir(parents=True, exist_ok=True)
+                staged.write_text(cleaned, encoding="utf-8")
+                host_actions.append({"kind": "replace", "path": rel,
+                                     "ownership": ownership.SHARED_HOST})
+        plan["actions"].extend(host_actions)
+        if purge_project_data:
+            purge_roots = []
+            for subtree in ("knowledge/active", "knowledge/long-term", "knowledge/skill-evolution",
+                            "changes", "archive", "loops"):
+                rel = f"{framework_root}/{subtree}"
+                if (target / rel).is_dir():
+                    purge_roots.append(rel)
+                    plan["actions"].append({
+                        "kind": "delete_directory", "path": rel,
+                        "ownership": ownership.PROJECT, "explicit_project_delete": True,
+                    })
+            # A directory backup subsumes every file below it; remove narrower
+            # actions to avoid overlapping backups/restores.
+            plan["actions"] = [
+                action for action in plan["actions"]
+                if not any(action["path"] != root and action["path"].startswith(root + "/")
+                           for root in purge_roots)
+            ]
         Transaction(staging, target, backups).apply(plan)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
         shutil.rmtree(backups, ignore_errors=True)
 
-    _strip_shared_host(target)
-
     if purge_project_data:
+        # The committed uninstall journal is the final remaining core artifact;
+        # explicit purge removes that recovery marker and its now-empty parents.
         shutil.rmtree(target / framework_root, ignore_errors=True)
         print(f"  Uninstalled Maika and purged project data under {framework_root}")
     else:
@@ -91,7 +117,28 @@ def run_uninstall(target_dir: str, purge_project_data: bool = False) -> int:
     return 0
 
 
-def run_repair(target_dir: str, finding_id: str, maika_root: Optional[str] = None) -> int:
+def run_repair(target_dir: str, finding_id: Optional[str] = None,
+               maika_root: Optional[str] = None, transaction_id: Optional[str] = None,
+               all_safe: bool = False) -> int:
+    if transaction_id:
+        from cli.install.transaction import repair_transaction
+        try:
+            result = repair_transaction(Path(target_dir).resolve(), transaction_id)
+        except (OSError, ValueError) as exc:
+            print(f"  ❌ {exc}")
+            return 2
+        print(f"  transaction {transaction_id}: {result['status']}")
+        return 0
+    if all_safe:
+        rc = 0
+        for safe_finding in ("managed-entrypoint", "native-hook"):
+            result = run_repair(target_dir, safe_finding, maika_root)
+            if result not in {0, 2}:
+                rc = result
+        return rc
+    if not finding_id:
+        print("  ❌ repair requires --finding, --transaction, or --all-safe")
+        return 2
     from cli.commands.doctor import build_setup_findings
 
     target = Path(target_dir).resolve()
@@ -116,12 +163,92 @@ def run_repair(target_dir: str, finding_id: str, maika_root: Optional[str] = Non
             print("  ❌ no primary platform to reinstall")
             return 2
         return run_platform("enable", str(target), primary, maika_root)
+    if finding_id == "deprecated-config":
+        import yaml
+        path = target / ".maika/resolved-config.yaml"
+        if not path.is_file():
+            print("  deprecated config path is missing")
+            return 2
+        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        resolved = doc.get("resolved") or {}
+        resolved.pop("hook_python", None)
+        staging = Path(tempfile.mkdtemp(prefix="maika-repair-config-"))
+        backups = Path(tempfile.mkdtemp(prefix="maika-repair-bak-"))
+        try:
+            staged = staging / ".maika/resolved-config.yaml"
+            staged.parent.mkdir(parents=True, exist_ok=True)
+            staged.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+            plan = build_plan(staging, target, "repair-deprecated-config", ".maika")
+            Transaction(staging, target, backups).apply(plan)
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+            shutil.rmtree(backups, ignore_errors=True)
+        print("  removed deprecated config keys")
+        return 0
 
     print(f"  no safe automatic repair for {finding_id}; see `maika doctor setup`")
     return 2
 
 
-def run_migrate(target_dir: str, apply: bool = False) -> int:
+_MIGRATION_SUBTREES = ("knowledge/active", "knowledge/long-term", "knowledge/skill-evolution",
+                       "changes", "archive", "loops")
+
+
+def _legacy_resolved(root: Path) -> dict:
+    path = root / "resolved-config.yaml"
+    if not path.is_file():
+        return {}
+    try:
+        doc = __import__("yaml").safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, ValueError):
+        return {}
+    return doc.get("resolved") if isinstance(doc.get("resolved"), dict) else {}
+
+
+def _migration_candidates(target: Path) -> dict[str, list[Path]]:
+    candidates: dict[str, list[Path]] = {}
+    for root_name in (".agents", ".claude"):
+        root = target / root_name
+        for subtree in _MIGRATION_SUBTREES:
+            source = root / subtree
+            if not source.is_dir():
+                continue
+            for path in source.rglob("*"):
+                if path.is_file():
+                    logical = path.relative_to(root).as_posix()
+                    candidates.setdefault(logical, []).append(path)
+    return candidates
+
+
+def _cleanup_legacy_data(target: Path) -> int:
+    staging = Path(tempfile.mkdtemp(prefix="maika-migrate-cleanup-"))
+    backups = Path(tempfile.mkdtemp(prefix="maika-migrate-bak-"))
+    actions = []
+    try:
+        for root_name in (".agents", ".claude"):
+            root = target / root_name
+            for subtree in ("knowledge", "changes", "archive", "loops"):
+                path = root / subtree
+                if path.is_dir():
+                    actions.append({"kind": "delete_directory",
+                                    "path": path.relative_to(target).as_posix(),
+                                    "ownership": ownership.FRAMEWORK})
+            resolved = root / "resolved-config.yaml"
+            if resolved.is_file():
+                actions.append({"kind": "delete_file",
+                                "path": resolved.relative_to(target).as_posix(),
+                                "ownership": ownership.FRAMEWORK})
+        Transaction(staging, target, backups).apply({
+            "version": 1, "operation": "migration-cleanup", "actions": actions,
+        })
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(backups, ignore_errors=True)
+    print(f"  cleaned {len(actions)} legacy project-data artifact(s); native host config preserved")
+    return 0
+
+
+def run_migrate(target_dir: str, apply: bool = False, cleanup_legacy: bool = False) -> int:
     target = Path(target_dir).resolve()
     inventory = {}
     for root in _LEGACY_ROOTS:
@@ -143,14 +270,82 @@ def run_migrate(target_dir: str, apply: bool = False) -> int:
         print("  dry-run: no changes made")
         return 0
 
-    if canonical_present:
-        # Already on the canonical .maika core. Legacy roots are never silently
-        # merged or deleted — they are preserved until the user removes them.
-        print("  already on the canonical .maika core; legacy roots preserved")
+    if cleanup_legacy:
+        if not canonical_present:
+            print("  canonical core missing; cleanup refused")
+            return 1
+        return _cleanup_legacy_data(target)
+
+    if not canonical_present and legacy_present:
+        candidates = _migration_candidates(target)
+        migration_files = {}
+        preflight_conflicts = []
+        for logical, paths in sorted(candidates.items()):
+            hashes = [hashlib.sha256(path.read_bytes()).hexdigest() for path in paths]
+            if len(set(hashes)) > 1:
+                preflight_conflicts.append(logical)
+            elif paths:
+                migration_files[logical] = paths[0]
+        if preflight_conflicts:
+            print("  migration refused before mutation; divergent legacy artifacts: "
+                  + ", ".join(preflight_conflicts))
+            return 1
+        resolved = next((cfg for cfg in (
+            _legacy_resolved(target / ".agents"), _legacy_resolved(target / ".claude")
+        ) if cfg), {})
+        platform_key = resolved.get("platform", "generic")
+        from cli.commands.init import run_init
+        try:
+            run_init(
+                str(target), platform_key=platform_key,
+                selected_mcps=list(resolved.get("mcps") or []),
+                language=resolved.get("language", "other"), assume_yes=True,
+                migration_files=migration_files,
+            )
+        except (OSError, ValueError) as exc:
+            print(f"  canonical install failed: {exc}")
+            return 1
+        canonical_present = True
+        print(f"  migrated {len(migration_files)} logical project artifact(s) atomically; "
+              "legacy roots preserved read-only")
         return 0
-    if legacy_present:
-        print("  legacy install detected but no canonical .maika core; "
-              "run `maika init` to create the canonical core, then migrate")
-        return 1
+    if canonical_present and legacy_present:
+        candidates = _migration_candidates(target)
+        staging = Path(tempfile.mkdtemp(prefix="maika-migrate-"))
+        backups = Path(tempfile.mkdtemp(prefix="maika-migrate-bak-"))
+        conflicts = []
+        try:
+            for logical, paths in sorted(candidates.items()):
+                canonical = target / ".maika" / logical
+                all_paths = ([canonical] if canonical.is_file() else []) + paths
+                hashes = [hashlib.sha256(path.read_bytes()).hexdigest() for path in all_paths]
+                if len(set(hashes)) == 1:
+                    if not canonical.is_file():
+                        dest = staging / ".maika" / logical
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(paths[0], dest)
+                    continue
+                conflicts.append({
+                    "logical_artifact": logical,
+                    "candidates": [path.relative_to(target).as_posix() for path in all_paths],
+                    "hashes": hashes,
+                    "decision_required": True,
+                })
+            if conflicts:
+                conflict_path = staging / ".maika/runtime/migration-conflicts.yaml"
+                conflict_path.parent.mkdir(parents=True, exist_ok=True)
+                import yaml
+                conflict_path.write_text(yaml.safe_dump({"version": 1, "conflicts": conflicts},
+                                                        sort_keys=False), encoding="utf-8")
+            plan = build_plan(staging, target, "migration", ".maika")
+            Transaction(staging, target, backups).apply(plan)
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+            shutil.rmtree(backups, ignore_errors=True)
+        if conflicts:
+            print(f"  migration blocked by {len(conflicts)} divergent artifact(s); decisions required")
+            return 1
+        print(f"  migrated {len(candidates)} logical project artifact(s); legacy roots preserved read-only")
+        return 0
     print("  nothing to migrate")
     return 0

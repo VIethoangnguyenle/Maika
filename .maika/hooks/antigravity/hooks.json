@@ -5,8 +5,9 @@
         "matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command",
         "hooks": [
           {
+            "id": "maika.write-gate.v1",
             "type": "command",
-            "command": "maika hook write-gate --runtime antigravity",
+            "command": "maika hook write-gate --runtime antigravity --platform antigravity",
             "statusMessage": "Checking Maika write gate"
           }
         ]

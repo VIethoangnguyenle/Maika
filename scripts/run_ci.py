@@ -38,6 +38,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo = Path(__file__).resolve().parents[1]
+    audit = subprocess.run(
+        [sys.executable, "scripts/audit_artifacts.py"], cwd=repo, check=False,
+    )
+    if audit.returncode != 0:
+        return audit.returncode
     selected = [group for group in TEST_GROUPS if not args.group or group["name"] in args.group]
     for group in selected:
         paths = _existing_paths(repo, group["paths"])

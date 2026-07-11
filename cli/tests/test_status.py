@@ -44,3 +44,17 @@ def test_status_detects_legacy_install(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "No Maika installation" not in out
     assert "legacy installation" in out
+
+
+def test_json_status_reports_runtime_platform_and_support_tier(tmp_path, capsys):
+    import json
+    from cli.commands.init import run_init
+
+    repo = __import__("pathlib").Path(__file__).resolve().parents[2]
+    run_init(str(tmp_path), str(repo), "codex", [], "python", True)
+    capsys.readouterr()
+    run_status(str(tmp_path), as_json=True)
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["runtime_platform"] == "codex"
+    assert payload["runtime_source"] == "primary"
+    assert payload["platform_health"]["codex"]["support_tier"] >= 1

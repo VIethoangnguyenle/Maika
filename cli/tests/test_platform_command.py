@@ -7,6 +7,8 @@ entrypoint + native config and never touches project knowledge.
 import hashlib
 from pathlib import Path
 
+import pytest
+
 from cli.commands.init import run_init
 from cli.commands.platform import run_platform
 from cli.config import project
@@ -30,6 +32,13 @@ def _knowledge_hash(target: Path) -> dict:
     return {
         p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
         for p in sorted(root.rglob("*")) if p.is_file()
+    }
+
+
+def _tree_hash(target: Path) -> dict:
+    return {
+        p.relative_to(target).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in sorted(target.rglob("*")) if p.is_file()
     }
 
 
@@ -118,3 +127,21 @@ def test_knowledge_hash_unchanged_through_all_ops(tmp_path):
     run_platform(action="disable", target_dir=str(tmp_path), platform_key="claude-code",
                  maika_root=str(REPO_ROOT))
     assert _knowledge_hash(tmp_path) == before
+
+
+def test_enable_rolls_back_adapter_and_metadata_together(tmp_path, monkeypatch):
+    _init(tmp_path, "codex")
+    before = _tree_hash(tmp_path)
+    from cli.install.transaction import Transaction
+    real = Transaction._execute
+
+    def fail_at_metadata(self, action):
+        if action["path"] == ".maika/config/project.yaml":
+            raise RuntimeError("injected metadata failure")
+        return real(self, action)
+
+    monkeypatch.setattr(Transaction, "_execute", fail_at_metadata)
+    with pytest.raises(RuntimeError, match="metadata failure"):
+        _enable(tmp_path, "claude-code")
+    assert _tree_hash(tmp_path) == before
+    assert not (tmp_path / "CLAUDE.md").exists()

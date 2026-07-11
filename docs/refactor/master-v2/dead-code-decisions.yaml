@@ -1,0 +1,32 @@
+version: 1
+decisions:
+  - path: cli/workers.py
+    symbol: module
+    status: delete
+    evidence: doctor-only policy differed from actual orchestrator execution path
+    replacement: cli/runtime/worker_resolver.py
+    tests: cli/tests/test_worker_resolver.py
+  - path: cli/platforms/detection.py
+    symbol: module
+    status: delete
+    evidence: diagnostic-only dict output did not affect platform enable/runtime behavior
+    replacement: cli/platforms/probe.py
+    tests: cli/tests/test_platform_probe.py
+  - path: cli/commands/platform.py
+    symbol: _remove_adapter
+    status: delete
+    evidence: direct non-transactional mutator replaced by remove_adapter transaction
+    replacement: cli.commands.platform.remove_adapter
+    tests: cli/tests/test_platform_command.py
+  - path: cli/commands/lifecycle.py
+    symbol: _strip_shared_host
+    status: delete
+    evidence: uninstall now stages shared-host cleanup in its transaction
+    replacement: cli.commands.lifecycle.run_uninstall
+    tests: cli/tests/test_lifecycle.py
+  - path: .maika/procedures/token-tracking.md
+    symbol: scaffold artifact
+    status: delete
+    evidence: no production loader/consumer; TOKEN_LOG metrics use templates and runtime metrics directly
+    replacement: .maika/knowledge/templates/TOKEN_LOG.tpl.md
+    tests: cli/tests/test_snapshots.py

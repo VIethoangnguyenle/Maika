@@ -241,9 +241,3 @@ def test_is_windows_flag_present_for_every_platform():
     for key in PLATFORMS:
         ctx = get_platform(key).build_render_context([], "python")
         assert "is_windows" in ctx, f"{key} missing is_windows"
-
-
-def test_build_render_context_hook_python_default_and_override():
-    p = get_platform("claude-code")
-    assert p.build_render_context([], "python")["hook_python"] == "python"
-    assert p.build_render_context([], "python", hook_python="py -3")["hook_python"] == "py -3"

@@ -62,6 +62,20 @@ deleted:
     consumers_moved_to: [knowledge-curator]
     verification: cli/tests/test_skill_standard.py
 subsequent_waves:
+  - wave: master-v2-remediation
+    deleted:
+      - path: cli/workers.py
+        reason: Shadow worker policy replaced by the canonical runtime resolver.
+        consumers_moved_to: [cli/runtime/worker_resolver.py]
+        verification: cli/tests/test_worker_resolver.py
+      - path: cli/platforms/detection.py
+        reason: Diagnostic-only detection replaced by typed production probe and verification.
+        consumers_moved_to: [cli/platforms/probe.py]
+        verification: cli/tests/test_platform_probe.py
+      - path: .maika/procedures/token-tracking.md
+        reason: Manifest-only procedure had no production loader or workflow consumer.
+        consumers_moved_to: [.maika/knowledge/templates/TOKEN_LOG.tpl.md]
+        verification: cli/tests/test_snapshots.py
   - wave: W3
     deleted:
       - path: .maika/tools/microloop-orchestrator/vnext_dispatch.py::run_dispatch

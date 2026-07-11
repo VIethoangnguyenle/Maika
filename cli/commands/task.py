@@ -693,6 +693,7 @@ def run_task(
     klass: str = "small",
     title: str | None = None,
     command_id: str | None = None,
+    platform_key: str | None = None,
 ) -> int:
     target = Path(target_dir).resolve()
     framework_root = _framework_root(target)
@@ -782,9 +783,21 @@ def run_task(
         print(f"task {action} requires --id")
         return 2
     ws = _workspace(target, framework_root, change_id)
-    return _run([
+    command = [
         sys.executable, str(orchestrator),
         COMMAND_MAP[action],
         "--workspace", str(ws),
         "--repo-root", str(target),
-    ], target)
+    ]
+    try:
+        from cli.runtime.session import resolve_active_platform
+        active_platform, _source = resolve_active_platform(
+            target, explicit_platform=platform_key,
+        )
+    except ValueError:
+        # Compatibility for pre-profile fixtures/projects: the canonical
+        # orchestrator will still fail closed unless a trusted local override exists.
+        active_platform = None
+    if active_platform:
+        command.extend(["--platform", active_platform])
+    return _run(command, target)

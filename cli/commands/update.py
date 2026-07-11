@@ -45,7 +45,7 @@ def _stage_index_inputs(target: Path, staging: Path, framework_root: str) -> Non
         shutil.copytree(project_knowledge, dst / "project-knowledge", dirs_exist_ok=True)
 
 
-def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: bool = False, hook_python: Optional[str] = None) -> None:
+def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: bool = False) -> None:
     """Re-render framework files into an existing Maika project."""
     target = Path(target_dir).resolve()
     maika = asset_root(maika_root)
@@ -69,8 +69,7 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
 
     platform = get_platform(platform_key)
     framework_root = resolved.get("framework_root", platform.framework_root)
-    effective_hook_python = hook_python or resolved.get("hook_python")
-    context = platform.build_render_context(selected_mcps, language, hook_python=effective_hook_python)
+    context = platform.build_render_context(selected_mcps, language)
     jinja_env = create_renderer(str(maika))
 
     print(f"\n  Updating Maika ({platform.display_name})...\n")
@@ -83,6 +82,21 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
             only_framework=True,
         )
         scaffold_native_skill_exports(manifest.get("plugins", []), staging, platform)
+        from cli.commands.platform import _adapter_plugins
+        from cli.config import project as project_cfg
+        enabled = project_cfg.load(target)["platforms"]["enabled"] or [platform_key]
+        adapter_platforms = []
+        for enabled_platform in enabled:
+            adapter = get_platform(enabled_platform)
+            adapter_platforms.append(adapter)
+            adapter_context = adapter.build_render_context(selected_mcps, language)
+            plugins = _adapter_plugins(manifest, enabled_platform)
+            scaffold_plugins(
+                plugins, maika, staging, adapter_context, jinja_env,
+                manifest.get("mcp_capabilities", {}), selected_mcps,
+                verbose=False,
+            )
+            scaffold_native_skill_exports(plugins, staging, adapter, verbose=False)
         offenders = verify_no_unresolved(staging)
         if offenders:
             print("\n  ❌ Update aborted — unresolved template markers in:")
@@ -91,12 +105,16 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
             print("  Target was NOT modified.")
             return
         # Build the complete desired tree in staging, then apply atomically.
-        stage_managed_entrypoint(staging, target, platform.config_entry_point)
+        for entrypoint in sorted({adapter.config_entry_point for adapter in adapter_platforms}):
+            stage_managed_entrypoint(staging, target, entrypoint)
         stage_managed_json_configs(staging, target)
         _stage_index_inputs(target, staging, framework_root)
         generate_knowledge_index(maika, staging, framework_root)
-        if reconfigure or (hook_python and hook_python != resolved.get("hook_python")):
-            generate_resolved_config(staging, platform, selected_mcps, language, hook_python=effective_hook_python)
+        from cli.runtime.platform_profile import write_platform_runtime_profile
+        for enabled_platform in enabled:
+            write_platform_runtime_profile(staging, enabled_platform)
+        if reconfigure:
+            generate_resolved_config(staging, platform, selected_mcps, language)
         if reconfigure:
             from cli.commands.init import resolve_ua_mcp_dir, emit_mcp_setup_files
             ua_dir = resolve_ua_mcp_dir(selected_mcps, None, assume_yes=False)

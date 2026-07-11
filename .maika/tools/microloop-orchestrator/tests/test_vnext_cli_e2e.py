@@ -215,7 +215,7 @@ def test_vnext_cli_e2e(tmp_path):
     mock_worker = tmp_path / "mock_worker.py"
     mock_worker.write_text("""import sys, re, json
 from pathlib import Path
-prompt = sys.argv[1]
+prompt = Path(sys.argv[1]).read_text()
 out_path = re.search(r'^OUTPUT_FILE: (.+)$', prompt, re.M).group(1)
 out = Path(out_path)
 queue = json.loads((out.parents[1] / 'generated' / 'TASK_QUEUE.json').read_text())
@@ -226,7 +226,7 @@ with open(out_path, 'w') as f:
 """)
     (prof / "execution-mode.yaml").write_text(yaml.safe_dump({
         "workflow_engine": "vnext",
-        "worker": {"executable": sys.executable, "args": [str(mock_worker), "{prompt}"]},
+        "worker": {"executable": sys.executable, "args": [str(mock_worker), "{prompt_file}"]},
     }), encoding="utf-8")
     
     ch_root = tmp_path / ".maika" / "changes"
@@ -465,14 +465,14 @@ def test_public_small_happy_path_completes_with_one_worker_call(tmp_path):
     worker = tmp_path / "small_worker.py"
     worker.write_text("""import re, sys, yaml
 from pathlib import Path
-prompt = sys.argv[1]
+prompt = Path(sys.argv[1]).read_text()
 out = Path(re.search(r'^OUTPUT_FILE: (.+)$', prompt, re.M).group(1))
 Path('src/a.py').write_text('after\\n')
 out.write_text(yaml.safe_dump({'version': 1, 'status': 'success', 'touched_files': ['src/a.py'], 'observed_risk_signals': {}}))
 """, encoding="utf-8")
     (fw_root / "profiles" / "execution-mode.yaml").write_text(yaml.safe_dump({
         "workflow_engine": "vnext",
-        "worker": {"executable": sys.executable, "args": [str(worker), "{prompt}"]},
+        "worker": {"executable": sys.executable, "args": [str(worker), "{prompt_file}"]},
     }), encoding="utf-8")
     cli = Path(__file__).resolve().parents[4] / "cli" / "maika.py"
     def public(*args):
@@ -523,7 +523,7 @@ def test_scope_escape_opens_one_change_loop(tmp_path):
     worker = tmp_path / "escape_worker.py"
     worker.write_text("""import re, sys, yaml
 from pathlib import Path
-prompt = sys.argv[1]
+prompt = Path(sys.argv[1]).read_text()
 out = Path(re.search(r'^OUTPUT_FILE: (.+)$', prompt, re.M).group(1))
 Path('src/a.py').write_text('after\\n')
 Path('src/evil.py').write_text('outside declared scope\\n')  # scope escape
@@ -531,7 +531,7 @@ out.write_text(yaml.safe_dump({'version': 1, 'status': 'success', 'touched_files
 """, encoding="utf-8")
     (fw_root / "profiles" / "execution-mode.yaml").write_text(yaml.safe_dump({
         "workflow_engine": "vnext",
-        "worker": {"executable": sys.executable, "args": [str(worker), "{prompt}"]},
+        "worker": {"executable": sys.executable, "args": [str(worker), "{prompt_file}"]},
     }), encoding="utf-8")
     cli = Path(__file__).resolve().parents[4] / "cli" / "maika.py"
 
@@ -590,7 +590,7 @@ def test_standard_change_cannot_compile_from_intake_without_reasoning(tmp_path):
     assert "requires reasoning/spec validation" in res.stdout
 
 
-def test_worker_command_is_required_for_review(tmp_path):
+def test_worker_profile_is_required_for_review(tmp_path):
     fw_root = tmp_path / ".maika"
     fw_root.mkdir()
     _write_bootstrap(fw_root)
@@ -610,7 +610,7 @@ def test_worker_command_is_required_for_review(tmp_path):
     result = subprocess.run(cmd + ["vnext-review-plan", "--workspace", str(ws), "--repo-root", str(tmp_path)], capture_output=True, text=True)
 
     assert result.returncode == 2
-    assert "worker config" in result.stdout
+    assert "platform" in result.stdout
     assert "missing" in result.stdout.lower()
 
 def test_refuse_legacy(tmp_path):

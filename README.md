@@ -627,7 +627,9 @@ Khi thay đổi runtime `.maika/`, ưu tiên giữ instruction ngắn, portable,
 
 ### Repo hygiene
 
-- Specs và plans trong `docs/superpowers/` là nguồn lịch sử dài hạn.
+- Specs và plans đã triển khai trong `docs/superpowers/` là lịch sử, không phải
+  runtime authority; trạng thái và đường dẫn tra cứu nằm tại
+  `docs/archive/implemented/index.yaml`.
 - Handoff/review artifact tạm thời không nên commit vào source; dùng workspace scratch như `.superpowers/` rồi dọn sau khi task xong.
 - Không commit cache hoặc build artifact như `__pycache__/`, `.pytest_cache/`, `.egg-info/`, `.venv/`.
 

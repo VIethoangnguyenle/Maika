@@ -152,64 +152,40 @@ def topo_sort(tasks):
     return ordered
 
 
-WORKER_PLACEHOLDERS = ("{prompt}", "{prompt_file}", "{repo_root}", "{workspace}", "{task_id}")
-_PLACEHOLDER_RE = re.compile(r"\{[a-zA-Z_][a-zA-Z0-9_]*\}")
-
-
-def _validate_worker_tokens(tokens):
-    """Reject any token containing a placeholder we do not understand."""
-    allowed = set(WORKER_PLACEHOLDERS)
-    for token in tokens:
-        for found in _PLACEHOLDER_RE.findall(token):
-            if found not in allowed:
-                raise ValueError(f"unknown worker placeholder {found}; allowed: {sorted(allowed)}")
-
-
 def make_worker_runner(worker, ws, repo_root, timeout=900):
-    """Adapt a structured worker config into a prompt runner.
+    """Compatibility adapter around the canonical resolver/argv builder.
 
-    ``worker`` is ``{"executable": str, "args": [str, ...]}``. Tokens may embed
-    the placeholders in ``WORKER_PLACEHOLDERS``. The prompt is passed to the
-    worker process directly through argv (``shell=False``) — never via a shell
-    string — so it is not subject to shell quoting/expansion and is portable
-    across POSIX and Windows. ``{prompt_file}`` writes the prompt to a temp file
-    under ``<ws>/generated/prompts`` and substitutes its path.
+    The prompt is always materialized to a file and passed as one argv element.
+    This function owns process lifecycle only; it does not own worker policy.
     """
-    executable = worker["executable"]
-    arg_templates = list(worker.get("args") or [])
-    _validate_worker_tokens([executable, *arg_templates])
+    from cli.runtime.worker_resolver import (
+        FRESH_PROCESS, WorkerProfile, build_worker_argv, validate_worker_profile,
+    )
+    args = tuple(
+        token.replace("{prompt}", "{prompt_file}")
+        for token in (worker.get("args") or [])
+    )
+    profile = validate_worker_profile(WorkerProfile(
+        platform=worker.get("platform", "generic"),
+        strategy=FRESH_PROCESS,
+        executable=worker.get("executable"),
+        args=args,
+        timeout_seconds=timeout,
+        dangerous_permissions=bool(worker.get("dangerous_permissions", False)),
+        reason=worker.get("reason", "trusted orchestrator override"),
+    ))
     ws = Path(ws)
     repo_root = Path(repo_root)
-    context = {
-        "{repo_root}": str(repo_root),
-        "{workspace}": str(ws),
-        "{task_id}": ws.name,
-    }
-    needs_prompt_file = any("{prompt_file}" in tok for tok in [executable, *arg_templates])
-
-    def _render(token, prompt_file_path):
-        rendered = token
-        for key, value in context.items():
-            rendered = rendered.replace(key, value)
-        if prompt_file_path is not None:
-            rendered = rendered.replace("{prompt_file}", prompt_file_path)
-        return rendered
 
     def runner(prompt):
-        prompt_file = None
-        if needs_prompt_file:
-            prompts_dir = ws / "generated" / "prompts"
-            prompts_dir.mkdir(parents=True, exist_ok=True)
-            digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12]
-            prompt_file = prompts_dir / f"dispatch-{os.getpid()}-{digest}.txt"
-            prompt_file.write_text(prompt, encoding="utf-8")
-        prompt_file_path = str(prompt_file) if prompt_file is not None else None
-        argv = []
-        for token in [executable, *arg_templates]:
-            if token == "{prompt}":
-                argv.append(prompt)  # whole, unquoted argv element
-            else:
-                argv.append(_render(token, prompt_file_path))
+        prompts_dir = ws / "generated" / "prompts"
+        prompts_dir.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12]
+        prompt_file = prompts_dir / f"dispatch-{os.getpid()}-{digest}.txt"
+        prompt_file.write_text(prompt, encoding="utf-8")
+        argv = build_worker_argv(profile, str(prompt_file), context={
+            "repo_root": str(repo_root), "workspace": str(ws), "task_id": ws.name,
+        })
         try:
             try:
                 proc = subprocess.Popen(
@@ -230,25 +206,54 @@ def make_worker_runner(worker, ws, repo_root, timeout=900):
                 proc.communicate()
                 return 124, f"worker timeout after {timeout}s"
         finally:
-            if prompt_file is not None:
-                prompt_file.unlink(missing_ok=True)
+            prompt_file.unlink(missing_ok=True)
         return proc.returncode, output or ""
 
     return runner
 
 
-def _worker_runner(config, ws, repo_root):
-    worker = (config or {}).get("worker")
-    if not isinstance(worker, dict) or not worker.get("executable") \
-            or not isinstance(worker.get("args"), list):
-        print("Refused: worker config (worker.executable + worker.args) is missing "
-              "from profiles/execution-mode.local.yaml or execution-mode.yaml")
+def _worker_runner(config, ws, repo_root, platform_key=None):
+    from cli.config import project as project_cfg
+    from cli.runtime.worker_resolver import (
+        FRESH_PROCESS, WorkerResolutionError, resolve_worker_profile,
+    )
+
+    config = config or {}
+    worker = config.get("worker")
+    primary = platform_key or project_cfg.load(Path(repo_root))["platforms"]["primary"]
+    if primary is None and isinstance(worker, dict):
+        primary = worker.get("platform", "generic")
+    if primary is None:
+        print("Refused: missing active or primary platform; pass an explicit platform")
         return None
-    timeout = int((config or {}).get("worker_timeout_seconds", 900))
+    runtime_policy = config.get("runtime_policy") or config
+    timeout = int(runtime_policy.get("worker_timeout_seconds", 900))
+    override = None
+    if isinstance(worker, dict) and worker.get("executable"):
+        override = {
+            "platform": primary,
+            "strategy": FRESH_PROCESS,
+            "executable": worker["executable"],
+            "args": [token.replace("{prompt}", "{prompt_file}")
+                     for token in (worker.get("args") or [])],
+            "timeout_seconds": timeout,
+            "dangerous_permissions": False,
+            "reason": "trusted execution-mode.local compatibility override",
+        }
     try:
-        return make_worker_runner(worker, ws, repo_root, timeout=timeout)
-    except ValueError as exc:
-        print(f"Refused: invalid worker config: {exc}")
+        profile = resolve_worker_profile(Path(repo_root), primary, override)
+        if profile.strategy != FRESH_PROCESS:
+            print(f"Refused: worker strategy {profile.strategy}: {profile.reason}")
+            return None
+        return make_worker_runner({
+            "platform": profile.platform,
+            "executable": profile.executable,
+            "args": list(profile.args),
+            "dangerous_permissions": profile.dangerous_permissions,
+            "reason": profile.reason,
+        }, ws, repo_root, timeout=profile.timeout_seconds)
+    except WorkerResolutionError as exc:
+        print(f"Refused: invalid worker profile: {exc}")
         return None
 
 
@@ -266,6 +271,7 @@ def _add_vnext_commands(sub):
     review_parser = sub.add_parser("vnext-review-plan")
     review_parser.add_argument("--workspace", required=True)
     review_parser.add_argument("--repo-root", required=True)
+    review_parser.add_argument("--platform")
 
     reasoning_parser = sub.add_parser("vnext-validate-reasoning")
     reasoning_parser.add_argument("--workspace", required=True)
@@ -288,6 +294,7 @@ def _add_vnext_commands(sub):
     run_parser = sub.add_parser("vnext-run")
     run_parser.add_argument("--workspace", required=True)
     run_parser.add_argument("--repo-root", required=True)
+    run_parser.add_argument("--platform")
 
     status_parser = sub.add_parser("vnext-status")
     status_parser.add_argument("--workspace", required=True)
@@ -379,7 +386,7 @@ def _main_unlocked(argv=None):
         if state["state"] != "PLAN_REVIEW":
             print(f"Refused: wrong state {state['state']}")
             return 1
-        runner = _worker_runner(config, ws, args.repo_root)
+        runner = _worker_runner(config, ws, args.repo_root, args.platform)
         if runner is None:
             return 2
         verdict = vd.review_plan(ws, runner)
@@ -526,7 +533,7 @@ def _main_unlocked(argv=None):
                 if state.get("state") != "INTAKE":
                     print(f"Refused: lightweight apply requires INTAKE (found {state.get('state')})")
                     return 1
-                runner = _worker_runner(config, ws, args.repo_root)
+                runner = _worker_runner(config, ws, args.repo_root, args.platform)
                 if runner is None:
                     return 2
                 try:
@@ -588,7 +595,7 @@ def _main_unlocked(argv=None):
             elif state["state"] != "EXECUTING":
                 print(f"Refused: wrong state {state['state']}")
                 return 1
-            runner = _worker_runner(config, ws, args.repo_root)
+            runner = _worker_runner(config, ws, args.repo_root, args.platform)
             if runner is None:
                 return 2
             out = vd.run_queue(ws, args.repo_root, runner,

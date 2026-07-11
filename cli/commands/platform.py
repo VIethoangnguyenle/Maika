@@ -47,7 +47,25 @@ def _adapter_plugins(manifest: dict, platform_key: str) -> List[dict]:
     return plugins
 
 
-def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] = None) -> None:
+def _stage_metadata(staging: Path, target: Path, cfg: dict, platform_key: str,
+                    *, remove: bool = False) -> None:
+    """Stage the complete config/manifest mutation for the adapter transaction."""
+    for name in ("install-manifest.yaml",):
+        source = target / ".maika/config" / name
+        dest = staging / ".maika/config" / name
+        if source.is_file():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, dest)
+    project.save(staging, cfg)
+    platforms_cfg.write_platforms_config(staging, cfg["platforms"]["enabled"])
+    if remove:
+        platforms_cfg.remove_install(staging, platform_key)
+    else:
+        platforms_cfg.record_install(staging, platform_key, platforms_cfg.adapter_files(platform_key))
+
+
+def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] = None,
+                    project_config: Optional[dict] = None) -> None:
     """Render + transactionally apply one platform's adapter (entrypoint + native
     hook config). The `.maika` core is not re-rendered."""
     maika = asset_root(maika_root)
@@ -55,9 +73,7 @@ def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] =
     platform = get_platform(platform_key)
     resolved = load_resolved_config(target) or {}
     context = platform.build_render_context(
-        resolved.get("mcps", []),
-        resolved.get("language", "other"),
-        hook_python=resolved.get("hook_python"),
+        resolved.get("mcps", []), resolved.get("language", "other"),
     )
     jinja_env = create_renderer(str(maika))
 
@@ -76,6 +92,12 @@ def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] =
             raise ValueError(f"unresolved template markers in adapter for {platform_key}")
         stage_managed_entrypoint(staging, target, platform.config_entry_point)
         stage_managed_json_configs(staging, target)
+        from cli.runtime.platform_profile import write_platform_runtime_profile
+        write_platform_runtime_profile(staging, platform_key)
+        from cli.platforms.probe import probe_and_persist
+        probe_and_persist(staging, platform_key, verify=False)
+        if project_config is not None:
+            _stage_metadata(staging, target, project_config, platform_key)
         plan = build_plan(staging, target, "init", platform.framework_root)
         Transaction(staging, target, backups).apply(plan)
     finally:
@@ -83,31 +105,60 @@ def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] =
         shutil.rmtree(backups, ignore_errors=True)
 
 
-def _remove_adapter(target: Path, platform_key: str, remaining: List[str]) -> None:
-    """Strip only Maika-managed adapter entries; keep host-owned content and any
-    entrypoint still shared by a remaining enabled platform."""
+def remove_adapter(target: Path, platform_key: str, remaining: List[str], cfg: dict) -> None:
+    """Remove one adapter and metadata in a single transaction."""
     descriptor = platforms_cfg.adapter_descriptor(platform_key)
-    entrypoint = descriptor["entrypoint"]
-    hook_config = descriptor["hook_config"]
-
-    shared = any(
-        platforms_cfg.adapter_descriptor(other)["entrypoint"] == entrypoint
-        for other in remaining
-    )
-    if not shared:
+    staging = Path(tempfile.mkdtemp(prefix="maika-disable-"))
+    backups = Path(tempfile.mkdtemp(prefix="maika-backup-"))
+    extra = []
+    try:
+        entrypoint = descriptor["entrypoint"]
+        shared = any(platforms_cfg.adapter_descriptor(other)["entrypoint"] == entrypoint
+                     for other in remaining)
         ep_path = target / entrypoint
-        if ep_path.exists():
+        if ep_path.is_file() and not shared:
             stripped = strip_managed_markdown(ep_path.read_text(encoding="utf-8"))
-            if stripped.strip() == "":
-                ep_path.unlink()
+            if stripped.strip():
+                staged = staging / entrypoint
+                staged.parent.mkdir(parents=True, exist_ok=True)
+                staged.write_text(stripped, encoding="utf-8")
+                extra.append({"kind": "replace", "path": entrypoint, "ownership": "shared-host"})
             else:
-                ep_path.write_text(stripped, encoding="utf-8")
-
-    if hook_config:
-        hc_path = target / hook_config
-        if hc_path.exists():
+                extra.append({"kind": "delete_file", "path": entrypoint, "ownership": "shared-host"})
+        hook_config = descriptor["hook_config"]
+        hc_path = target / hook_config if hook_config else None
+        if hc_path and hc_path.is_file():
             cleaned = remove_maika_json_entry(json.loads(hc_path.read_text(encoding="utf-8")))
-            hc_path.write_text(json.dumps(cleaned, indent=2) + "\n", encoding="utf-8")
+            staged = staging / hook_config
+            staged.parent.mkdir(parents=True, exist_ok=True)
+            staged.write_text(json.dumps(cleaned, indent=2) + "\n", encoding="utf-8")
+            extra.append({"kind": "replace", "path": hook_config, "ownership": "shared-host"})
+        _stage_metadata(staging, target, cfg, platform_key, remove=True)
+        plan = build_plan(staging, target, "platform-disable", ".maika")
+        # Host replacements are full desired documents, not merge inputs.
+        host_paths = {action["path"] for action in extra}
+        plan["actions"] = [a for a in plan["actions"] if a["path"] not in host_paths]
+        plan["actions"].extend(extra)
+        profile = f".maika/runtime/platforms/{platform_key}.yaml"
+        if (target / profile).exists():
+            plan["actions"].append({"kind": "delete_file", "path": profile,
+                                    "ownership": "framework"})
+        Transaction(staging, target, backups).apply(plan)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(backups, ignore_errors=True)
+
+
+def set_primary_transaction(target: Path, cfg: dict) -> None:
+    staging = Path(tempfile.mkdtemp(prefix="maika-primary-"))
+    backups = Path(tempfile.mkdtemp(prefix="maika-backup-"))
+    try:
+        project.save(staging, cfg)
+        plan = build_plan(staging, target, "platform-primary", ".maika")
+        Transaction(staging, target, backups).apply(plan)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(backups, ignore_errors=True)
 
 
 def _print_list(target: Path) -> None:
@@ -141,26 +192,38 @@ def run_platform(action: str, target_dir: str, platform_key: Optional[str] = Non
         print(f"  ❌ Unknown platform: {platform_key}. Available: {', '.join(sorted(PLATFORMS))}")
         return 1
 
+    if action in {"enable", "disable", "primary"} \
+            and not (target / ".maika/config/project.yaml").is_file():
+        print("  ❌ Canonical .maika core is missing; run `maika init` before managing adapters")
+        return 1
+
+    if action in {"verify", "status"}:
+        from cli.platforms.probe import probe_and_persist, probe_platform
+        try:
+            result = (probe_and_persist(target, platform_key, verify=True)
+                      if action == "verify" else probe_platform(platform_key, target, verify=False))
+        except (OSError, ValueError) as exc:
+            print(f"  ❌ {platform_key}: {exc}")
+            return 1
+        print(f"  {platform_key}: tier {result.support_tier}; "
+              f"binary={'detected' if result.binary.found else 'missing'}; "
+              f"worker={result.verification['worker']}")
+        return 0 if action == "status" or result.support_tier >= 2 else 1
+
     cfg = project.load(target)
 
     if action == "enable":
-        install_adapter(target, platform_key, maika_root)
         cfg = project.enable(cfg, platform_key)
-        project.save(target, cfg)
-        platforms_cfg.write_platforms_config(target, cfg["platforms"]["enabled"])
-        platforms_cfg.record_install(target, platform_key, platforms_cfg.adapter_files(platform_key))
+        install_adapter(target, platform_key, maika_root, project_config=cfg)
         print(f"  ✅ Enabled {platform_key} (primary: {cfg['platforms']['primary']})")
     elif action == "disable":
         remaining = [p for p in cfg["platforms"]["enabled"] if p != platform_key]
-        _remove_adapter(target, platform_key, remaining)
         cfg = project.disable(cfg, platform_key)
-        project.save(target, cfg)
-        platforms_cfg.write_platforms_config(target, cfg["platforms"]["enabled"])
-        platforms_cfg.remove_install(target, platform_key)
+        remove_adapter(target, platform_key, remaining, cfg)
         print(f"  ✅ Disabled {platform_key}")
     elif action == "primary":
         cfg = project.set_primary(cfg, platform_key)
-        project.save(target, cfg)
+        set_primary_transaction(target, cfg)
         print(f"  ✅ Primary set to {platform_key}")
     else:
         print(f"  ❌ Unknown action: {action}")

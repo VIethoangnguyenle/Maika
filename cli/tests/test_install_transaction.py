@@ -161,3 +161,47 @@ def test_dry_run_returns_plan_actions_unchanged(tmp_path):
     journal = tx.Transaction(staging, target, tmp_path / "bak").apply(plan, dry_run=True)
     assert journal["applied"] == []
     assert journal["dry_run"] is True
+
+
+def test_persists_journal_before_first_target_write_and_commits(tmp_path, monkeypatch):
+    staging = _make_staging(tmp_path)
+    target = tmp_path / "t"
+    plan = build_plan(staging, target, "init", FR)
+    real = tx._atomic_write
+    observed = {"journal_before_write": False}
+
+    def observing_write(dest, data, mode_src=None):
+        if ".maika/runtime/transactions" not in dest.as_posix():
+            journals = list((target / ".maika/runtime/transactions").glob("*.yaml"))
+            observed["journal_before_write"] = bool(journals)
+        return real(dest, data, mode_src=mode_src)
+
+    monkeypatch.setattr(tx, "_atomic_write", observing_write)
+    journal = tx.Transaction(staging, target, tmp_path / "ignored").apply(plan)
+    assert observed["journal_before_write"]
+    persisted = target / journal["journal_path"]
+    assert persisted.is_file()
+    import yaml
+    assert yaml.safe_load(persisted.read_text(encoding="utf-8"))["status"] == "committed"
+
+
+def test_repair_restores_an_interrupted_transaction(tmp_path):
+    target = tmp_path / "t"
+    original = _write(target, "AGENTS.md", "before\n")
+    transaction_id = "000001-update"
+    backup_path = target / ".maika/runtime/backups" / transaction_id / "AGENTS.md"
+    backup_path.parent.mkdir(parents=True)
+    backup_path.write_bytes(original.read_bytes())
+    original.write_text("after\n", encoding="utf-8")
+    journal_path = target / ".maika/runtime/transactions" / f"{transaction_id}.yaml"
+    journal_path.parent.mkdir(parents=True)
+    import yaml
+    journal_path.write_text(yaml.safe_dump({
+        "version": 1, "transaction_id": transaction_id, "status": "applying",
+        "actions": [{"kind": "replace", "path": "AGENTS.md", "ownership": "shared-host"}],
+        "preexisting": {"AGENTS.md": "file"},
+    }), encoding="utf-8")
+
+    result = tx.repair_transaction(target, transaction_id)
+    assert result["status"] == "rolled_back"
+    assert original.read_text(encoding="utf-8") == "before\n"

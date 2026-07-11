@@ -44,11 +44,11 @@ def _ws(tmp_path):
     return ws
 
 
-def test_worker_runner_passes_prompt_as_single_argv_without_shell(tmp_path):
-    worker = _record_arg_worker(tmp_path)
+def test_worker_runner_passes_prompt_file_as_single_argv_without_shell(tmp_path):
+    worker = _record_file_worker(tmp_path)
     out = tmp_path / "seen.txt"
     ws = _ws(tmp_path)
-    cfg = {"executable": sys.executable, "args": [str(worker), str(out), "{prompt}"]}
+    cfg = {"executable": sys.executable, "args": [str(worker), str(out), "{prompt_file}"]}
     runner = orch.make_worker_runner(cfg, ws, tmp_path)
     # Contains shell metacharacters and newlines: a shell would mangle these.
     tricky = "line1\n\"double\" and 'single' & $HOME | rm -rf / ; `whoami`\nline3"
@@ -79,7 +79,8 @@ def test_worker_runner_substitutes_context_placeholders(tmp_path):
     worker = _record_arg_worker(tmp_path)
     out = tmp_path / "seen.txt"
     ws = _ws(tmp_path)
-    cfg = {"executable": sys.executable, "args": [str(worker), str(out), "{task_id}"]}
+    cfg = {"executable": sys.executable,
+           "args": [str(worker), str(out), "{task_id}", "{prompt_file}"]}
     runner = orch.make_worker_runner(cfg, ws, tmp_path)
     code, _out = runner("ignored")
     assert code == 0

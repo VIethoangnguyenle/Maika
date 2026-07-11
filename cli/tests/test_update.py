@@ -100,3 +100,25 @@ def test_reconfigure_reemits_mcp_setup_for_ua(tmp_path, maika_root, monkeypatch)
     setup_md = target / ".maika" / "MCP_SETUP.md"
     assert setup_md.exists()
     assert "/srv/ua-mcp" in setup_md.read_text(encoding="utf-8")
+
+
+def test_update_refreshes_every_enabled_adapter_in_one_project(tmp_path, maika_root):
+    from cli.commands.platform import run_platform
+
+    run_init(str(tmp_path), str(maika_root), "codex", [], "python", True)
+    for key in ("claude-code", "antigravity"):
+        assert run_platform("enable", str(tmp_path), key, str(maika_root)) == 0
+    hook_paths = [
+        tmp_path / ".codex/hooks.json",
+        tmp_path / ".claude/settings.json",
+        tmp_path / ".agents/hooks.json",
+    ]
+    for path in hook_paths:
+        path.write_text('{"hooks": {}}\n', encoding="utf-8")
+
+    run_update(str(tmp_path), str(maika_root))
+
+    for path in hook_paths:
+        text = path.read_text(encoding="utf-8")
+        assert "maika.write-gate.v1" in text
+        assert "--platform" in text

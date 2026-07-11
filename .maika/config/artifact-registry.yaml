@@ -1,0 +1,176 @@
+version: 1
+manifest_consumer_defaults:
+  meta-prompt: host-entrypoint
+  rule: bootstrap-and-agent-runtime
+  profile: runtime-policy-loader
+  skill: bootstrap-skill-registry
+  workflow: task-cli
+  procedure: workflow-runtime
+  tool: runtime-dispatch
+  hook: native-host-hook
+  template: scaffold-generator
+  knowledge: bootstrap-knowledge-loader
+artifact_groups:
+  - path_glob: cli/*.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers: [cli-registration-or-production-import]
+    runtime_authority: false
+    status: active
+  - path_glob: cli/**/*.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers: [cli-registration-or-production-import]
+    runtime_authority: false
+    status: active
+    exclude: [cli/tests/**]
+  - path_glob: .maika/**/*.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers: [scaffolded-runtime-or-file-dispatch]
+    runtime_authority: false
+    status: active
+    exclude: [.maika/**/tests/**]
+  - path_glob: scripts/*.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers: [developer-cli-or-ci]
+    runtime_authority: false
+    status: active
+  - path_glob: docs/**/*.md
+    type: documentation
+    ownership: framework
+    producer: development-process
+    consumers: [developer-documentation]
+    runtime_authority: false
+    status: active
+artifacts:
+  - path: cli/runtime/worker_resolver.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers: [microloop-orchestrator, setup-doctor, runtime-cli, platform-probe]
+    scaffolded: false
+    runtime_authority: true
+    policy_domain: worker-strategy
+    status: active
+  - path: cli/runtime/platform_profile.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers: [init, update, platform-enable, worker-resolver]
+    scaffolded: false
+    runtime_authority: true
+    policy_domain: platform-runtime-profile
+    status: active
+  - path: cli/runtime/session.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers: [hook-cli, task-cli, runtime-cli]
+    scaffolded: false
+    runtime_authority: true
+    policy_domain: active-platform-resolution
+    status: active
+  - path: cli/platforms/probe.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers: [platform-enable, platform-verify, setup-doctor, status]
+    scaffolded: false
+    runtime_authority: true
+    policy_domain: platform-capability
+    status: active
+  - path: cli/install/transaction.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers: [init, update, platform-lifecycle, migration, uninstall, repair]
+    scaffolded: false
+    runtime_authority: true
+    policy_domain: lifecycle-transaction
+    status: active
+  - path: cli/install/json_merge.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers: [scaffold, platform-lifecycle, setup-doctor]
+    scaffolded: false
+    runtime_authority: true
+    policy_domain: managed-host-json
+    status: active
+  - path: cli/artifact_audit.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers: [scripts/audit_artifacts.py, doctor-artifacts, ci]
+    scaffolded: false
+    runtime_authority: true
+    policy_domain: artifact-audit-enforcement
+    status: active
+  - path: .maika/profiles/execution-mode.yaml
+    type: config
+    ownership: framework
+    producer: cli/plugin-manifest.yaml
+    consumers: [microloop-orchestrator, task-command-policy, write-gate]
+    scaffolded: true
+    runtime_authority: true
+    policy_domain: shared-execution-policy
+    status: active
+  - path: .maika/config/artifact-registry.yaml
+    type: config
+    ownership: framework
+    producer: source
+    consumers: [artifact-audit, doctor-artifacts, ci]
+    scaffolded: true
+    runtime_authority: true
+    policy_domain: artifact-lifecycle
+    status: active
+  - path: docs/archive/implemented/index.yaml
+    type: historical
+    ownership: framework
+    producer: remediation-pr9
+    consumers: [artifact-audit, explicit-history-retrieval]
+    scaffolded: false
+    runtime_authority: false
+    status: historical
+  - path: resolved-config.yaml#hook_python
+    type: config
+    ownership: framework
+    producer: legacy-v3
+    consumers: [setup-doctor, repair-deprecated-config]
+    scaffolded: false
+    runtime_authority: false
+    status: compatibility
+    expires_after: 2026-12-31
+  - path: cli/workers.py
+    type: runtime
+    ownership: framework
+    producer: removed-pr3
+    consumers: []
+    scaffolded: false
+    runtime_authority: false
+    status: candidate-delete
+    deleted: true
+  - path: cli/platforms/detection.py
+    type: runtime
+    ownership: framework
+    producer: removed-pr5
+    consumers: []
+    scaffolded: false
+    runtime_authority: false
+    status: candidate-delete
+    deleted: true
+  - path: .maika/procedures/token-tracking.md
+    type: template
+    ownership: framework
+    producer: removed-pr9
+    consumers: []
+    scaffolded: false
+    runtime_authority: false
+    status: candidate-delete
+    deleted: true

@@ -27,6 +27,25 @@ def _snapshot(target: Path) -> dict:
                        if f.is_file() and f.suffix == ".md") if (root / "workflows").is_dir() else []
     from cli.config import project as project_cfg
     cfg = project_cfg.load(target)
+    runtime_platform = None
+    runtime_source = None
+    try:
+        from cli.runtime.session import resolve_active_platform
+        runtime_platform, runtime_source = resolve_active_platform(target)
+    except ValueError:
+        pass
+    platform_health = {}
+    for key in cfg["platforms"]["enabled"]:
+        try:
+            from cli.platforms.probe import probe_platform
+            probe = probe_platform(key, target, verify=False)
+            platform_health[key] = {
+                "support_tier": probe.support_tier,
+                "binary_found": probe.binary.found,
+                "hook_state": probe.verification["hook"],
+            }
+        except ValueError as exc:
+            platform_health[key] = {"support_tier": 0, "error": str(exc)}
     return {
         "project": str(target),
         "installed": (target / framework_root).is_dir() and bool(resolved),
@@ -39,6 +58,9 @@ def _snapshot(target: Path) -> dict:
         "workflows": workflows,
         "enabled_platforms": cfg["platforms"]["enabled"],
         "primary": cfg["platforms"]["primary"],
+        "runtime_platform": runtime_platform,
+        "runtime_source": runtime_source,
+        "platform_health": platform_health,
     }
 
 
@@ -130,5 +152,13 @@ def run_status(target_dir: str, as_json: bool = False) -> None:
         print(f"  🧬 Author DNA: draft (not yet approved)")
     else:
         print(f"  🧬 Author DNA: not configured")
+
+    lifecycle = _snapshot(target)
+    if lifecycle["enabled_platforms"]:
+        print("\n  🖥️  Host runtimes:")
+        for key, health in lifecycle["platform_health"].items():
+            marker = " (current)" if key == lifecycle["runtime_platform"] else ""
+            print(f"     • {key}: Tier {health.get('support_tier', 0)}, "
+                  f"hook={health.get('hook_state', 'unknown')}{marker}")
 
     print()

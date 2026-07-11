@@ -29,21 +29,52 @@ def test_managed_json_merge_preserves_host_config_and_replaces_maika_hook():
     existing = {
         "permissions": {"allow": ["Read"]},
         "hooks": {"PreToolUse": [
-            {"hooks": [{"command": "team-check"}]},
-            {"hooks": [{"command": "python .maika/hooks/write-gate/old.py"}]},
+            {"matcher": "Write", "hooks": [
+                {"command": "team-check"},
+                {"command": "python .maika/hooks/write-gate/write_gate.py"},
+            ]},
         ]},
     }
     managed = {
         "hooks": {"PreToolUse": [
-            {"hooks": [{"command": "python .maika/hooks/write-gate/write_gate.py"}]},
+            {"matcher": "Write", "hooks": [{"id": "maika.write-gate.v1",
+                                               "command": "maika hook write-gate --runtime claude --platform claude-code"}]},
         ]},
     }
 
     merged = merge_managed_json(existing, managed)
 
     assert merged["permissions"] == {"allow": ["Read"]}
-    commands = [item["hooks"][0]["command"] for item in merged["hooks"]["PreToolUse"]]
-    assert commands == ["team-check", "python .maika/hooks/write-gate/write_gate.py"]
+    commands = [item["command"] for item in merged["hooks"]["PreToolUse"][0]["hooks"]]
+    assert commands == ["team-check", "maika hook write-gate --runtime claude --platform claude-code"]
+
+
+def test_managed_json_preserves_team_hook_in_same_matcher():
+    existing = {"hooks": {"PreToolUse": [{
+        "matcher": "Write", "hooks": [{"id": "team.check", "command": "team-check"}],
+    }]}}
+    managed = {"hooks": {"PreToolUse": [{
+        "matcher": "Write", "hooks": [{"id": "maika.write-gate.v1", "command": "maika hook write-gate"}],
+    }]}}
+    merged = merge_managed_json(existing, managed)
+    assert [item["id"] for item in merged["hooks"]["PreToolUse"][0]["hooks"]] == [
+        "team.check", "maika.write-gate.v1",
+    ]
+
+
+def test_managed_json_duplicate_or_unknown_maika_id_blocks():
+    duplicate = [{"id": "maika.write-gate.v1"}, {"id": "maika.write-gate.v1"}]
+    with pytest.raises(ValueError, match="duplicate managed hook id"):
+        merge_managed_json(duplicate, [{"id": "maika.write-gate.v1"}])
+    with pytest.raises(ValueError, match="unknown Maika hook schema version"):
+        merge_managed_json([], [{"id": "maika.write-gate.v2"}])
+
+
+def test_unrelated_nested_maika_command_is_not_claimed():
+    from cli.scaffold import remove_maika_json_entry
+
+    config = {"hooks": [{"id": "team", "command": "echo .maika/write-gate-notes"}]}
+    assert remove_maika_json_entry(config) == config
 
 
 def test_merge_managed_markdown_rejects_duplicate_blocks():

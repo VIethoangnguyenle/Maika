@@ -22,9 +22,9 @@ HOOKS = [
 ]
 
 STABLE_COMMAND = {
-    "claude": "maika hook write-gate --runtime claude",
-    "codex": "maika hook write-gate --runtime codex",
-    "antigravity": "maika hook write-gate --runtime antigravity",
+    "claude": "maika hook write-gate --runtime claude --platform claude-code",
+    "codex": "maika hook write-gate --runtime codex --platform codex",
+    "antigravity": "maika hook write-gate --runtime antigravity --platform antigravity",
 }
 
 

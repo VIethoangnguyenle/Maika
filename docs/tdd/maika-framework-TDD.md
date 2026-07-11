@@ -99,7 +99,7 @@ Maika đặt cược vào một nguyên lý vận hành xuyên suốt:
 | G3 | Không nhảy pha | Phase gate R-Flow-2 + `validate_phase_chain` | `/task apply` khi `AGENT_TRANSPARENCY.md` thiếu `Pha 2 DONE` → ABORT. |
 | G4 | Bài học không bị mất | R-DNA-7 + phân tầng author-dna/conventions/snapshot | Teaching moment → entry mới trong `author-dna.yaml`; nếu checkable → rule-projector sinh checkstyle. |
 | G5 | Không khóa platform | Renderer Jinja + platform registry (§T2) | Cùng một framework render ra root native cho 4 platform. |
-| G6 | Có dấu vết kiểm toán | `AGENT_TRANSPARENCY.md` + token-tracking + dashboard | Mỗi pha để lại marker `Pha N DONE`; dashboard đọc tiến trình. |
+| G6 | Có dấu vết kiểm toán | runtime metrics + dashboard | Mỗi pha để lại marker `Pha N DONE`; dashboard đọc tiến trình. |
 
 ### Phạm vi
 
@@ -293,7 +293,7 @@ flowchart TB
 ### Self-check & audit (G6)
 
 - **Phase-chain**: `python3 .maika/tools/gate-check/cli.py phase-chain knowledge/active/AGENT_TRANSPARENCY.md` — không phát "Done" tới khi marker `Pha 1/2/3 DONE` liên tục từ 1.
-- **Audit trail**: `AGENT_TRANSPARENCY.md` (quyết định + BLOCKER + WARN), `procedures/token-tracking.md` (`TOKEN_LOG`), dashboard đọc tiến trình từ knowledge.
+- **Audit trail**: `AGENT_TRANSPARENCY.md` (quyết định + BLOCKER + WARN), runtime metrics và dashboard đọc tiến trình từ knowledge.
 
 ### SLO / litmus
 
@@ -394,7 +394,7 @@ Agent chạy trước khi tuyên bố Done: `python3 .maika/tools/gate-check/cli
 | P4 Drift / nhảy pha | Phase gate + cổng `/task` | `R-Flow-1/2`; `.maika/workflows/task.md`; `gates.validate_phase_chain` |
 | P5 Mất bài học | Teaching moment + phân tầng + projector | `R-DNA-7`; `author-dna.yaml`/`conventions.yaml`; `tools/rule-projector/` |
 | P6 Khóa platform | Render Jinja + registry | `cli/renderer.py`; `cli/platforms/__init__.py` (`PLATFORMS`) |
-| P7 Không audit | Transparency + token log + dashboard | `AGENT_TRANSPARENCY.md`; `procedures/token-tracking.md`; `maika dashboard` |
+| P7 Không audit | Transparency + runtime metrics + dashboard | `AGENT_TRANSPARENCY.md`; runtime metrics; `maika dashboard` |
 | Meta: framework không phình | 7 quy tắc phát triển | `.maika/DEVELOPMENT_RULES.md` |
 
 ### Checklist review TDD này

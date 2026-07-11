@@ -3,6 +3,7 @@
 .maika/
 .maika/MCP_SETUP.md
 .maika/config/
+.maika/config/artifact-registry.yaml
 .maika/config/install-manifest.yaml
 .maika/config/platforms.yaml
 .maika/config/project.yaml
@@ -50,7 +51,6 @@
 .maika/procedures/decision-gate.md
 .maika/procedures/dispatch-kernel.md
 .maika/procedures/reviewer.md
-.maika/procedures/token-tracking.md
 .maika/profiles/
 .maika/profiles/capabilities.md
 .maika/profiles/capability-registry.yaml
@@ -64,6 +64,12 @@
 .maika/rules/rules-knowledge.md
 .maika/rules/rules-skill-evolution.md
 .maika/rules/rules-tool.md
+.maika/runtime/
+.maika/runtime/backups/
+.maika/runtime/platforms/
+.maika/runtime/platforms/claude-code.yaml
+.maika/runtime/transactions/
+.maika/runtime/transactions/000001-init.yaml
 .maika/skills/
 .maika/skills/architecture-reconciler/
 .maika/skills/architecture-reconciler/SKILL.md

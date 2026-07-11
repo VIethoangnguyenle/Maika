@@ -16,8 +16,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from cli.config import project as project_cfg
-
 _WRITE_GATE_REL = ("hooks", "write-gate", "write_gate.py")
 
 
@@ -30,8 +28,14 @@ def _locate_project_root(cwd: Path) -> Path:
             cwd=str(cwd), capture_output=True, text=True, check=True,
         )
     except (FileNotFoundError, OSError, subprocess.CalledProcessError):
-        return cwd
-    root = result.stdout.strip()
+        root = None
+    else:
+        root = result.stdout.strip()
+        if root and (Path(root) / ".maika/config/project.yaml").is_file():
+            return Path(root)
+    for candidate in (cwd, *cwd.parents):
+        if (candidate / ".maika/config/project.yaml").is_file():
+            return candidate
     return Path(root) if root else cwd
 
 
@@ -42,7 +46,8 @@ def _load_write_gate(path: Path):
     return module
 
 
-def run_hook_write_gate(runtime: str, stdin_text: Optional[str] = None) -> int:
+def run_hook_write_gate(runtime: str, platform: Optional[str] = None,
+                        stdin_text: Optional[str] = None) -> int:
     """Delegate a PreToolUse event to the project's write-gate evaluator.
 
     Missing evaluator (not a Maika project, or a broken install) degrades to
@@ -51,16 +56,45 @@ def run_hook_write_gate(runtime: str, stdin_text: Optional[str] = None) -> int:
     """
     cwd = Path.cwd()
     root = _locate_project_root(cwd)
-    core_root = project_cfg.load(root)["framework"]["core_root"]
+    config_path = root / ".maika/config/project.yaml"
+    if not config_path.is_file():
+        print("maika hook write-gate: not a Maika project — allowing", file=sys.stderr)
+        return 0
+    try:
+        import yaml
+        raw_config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        if not isinstance(raw_config, dict) or not isinstance(raw_config.get("framework"), dict):
+            raise ValueError("project config must contain framework mapping")
+        core_root = raw_config["framework"].get("core_root")
+        if core_root != ".maika":
+            raise ValueError("canonical framework.core_root must be .maika")
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        print(f"maika hook write-gate: malformed Maika config ({exc}); run `maika repair --all-safe`",
+              file=sys.stderr)
+        return 2
+    platform = platform or {"claude": "claude-code", "codex": "codex",
+                            "antigravity": "antigravity"}.get(runtime)
+    if platform:
+        from cli.runtime.platform_profile import PlatformProfileError, load_platform_runtime_profile
+        from cli.runtime.session import SessionError, record_session
+        try:
+            profile = load_platform_runtime_profile(root, platform)
+            if not profile.adapter.enabled:
+                raise SessionError(f"platform {platform} runtime profile is disabled")
+            record_session(root, platform, source="native-hook",
+                           session_id=f"{runtime}-hook")
+        except (SessionError, PlatformProfileError) as exc:
+            print(f"maika hook write-gate: {exc}", file=sys.stderr)
+            return 2
     gate_path = root.joinpath(core_root, *_WRITE_GATE_REL)
     if not gate_path.is_file():
         print(
-            "maika hook write-gate: no evaluator at "
-            f"{core_root}/{'/'.join(_WRITE_GATE_REL)} — allowing "
-            "(run `maika init` to install the write gate)",
+            "maika hook write-gate: canonical project evaluator missing at "
+            f"{core_root}/{'/'.join(_WRITE_GATE_REL)} — denying "
+            "(run `maika repair --all-safe`)",
             file=sys.stderr,
         )
-        return 0
+        return 2
     module = _load_write_gate(gate_path)
     return module.main(
         argv=["--framework-root", core_root, "--runtime", runtime],

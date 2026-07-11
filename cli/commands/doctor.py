@@ -91,7 +91,7 @@ def _check_managed_entrypoint(target: Path) -> dict:
 def _check_native_hook(target: Path) -> dict:
     from cli.config import platforms as platforms_cfg
     from cli.config import project as project_cfg
-    from cli.scaffold import _is_maika_json
+    from cli.install.json_merge import ManagedJsonError, contains_maika_json_entry
 
     enabled = project_cfg.load(target)["platforms"]["enabled"]
     checked, broken = [], []
@@ -103,8 +103,8 @@ def _check_native_hook(target: Path) -> dict:
         present = False
         if path.is_file():
             try:
-                present = _is_maika_json(json.loads(path.read_text(encoding="utf-8")))
-            except (json.JSONDecodeError, OSError):
+                present = contains_maika_json_entry(json.loads(path.read_text(encoding="utf-8")))
+            except (json.JSONDecodeError, OSError, ManagedJsonError):
                 present = False
         checked.append(f"{key}:{hook_config}:{'wired' if present else 'missing'}")
         if not present:
@@ -118,22 +118,21 @@ def _check_native_hook(target: Path) -> dict:
 
 def _check_host_binaries(target: Path) -> dict:
     from cli.config import project as project_cfg
-    from cli.platforms import get_platform
-    from cli.platforms.detection import detect_platform
+    from cli.platforms.probe import probe_platform
 
     enabled = project_cfg.load(target)["platforms"]["enabled"]
     lines, missing = [], []
     for key in enabled:
-        result = detect_platform(get_platform(key))
-        binary = result["binary"]
-        if binary["name"] is None:
+        result = probe_platform(key, target, verify=False)
+        binary = result.binary
+        if binary.name is None:
             lines.append(f"{key}: no worker binary")
             continue
-        if binary["found"]:
-            version = result["version"]["raw"].splitlines()[0] if result["version"]["raw"] else "?"
-            lines.append(f"{key}: {binary['name']} @ {binary['path']} ({version})")
+        if binary.found:
+            version = binary.version.splitlines()[0] if binary.version else "?"
+            lines.append(f"{key}: {binary.name} @ {binary.path} ({version})")
         else:
-            lines.append(f"{key}: {binary['name']} not on PATH")
+            lines.append(f"{key}: {binary.name} not on PATH")
             missing.append(key)
     if not lines:
         return _finding("host-binaries", "info", True, "no enabled adapters")
@@ -144,17 +143,18 @@ def _check_host_binaries(target: Path) -> dict:
 
 def _check_worker_strategy(target: Path) -> dict:
     from cli.config import project as project_cfg
-    from cli.platforms import get_platform
-    from cli.platforms.detection import detect_platform
-    from cli.workers import select_worker_strategy
+    from cli.runtime.worker_resolver import WorkerResolutionError, resolve_worker_profile
 
     primary = project_cfg.load(target)["platforms"]["primary"]
     if primary is None:
         return _finding("worker-strategy", "info", True, "no primary platform")
-    platform = get_platform(primary)
-    profile = select_worker_strategy(platform, detect_platform(platform))
+    try:
+        profile = resolve_worker_profile(target, primary)
+    except WorkerResolutionError as exc:
+        return _finding("worker-strategy", "error", False, str(exc),
+                        f"run maika platform enable {primary} or maika repair --all-safe")
     return _finding("worker-strategy", "info", True,
-                    f"primary {primary}: {profile['strategy']} ({profile['reason']})")
+                    f"primary {primary}: {profile.strategy} ({profile.reason})")
 
 
 def _check_asset_bundle(maika_root: Optional[str]) -> dict:
@@ -179,6 +179,17 @@ def _check_legacy_roots(target: Path) -> dict:
     return _finding("legacy-root-conflict", "warning", ok,
                     "none" if ok else f"legacy resolved-config: {', '.join(legacy)}",
                     "" if ok else "run `maika migrate` to consolidate onto the canonical .maika core")
+
+
+def _check_deprecated_config(target: Path) -> dict:
+    from cli.scaffold import load_resolved_config
+    resolved = load_resolved_config(target) or {}
+    deprecated = [key for key in ("hook_python",) if key in resolved]
+    return _finding(
+        "deprecated-config", "warning", not deprecated,
+        "none" if not deprecated else f"deprecated keys: {', '.join(deprecated)}",
+        "run `maika repair --finding deprecated-config`" if deprecated else "",
+    )
 
 
 def _check_mcp_health(target: Path, home: Path, maika_root: Optional[str]) -> dict:
@@ -211,6 +222,7 @@ def build_setup_findings(target, home: Optional[Path] = None,
         _check_worker_strategy(target),
         _check_asset_bundle(maika_root),
         _check_legacy_roots(target),
+        _check_deprecated_config(target),
         _check_mcp_health(target, home, maika_root),
     ]
 
@@ -234,3 +246,47 @@ def run_doctor_setup(target_dir: str, as_json: bool = False,
                 print(f"          ↳ {f['remediation']}")
         print()
     return 1 if any(f["severity"] == "error" and not f["ok"] for f in findings) else 0
+
+
+def run_doctor_platform(target_dir: str, platform_key: Optional[str] = None,
+                        verify: bool = False) -> int:
+    from cli.config import project as project_cfg
+    from cli.platforms.probe import probe_and_persist
+
+    target = Path(target_dir).resolve()
+    keys = [platform_key] if platform_key else project_cfg.load(target)["platforms"]["enabled"]
+    if not keys:
+        print("No enabled platforms.")
+        return 0
+    failed = False
+    for key in keys:
+        try:
+            result = probe_and_persist(target, key, verify=verify)
+        except (OSError, ValueError) as exc:
+            print(f"{key}: unavailable ({exc})")
+            failed = True
+            continue
+        print(f"{key}: tier {result.support_tier}; binary={'detected' if result.binary.found else 'missing'}; "
+              f"hook={result.verification['hook']}; worker={result.verification['worker']}")
+        if verify and result.support_tier < 2:
+            failed = True
+    return 1 if failed else 0
+
+
+def run_doctor_artifacts(target_dir: str = ".") -> int:
+    from cli.artifact_audit import audit_artifacts
+
+    target = Path(target_dir).resolve()
+    if (target / ".maika/config/artifact-registry.yaml").is_file() \
+            and (target / "cli/plugin-manifest.yaml").is_file():
+        root = target
+    else:
+        from cli.assets import asset_root
+        root = asset_root()
+    findings = audit_artifacts(root)
+    if not findings:
+        print("Artifact hygiene: clean (no Critical/High findings)")
+        return 0
+    for item in findings:
+        print(f"[{item['severity'].upper()}] {item['check']}: {item['path']} — {item['message']}")
+    return 1

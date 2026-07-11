@@ -1,6 +1,7 @@
 """Base platform definition — abstract interface for all agent platforms."""
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Dict, List, Optional, Set
 import platform as _platform
 
@@ -162,6 +163,33 @@ class BasePlatform(ABC):
         """Opt-in-only flag bypassing host permission prompts. Never a default."""
         return None
 
+    # Capability probes are adapter methods so new hosts can override one fact
+    # without creating a parallel doctor/runtime policy.
+    def detect_binary(self):
+        from cli.platforms.probe import detect_binary
+        return detect_binary(self.worker_binary)
+
+    def detect_version(self):
+        return self.detect_binary().version
+
+    def detect_authentication(self) -> str:
+        return "detected" if self.detect_binary().found else "unavailable"
+
+    def verify_entrypoint(self, project_root) -> bool:
+        return (Path(project_root) / self.config_entry_point).is_file()
+
+    def verify_hook(self, project_root) -> bool:
+        from cli.config.platforms import adapter_descriptor
+        relative = adapter_descriptor(self.name)["hook_config"]
+        return relative is None or (Path(project_root) / relative).is_file()
+
+    def verify_worker(self, profile, prompt_file):
+        from cli.runtime.worker_resolver import run_worker_smoke_test
+        return run_worker_smoke_test(profile, Path(prompt_file))
+
+    def verify_mcp(self, visible_tools=None) -> str:
+        return "verified" if visible_tools else "unavailable"
+
     @property
     def notes(self) -> List[str]:
         """Platform-specific notes shown during init."""
@@ -201,7 +229,7 @@ class BasePlatform(ABC):
                 f"{', '.join(sorted(extra_unsupported))}"
             )
 
-    def build_render_context(self, mcps: List[str], language: str, hook_python: Optional[str] = None) -> dict:
+    def build_render_context(self, mcps: List[str], language: str) -> dict:
         """Build the full Jinja2 render context for this platform."""
         self.validate_tool_mapping()
         return {
@@ -219,5 +247,4 @@ class BasePlatform(ABC):
             "language": language,
             "framework_version": FRAMEWORK_VERSION,
             "is_windows": _platform.system() == "Windows",
-            "hook_python": hook_python or "python",
         }

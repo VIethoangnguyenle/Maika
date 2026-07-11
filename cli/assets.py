@@ -39,6 +39,7 @@ REQUIRED_ASSETS = (
     ".maika/workflows",
     ".maika/procedures",
     ".maika/profiles",
+    ".maika/config/artifact-registry.yaml",
     ".maika/tools",
     ".maika/hooks",
     ".maika/knowledge/templates",

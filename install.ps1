@@ -48,10 +48,6 @@ if ($null -eq $Py) {
     throw "Python 3.9+ not found. Install Python and ensure 'python' or 'py' is on PATH."
 }
 
-# The write-gate hook invokes Python by name at runtime; pass the launcher we resolved
-# so a `py`-only box doesn't get a bare `python` command that can't launch.
-$HookPython = if ($Py.Args.Count -gt 0) { "$($Py.Exe) $($Py.Args -join ' ')" } else { $Py.Exe }
-
 $VenvPy  = Join-Path $Venv 'Scripts\python.exe'
 
 if (-not (Test-Path -LiteralPath $Venv)) {
@@ -112,18 +108,6 @@ try {
     $EnvKey.Close()
 }
 
-# The write-gate hook runs OUTSIDE the venv via the resolved launcher; a clean
-# Windows Python has no pyyaml, which would silently kill the gate at runtime.
-& $Py.Exe @($Py.Args) -c "import yaml" 2>$null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "-> Hook interpreter ($HookPython) lacks 'pyyaml' - installing (pip --user)."
-    & $Py.Exe @($Py.Args) -m pip install --user --quiet pyyaml
-    & $Py.Exe @($Py.Args) -c "import yaml" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Could not install 'pyyaml' for $HookPython. The write-gate hook WILL FAIL. Run: $HookPython -m pip install --user pyyaml"
-    }
-}
-
 # Route to update if Maika already installed, else init.
 $Configs = @(
     (Join-Path $Target '.agents\resolved-config.yaml'),
@@ -132,7 +116,7 @@ $Configs = @(
 )
 $Existing = $Configs | Where-Object { Test-Path -LiteralPath $_ }
 
-$ScaffoldArgs = @('--target', $Target, '--hook-python', $HookPython)
+$ScaffoldArgs = @('--target', $Target)
 if ($Yes) { $ScaffoldArgs += '--yes' }
 if ($Platform) { $ScaffoldArgs += @('--platform', $Platform) }
 if ($Language) { $ScaffoldArgs += @('--language', $Language) }
@@ -142,7 +126,7 @@ Push-Location $MaikaRoot
 try {
     if ($Existing) {
         Write-Host "-> Existing Maika install detected — updating."
-        & $VenvPy -m cli.maika update --target $Target --hook-python $HookPython
+        & $VenvPy -m cli.maika update --target $Target
         if ($LASTEXITCODE -ne 0) { throw "cli.maika update failed (exit $LASTEXITCODE)." }
     } else {
         Write-Host "-> Fresh install."

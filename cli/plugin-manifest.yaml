@@ -141,8 +141,14 @@ plugins:
   - name: execution-mode
     type: profile
     source: profiles/execution-mode.yaml
-    template: true
+    template: false
     output: "{{ platform.framework_root }}/profiles/execution-mode.yaml"
+
+  - name: artifact-registry
+    type: profile
+    source: config/artifact-registry.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/artifact-registry.yaml"
 
   # ─── SKILLS ───
   - name: intent-analysis
@@ -300,12 +306,6 @@ plugins:
     source: procedures/context-compressor.md
     template: false
     output: "{{ platform.framework_root }}/procedures/context-compressor.md"
-
-  - name: token-tracking
-    type: procedure
-    source: procedures/token-tracking.md
-    template: false
-    output: "{{ platform.framework_root }}/procedures/token-tracking.md"
 
   - name: reviewer
     type: procedure

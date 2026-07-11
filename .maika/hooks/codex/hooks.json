@@ -5,8 +5,9 @@
         "matcher": "apply_patch|Edit|Write|Bash",
         "hooks": [
           {
+            "id": "maika.write-gate.v1",
             "type": "command",
-            "command": "maika hook write-gate --runtime codex",
+            "command": "maika hook write-gate --runtime codex --platform codex",
             "statusMessage": "Checking Maika write gate"
           }
         ]

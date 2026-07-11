@@ -86,11 +86,6 @@ def main():
         default=None,
         help="Absolute path to the Understand-Anything-MCP clone (when understand-anything is selected)",
     )
-    init_parser.add_argument(
-        "--hook-python",
-        default=None,
-        help="Python invocation the write-gate hook uses on Windows (e.g. 'python' or 'py -3'). Default: python.",
-    )
 
     # ─── status ───
     status_parser = subparsers.add_parser(
@@ -110,12 +105,17 @@ def main():
     )
     migrate_parser.add_argument("--target", default=".")
     migrate_parser.add_argument("--apply", action="store_true", help="Apply (default: --dry-run)")
+    migrate_parser.add_argument("--plan", action="store_true", help="Print migration inventory only")
+    migrate_parser.add_argument("--cleanup-legacy", action="store_true",
+                                help="Explicitly remove migrated legacy project data")
 
     repair_parser = subparsers.add_parser(
         "repair", help="Apply a safe fix for a `maika doctor setup` finding",
     )
     repair_parser.add_argument("--target", default=".")
-    repair_parser.add_argument("--finding", required=True)
+    repair_parser.add_argument("--finding", default=None)
+    repair_parser.add_argument("--transaction", default=None)
+    repair_parser.add_argument("--all-safe", action="store_true")
     repair_parser.add_argument("--source", default=None)
 
     uninstall_parser = subparsers.add_parser(
@@ -157,6 +157,17 @@ def main():
     task_parser.add_argument("--class", dest="klass", default="small")
     task_parser.add_argument("--title", default=None)
     task_parser.add_argument("--command-id", default=None)
+    task_parser.add_argument("--platform", default=None,
+                             help="Active host platform for this task command")
+
+    runtime_parser = subparsers.add_parser(
+        "runtime", help="Inspect or select the current host runtime",
+    )
+    runtime_parser.add_argument(
+        "action", choices=["current", "set-platform", "worker-profile"],
+    )
+    runtime_parser.add_argument("platform_key", nargs="?", default=None)
+    runtime_parser.add_argument("--target", default=".")
 
     # ─── update ───
     update_parser = subparsers.add_parser(
@@ -175,11 +186,6 @@ def main():
         "--reconfigure", action="store_true",
         help="Re-prompt platform/MCP/language before re-rendering",
     )
-    update_parser.add_argument(
-        "--hook-python",
-        default=None,
-        help="Python invocation the write-gate hook uses on Windows (e.g. 'python' or 'py -3'). Default: python.",
-    )
 
     # ─── platform ───
     platform_parser = subparsers.add_parser(
@@ -187,7 +193,7 @@ def main():
         help="Manage host adapters over one shared .maika core",
     )
     platform_parser.add_argument(
-        "action", choices=["list", "enable", "disable", "primary"],
+        "action", choices=["list", "enable", "disable", "primary", "verify", "status"],
     )
     platform_parser.add_argument(
         "platform_key", nargs="?", default=None,
@@ -249,6 +255,16 @@ def main():
     setup_parser.add_argument("--target", default=".")
     setup_parser.add_argument("--source", default=None)
     setup_parser.add_argument("--json", dest="as_json", action="store_true")
+    doctor_platform_parser = doctor_subparsers.add_parser(
+        "platform", help="Probe or verify enabled platform adapters",
+    )
+    doctor_platform_parser.add_argument("platform_key", nargs="?", default=None)
+    doctor_platform_parser.add_argument("--target", default=".")
+    doctor_platform_parser.add_argument("--verify", action="store_true")
+    artifacts_parser = doctor_subparsers.add_parser(
+        "artifacts", help="Audit artifact ownership, consumers, and lifecycle",
+    )
+    artifacts_parser.add_argument("--target", default=".")
 
     # ─── hook ───
     hook_parser = subparsers.add_parser(
@@ -258,6 +274,9 @@ def main():
     hook_parser.add_argument("hook_action", choices=["write-gate"])
     hook_parser.add_argument(
         "--runtime", choices=["claude", "codex", "antigravity"], default="claude",
+    )
+    hook_parser.add_argument(
+        "--platform", choices=["claude-code", "codex", "antigravity"], required=True,
     )
 
     # ─── loop ───
@@ -288,11 +307,10 @@ def main():
             language=args.language,
             assume_yes=args.yes,
             ua_mcp_dir=args.ua_mcp_dir,
-            hook_python=args.hook_python,
         )
     elif args.command == "update":
         from cli.commands.update import run_update
-        run_update(target_dir=args.target, maika_root=args.source, reconfigure=args.reconfigure, hook_python=args.hook_python)
+        run_update(target_dir=args.target, maika_root=args.source, reconfigure=args.reconfigure)
     elif args.command == "platform":
         from cli.commands.platform import run_platform
         sys.exit(run_platform(
@@ -304,10 +322,14 @@ def main():
         run_status(target_dir=args.target, as_json=args.as_json)
     elif args.command == "migrate":
         from cli.commands.lifecycle import run_migrate
-        sys.exit(run_migrate(target_dir=args.target, apply=args.apply))
+        sys.exit(run_migrate(target_dir=args.target,
+                             apply=args.apply or args.cleanup_legacy,
+                             cleanup_legacy=args.cleanup_legacy))
     elif args.command == "repair":
         from cli.commands.lifecycle import run_repair
-        sys.exit(run_repair(target_dir=args.target, finding_id=args.finding, maika_root=args.source))
+        sys.exit(run_repair(target_dir=args.target, finding_id=args.finding,
+                            maika_root=args.source, transaction_id=args.transaction,
+                            all_safe=args.all_safe))
     elif args.command == "uninstall":
         from cli.commands.lifecycle import run_uninstall
         sys.exit(run_uninstall(target_dir=args.target, purge_project_data=args.purge_project_data))
@@ -326,6 +348,7 @@ def main():
             klass=args.klass,
             title=args.title,
             command_id=args.command_id,
+            platform_key=args.platform,
         )
         sys.exit(rc)
     elif args.command == "dashboard":
@@ -338,15 +361,24 @@ def main():
             no_browser=args.no_browser,
             brain_platform=args.brain_platform,
         )
+    elif args.command == "runtime":
+        from cli.commands.runtime import run_runtime
+        sys.exit(run_runtime(args.action, args.target, args.platform_key))
     elif args.command == "doctor" and args.doctor_command == "mcp":
         from cli.commands.doctor import run_doctor_mcp
         run_doctor_mcp(target_dir=args.target, fix=args.fix, assume_yes=args.yes)
     elif args.command == "doctor" and args.doctor_command == "setup":
         from cli.commands.doctor import run_doctor_setup
         sys.exit(run_doctor_setup(target_dir=args.target, as_json=args.as_json, maika_root=args.source))
+    elif args.command == "doctor" and args.doctor_command == "platform":
+        from cli.commands.doctor import run_doctor_platform
+        sys.exit(run_doctor_platform(args.target, args.platform_key, args.verify))
+    elif args.command == "doctor" and args.doctor_command == "artifacts":
+        from cli.commands.doctor import run_doctor_artifacts
+        sys.exit(run_doctor_artifacts(args.target))
     elif args.command == "hook" and args.hook_action == "write-gate":
         from cli.commands.hook import run_hook_write_gate
-        sys.exit(run_hook_write_gate(runtime=args.runtime))
+        sys.exit(run_hook_write_gate(runtime=args.runtime, platform=args.platform))
     elif args.command == "loop":
         from cli.commands.loop import run_loop
         sys.exit(run_loop(

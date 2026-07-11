@@ -203,7 +203,7 @@ def run_init(
     language: Optional[str] = None,
     assume_yes: bool = False,
     ua_mcp_dir: Optional[str] = None,
-    hook_python: Optional[str] = None,
+    migration_files: Optional[dict[str, Path]] = None,
 ) -> None:
     """Main init command — scaffold Maika into a target project."""
     target = Path(target_dir).resolve()
@@ -232,7 +232,7 @@ def run_init(
         print("\n❌ Đã huỷ.")
         return
 
-    context = platform.build_render_context(selected_mcps, language, hook_python=hook_python)
+    context = platform.build_render_context(selected_mcps, language)
     jinja_env = create_renderer(str(maika))
     print("\nScaffolding Maika framework...\n")
 
@@ -256,22 +256,27 @@ def run_init(
         stage_managed_entrypoint(staging, target, platform.config_entry_point)
         stage_managed_json_configs(staging, target)
         generate_knowledge_index(maika, staging, framework_root)
-        generate_resolved_config(staging, platform, selected_mcps, language, hook_python=hook_python)
+        generate_resolved_config(staging, platform, selected_mcps, language)
+        from cli.runtime.platform_profile import write_platform_runtime_profile
+        write_platform_runtime_profile(staging, platform_key)
+        for logical, source in (migration_files or {}).items():
+            destination = staging / ".maika" / logical
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
         emit_mcp_setup_files(staging, platform, platform_key, selected_mcps, manifest, ua_dir)
+        # Canonical metadata is part of the same transaction as core/adapter
+        # files; no post-commit writes may leave a partial installation.
+        from cli.config import platforms as platforms_cfg
+        from cli.config import project as project_cfg
+        project_config = project_cfg.enable(project_cfg.load(target), platform_key)
+        project_cfg.save(staging, project_config)
+        platforms_cfg.write_platforms_config(staging, project_config["platforms"]["enabled"])
+        platforms_cfg.record_install(staging, platform_key, platforms_cfg.adapter_files(platform_key))
         plan = build_plan(staging, target, "init", framework_root)
         Transaction(staging, target, backups).apply(plan)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
         shutil.rmtree(backups, ignore_errors=True)
-
-    # Establish canonical config with the chosen platform enabled (multi-host
-    # ready). The core is already installed; this only records adapter state.
-    from cli.config import platforms as platforms_cfg
-    from cli.config import project as project_cfg
-    project_config = project_cfg.enable(project_cfg.load(target), platform_key)
-    project_cfg.save(target, project_config)
-    platforms_cfg.write_platforms_config(target, project_config["platforms"]["enabled"])
-    platforms_cfg.record_install(target, platform_key, platforms_cfg.adapter_files(platform_key))
 
     total = stats["rendered"] + stats["copied"] + stats["dirs"]
     print(f"\n{'═' * 50}")

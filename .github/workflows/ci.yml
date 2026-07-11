@@ -45,8 +45,7 @@ jobs:
           if ($settings -match '/usr/bin/python3') { throw "Unix python path leaked into Windows hooks" }
           if ($settings -match '\$\(git rev-parse') { throw "Unix shell substitution leaked into Windows hooks" }
           if ($settings -notmatch 'write_gate\.py') { throw "write-gate hook command missing" }
-          $resolved = Get-Content "$env:RUNNER_TEMP\demo\.claude\resolved-config.yaml" -Raw
-          if ($resolved -notmatch 'hook_python') { throw "hook_python not persisted in resolved-config" }
+          if (-not (Test-Path "$env:RUNNER_TEMP\demo\.maika\runtime\platforms\claude-code.yaml")) { throw "canonical runtime profile missing" }
       - name: Bare update preserves launcher (regression 1A, E2E)
         shell: pwsh
         run: |
