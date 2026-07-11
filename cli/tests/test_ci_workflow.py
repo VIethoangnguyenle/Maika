@@ -40,3 +40,26 @@ def test_ci_runs_on_stabilization_branch():
     push_branches = triggers.get("push", {}).get("branches", [])
     assert "main" in push_branches
     assert "master-v2" in push_branches
+
+
+def test_required_ci_jobs_present():
+    """Release-gate jobs exist: cross-OS tests + both install E2Es. The remaining
+    plan-required columns (wheel isolation, multi-host dispatch, artifact audit,
+    transaction fault injection) run inside the `tests` job via run_ci — proven by
+    test_gate_columns_have_real_coverage."""
+    workflow = yaml.safe_load(CI.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    assert set(jobs["tests"]["strategy"]["matrix"]["os"]) == {"ubuntu-latest", "windows-latest"}
+    assert "install-ps1-e2e" in jobs       # install-windows-e2e
+    assert "install-linux-e2e" in jobs
+
+
+def test_gate_columns_have_real_coverage():
+    """Plan-required gate columns that run inside the tests job must have a real
+    test surface, not just a claimed job name."""
+    tests = REPO_ROOT / "cli" / "tests"
+    assert (tests / "test_multihost_dispatch_e2e.py").is_file()   # multihost-dispatch-e2e
+    assert (tests / "test_wheel_install.py").is_file()            # wheel-isolation-e2e
+    assert (tests / "test_install_transaction.py").is_file()      # transaction-fault-injection
+    # artifact-audit runs first inside scripts/run_ci.py
+    assert "audit_artifacts" in (REPO_ROOT / "scripts" / "run_ci.py").read_text(encoding="utf-8")

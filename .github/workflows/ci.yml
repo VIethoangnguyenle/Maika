@@ -55,3 +55,29 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "maika update failed" }
           $settings = Get-Content "$env:RUNNER_TEMP\demo\.claude\settings.json" -Raw
           if ($settings -match '/usr/bin/python3') { throw "update re-rendered Unix hooks on Windows" }
+
+  install-linux-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Fresh install into temp project (headless)
+        run: |
+          mkdir -p "$RUNNER_TEMP/demo"
+          ./install.sh "$RUNNER_TEMP/demo" --yes --platform claude-code --language python
+      - name: Assert Linux-rendered artifacts
+        run: |
+          settings="$RUNNER_TEMP/demo/.claude/settings.json"
+          test -f "$settings" || { echo "settings.json missing"; exit 1; }
+          grep -q 'maika\.write-gate\.v1' "$settings" || { echo "canonical write-gate hook id missing"; exit 1; }
+          grep -q 'maika hook write-gate' "$settings" || { echo "canonical write-gate command missing"; exit 1; }
+          grep -q -- '--platform claude-code' "$settings" || { echo "write-gate platform arg missing"; exit 1; }
+          grep -q 'py -3' "$settings" && { echo "Windows launcher leaked into Linux hooks"; exit 1; }
+          test -f "$RUNNER_TEMP/demo/.maika/runtime/platforms/claude-code.yaml" || { echo "canonical runtime profile missing"; exit 1; }
+      - name: Bare update preserves the canonical hook (E2E)
+        run: |
+          ./install.sh "$RUNNER_TEMP/demo"
+          grep -q 'maika hook write-gate' "$RUNNER_TEMP/demo/.claude/settings.json" \
+            || { echo "update dropped the canonical hook"; exit 1; }
