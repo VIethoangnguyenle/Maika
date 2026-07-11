@@ -122,6 +122,10 @@ def test_verification_profile_rejects_repo_local_fake_executable(tmp_path, monke
     fake = tmp_path / "pytest"
     fake.write_text("fake\n", encoding="utf-8")
     fake.chmod(0o755)
+    if os.name == "nt":
+        # shutil.which on Windows resolves via PATHEXT, not a bare name — give the
+        # repo-local fake a .bat so it is actually found (and then rejected).
+        (tmp_path / "pytest.bat").write_text("@echo off\n", encoding="utf-8")
     monkeypatch.setenv("PATH", str(tmp_path))
     with pytest.raises(rh.CommandDenied, match="resolves inside repo"):
         rh.compile_verification_command({"profile": "pytest-paths", "parameters": {"paths": []}},
