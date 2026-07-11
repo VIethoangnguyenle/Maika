@@ -36,6 +36,9 @@ authorities:
     source: changes/<change-id>/results/
   task_reviews:
     source: changes/<change-id>/reviews/
+  # Candidate capture trong change (promote chỉ sau VERIFIED — kernel §7).
+  learning_candidates:
+    source: changes/<change-id>/learning/
   # Lightweight workspace (trivial/small): micro-plan + focused evidence + result.
   micro_plan:
     source: changes/<change-id>/TASK.yaml

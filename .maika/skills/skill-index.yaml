@@ -237,12 +237,13 @@ skills:
     - RESULT.yaml
   gates:
   - intent
-- name: knowledge-curator
-  version: '3.0'
-  description: 'Dùng khi cần vận hành vòng đời tri thức (trước/trong/sau implementation)
-    theo bốn mode retrieve/record/reconcile/curate: promote verified knowledge, supersede
-    stale, save episodic memory, update DNA/convention, regenerate index, trigger
-    graph refresh.'
+- name: knowledge-promoter
+  version: '1.0'
+  description: 'Dùng sau khi verification trả VERIFIED và trước archive: validate
+    candidate (KNOWLEDGE_IMPACT + learning/TEACHING_MOMENTS), promote/reject/supersede
+    durable knowledge, apply teaching moment đã user-confirm vào DNA/conventions,
+    save episodic memory, regenerate index và trigger graph refresh — role duy nhất
+    được ghi durable knowledge.'
   routing:
     mode: workflow
     actions:
@@ -268,6 +269,50 @@ skills:
   gates:
   - knowledge-impact
   - skill-feedback
+- name: knowledge-recorder
+  version: '1.0'
+  description: 'Dùng trong change khi có discovery, teaching moment hoặc convention
+    gap: capture CANDIDATE vào changes/<id>/learning/ (TEACHING_MOMENTS.yaml, KNOWLEDGE_CANDIDATES.yaml,
+    CONVENTION_CANDIDATES.yaml) với user-confirm và provenance — không bao giờ ghi
+    trực tiếp vào durable knowledge trước VERIFIED.'
+  routing:
+    mode: conditional
+    states: []
+    classes:
+    - trivial
+    - small
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - convention_retrieval
+    - exact_source_inspection
+  outputs:
+    required:
+    - learning/
+  gates:
+  - teaching-moment
+- name: knowledge-retriever
+  version: '1.0'
+  description: 'Dùng khi một phase cần recall tri thức đang có: durable knowledge
+    (DNA/conventions/snapshot qua knowledge-index slice), episodic memory (incident,
+    decision cũ, rejected approach) và business knowledge — trả slice nhỏ nhất liên
+    quan kèm provenance/freshness, không ghi gì vào durable stores.'
+  routing:
+    mode: conditional
+    states: []
+    classes:
+    - trivial
+    - small
+    - standard
+    - architectural
+  capabilities:
+    required:
+    - business_knowledge_retrieval
+    - convention_retrieval
+    - historical_context_retrieval
+  outputs: {}
+  gates: []
 - name: lightweight-change
   version: '1.0'
   description: 'Dùng khi apply một change class trivial/small: đọc micro-plan trong

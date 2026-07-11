@@ -3,10 +3,10 @@
 > Cập nhật bởi: —
 
 Đây là **source of truth kiến trúc tổng thể** của hệ thống.
-Được tích luỹ bởi `knowledge-curator` sau mỗi task hoàn thành.
+Được tích luỹ bởi `knowledge-promoter` sau mỗi task hoàn thành.
 
 > ⓘ **Đây là skeleton.** Khi `maika init` vào dự án của bạn, file này được seed rỗng;
-> `knowledge-curator` điền dần sau mỗi task. Điền các bảng dưới theo đúng format metadata.
+> `knowledge-promoter` điền dần sau mỗi task. Điền các bảng dưới theo đúng format metadata.
 
 ---
 
@@ -22,10 +22,10 @@ Mọi entry trong file này đều phải có metadata inline theo format:
 
 | Field | Ý nghĩa | Ai ghi | Cập nhật khi nào |
 |-------|---------|--------|-----------------|
-| `source` | Ticket-id hoặc URL tài liệu đầu tiên xác nhận thông tin này | knowledge-curator | Lần đầu thêm vào |
-| `seen` | Tháng/năm phát hiện lần đầu (`YYYY-MM`) | knowledge-curator | Chỉ ghi một lần |
-| `verified` | Tháng/năm xác nhận gần nhất còn đúng (`YYYY-MM`) | knowledge-curator | Cập nhật mỗi khi task chạm vào entry này và confirm còn đúng |
-| `status` | Trạng thái hiện tại của tri thức này | knowledge-curator | Cập nhật khi có thay đổi |
+| `source` | Ticket-id hoặc URL tài liệu đầu tiên xác nhận thông tin này | knowledge-promoter | Lần đầu thêm vào |
+| `seen` | Tháng/năm phát hiện lần đầu (`YYYY-MM`) | knowledge-promoter | Chỉ ghi một lần |
+| `verified` | Tháng/năm xác nhận gần nhất còn đúng (`YYYY-MM`) | knowledge-promoter | Cập nhật mỗi khi task chạm vào entry này và confirm còn đúng |
+| `status` | Trạng thái hiện tại của tri thức này | knowledge-promoter | Cập nhật khi có thay đổi |
 
 **Quy tắc status:**
 
@@ -142,7 +142,7 @@ Mọi entry trong file này đều phải có metadata inline theo format:
 
 ## [M3] Violation Pattern Tracking
 
-> Section này được tự động cập nhật bởi `knowledge-curator` sau mỗi task hoàn thành.
+> Section này được tự động cập nhật bởi `knowledge-promoter` sau mỗi task hoàn thành.
 > Dùng để nhận diện các vi phạm rule/workflow lặp đi lặp lại để cải thiện hệ thống.
 
 ### Bảng Vi phạm Đã Ghi nhận

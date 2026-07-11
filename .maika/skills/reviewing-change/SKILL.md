@@ -103,7 +103,7 @@ Không đánh giá được một tác động tri thức (vd graph không probe
 - Verification evidence stale/thiếu.
 
 ## Tác động lên knowledge
-`KNOWLEDGE_IMPACT.yaml` là input cho `knowledge-curator` (promote/supersede/save/refresh).
+`KNOWLEDGE_IMPACT.yaml` là input cho `knowledge-promoter` (promote/supersede/save/refresh).
 
 ## Đầu ra
 `reviews/FINAL_REVIEW.md`, `reviews/FINDINGS.yaml`, `reviews/KNOWLEDGE_IMPACT.yaml`.

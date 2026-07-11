@@ -103,7 +103,7 @@ check (source-level), hạ confidence; không tuyên bố VERIFIED cho phần kh
 - Scan tìm thấy removed reference còn tham chiếu.
 
 ## Tác động lên knowledge
-Xác nhận evidence để `knowledge-curator` promote; đánh dấu graph/index cần refresh.
+Xác nhận evidence để `knowledge-promoter` promote; đánh dấu graph/index cần refresh.
 
 ## Đầu ra
 `verification/COMMANDS.yaml`, `verification/VERIFICATION_REPORT.md` + verdict.
@@ -112,4 +112,4 @@ Xác nhận evidence để `knowledge-curator` promote; đánh dấu graph/index
 
 Mỗi verification claim là material decision và phải emit canonical `Knowledge Trace`
 trỏ tới command/test/runtime evidence mới chạy, freshness `verified` và verdict rõ ràng.
-`knowledge-curator` và archive.
+`knowledge-promoter` và archive.

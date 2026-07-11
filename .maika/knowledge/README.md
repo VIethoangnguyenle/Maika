@@ -65,7 +65,7 @@ Durable path canonical:
 
 1. **Task**: workflow `/task` tạo workspace `changes/<change-id>/`; skill ghi artifact
    theo authority map qua từng phase.
-2. **Verified**: sau `VERIFIED`, knowledge-curator promote candidate vào `long-term/`.
+2. **Verified**: sau `VERIFIED`, knowledge-promoter promote candidate vào `long-term/`.
 3. **Archive**: `maika task archive` dời workspace sang
    `{{ platform.framework_root }}/archive/<change-id>/` + regenerate knowledge index.
 

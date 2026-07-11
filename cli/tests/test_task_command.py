@@ -435,6 +435,35 @@ def test_task_archive_requires_knowledge_impact(tmp_path, capsys):
     assert "KNOWLEDGE_IMPACT.yaml" in capsys.readouterr().out
 
 
+def test_task_archive_refuses_unpromoted_teaching_moments(tmp_path, capsys):
+    # PR 12: candidate-first learning — a confirmed teaching moment must be
+    # promoted/rejected via KNOWLEDGE_IMPACT before the workspace can archive.
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")
+    ws = _complete_workspace(root)
+    assert run_task("verify", target_dir=str(root), change_id="demo") == 0
+    learning = ws / "learning"
+    learning.mkdir()
+    (learning / "TEACHING_MOMENTS.yaml").write_text(yaml.safe_dump({
+        "version": 1,
+        "moments": [{"id": "TM-001", "statement": "dùng toBuilder, không setter",
+                     "target": "author-dna", "user_confirmed": True,
+                     "status": "confirmed-pending-verification"}],
+    }), encoding="utf-8")
+
+    assert run_task("archive", target_dir=str(root), change_id="demo") == 1
+    assert "TM-001" in capsys.readouterr().out
+
+    impact_path = ws / "reviews" / "KNOWLEDGE_IMPACT.yaml"
+    impact = yaml.safe_load(impact_path.read_text(encoding="utf-8"))
+    impact["new_candidates"] = [{
+        "id": "TM-001", "statement": "dùng toBuilder, không setter",
+        "evidence_ids": ["CODE-001"], "confidence": "high",
+    }]
+    impact_path.write_text(yaml.safe_dump(impact, sort_keys=False), encoding="utf-8")
+    assert run_task("archive", target_dir=str(root), change_id="demo") == 0
+
+
 def test_task_archive_requires_verified_skill_feedback(tmp_path, capsys):
     root = _target(tmp_path)
     run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="standard")

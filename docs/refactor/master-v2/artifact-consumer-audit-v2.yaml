@@ -54,6 +54,6 @@ modules:
 - path: .maika/tools/rule-projector/backends/__init__.py
   consumed_by: package-marker-exemption
 - path: .maika/tools/rule-projector/backends/checkstyle.py
-  consumed_by: cli-entrypoint:.maika/rules/rules-guard.md
+  consumed_by: cli-entrypoint:.maika/skills/knowledge-promoter/SKILL.md
 - path: .maika/tools/rule-projector/projector.py
-  consumed_by: cli-entrypoint:.maika/rules/rules-guard.md
+  consumed_by: cli-entrypoint:.maika/skills/knowledge-promoter/SKILL.md

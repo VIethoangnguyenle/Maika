@@ -110,7 +110,7 @@ Mâu thuẫn material **chưa resolve** thì **block design** (không được �
 
 - Mỗi implementation task nhận **slice nhỏ nhất liên quan** (code evidence, business rule,
   convention, Author DNA, historical context, DB evidence, forbidden pattern, assumption,
-  freshness, confidence) — chi tiết capsule ở skill `writing-plan` / `knowledge-curator`.
+  freshness, confidence) — chi tiết capsule ở skill `writing-plan` / `knowledge-retriever`.
 
 ### R-Know-15: Memory save
 

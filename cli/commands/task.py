@@ -20,7 +20,6 @@ from cli.provider_actions import build_learning_executors
 from cli.runtime.policy import load_runtime_policy
 from cli.knowledge_control import (
     apply_project_learning,
-    validate_markdown_knowledge_trace,
     validate_skill_feedback,
 )
 
@@ -621,6 +620,21 @@ def _archive(target: Path, framework_root: str, change_id: str) -> int:
         print(f"Refused: SKILL_FEEDBACK.yaml failed skill-feedback gate: {feedback_gate.reason}")
         return 1
 
+    # PR 12: confirmed teaching moments must not be lost at archive — each one
+    # has to surface in a KNOWLEDGE_IMPACT lane before the workspace leaves.
+    moments_path = ws / "learning" / "TEACHING_MOMENTS.yaml"
+    if moments_path.exists():
+        moments = (_load_yaml(moments_path).get("moments") or [])
+        pending = [m.get("id") for m in moments
+                   if isinstance(m, dict) and m.get("status") == "confirmed-pending-verification"]
+        impact_text = ki_path.read_text(encoding="utf-8")
+        unpromoted = [mid for mid in pending if mid and mid not in impact_text]
+        if unpromoted:
+            print("Refused: confirmed teaching moments not promoted to "
+                  f"KNOWLEDGE_IMPACT.yaml: {', '.join(unpromoted)} "
+                  "(knowledge-promoter must promote or reject them)")
+            return 1
+
     dest = _archive_workspace(target, framework_root, change_id)
     if dest.exists():
         print(f"Refused: archive destination already exists: {dest}")
@@ -646,36 +660,6 @@ def _archive(target: Path, framework_root: str, change_id: str) -> int:
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(ws), str(dest))
     print(f"Archived {change_id} -> {dest}")
-    return 0
-
-
-def _transition(
-    target: Path, framework_root: str, change_id: str, expected: str, new_state: str
-) -> int:
-    ws = _workspace(target, framework_root, change_id)
-    state_path = ws / "STATE.yaml"
-    if not state_path.exists():
-        print(f"No such vNext task workspace: {change_id}")
-        return 1
-    service = _state_service(target, framework_root)
-    state = service.load_state(ws)
-    if state.get("state") != expected:
-        print(f"Refused: wrong state {state.get('state')} (expected {expected})")
-        return 1
-    if expected == "RECONCILING":
-        reconciliation = ws / "RECONCILIATION.md"
-        trace = validate_markdown_knowledge_trace(
-            reconciliation.read_text(encoding="utf-8") if reconciliation.exists() else ""
-        )
-        if not trace.ok:
-            print(f"Refused: reconciliation Knowledge Trace failed: {trace.reason}")
-            return 1
-    try:
-        service.transition(ws, new_state)
-    except ValueError as exc:
-        print(f"Refused: {exc}")
-        return 1
-    print(f"{change_id}: {expected} -> {new_state}")
     return 0
 
 

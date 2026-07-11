@@ -52,7 +52,7 @@ IF external KI NOT detected:
 **Constraint**: Nếu KI external mâu thuẫn với `{{ platform.framework_root }}/knowledge/`, luôn ưu tiên framework knowledge.
 
 **Periodic re-scan**: Ngoài bootstrap, cũng chạy scan này khi:
-- `knowledge-curator` chạy `archive_active_context` (kiểm tra xem có KI mới xuất hiện).
+- `knowledge-promoter` chạy archive (kiểm tra xem có KI mới xuất hiện).
 - Phát hiện KI file có `last_modified` mới hơn lần scan cuối → WARN ngay.
 
 ---

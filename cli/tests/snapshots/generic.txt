@@ -79,8 +79,12 @@
 .maika/skills/infra-tdd/SKILL.md
 .maika/skills/intent-analysis/
 .maika/skills/intent-analysis/SKILL.md
-.maika/skills/knowledge-curator/
-.maika/skills/knowledge-curator/SKILL.md
+.maika/skills/knowledge-promoter/
+.maika/skills/knowledge-promoter/SKILL.md
+.maika/skills/knowledge-recorder/
+.maika/skills/knowledge-recorder/SKILL.md
+.maika/skills/knowledge-retriever/
+.maika/skills/knowledge-retriever/SKILL.md
 .maika/skills/lightweight-change/
 .maika/skills/lightweight-change/SKILL.md
 .maika/skills/reviewing-change/

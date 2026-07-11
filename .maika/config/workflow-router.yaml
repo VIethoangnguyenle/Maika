@@ -193,7 +193,7 @@ actions:
     dispatch: parent
     allowed_from: [COMPLETED]
     classes: [trivial, small, standard, architectural]
-    skill: knowledge-curator
+    skill: knowledge-promoter
     role: knowledge-curator
     produces: [ARCHIVE_MANIFEST.yaml]
     completion_gates: [knowledge-impact, skill-feedback]

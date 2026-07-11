@@ -62,21 +62,25 @@ Write-gate chỉ cho phép file nằm trong `files.create`, `files.modify`,
 Một teaching moment có thể sinh entries ở **nhiều file** — không gộp vào 1 chỗ.
 Dấu hiệu ghi SAI level: entry author-dna phải liệt kê tên bảng/cột/dòng code.
 
-**Sau khi phân tách**:
+**Sau khi phân tách** (candidate-first — kernel §7 Learning Boundary):
 1. **Ngay lập tức** đề xuất capture cho user xác nhận:
    - "Anh vừa dạy về `{topic}`. Em phân tách:
      - author-dna: `{thinking level — bỏ tên cụ thể}`
      - knowledge-snapshot: `{factual level}` (nếu có)
      Confirm?"
-2. **Sau confirm**: ghi vào đúng file theo phân tách, `confirmed: true`, `source: author-described ({date})`.
-   - Nếu principle vừa ghi là **mechanically checkable** (map được sang `ir_rule` — xem
-     `author-dna-builder/references/check-spec-mapping.md`): emit luôn `mechanically_checkable: true`
-     + `check_spec`, rồi chạy rule-projector regenerate ruleset ngay trong phiên (SP1a §3.2 — active path):
-     `python3 {{ platform.framework_root }}/tools/rule-projector/projector.py --dna <dna> --conventions <conv> --out generated/`
-     → `python3 {{ platform.framework_root }}/tools/rule-projector/backends/checkstyle.py --ir generated/rules.json --out generated/checkstyle.generated.xml`
-3. **Không được defer** sang phiên sau — teaching moment phải capture ngay trong phiên.
-4. **Nếu user từ chối**: ghi observation WARN vào `reviews/SKILL_FEEDBACK.yaml` của
-   workspace hiện tại: "[R-DNA-7] Teaching moment chưa capture: `{principle}`."
+2. **Sau confirm**: ghi CANDIDATE vào `changes/<id>/learning/TEACHING_MOMENTS.yaml`
+   (skill `knowledge-recorder`): id, statement, target (dna/convention/snapshot),
+   evidence anchor, `user_confirmed: true`, `status: confirmed-pending-verification`,
+   `source: author-described ({date})`. **KHÔNG ghi trực tiếp vào
+   `knowledge/long-term/`** — promotion (kèm rule-projector regenerate khi entry
+   mechanically checkable) do `knowledge-promoter` thực hiện tại `archive`,
+   sau khi verification pass.
+3. **Không được defer** sang phiên sau — candidate phải capture ngay trong phiên;
+   `maika task archive` từ chối khi còn candidate confirmed chưa vào KNOWLEDGE_IMPACT.
+4. **Nếu user từ chối**: ghi record `status: declined` + observation WARN vào
+   `reviews/SKILL_FEEDBACK.yaml`: "[R-DNA-7] Teaching moment chưa capture: `{principle}`."
+5. **Direct user directive** không bypass evidence/classification/provenance —
+   nó chỉ bỏ recurrence threshold.
 
 Điều kiện nhận biết: user dùng "không được", "phải dùng", "sai rồi", "thay bằng",
 hoặc sửa code agent trực tiếp kèm giải thích.

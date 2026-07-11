@@ -127,7 +127,7 @@ Không degrade lặng lẽ.
 
 ## Tác động lên knowledge
 Ghi evidence + conflict mới; đánh dấu stale claim. Không promote (promotion ở
-`knowledge-curator` sau verified completion).
+`knowledge-promoter` sau verified completion).
 
 ## Đầu ra
 `exploration/GROUNDING.yaml`, `EVIDENCE_MANIFEST.yaml`, `TOOL_HEALTH.yaml`,

@@ -12,7 +12,7 @@ REASONING_SKILLS = [
     "intent-analysis", "grounding-explorer", "database-explorer",
     "architecture-reconciler", "grounded-brainstorming", "writing-spec",
     "writing-plan", "validating-plan", "executing-task", "reviewing-task",
-    "reviewing-change", "verification-before-completion", "knowledge-curator",
+    "reviewing-change", "verification-before-completion", "knowledge-retriever", "knowledge-recorder", "knowledge-promoter",
     "author-dna-builder", "convention-intelligence-builder", "infra-tdd",
 ]
 

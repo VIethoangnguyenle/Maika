@@ -274,11 +274,25 @@ plugins:
     output: "{{ platform.framework_root }}/skills/verification-before-completion/"
     copy_dir: true
 
-  - name: knowledge-curator
+  - name: knowledge-retriever
     type: skill
-    source: skills/knowledge-curator/
+    source: skills/knowledge-retriever/
     template: false
-    output: "{{ platform.framework_root }}/skills/knowledge-curator/"
+    output: "{{ platform.framework_root }}/skills/knowledge-retriever/"
+    copy_dir: true
+
+  - name: knowledge-recorder
+    type: skill
+    source: skills/knowledge-recorder/
+    template: false
+    output: "{{ platform.framework_root }}/skills/knowledge-recorder/"
+    copy_dir: true
+
+  - name: knowledge-promoter
+    type: skill
+    source: skills/knowledge-promoter/
+    template: false
+    output: "{{ platform.framework_root }}/skills/knowledge-promoter/"
     copy_dir: true
 
   - name: author-dna-builder
