@@ -111,7 +111,7 @@ def test_review_plan_approved(tmp_path):
             # absolute OS path here would embed Windows backslashes and fail the
             # posix _FILE_PATH anchor extraction on Windows.
             body="## Counter-evidence\n- src/a.py:1 — confirmed in current source\n" + REVIEW_TRACE,
-        ))
+        ), encoding="utf-8")  # body has a non-ASCII em dash; utf-8 required for the utf-8 read back
         return 0, ""
     assert vd.review_plan(ws, runner, output_path=ws / "review_output.txt") == "APPROVED"
 

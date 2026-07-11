@@ -11,7 +11,7 @@ def _norm(xml_str):
     return re.sub(r">\s+<", "><", xml_str.strip())
 
 def test_ir_renders_wellformed_xml():
-    ir = json.loads((HERE / "fixtures" / "expected-ir.json").read_text())
+    ir = json.loads((HERE / "fixtures" / "expected-ir.json").read_text(encoding="utf-8"))
     xml = checkstyle.ir_to_checkstyle(ir)
     minidom.parseString(xml)
 
@@ -35,7 +35,7 @@ def test_nesting_maps_to_nestedifdepth():
     assert 'value="1"' in xml
 
 def test_matches_golden_fixture():
-    ir = json.loads((HERE / "fixtures" / "expected-ir.json").read_text())
+    ir = json.loads((HERE / "fixtures" / "expected-ir.json").read_text(encoding="utf-8"))
     xml = checkstyle.ir_to_checkstyle(ir)
-    golden = (HERE / "fixtures" / "expected-checkstyle.xml").read_text()
+    golden = (HERE / "fixtures" / "expected-checkstyle.xml").read_text(encoding="utf-8")
     assert _norm(xml) == _norm(golden)
