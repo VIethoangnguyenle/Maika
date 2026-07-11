@@ -1,0 +1,74 @@
+version: 2
+description: Mechanical consumer detection for .maika/tools/**/*.py modules
+modules:
+- path: .maika/tools/gate-check/__init__.py
+  consumed_by: plugin-manifest:.maika/tools/gate-check
+- path: .maika/tools/gate-check/capability.py
+  consumed_by: file-dispatch:.maika/tools/gate-check/cli.py; plugin-manifest:.maika/tools/gate-check
+- path: .maika/tools/gate-check/cli.py
+  consumed_by: python-import:cli/scaffold.py; cli-entrypoint:.maika/procedures/bootstrap.md;
+    plugin-manifest:.maika/tools/gate-check
+- path: .maika/tools/gate-check/complexity.py
+  consumed_by: plugin-manifest:.maika/tools/gate-check
+- path: .maika/tools/gate-check/gates.py
+  consumed_by: file-dispatch:cli/commands/bootstrap.py; plugin-manifest:.maika/tools/gate-check
+- path: .maika/tools/knowledge-index/__init__.py
+  consumed_by: plugin-manifest:.maika/tools/knowledge-index
+- path: .maika/tools/knowledge-index/generate_index.py
+  consumed_by: file-dispatch:cli/scaffold.py; cli-entrypoint:.maika/procedures/bootstrap.md;
+    plugin-manifest:.maika/tools/knowledge-index
+- path: .maika/tools/mcp-bridge/mcp_client.py
+  consumed_by: file-dispatch:cli/provider_actions.py; plugin-manifest:.maika/tools/mcp-bridge
+- path: .maika/tools/microloop-orchestrator/adaptive_runtime.py
+  consumed_by: python-import:.maika/tools/microloop-orchestrator/vnext_state.py; file-dispatch:.maika/tools/microloop-orchestrator/vnext_state.py;
+    dynamic-consumer:cli/commands/task.py:orchestrator + vnext_state + runtime_hardening
+    loaded via spec_from_file_location; plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/microloop-orchestrator/loop_engineer.py
+  consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py;
+    dynamic-consumer:cli/commands/loop.py:file-dispatched by _load_module(target,
+    fr, name); plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/microloop-orchestrator/loop_governance.py
+  consumed_by: file-dispatch:cli/commands/loop.py; dynamic-consumer:cli/commands/loop.py:file-dispatched
+    by _load_module(target, fr, name); plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/microloop-orchestrator/loop_policy.py
+  consumed_by: file-dispatch:.maika/tools/microloop-orchestrator/loop_engineer.py;
+    dynamic-consumer:cli/commands/loop.py:file-dispatched by _load_module(target,
+    fr, name); plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/microloop-orchestrator/loop_router.py
+  consumed_by: file-dispatch:.maika/tools/microloop-orchestrator/loop_engineer.py;
+    dynamic-consumer:cli/commands/loop.py:file-dispatched by _load_module(target,
+    fr, name); plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/microloop-orchestrator/loop_state.py
+  consumed_by: file-dispatch:cli/commands/loop.py; dynamic-consumer:cli/commands/loop.py:file-dispatched
+    by _load_module(target, fr, name); plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/microloop-orchestrator/orchestrator.py
+  consumed_by: file-dispatch:cli/commands/task.py; dynamic-consumer:cli/commands/task.py:orchestrator
+    + vnext_state + runtime_hardening loaded via spec_from_file_location; plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/microloop-orchestrator/plan_compiler.py
+  consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py;
+    file-dispatch:.maika/tools/microloop-orchestrator/vnext_dispatch.py; dynamic-consumer:cli/commands/task.py:orchestrator
+    + vnext_state + runtime_hardening loaded via spec_from_file_location; plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/microloop-orchestrator/plan_parser.py
+  consumed_by: file-dispatch:.maika/tools/microloop-orchestrator/plan_compiler.py;
+    dynamic-consumer:cli/commands/task.py:orchestrator + vnext_state + runtime_hardening
+    loaded via spec_from_file_location; plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/microloop-orchestrator/runtime_hardening.py
+  consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py;
+    file-dispatch:cli/commands/task.py; dynamic-consumer:cli/commands/task.py:orchestrator
+    + vnext_state + runtime_hardening loaded via spec_from_file_location; plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/microloop-orchestrator/vnext_dispatch.py
+  consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py;
+    dynamic-consumer:cli/commands/task.py:orchestrator + vnext_state + runtime_hardening
+    loaded via spec_from_file_location; plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/microloop-orchestrator/vnext_state.py
+  consumed_by: python-import:.maika/tools/microloop-orchestrator/loop_state.py; file-dispatch:cli/commands/loop.py;
+    dynamic-consumer:cli/commands/task.py:orchestrator + vnext_state + runtime_hardening
+    loaded via spec_from_file_location; plugin-manifest:.maika/tools/microloop-orchestrator
+- path: .maika/tools/rule-projector/__init__.py
+  consumed_by: plugin-manifest:.maika/tools/rule-projector
+- path: .maika/tools/rule-projector/backends/__init__.py
+  consumed_by: plugin-manifest:.maika/tools/rule-projector
+- path: .maika/tools/rule-projector/backends/checkstyle.py
+  consumed_by: plugin-manifest:.maika/tools/rule-projector
+- path: .maika/tools/rule-projector/projector.py
+  consumed_by: plugin-manifest:.maika/tools/rule-projector

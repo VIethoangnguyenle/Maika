@@ -21,4 +21,3 @@ def test_ci_runner_covers_vnext_enforcement_columns():
     assert ".maika/hooks/write-gate/tests" in paths
     assert ".maika/tools/knowledge-index/tests" in paths
     assert ".maika/tools/rule-projector/tests" in paths
-    assert ".maika/tools/skill-lint/tests" in paths

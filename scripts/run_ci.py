@@ -19,7 +19,6 @@ TEST_GROUPS = [
     {"name": "write-gate", "paths": [".maika/hooks/write-gate/tests"]},
     {"name": "knowledge-index", "paths": [".maika/tools/knowledge-index/tests"]},
     {"name": "rule-projector", "paths": [".maika/tools/rule-projector/tests"]},
-    {"name": "skill-lint", "paths": [".maika/tools/skill-lint/tests"]},
 ]
 
 

@@ -234,7 +234,7 @@ flowchart TB
 ### Lớp skills & tools
 
 - **`.maika/skills/`** (≈14 skill): `codebase-explorer`, `requirement-analyst`, `architecture-reviewer`, `db-explorer`, `convention-intelligence-builder`, `author-dna-builder`, `knowledge-curator`, `spec-extract/validator`, họ `openspec-*`, `infra-tdd`, `document-writer`… Skill có thể khai `pre_conditions:` và bị guard chặn trước khi chạy (R-Guard-1).
-- **`.maika/tools/`**: `gate-check`, `rule-projector` (DNA/convention → IR → checkstyle), `knowledge-index`, `skill-index`, `skill-lint`, `microloop-orchestrator`, `mcp-bridge`, `rule-projector`.
+- **`.maika/tools/`**: `gate-check`, `rule-projector` (DNA/convention → IR → checkstyle), `knowledge-index`, `microloop-orchestrator`, `mcp-bridge`.
 
 ---
 

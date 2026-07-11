@@ -14,6 +14,23 @@ ALLOWED_TYPES = {"runtime", "adapter", "config", "template", "documentation",
                  "test", "historical", "migration"}
 ALLOWED_STATUS = {"active", "compatibility", "deprecated", "historical", "candidate-delete"}
 
+# Patterns that indicate dynamic file dispatch in production code.
+_DISPATCH_PATTERNS = [
+    # spec_from_file_location(..., <path ending in name.py>)
+    r'spec_from_file_location\s*\([^)]*["\'](?:[^"\']*[/\\])?{name}\.py["\']',
+    # _sibling("name")
+    r'_sibling\s*\(\s*["\'](?:{name})["\']',
+    # _load("name", ...) or _load("name", "name.py")
+    r'_load\s*\(\s*["\'](?:{name})["\']',
+    # _load_module(..., "name")
+    r'_load_module\s*\([^)]*["\'](?:{name})["\']',
+    # string containing the module path
+    r'["\'](?:[^"\']*[/\\])?{name}\.py["\']',
+]
+
+# Directories containing text documents that serve as CLI entrypoint consumers.
+_ENTRYPOINT_DIRS = ("procedures", "skills", "workflows")
+
 
 def _finding(check: str, path: str, message: str, severity: str = "high") -> dict:
     return {"check": check, "path": path, "message": message, "severity": severity}
@@ -38,6 +55,149 @@ def _production_texts(root: Path):
                 continue
 
 
+def _check_tool_consumers(
+    root: Path,
+    production_texts: list[tuple[str, str]],
+    dynamic_consumers: list[dict],
+    manifest: dict,
+) -> tuple[list[dict], list[dict]]:
+    """Check each .maika/tools/**/*.py module for a real consumer.
+
+    Returns (findings, consumer_report) where consumer_report is a list of
+    dicts {path, consumed_by} for the audit report.
+    """
+    tools_dir = root / ".maika" / "tools"
+    if not tools_dir.exists():
+        return [], []
+
+    # Collect all non-test .py modules under .maika/tools/
+    tool_modules = []
+    for py_file in sorted(tools_dir.rglob("*.py")):
+        if "tests" in py_file.parts or "__pycache__" in py_file.parts:
+            continue
+        if py_file.name.startswith("test_"):
+            continue
+        tool_modules.append(py_file)
+
+    # Pre-compute production .py texts (non-test) for import/dispatch checks
+    py_texts = [(rel, text) for rel, text in production_texts if rel.endswith(".py")]
+
+    # Pre-compute plugin manifest tool directories (source entries of type "tool")
+    plugin_tool_dirs: set[str] = set()
+    for plugin in manifest.get("plugins") or []:
+        if plugin.get("type") == "tool":
+            source = plugin.get("source", "")
+            # Normalize: "tools/gate-check/" -> ".maika/tools/gate-check"
+            if source.startswith("tools/"):
+                plugin_tool_dirs.add(".maika/" + source.rstrip("/"))
+
+    # Pre-compute entrypoint reference texts from procedures/skills/workflows
+    entrypoint_texts: list[tuple[str, str]] = []
+    for dirname in _ENTRYPOINT_DIRS:
+        ep_dir = root / ".maika" / dirname
+        if not ep_dir.exists():
+            continue
+        for md_file in ep_dir.rglob("*"):
+            if not md_file.is_file():
+                continue
+            try:
+                entrypoint_texts.append(
+                    (md_file.relative_to(root).as_posix(),
+                     md_file.read_text(encoding="utf-8")))
+            except (OSError, UnicodeDecodeError):
+                continue
+
+    findings: list[dict] = []
+    consumer_report: list[dict] = []
+
+    for py_file in tool_modules:
+        rel = py_file.relative_to(root).as_posix()
+        basename = py_file.stem  # e.g. "gates", "loop_state"
+        evidences: list[str] = []
+
+        # ── Mechanism 1: Python import ──
+        import_pattern = re.compile(
+            rf"(?:^|\n)\s*(?:import\s+{re.escape(basename)}\b"
+            rf"|from\s+{re.escape(basename)}\s+import)"
+        )
+        for src_rel, src_text in py_texts:
+            if src_rel == rel:
+                continue
+            if import_pattern.search(src_text):
+                evidences.append(f"python-import:{src_rel}")
+                break
+
+        # ── Mechanism 2: String file-dispatch ──
+        for src_rel, src_text in py_texts:
+            if src_rel == rel:
+                continue
+            for pat_template in _DISPATCH_PATTERNS:
+                pat = pat_template.format(name=re.escape(basename))
+                if re.search(pat, src_text):
+                    evidences.append(f"file-dispatch:{src_rel}")
+                    break
+            else:
+                continue
+            break
+
+        # ── Mechanism 3: CLI entrypoint in procedures/skills/workflows ──
+        try:
+            source_text = py_file.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            source_text = ""
+        has_main = 'if __name__' in source_text and '__main__' in source_text
+        if has_main:
+            # Check if the module path or basename is referenced in entrypoint docs
+            for ep_rel, ep_text in entrypoint_texts:
+                if rel in ep_text or f"{basename}.py" in ep_text:
+                    evidences.append(f"cli-entrypoint:{ep_rel}")
+                    break
+
+        # ── Mechanism 4: dynamic_consumers registry ──
+        for entry in dynamic_consumers:
+            pattern = entry.get("pattern", "")
+            loader = entry.get("loader", "")
+            if fnmatch.fnmatch(rel, pattern):
+                # Verify loader file exists
+                if (root / loader).is_file():
+                    evidences.append(f"dynamic-consumer:{loader}:{entry.get('reason', '')}")
+                break
+
+        # ── Mechanism 5: plugin-manifest tool plugin ──
+        # The module's tool directory is a plugin source
+        for plugin_dir in plugin_tool_dirs:
+            if rel.startswith(plugin_dir + "/"):
+                evidences.append(f"plugin-manifest:{plugin_dir}")
+                break
+
+        consumed_by = "; ".join(evidences) if evidences else "NONE"
+        consumer_report.append({"path": rel, "consumed_by": consumed_by})
+
+        if not evidences:
+            findings.append(_finding(
+                "dead-tool-module", rel,
+                "tool module has no real production consumer "
+                "(not imported, not file-dispatched, not a CLI entrypoint, "
+                "not in dynamic_consumers, not in plugin manifest)"))
+
+    return findings, consumer_report
+
+
+def emit_consumer_audit_report(root: Path, consumer_report: list[dict]) -> None:
+    """Write the consumer audit report to docs/refactor/master-v2/."""
+    report_path = root / "docs" / "refactor" / "master-v2" / "artifact-consumer-audit-v2.yaml"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report = {
+        "version": 2,
+        "description": "Mechanical consumer detection for .maika/tools/**/*.py modules",
+        "modules": consumer_report,
+    }
+    report_path.write_text(
+        yaml.safe_dump(report, sort_keys=False, allow_unicode=True, default_flow_style=False),
+        encoding="utf-8",
+    )
+
+
 def audit_artifacts(root: Path) -> list[dict]:
     root = Path(root).resolve()
     registry_path = root / ".maika/config/artifact-registry.yaml"
@@ -47,6 +207,7 @@ def audit_artifacts(root: Path) -> list[dict]:
     artifacts = registry.get("artifacts") or []
     defaults = registry.get("manifest_consumer_defaults") or {}
     groups = registry.get("artifact_groups") or []
+    dynamic_consumers = registry.get("dynamic_consumers") or []
     findings = []
 
     manifest_path = root / "cli/plugin-manifest.yaml"
@@ -116,6 +277,13 @@ def audit_artifacts(root: Path) -> list[dict]:
         if len(owners) > 1:
             findings.append(_finding("duplicate-policy", domain,
                                      f"multiple runtime authorities: {', '.join(owners)}", "critical"))
+
+    # ── Tool consumer check (PR9 / F9) ──
+    tool_findings, consumer_report = _check_tool_consumers(
+        root, production_texts, dynamic_consumers, manifest)
+    findings.extend(tool_findings)
+    if consumer_report:
+        emit_consumer_audit_report(root, consumer_report)
 
     coverage_files = []
     for base, pattern in ((root / "cli", "*.py"), (root / ".maika", "*.py"),

@@ -48,6 +48,13 @@ artifact_groups:
     consumers: [developer-documentation]
     runtime_authority: false
     status: active
+dynamic_consumers:
+  - loader: cli/commands/loop.py
+    pattern: ".maika/tools/microloop-orchestrator/loop_*.py"
+    reason: "file-dispatched by _load_module(target, fr, name)"
+  - loader: cli/commands/task.py
+    pattern: ".maika/tools/microloop-orchestrator/*.py"
+    reason: "orchestrator + vnext_state + runtime_hardening loaded via spec_from_file_location"
 artifacts:
   - path: cli/runtime/worker_resolver.py
     type: runtime
