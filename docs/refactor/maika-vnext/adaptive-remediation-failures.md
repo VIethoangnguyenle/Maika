@@ -61,23 +61,78 @@
     this invariant is the Windows CI job).
 ```
 
-## Anticipated Windows siblings (deferred to Phase 7 cross-platform sweep)
+## Phase 0b — additional Windows-only failures (fixed to reach green)
 
-Not fixed in Phase 0 to keep the change surgical; recorded so they are not lost.
-Windows CI advancing past group 3 may surface these:
+Fixing the three above let Windows CI progress and reveal further
+cross-platform defects (Phase 7 territory, pulled forward because Windows-green
+is a hard exit criterion). Each was reproduced locally by simulating Windows
+newline translation, except where noted.
 
 ```yaml
-- location: .maika/tools/microloop-orchestrator/vnext_dispatch.py:290
-  pattern: str(update_path.relative_to(ws))          # same POSIX-path bug class
-- location: cli/knowledge_control.py:401
-  pattern: str(path.relative_to(long_term))
-- location: cli/dashboard/brain.py:195
-  pattern: str(path.relative_to(parent))
-- location: .maika/tools/rule-projector/{projector.py,backends/checkstyle.py}
-  pattern: read_text()/write_text() without encoing on possibly-non-ASCII payloads
-- location: worker runner + review parser
-  pattern: shell=True/shlex.quote (orchestrator.py), literal "\n" front-matter parse
-           (runtime_hardening.parse_review, gates.py) — Phase 7.
+- test: test_workspace_lock_prevents_duplicate_apply_and_recovers_orphan
+  platform: windows-latest
+  failure: hang / KeyboardInterrupt in microloop group
+  root_cause: WorkspaceLock._orphaned used os.kill(pid, 0) for liveness; on
+    Windows os.kill with a non-CTRL signal calls TerminateProcess (wrong AND
+    destructive).
+  fix: _process_alive(pid) — POSIX os.kill(pid,0), Windows OpenProcess query;
+    never signals the target.
+
+- test: test_vnext_cli_e2e worker-dispatch tests
+  platform: windows-latest
+  failure: mangled prompt / hang under cmd.exe
+  root_cause: worker runner used shell=True + shlex.quote(prompt) (POSIX-only).
+  fix: structured worker {executable, args:[...]}; prompt passed via argv
+    (shell=False), placeholder validation, {prompt_file} option.
+
+- test: test_run_queue_* (several)
+  platform: windows-latest
+  failure: "stale capsule" -> tasks blocked instead of done
+  root_cause: _dump_yaml wrote text mode via os.fdopen(fd,"w") -> CRLF on disk;
+    read_bytes()-based evidence_sha diverged from read_text()-based gate hash.
+  fix: _dump_yaml writes newline="" (byte-identical LF everywhere).
+
+- test: test_review_plan_approved
+  platform: windows-latest
+  failure: (1) FINDINGS not APPROVED, then (2) UnicodeDecodeError
+  root_cause: (1) an absolute OS-path Counter-evidence anchor embedded Windows
+    backslashes that the posix _FILE_PATH regex could not extract; (2) the
+    review body's non-ASCII em dash was written cp1252 (no encoding=) then read
+    utf-8.
+  fix: repo-relative posix anchor + write_text(..., encoding="utf-8").
+
+- test: test_public_small_happy_path_completes_with_one_worker_call
+  platform: windows-latest
+  failure: "a lightweight verification command failed"
+  root_cause: validate_command matched executables by basename; sys.executable
+    on Windows is "python.exe", absent from the python/python3 allowlist.
+  fix: strip only real executable extensions (.exe/.bat/.cmd/.com) so
+    python.exe matches python while python.py stays denied (gate not weakened).
+
+- test: rule-projector group (test_checkstyle golden, projector reads)
+  platform: windows-latest (pre-emptively fixed; group had not yet run)
+  root_cause: projector.py/checkstyle.py + fixture reads used the platform
+    default encoding on non-ASCII (Vietnamese DNA, em-dash XML).
+  fix: encoding="utf-8" at those sites + .gitattributes ("* text=auto eol=lf").
+```
+
+## Result
+
+CI run 29131746554: tests (ubuntu-latest) ✓, tests (windows-latest) ✓,
+install-ps1-e2e ✓. Finding 2.9 (CI red) resolved.
+
+## Anticipated siblings still open (tracked for later phases)
+
+```yaml
+- location: vnext_dispatch.py:290, cli/knowledge_control.py:401, cli/dashboard/brain.py:195
+  pattern: str(path.relative_to(...))  # POSIX-path; not on any Windows CI path today
+- location: runtime_hardening.execute_command
+  pattern: start_new_session/os.killpg POSIX-only (only trips on worker timeout) — Phase 7-rest
+- location: runtime_hardening.parse_review, gates.py front-matter
+  pattern: literal "\n" fence; today all reviews are read via read_text (normalized) — defensive
+           CRLF normalization deferred to Phase 7-rest
+- location: cli/commands/skill.py:20
+  pattern: shell=True on agent-authored candidate strings — Phase 7-rest / Phase 3
 ```
 
 ## Policy for changing tests (plan §4.3)
