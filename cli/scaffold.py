@@ -85,7 +85,11 @@ def strip_managed_markdown(existing: str) -> str:
 
 def _is_maika_json(value: object) -> bool:
     payload = json.dumps(value, sort_keys=True).lower()
-    return "write-gate" in payload and ".maika" in payload
+    if "write-gate" not in payload:
+        return False
+    # Old form embeds the framework path (".maika/hooks/write-gate/..."); the
+    # stable-CLI form invokes "maika hook write-gate --runtime <r>". Match both.
+    return ".maika" in payload or "maika hook" in payload
 
 
 def remove_maika_json_entry(value: object) -> object:

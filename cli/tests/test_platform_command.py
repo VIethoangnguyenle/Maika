@@ -90,7 +90,7 @@ def test_disable_removes_only_that_adapter(tmp_path):
                  maika_root=str(REPO_ROOT))
 
     # claude adapter gone, codex + core intact
-    assert "write_gate" not in (tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8")
+    assert "write-gate" not in (tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8")
     assert (tmp_path / ".codex" / "hooks.json").exists()
     assert (tmp_path / ".maika" / "rules" / "RULES.md").exists()
     assert project.load(tmp_path)["platforms"]["enabled"] == ["codex"]
@@ -103,7 +103,7 @@ def test_disable_preserves_shared_entrypoint_block(tmp_path):
                  maika_root=str(REPO_ROOT))
 
     # antigravity native config's maika entry gone...
-    assert "write_gate" not in (tmp_path / ".agents" / "hooks.json").read_text(encoding="utf-8")
+    assert "write-gate" not in (tmp_path / ".agents" / "hooks.json").read_text(encoding="utf-8")
     # ...but AGENTS.md block stays (codex still needs it).
     assert "<!-- maika:begin -->" in (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
 

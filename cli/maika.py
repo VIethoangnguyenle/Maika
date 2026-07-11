@@ -216,6 +216,24 @@ def main():
     mcp_parser.add_argument("--target", default=".")
     mcp_parser.add_argument("--fix", action="store_true")
     mcp_parser.add_argument("--yes", action="store_true")
+    setup_parser = doctor_subparsers.add_parser(
+        "setup",
+        help="Report whole-adapter installation health",
+        description="Report whole-adapter installation health",
+    )
+    setup_parser.add_argument("--target", default=".")
+    setup_parser.add_argument("--source", default=None)
+    setup_parser.add_argument("--json", dest="as_json", action="store_true")
+
+    # ─── hook ───
+    hook_parser = subparsers.add_parser(
+        "hook",
+        help="Host-hook entrypoints (invoked by native PreToolUse hooks)",
+    )
+    hook_parser.add_argument("hook_action", choices=["write-gate"])
+    hook_parser.add_argument(
+        "--runtime", choices=["claude", "codex", "antigravity"], default="claude",
+    )
 
     args = parser.parse_args()
 
@@ -276,6 +294,12 @@ def main():
     elif args.command == "doctor" and args.doctor_command == "mcp":
         from cli.commands.doctor import run_doctor_mcp
         run_doctor_mcp(target_dir=args.target, fix=args.fix, assume_yes=args.yes)
+    elif args.command == "doctor" and args.doctor_command == "setup":
+        from cli.commands.doctor import run_doctor_setup
+        sys.exit(run_doctor_setup(target_dir=args.target, as_json=args.as_json, maika_root=args.source))
+    elif args.command == "hook" and args.hook_action == "write-gate":
+        from cli.commands.hook import run_hook_write_gate
+        sys.exit(run_hook_write_gate(runtime=args.runtime))
     else:
         parser.print_help()
         sys.exit(1)

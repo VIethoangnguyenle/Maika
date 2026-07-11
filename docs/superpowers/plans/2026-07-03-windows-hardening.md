@@ -1,5 +1,14 @@
 # Windows Hardening Implementation Plan
 
+> **PARTIALLY SUPERSEDED by the upgrade W5 stable hook CLI (2026-07-11).** The
+> host hook command no longer embeds a python launcher or `%CLAUDE_PROJECT_DIR%`
+> path anchor per-OS — every host now renders the single OS-agnostic command
+> `maika hook write-gate --runtime <r>`, so the `is_windows`/`hook_python`
+> branches in the three hook templates and the "anchor hook Claude-Windows" task
+> below are obsolete. Everything else here still holds: `hook_python` continues
+> to round-trip through `resolved-config.yaml` (consumed by `install.ps1` and the
+> Windows CI job), plus the `install.ps1` hardening and CI matrix.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Đóng 11 finding đã chốt trong eng review 2026-07-03 của PR #13 (Windows native support): persist `hook_python`, anchor hook Claude-Windows, harden `install.ps1`, CI matrix chạy `install.ps1` thật trên windows-latest, fix test đỏ có sẵn trên main.

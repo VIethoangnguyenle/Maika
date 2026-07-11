@@ -6,11 +6,7 @@
         "hooks": [
           {
             "type": "command",
-{% if is_windows %}
-            "command": "{{ hook_python }} {{ platform.framework_root }}/hooks/write-gate/write_gate.py --framework-root {{ platform.framework_root }} --runtime antigravity",
-{% else %}
-            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/{{ platform.framework_root }}/hooks/write-gate/write_gate.py\" --framework-root {{ platform.framework_root }} --runtime antigravity",
-{% endif %}
+            "command": "maika hook write-gate --runtime antigravity",
             "statusMessage": "Checking Maika write gate"
           }
         ]
