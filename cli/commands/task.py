@@ -26,19 +26,32 @@ from cli.knowledge_control import (
 
 
 COMMAND_MAP = {
-    "explore": "vnext-start-exploration",
+    "explore": "vnext-dispatch-role",
+    "reconcile": "vnext-dispatch-role",
+    "brainstorm": "vnext-dispatch-role",
+    "spec": "vnext-dispatch-role",
+    "plan": "vnext-dispatch-role",
     "validate-reasoning": "vnext-validate-reasoning",
-    "spec": "vnext-validate-spec",
-    "plan": "vnext-compile",
+    "validate-spec": "vnext-validate-spec",
     "validate-plan": "vnext-compile",
     "review": "vnext-review-plan",
     "apply": "vnext-run",
     "resume": "vnext-resume",
 }
 
+# Authoring actions execute their routed skill in an isolated worker (PR 10);
+# the role keys mirror config/workflow-router.yaml.
+DISPATCH_ROLE_BY_ACTION = {
+    "explore": "grounding",
+    "reconcile": "reconciliation",
+    "brainstorm": "brainstorming",
+    "spec": "spec",
+    "plan": "planning",
+}
+
 
 def action_requires_worker(action: str) -> bool:
-    return action in {"review", "apply"}
+    return action in {"review", "apply"} or action in DISPATCH_ROLE_BY_ACTION
 
 
 def _framework_root(target: Path) -> str:
@@ -772,22 +785,6 @@ def run_task(
         if not ready:
             print(f"Refused: bootstrap-complete failed: {reason}")
             return 1
-    if action == "reconcile":
-        if not change_id:
-            print("task reconcile requires --id")
-            return 2
-        return _with_workspace_lock(
-            target, framework_root, change_id,
-            lambda: _transition(target, framework_root, change_id, "RECONCILING", "BRAINSTORMING"),
-        )
-    if action == "brainstorm":
-        if not change_id:
-            print("task brainstorm requires --id")
-            return 2
-        return _with_workspace_lock(
-            target, framework_root, change_id,
-            lambda: _transition(target, framework_root, change_id, "BRAINSTORMING", "SPEC_REVIEW"),
-        )
     if action == "verify":
         if not change_id:
             print("task verify requires --id")
@@ -835,6 +832,8 @@ def run_task(
         "--workspace", str(ws),
         "--repo-root", str(target),
     ]
+    if action in DISPATCH_ROLE_BY_ACTION:
+        command.extend(["--role", DISPATCH_ROLE_BY_ACTION[action]])
     if action_requires_worker(action):
         try:
             from cli.runtime.session import SessionError, resolve_active_platform

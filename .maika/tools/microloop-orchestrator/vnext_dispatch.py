@@ -178,6 +178,102 @@ def build_prompt(klass, ws, brief_rel, result_rel, extra=None, task=None):
         lines.extend(["", str(extra)])
     return "\n".join(lines) + "\n"
 
+# Authoring dispatch (PR 10): public commands execute skills, not only
+# transition/validate. One row per role: expected states, prompt input/output,
+# state after a gate-passing run (None = stay, e.g. optional brainstorming).
+AUTHORING_ROLES = {
+    "grounding": {
+        "expected": ("INTAKE", "EXPLORING"),
+        "input": "INTENT.md",
+        "output": "exploration/GROUNDING.yaml",
+        "success_state": "RECONCILING",
+        "extra": ("Skill: grounding-explorer. Write the full exploration package under "
+                  "exploration/ (QUERY_PLAN.yaml, TOOL_HEALTH.yaml, GROUNDING.yaml, "
+                  "EVIDENCE_MANIFEST.yaml, CONFLICTS.yaml, COVERAGE.yaml)."),
+    },
+    "reconciliation": {
+        "expected": ("RECONCILING",),
+        "input": "exploration/GROUNDING.yaml",
+        "output": "RECONCILIATION.md",
+        "success_state": "BRAINSTORMING",
+        "extra": ("Skill: architecture-reconciler. Reconcile evidence conflicts; update "
+                  "exploration/CONFLICTS.yaml; RECONCILIATION.md must carry a Knowledge Trace."),
+    },
+    "brainstorming": {
+        "expected": ("BRAINSTORMING",),
+        "input": "RECONCILIATION.md",
+        "output": "RECONCILIATION.md",
+        "success_state": None,
+        "extra": ("Skill: grounded-brainstorming. Compare evidence-backed approaches and "
+                  "record them (with rejected options) in RECONCILIATION.md."),
+    },
+    "spec": {
+        "expected": ("BRAINSTORMING",),
+        "input": "RECONCILIATION.md",
+        "output": "SPEC.md",
+        "success_state": "SPEC_REVIEW",
+        "extra": "Skill: writing-spec. Produce a class-aware SPEC.md with a Knowledge Trace.",
+    },
+    "planning": {
+        "expected": ("PLANNING",),
+        "input": "SPEC.md",
+        "output": "IMPLEMENTATION_PLAN.md",
+        "success_state": "PLAN_REVIEW",
+        "extra": "Skill: writing-plan. Produce IMPLEMENTATION_PLAN.md per the plan doctrine.",
+    },
+}
+
+_TRACE_BLOCK = None  # compiled lazily; extraction only — validation lives in gate-check
+
+
+def markdown_trace_block(text):
+    """Extract the Knowledge Trace YAML block from a markdown artifact."""
+    global _TRACE_BLOCK
+    import re
+    if _TRACE_BLOCK is None:
+        _TRACE_BLOCK = re.compile(
+            r"^##\s+Knowledge Trace\s*$.*?```yaml\s*(.*?)```", re.MULTILINE | re.DOTALL
+        )
+    match = _TRACE_BLOCK.search(text)
+    return match.group(1) if match else None
+
+
+def run_authoring_dispatch(ws, role, runner, vs, validator=None):
+    """Dispatch one authoring role, gate its output, transition on success.
+
+    ``validator`` is a callable ``(ws) -> (ok, reason)`` supplied by the
+    orchestrator (it owns the gate wiring); ``vs`` is the loaded vnext_state
+    module. Returns a result dict — never raises for workflow-level failures.
+    """
+    spec = AUTHORING_ROLES.get(role)
+    if spec is None:
+        raise ValueError(f"unknown authoring role: {role}")
+    ws = Path(ws)
+    current = vs.load_state(ws).get("state")
+    if current not in spec["expected"]:
+        return {"ok": False,
+                "reason": f"wrong state {current} (expected {'/'.join(spec['expected'])})"}
+    if role == "grounding" and current == "INTAKE":
+        vs.start_exploration(ws)
+    prompt = build_prompt(role, ws, spec["input"], spec["output"], extra=spec["extra"])
+    exit_code, output = runner(prompt)
+    _append_dispatch_log(ws, {
+        "dispatch_type": role, "output": spec["output"], "worker_exit": exit_code,
+        "ts": datetime.now(timezone.utc).isoformat(),
+    })
+    out_path = ws / spec["output"]
+    if not out_path.exists():
+        return {"ok": False,
+                "reason": f"worker produced no {spec['output']} (exit {exit_code}: {output})"}
+    if validator is not None:
+        ok, reason = validator(ws)
+        if not ok:
+            return {"ok": False, "reason": f"gate failed: {reason}"}
+    if spec["success_state"]:
+        vs.transition(ws, spec["success_state"])
+    return {"ok": True, "state": vs.load_state(ws).get("state")}
+
+
 def review_plan(ws, runner, output_path=None):
     ws = Path(ws)
     prompt = build_prompt("plan_review", ws, "IMPLEMENTATION_PLAN.md", "reviews/plan-review.md")

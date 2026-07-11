@@ -54,12 +54,14 @@ def test_public_task_explicit_platform_is_forwarded(tmp_path, monkeypatch):
 
 
 def test_non_worker_task_does_not_resolve_platform(tmp_path, monkeypatch):
+    # PR 10: explore now dispatches a worker; the mechanical validate bridges
+    # stay non-worker and must never resolve a platform.
     _task_project(tmp_path)
     monkeypatch.setattr("cli.commands.task._bootstrap_ready", lambda *_: (True, ""))
     monkeypatch.setattr("cli.runtime.session.resolve_active_platform",
                         lambda *_a, **_k: pytest.fail("non-worker action resolved platform"))
     monkeypatch.setattr("cli.commands.task._run", lambda *_: 0)
-    assert run_task("explore", str(tmp_path), change_id="x") == 0
+    assert run_task("validate-spec", str(tmp_path), change_id="x") == 0
 
 
 def _verified_profile(root: Path, executable: Path):

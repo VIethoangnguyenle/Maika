@@ -53,6 +53,14 @@ def _target(tmp_path):
     profiles.mkdir(parents=True)
     (profiles / "execution-mode.yaml").write_text("workflow_engine: vnext\n", encoding="utf-8")
     _write_bootstrap_fixtures(fw)
+    config_dir = fw / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "project.yaml").write_text(
+        "version: 1\n"
+        "framework:\n  core_root: .maika\n"
+        "platforms:\n  enabled: [generic]\n  primary: generic\n",
+        encoding="utf-8",
+    )
     (fw / "resolved-config.yaml").write_text(
         "resolved:\n"
         "  platform: generic\n"
@@ -103,14 +111,17 @@ def test_task_start_invokes_vnext_init(tmp_path, capsys):
     assert "ok" in capsys.readouterr().out
 
 
-def test_task_plan_invokes_vnext_compile(tmp_path):
+def test_task_plan_dispatches_planning_role(tmp_path):
     root = _target(tmp_path)
     run_task("start", target_dir=str(root), change_id="demo", title="Demo")
 
     code = run_task("plan", target_dir=str(root), change_id="demo")
 
     assert code == 0
-    assert _calls(root)[1][0] == "vnext-compile"
+    call = _calls(root)[1]
+    assert call[0] == "vnext-dispatch-role"
+    assert call[call.index("--role") + 1] == "planning"
+    assert "--platform" in call  # authoring dispatch runs in a worker
 
 
 def test_task_status_lists_workspaces(tmp_path, capsys):
@@ -158,25 +169,26 @@ def test_verify_and_cancel_refuse_concurrent_workspace_lock(tmp_path, capsys):
         lock.release()
 
 
-def test_task_reconcile_and_brainstorm_transition_states(tmp_path):
+def test_task_authoring_actions_dispatch_their_routed_roles(tmp_path):
     root = _target(tmp_path)
     run_task("start", target_dir=str(root), change_id="demo", title="Demo")
-    state_path = root / ".maika" / "changes" / "demo" / "STATE.yaml"
-    state_path.write_text("change_id: demo\nstate: RECONCILING\n", encoding="utf-8")
-    (state_path.parent / "RECONCILIATION.md").write_text(
-        "# Reconciliation\n\n## Knowledge Trace\n```yaml\ndecision:\n"
-        "  id: DEC-REC-001\n  statement: Resolve current evidence.\n"
-        "  type: architecture\n  knowledge_questions: [\"What does source prove?\"]\n"
-        "  evidence_ids: [CODE-001]\n  authority: current source\n"
-        "  conflicts: []\n  assumptions: []\n  confidence: high\n"
-        "  freshness: fresh\n  verdict: accepted\n```\n",
-        encoding="utf-8",
-    )
 
-    assert run_task("reconcile", target_dir=str(root), change_id="demo") == 0
-    assert yaml.safe_load(state_path.read_text(encoding="utf-8"))["state"] == "BRAINSTORMING"
-    assert run_task("brainstorm", target_dir=str(root), change_id="demo") == 0
-    assert yaml.safe_load(state_path.read_text(encoding="utf-8"))["state"] == "SPEC_REVIEW"
+    expected = {
+        "explore": "grounding",
+        "reconcile": "reconciliation",
+        "brainstorm": "brainstorming",
+        "spec": "spec",
+    }
+    for action, role in expected.items():
+        assert run_task(action, target_dir=str(root), change_id="demo") == 0
+        call = _calls(root)[-1]
+        assert call[0] == "vnext-dispatch-role", (action, call)
+        assert call[call.index("--role") + 1] == role
+
+    # Mechanical bridges stay non-worker commands (router A2).
+    assert run_task("validate-spec", target_dir=str(root), change_id="demo") == 0
+    assert _calls(root)[-1][0] == "vnext-validate-spec"
+    assert "--platform" not in _calls(root)[-1]
 
 
 def _complete_workspace(root: Path, state: str = "FINAL_REVIEW", real_verification: bool = True) -> Path:

@@ -20,14 +20,16 @@ architectural Grounding → Spec/Audit → Full Plan/Audit → Implement → Rev
 Scaffold ở target phơi bày workflow chuẩn qua `maika task`:
 
 - `maika task start --id <change-id> --class <class> --title <title>`
-- `maika task explore --id <change-id>`
-- `maika task reconcile --id <change-id>`
-- `maika task brainstorm --id <change-id>`
-- `maika task spec --id <change-id>`
-- `maika task plan --id <change-id>`
+- `maika task explore --id <change-id>` — dispatch `grounding-explorer` + gate + transition
+- `maika task reconcile --id <change-id>` — dispatch `architecture-reconciler`
+- `maika task brainstorm --id <change-id>` — dispatch `grounded-brainstorming` (optional, giữ state)
+- `maika task spec --id <change-id>` — dispatch `writing-spec` → SPEC_REVIEW
+- `maika task validate-spec --id <change-id>` — gate cơ học SPEC_REVIEW → PLANNING
+- `maika task plan --id <change-id>` — dispatch `writing-plan` + compile → PLAN_REVIEW
 - `maika task validate-plan --id <change-id>`
 - `maika task review --id <change-id>`
 - `maika task apply --id <change-id>`
+- `maika task route --id <change-id> --action <action>` — dry-run giải thích route
 - `maika task verify --id <change-id>`
 - `maika task archive --id <change-id>`
 - `maika task status [--id <change-id>]`

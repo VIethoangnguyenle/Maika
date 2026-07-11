@@ -407,8 +407,14 @@ def test_public_standard_flow_reaches_planning_without_state_file_mutation(tmp_p
     fw_root = tmp_path / ".maika"
     shutil.copytree(source_framework, fw_root)
     _write_bootstrap(fw_root)
+    _enable_public_codex(fw_root)
+    # PR 10: authoring actions dispatch a worker. The e2e pre-writes the
+    # artifacts, so a trusted no-op worker override is enough — gates do the work.
     (fw_root / "profiles" / "execution-mode.yaml").write_text(
-        "workflow_engine: vnext\n", encoding="utf-8"
+        "workflow_engine: vnext\n"
+        f"worker:\n  executable: {sys.executable}\n"
+        "  args: ['-c', 'pass', '{prompt_file}']\n",
+        encoding="utf-8",
     )
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
@@ -426,10 +432,10 @@ def test_public_standard_flow_reaches_planning_without_state_file_mutation(tmp_p
 
     assert public("start", "--id", "demo", "--class", "standard", "--title", "Demo").returncode == 0
     ws = fw_root / "changes" / "demo"
-    assert public("explore", "--id", "demo").returncode == 0
-    assert public("explore", "--id", "demo").returncode == 0  # idempotent retry
     _write_valid_reasoning(ws, tmp_path)
-    assert public("validate-reasoning", "--id", "demo").returncode == 0
+    res = public("explore", "--id", "demo")
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["state"] == "RECONCILING"
 
     (ws / "RECONCILIATION.md").write_text(
         "# Reconciliation\n\n## Knowledge Trace\n```yaml\ndecision:\n"
@@ -442,7 +448,10 @@ def test_public_standard_flow_reaches_planning_without_state_file_mutation(tmp_p
     assert public("reconcile", "--id", "demo").returncode == 0
     assert public("brainstorm", "--id", "demo").returncode == 0
     _write_small_spec(ws)
-    assert public("spec", "--id", "demo").returncode == 0
+    res = public("spec", "--id", "demo")
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["state"] == "SPEC_REVIEW"
+    assert public("validate-spec", "--id", "demo").returncode == 0
 
     import hashlib
     head = subprocess.run(

@@ -105,6 +105,76 @@ def _require_vnext(framework_path: Path) -> tuple[Path, dict] | tuple[None, None
     return config_path, config
 
 
+def _run_reasoning_validation(ws: Path, framework_path: Path, repo_root, gates):
+    """Gate the exploration package; write EXPLORATION_VALIDATION.json.
+
+    Returns (ok, reason). Shared by vnext-validate-reasoning and the grounding
+    authoring dispatch — one validation path (R5).
+    """
+    ws = Path(ws)
+    intent_res = gates.validate_intent(
+        (ws / "INTENT.md").read_text(encoding="utf-8"),
+        (ws / "CHANGE.yaml").read_text(encoding="utf-8"),
+    )
+    evidence_res = gates.validate_exploration_evidence(
+        (ws / "exploration" / "GROUNDING.yaml").read_text(encoding="utf-8"),
+        (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_text(encoding="utf-8"),
+        repo_root=repo_root,
+    )
+    registry_path = framework_path / "profiles" / "capability-registry.yaml"
+    if not registry_path.exists():
+        registry_path = Path(__file__).resolve().parents[2] / "profiles" / "capability-registry.yaml"
+    registry = yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {}
+    capabilities = registry.get("capabilities") or {}
+    coverable = {evidence for item in capabilities.values()
+                 for evidence in (item.get("preferred_evidence") or [])}
+    query_text = (ws / "exploration" / "QUERY_PLAN.yaml").read_text(encoding="utf-8")
+    query_res = gates.validate_query_plan(
+        query_text, valid_capabilities=set(capabilities), coverable_evidence=coverable
+    )
+    health_res = gates.validate_tool_health(
+        (ws / "exploration" / "TOOL_HEALTH.yaml").read_text(encoding="utf-8")
+    )
+    conflict_res = gates.validate_conflicts(
+        (ws / "exploration" / "CONFLICTS.yaml").read_text(encoding="utf-8")
+    )
+    coverage_res = gates.validate_coverage(
+        (ws / "exploration" / "COVERAGE.yaml").read_text(encoding="utf-8")
+    )
+    change = yaml.safe_load((ws / "CHANGE.yaml").read_text(encoding="utf-8")) or {}
+    memory_res = gates.Result(True)
+    if change.get("class") in {"standard", "architectural"}:
+        memory_path = ws / "exploration" / "MEMORY_RECALL.md"
+        memory_res = gates.validate_memory_recall(
+            memory_path.read_text(encoding="utf-8") if memory_path.exists() else ""
+        )
+    query_doc = yaml.safe_load(query_text) or {}
+    needs_db = any(
+        cap in {"database_schema_inspection", "database_dependency_analysis"}
+        for q in query_doc.get("questions") or [] for cap in q.get("required_capabilities") or []
+    )
+    database_res = gates.Result(True)
+    if needs_db:
+        database_path = ws / "exploration" / "DATABASE_CONTEXT.yaml"
+        database_res = gates.validate_database_context(
+            database_path.read_text(encoding="utf-8") if database_path.exists() else ""
+        )
+    checks = [
+        ("intent", intent_res), ("exploration-evidence", evidence_res),
+        ("query-plan", query_res), ("tool-health", health_res),
+        ("conflicts", conflict_res), ("coverage", coverage_res),
+        ("memory-recall", memory_res), ("database-context", database_res),
+    ]
+    ok = all(result.ok for _, result in checks)
+    (ws / "generated" / "EXPLORATION_VALIDATION.json").write_text(json.dumps({
+        "verdict": "APPROVED" if ok else "REVISE",
+        "checks": [{"id": name, "ok": result.ok, "reason": result.reason}
+                   for name, result in checks],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    failed = "; ".join(f"{name}: {result.reason}" for name, result in checks if not result.ok)
+    return ok, failed
+
+
 def _require_bootstrap(framework_path: Path, gates, repo_root: Path) -> bool:
     report = Path(framework_path) / "runtime" / "BOOTSTRAP_ENV_REPORT.yaml"
     if not report.exists():
@@ -295,6 +365,15 @@ def _add_vnext_commands(sub):
     spec_parser.add_argument("--workspace", required=True)
     spec_parser.add_argument("--repo-root", required=True)
 
+    dispatch_role_parser = sub.add_parser("vnext-dispatch-role")
+    dispatch_role_parser.add_argument("--workspace", required=True)
+    dispatch_role_parser.add_argument("--repo-root", required=True)
+    dispatch_role_parser.add_argument("--platform")
+    dispatch_role_parser.add_argument(
+        "--role", required=True,
+        choices=["grounding", "reconciliation", "brainstorming", "spec", "planning"],
+    )
+
     run_parser = sub.add_parser("vnext-run")
     run_parser.add_argument("--workspace", required=True)
     run_parser.add_argument("--repo-root", required=True)
@@ -403,70 +482,68 @@ def _main_unlocked(argv=None):
             print(f"Refused: wrong state {state['state']}")
             return 1
         gates = _load_gate_check()
-        intent_res = gates.validate_intent(
-            (ws / "INTENT.md").read_text(encoding="utf-8"),
-            (ws / "CHANGE.yaml").read_text(encoding="utf-8"),
-        )
-        evidence_res = gates.validate_exploration_evidence(
-            (ws / "exploration" / "GROUNDING.yaml").read_text(encoding="utf-8"),
-            (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_text(encoding="utf-8"),
-            repo_root=args.repo_root,
-        )
-        registry_path = framework_path / "profiles" / "capability-registry.yaml"
-        if not registry_path.exists():
-            registry_path = Path(__file__).resolve().parents[2] / "profiles" / "capability-registry.yaml"
-        registry = yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {}
-        capabilities = registry.get("capabilities") or {}
-        coverable = {evidence for item in capabilities.values()
-                     for evidence in (item.get("preferred_evidence") or [])}
-        query_text = (ws / "exploration" / "QUERY_PLAN.yaml").read_text(encoding="utf-8")
-        query_res = gates.validate_query_plan(
-            query_text, valid_capabilities=set(capabilities), coverable_evidence=coverable
-        )
-        health_res = gates.validate_tool_health(
-            (ws / "exploration" / "TOOL_HEALTH.yaml").read_text(encoding="utf-8")
-        )
-        conflict_res = gates.validate_conflicts(
-            (ws / "exploration" / "CONFLICTS.yaml").read_text(encoding="utf-8")
-        )
-        coverage_res = gates.validate_coverage(
-            (ws / "exploration" / "COVERAGE.yaml").read_text(encoding="utf-8")
-        )
-        change = yaml.safe_load((ws / "CHANGE.yaml").read_text(encoding="utf-8")) or {}
-        memory_res = gates.Result(True)
-        if change.get("class") in {"standard", "architectural"}:
-            memory_path = ws / "exploration" / "MEMORY_RECALL.md"
-            memory_res = gates.validate_memory_recall(
-                memory_path.read_text(encoding="utf-8") if memory_path.exists() else ""
-            )
-        query_doc = yaml.safe_load(query_text) or {}
-        needs_db = any(
-            cap in {"database_schema_inspection", "database_dependency_analysis"}
-            for q in query_doc.get("questions") or [] for cap in q.get("required_capabilities") or []
-        )
-        database_res = gates.Result(True)
-        if needs_db:
-            database_path = ws / "exploration" / "DATABASE_CONTEXT.yaml"
-            database_res = gates.validate_database_context(
-                database_path.read_text(encoding="utf-8") if database_path.exists() else ""
-            )
-        checks = [
-            ("intent", intent_res), ("exploration-evidence", evidence_res),
-            ("query-plan", query_res), ("tool-health", health_res),
-            ("conflicts", conflict_res), ("coverage", coverage_res),
-            ("memory-recall", memory_res), ("database-context", database_res),
-        ]
-        ok = all(result.ok for _, result in checks)
-        (ws / "generated" / "EXPLORATION_VALIDATION.json").write_text(json.dumps({
-            "verdict": "APPROVED" if ok else "REVISE",
-            "checks": [{"id": name, "ok": result.ok, "reason": result.reason}
-                       for name, result in checks],
-        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        ok, _reason = _run_reasoning_validation(ws, framework_path, args.repo_root, gates)
         if not ok:
             print("Reasoning validation verdict: REVISE")
             return 1
         vs.transition(ws, "RECONCILING")
         print("Reasoning validation verdict: APPROVED")
+        return 0
+
+    if args.command == "vnext-dispatch-role":
+        role = args.role
+        runner = _worker_runner(config, ws, args.repo_root, args.platform)
+        if runner is None:
+            return 2
+        gates = _load_gate_check()
+        vd_mod = vd
+
+        def _trace_ok(path):
+            block = vd_mod.markdown_trace_block(path.read_text(encoding="utf-8"))
+            if block is None:
+                return gates.Result(False, f"{path.name} missing Knowledge Trace YAML")
+            return gates.validate_knowledge_trace(block)
+
+        if role == "grounding":
+            def validator(ws_path):
+                # Worker chạy trong EXPLORING; validation + transition dùng chung
+                # đường vnext-validate-reasoning.
+                return _run_reasoning_validation(Path(ws_path), framework_path,
+                                                 args.repo_root, gates)
+        elif role == "reconciliation":
+            def validator(ws_path):
+                ws_path = Path(ws_path)
+                conflict = gates.validate_conflicts(
+                    (ws_path / "exploration" / "CONFLICTS.yaml").read_text(encoding="utf-8"))
+                if not conflict.ok:
+                    return False, f"conflicts: {conflict.reason}"
+                trace = _trace_ok(ws_path / "RECONCILIATION.md")
+                return trace.ok, trace.reason
+        elif role == "brainstorming":
+            def validator(ws_path):
+                trace = _trace_ok(Path(ws_path) / "RECONCILIATION.md")
+                return trace.ok, trace.reason
+        elif role == "spec":
+            def validator(ws_path):
+                ws_path = Path(ws_path)
+                change = yaml.safe_load((ws_path / "CHANGE.yaml").read_text(encoding="utf-8")) or {}
+                res = gates.validate_vnext_spec(
+                    (ws_path / "SPEC.md").read_text(encoding="utf-8"),
+                    change_class=change.get("class", "standard"),
+                )
+                return res.ok, res.reason
+        elif role == "planning":
+            def validator(ws_path):
+                ok = vd_mod.run_planning_dispatch(Path(ws_path), args.repo_root)
+                return ok, "" if ok else "vnext-plan gate failed (see CONTEXT_REQUEST.yaml)"
+        else:
+            print(f"Refused: unknown dispatch role {role}")
+            return 2
+        result = vd.run_authoring_dispatch(ws, role, runner, vs, validator)
+        if not result.get("ok"):
+            print(f"Refused: {role} dispatch failed: {result.get('reason')}")
+            return 1
+        print(f"{role} dispatch complete: state={result.get('state')}")
         return 0
 
     if args.command == "vnext-validate-spec":
@@ -662,7 +739,7 @@ def main(argv=None):
     lifecycle_mutations = {
         "vnext-start-exploration", "vnext-transition", "vnext-compile",
         "vnext-review-plan", "vnext-validate-reasoning", "vnext-validate-spec",
-        "vnext-resume",
+        "vnext-dispatch-role", "vnext-resume",
     }
     if command not in lifecycle_mutations:
         return _main_unlocked(raw)

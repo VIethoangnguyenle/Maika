@@ -170,7 +170,8 @@ def main():
     task_parser.add_argument(
         "action",
         choices=[
-            "start", "explore", "validate-reasoning", "reconcile", "brainstorm", "spec", "plan",
+            "start", "explore", "validate-reasoning", "reconcile", "brainstorm", "spec",
+            "validate-spec", "plan",
             "validate-plan", "apply", "review", "verify", "archive", "status",
             "resume", "cancel",
             "approve-command",
