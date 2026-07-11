@@ -35,6 +35,10 @@ def test_probe_persists_detected_facts_and_tier_one(tmp_path, monkeypatch):
 
 def test_verify_promotes_only_successful_smoke_paths(tmp_path, monkeypatch):
     write_platform_runtime_profile(tmp_path, "codex")
+    # The hook smoke drives the real `maika hook write-gate` command, which
+    # resolves the project + enabled platforms from canonical config.
+    from cli.config import project as project_cfg
+    project_cfg.save(tmp_path, project_cfg.enable(project_cfg._default(), "codex"))
     (tmp_path / "AGENTS.md").write_text("# entry", encoding="utf-8")
     hook = tmp_path / ".codex/hooks.json"
     hook.parent.mkdir()

@@ -11,6 +11,7 @@ root from cwd, reads stdin, and emits the runtime-specific decision.
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -81,8 +82,13 @@ def run_hook_write_gate(runtime: str, platform: Optional[str] = None,
             profile = load_platform_runtime_profile(root, platform)
             if not profile.adapter.enabled:
                 raise SessionError(f"platform {platform} runtime profile is disabled")
-            record_session(root, platform, source="native-hook",
-                           session_id=f"{runtime}-hook")
+            # A capability-verification smoke exercises the full pipeline but must
+            # not record a runtime session — that side effect is for real host
+            # events, and under the single global session it would spuriously
+            # conflict when verifying a second host (F8; fixed by the registry).
+            if not os.environ.get("MAIKA_HOOK_SMOKE"):
+                record_session(root, platform, source="native-hook",
+                               session_id=f"{runtime}-hook")
         except (SessionError, PlatformProfileError) as exc:
             print(f"maika hook write-gate: {exc}", file=sys.stderr)
             return 2

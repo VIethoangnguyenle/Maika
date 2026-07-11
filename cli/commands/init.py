@@ -260,10 +260,6 @@ def run_init(
         generate_resolved_config(staging, platform, selected_mcps, language)
         from cli.runtime.platform_profile import write_platform_runtime_profile
         write_platform_runtime_profile(staging, platform_key)
-        from cli.platforms.probe import probe_and_persist
-        # Persist real binary detection so a fresh install reports its true tier
-        # instead of advertising a worker the orchestrator would refuse (F2).
-        probe_and_persist(staging, platform_key, verify=verify_platform)
         for logical, source in (migration_files or {}).items():
             destination = staging / ".maika" / logical
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -277,6 +273,12 @@ def run_init(
         project_cfg.save(staging, project_config)
         platforms_cfg.write_platforms_config(staging, project_config["platforms"]["enabled"])
         platforms_cfg.record_install(staging, platform_key, platforms_cfg.adapter_files(platform_key))
+        # Detection (and, with --verify-platform, the hook/worker smoke) runs
+        # after the project config is staged so the hook command can resolve the
+        # project. Persists real binary detection so a fresh install reports its
+        # true tier instead of advertising a worker the orchestrator refuses (F2).
+        from cli.platforms.probe import probe_and_persist
+        probe_and_persist(staging, platform_key, verify=verify_platform)
         plan = build_plan(staging, target, "init", framework_root)
         Transaction(staging, target, backups).apply(plan)
     finally:

@@ -5,9 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
+import sys
 from typing import Callable, Mapping, Optional
 
 import yaml
@@ -16,6 +19,21 @@ from cli.config.platforms import adapter_descriptor
 from cli.platforms import get_platform
 from cli.runtime.platform_profile import load_platform_runtime_profile, profile_path
 from cli.runtime.worker_resolver import FRESH_PROCESS, WorkerProfile, run_worker_smoke_test
+
+# Directory that contains the ``cli`` package — put on PYTHONPATH for the hook
+# smoke subprocess so ``python -m cli.maika`` resolves in dev and wheel installs.
+_PKG_PARENT = Path(__file__).resolve().parents[2]
+_VERSION_RE = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
+
+
+def parse_version(text: Optional[str]) -> Optional[tuple]:
+    """Extract a dotted numeric version from CLI ``--version`` output, or None."""
+    if not text:
+        return None
+    match = _VERSION_RE.search(text)
+    if not match:
+        return None
+    return tuple(int(part) if part is not None else 0 for part in match.groups())
 
 
 @dataclass(frozen=True)
@@ -47,7 +65,12 @@ def detect_binary(name: Optional[str], timeout: int = 5) -> BinaryProbe:
             timeout=timeout, check=False,
         )
         raw = (proc.stdout or proc.stderr or "").strip()
-        return BinaryProbe(name, True, path, raw or None, proc.returncode == 0)
+        # A clean exit is necessary but not sufficient: require a parseable
+        # version so `--version` printing anything on exit 0 is not mistaken for
+        # a supported version. Adapter-declared floors can tighten this once a
+        # real minimum is known.
+        supported = proc.returncode == 0 and parse_version(raw) is not None
+        return BinaryProbe(name, True, path, raw or None, supported)
     except (OSError, subprocess.TimeoutExpired):
         return BinaryProbe(name, True, path, None, False)
 
@@ -55,6 +78,13 @@ def detect_binary(name: Optional[str], timeout: int = 5) -> BinaryProbe:
 def _verify_entrypoint(project_root: Path, platform_key: str) -> str:
     path = project_root / adapter_descriptor(platform_key)["entrypoint"]
     return "verified" if path.is_file() and path.stat().st_size > 0 else "unavailable"
+
+
+_HOOK_RUNTIME = {"claude-code": "claude", "codex": "codex", "antigravity": "antigravity"}
+# stderr fragments that mean the CLI short-circuited before actually evaluating.
+_HOOK_SHORT_CIRCUIT = (
+    "not a Maika project", "malformed Maika config", "canonical project evaluator missing",
+)
 
 
 def _verify_hook(project_root: Path, platform_key: str) -> str:
@@ -70,18 +100,28 @@ def _verify_hook(project_root: Path, platform_key: str) -> str:
         return "degraded"
     if not isinstance(doc.get("hooks"), dict):
         return "degraded"
-    evaluator = project_root / ".maika/hooks/write-gate/write_gate.py"
-    if not evaluator.is_file():
+    if not (project_root / ".maika/hooks/write-gate/write_gate.py").is_file():
         return "unavailable"
+    # Actual hook-command smoke: drive the real CLI entry with a safe allow
+    # payload so verification proves CLI resolution + platform-profile load +
+    # evaluator load + the runtime decision contract + exit code — not merely
+    # that the evaluator module imports.
+    runtime = _HOOK_RUNTIME.get(platform_key, "claude")
+    payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": "README.md"}})
+    env = {**os.environ, "MAIKA_HOOK_SMOKE": "1", "PYTHONPATH": os.pathsep.join(
+        part for part in (str(_PKG_PARENT), os.environ.get("PYTHONPATH", "")) if part)}
     try:
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("maika_hook_smoke", evaluator)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        decision = module.evaluate_write(project_root, Path("README.md"), ".maika")
-    except Exception:
+        proc = subprocess.run(
+            [sys.executable, "-m", "cli.maika", "hook", "write-gate",
+             "--runtime", runtime, "--platform", platform_key],
+            cwd=str(project_root), input=payload, capture_output=True, text=True,
+            timeout=30, check=False, env=env,
+        )
+    except (OSError, subprocess.TimeoutExpired):
         return "degraded"
-    return "verified" if getattr(decision, "ok", False) else "degraded"
+    if any(fragment in (proc.stderr or "") for fragment in _HOOK_SHORT_CIRCUIT):
+        return "degraded"  # the pipeline did not actually evaluate the payload
+    return "verified" if proc.returncode == 0 else "degraded"
 
 
 def support_tier(verification: Mapping[str, str], *, adapter_enabled: bool = True) -> int:
@@ -156,7 +196,9 @@ def probe_platform(
     return PlatformProbeResult(
         platform=platform_key,
         binary=binary,
-        authentication="detected" if binary.found else "unavailable",
+        # Binary presence is not authentication. No adapter exposes an auth probe
+        # yet, so a present binary is "unknown", never "authenticated" (F5).
+        authentication="unknown" if binary.found else "unavailable",
         capabilities=capabilities,
         verification=verification,
         support_tier=tier,
@@ -184,15 +226,57 @@ def probe_and_persist(
         "authentication": {"state": result.authentication},
         "last_detected_at": datetime.now(timezone.utc).isoformat(),
     }
-    data["capabilities"] = dict(result.capabilities)
-    data["verification"] = {
-        "entrypoint_smoke_test": "pass" if result.verification["entrypoint"] == "verified" else result.verification["entrypoint"],
-        "hook_smoke_test": "pass" if result.verification["hook"] == "verified" else result.verification["hook"],
-        "worker_smoke_test": "pass" if result.verification["worker"] == "verified" else
-                             "fail" if result.verification["worker"] in {"degraded", "unavailable"} else result.verification["worker"],
-        "mcp_smoke_test": result.verification["mcp"],
-        "support_tier": result.support_tier,
-        "last_verified_at": datetime.now(timezone.utc).isoformat() if verify else None,
-    }
+    adapter_enabled = bool((data.get("adapter") or {}).get("enabled", True))
+    entrypoint = "pass" if result.verification["entrypoint"] == "verified" else result.verification["entrypoint"]
+    hook = "pass" if result.verification["hook"] == "verified" else result.verification["hook"]
+    worker = ("pass" if result.verification["worker"] == "verified" else
+              "fail" if result.verification["worker"] in {"degraded", "unavailable"} else
+              result.verification["worker"])
+    if verify:
+        data["capabilities"] = dict(result.capabilities)
+        verification = {
+            "entrypoint_smoke_test": entrypoint,
+            "hook_smoke_test": hook,
+            "worker_smoke_test": worker,
+            "mcp_smoke_test": result.verification["mcp"],
+            "last_verified_at": datetime.now(timezone.utc).isoformat(),
+        }
+    else:
+        # A non-verifying probe re-detects the binary but must never erase or
+        # downgrade prior verification evidence (F3): the worker/mcp smoke did not
+        # run, so those and any verified capabilities are preserved.
+        prior = data.get("verification") or {}
+        prior_caps = data.get("capabilities") or {}
+        caps = dict(result.capabilities)
+        for name, state in prior_caps.items():
+            if state == "verified":
+                caps[name] = "verified"
+        data["capabilities"] = caps
+        verification = {
+            # entrypoint/hook presence is a live check and is refreshed; a prior
+            # verified hook keeps its "pass" only while its config still exists.
+            "entrypoint_smoke_test": entrypoint,
+            "hook_smoke_test": "pass" if (prior.get("hook_smoke_test") == "pass"
+                                          and hook != "unavailable") else hook,
+            # worker/mcp smoke did not run: preserve the prior verification result.
+            "worker_smoke_test": prior.get("worker_smoke_test", "not-run"),
+            "mcp_smoke_test": prior.get("mcp_smoke_test", result.verification["mcp"]),
+            "last_verified_at": prior.get("last_verified_at"),
+        }
+    verification["support_tier"] = _persisted_support_tier(verification, adapter_enabled)
+    data["verification"] = verification
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return result
+
+
+def _persisted_support_tier(verification: Mapping[str, str], adapter_enabled: bool) -> int:
+    """Support tier from the persisted verification vocabulary (pass/fail/…)."""
+    if not adapter_enabled:
+        return 0
+    if verification.get("entrypoint_smoke_test") != "pass":
+        return 0
+    if verification.get("hook_smoke_test") != "pass" or verification.get("worker_smoke_test") != "pass":
+        return 1
+    if verification.get("mcp_smoke_test") == "verified":
+        return 3
+    return 2
