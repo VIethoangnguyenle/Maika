@@ -138,7 +138,7 @@ def _check_host_binaries(target: Path) -> dict:
         return _finding("host-binaries", "info", True, "no enabled adapters")
     ok = not missing
     return _finding("host-binaries", "warning", ok, "; ".join(lines),
-                    "" if ok else "install the host CLI, or workers fall back to inline")
+                    "" if ok else "install the host CLI, then run maika platform verify")
 
 
 def _check_worker_strategy(target: Path) -> dict:
@@ -153,8 +153,14 @@ def _check_worker_strategy(target: Path) -> dict:
     except WorkerResolutionError as exc:
         return _finding("worker-strategy", "error", False, str(exc),
                         f"run maika platform enable {primary} or maika repair --all-safe")
-    return _finding("worker-strategy", "info", True,
-                    f"primary {primary}: {profile.strategy} ({profile.reason})")
+    from cli.runtime.executor import strategy_executes
+    if strategy_executes(profile.strategy):
+        return _finding("worker-strategy", "info", True,
+                        f"primary {primary}: {profile.strategy} ({profile.reason})")
+    # Advisory (never a non-zero exit) but not ok: no dispatchable worker yet.
+    return _finding("worker-strategy", "warning", False,
+                    f"primary {primary}: {profile.strategy} — not dispatchable ({profile.reason})",
+                    f"run maika platform verify {primary}")
 
 
 def _check_asset_bundle(maika_root: Optional[str]) -> dict:

@@ -18,6 +18,7 @@ import yaml
 
 from cli.config.platforms import adapter_descriptor
 from cli.platforms import PLATFORMS, get_platform
+from cli.runtime.executor import STRATEGIES as WORKER_STRATEGIES
 
 
 PROFILE_VERSION = 1
@@ -25,7 +26,6 @@ PROFILE_RELATIVE_DIR = Path(".maika/runtime/platforms")
 CAPABILITY_STATES = frozenset({
     "unsupported", "advertised", "detected", "verified", "degraded", "unavailable",
 })
-WORKER_STRATEGIES = frozenset({"native_subagent", "fresh_process", "inline", "disabled"})
 _PLATFORM_KEY = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 

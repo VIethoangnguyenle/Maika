@@ -27,4 +27,7 @@ def test_runtime_worker_profile_reports_canonical_selection(tmp_path, capsys):
     assert run_runtime("worker-profile", str(tmp_path), "codex") == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["platform"] == "codex"
-    assert payload["strategy"] == "inline"
+    # An unverified worker resolves to a truthful disabled state (no shadow
+    # inline fallback); the reason carries the verify remediation (F6).
+    assert payload["strategy"] == "disabled"
+    assert "maika platform verify codex" in payload["reason"]

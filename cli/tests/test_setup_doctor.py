@@ -76,9 +76,14 @@ def test_json_output_is_parseable(tmp_path, capsys):
 
 
 def test_worker_strategy_finding_is_advisory(tmp_path):
-    # host CLI binaries are absent in CI → inline fallback, never an error.
+    # Host CLI absent in CI → worker unverified. The finding is advisory (never
+    # severity "error", never a non-zero exit) but ok=False: no dispatchable
+    # worker exists until `maika platform verify` runs (F2/F6). It must not
+    # overclaim usability via a shadow inline fallback.
     _init(tmp_path)
     found = _by_id(build_setup_findings(tmp_path, maika_root=str(REPO_ROOT)))
     ws = found["worker-strategy"]
     assert ws["severity"] in {"info", "warning"}
-    assert ws["ok"] is True
+    assert ws["severity"] != "error"
+    assert ws["ok"] is False
+    assert run_doctor_setup(str(tmp_path), as_json=False) == 0

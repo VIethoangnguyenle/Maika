@@ -8,17 +8,18 @@ import subprocess
 from typing import Any, Mapping, Optional
 
 from cli.platforms import PLATFORMS, get_platform
+from cli.runtime.executor import (  # canonical strategy constants + selectability
+    DISABLED,
+    FRESH_PROCESS,
+    STRATEGIES,
+    strategy_is_selectable,
+)
 from cli.runtime.platform_profile import (
     PlatformProfileError,
     load_platform_runtime_profile,
 )
 
 
-NATIVE_SUBAGENT = "native_subagent"
-FRESH_PROCESS = "fresh_process"
-INLINE = "inline"
-DISABLED = "disabled"
-STRATEGIES = frozenset({NATIVE_SUBAGENT, FRESH_PROCESS, INLINE, DISABLED})
 _OVERRIDE_FIELDS = frozenset({
     "platform", "strategy", "executable", "args", "timeout_seconds",
     "dangerous_permissions", "reason",
@@ -72,7 +73,12 @@ def _override_profile(platform_key: str, override: Mapping[str, Any]) -> WorkerP
         raise WorkerResolutionError(
             f"worker override is bound to {bound}, not requested platform {platform_key}"
         )
-    strategy = override.get("strategy", FRESH_PROCESS if override.get("executable") else INLINE)
+    strategy = override.get("strategy", FRESH_PROCESS if override.get("executable") else DISABLED)
+    if not strategy_is_selectable(strategy):
+        raise WorkerResolutionError(
+            f"worker override strategy {strategy!r} has no executor this release; "
+            "use fresh_process with an executable"
+        )
     args = tuple(override.get("args") or ())
     return validate_worker_profile(WorkerProfile(
         platform=platform_key,
@@ -111,12 +117,8 @@ def resolve_worker_profile(
         return WorkerProfile(platform_key, DISABLED, None, (), runtime.worker.timeout_seconds,
                              False, "platform adapter is disabled")
 
-    if runtime.capabilities.get("subagent") == "verified":
-        return validate_worker_profile(WorkerProfile(
-            platform_key, NATIVE_SUBAGENT, None, (), runtime.worker.timeout_seconds,
-            False, "verified native subagent",
-        ))
-
+    # native_subagent is advertised-only (no executor callback exists yet), so it
+    # is never selected here — doing so would be a shadow strategy (F6).
     binary = runtime.detection.get("binary", {})
     worker_verified = runtime.verification.get("worker_smoke_test") == "pass"
     fresh_verified = runtime.capabilities.get("fresh_session") == "verified"
@@ -128,9 +130,12 @@ def resolve_worker_profile(
             "verified fresh-process CLI",
         ))
 
+    # No verified fresh_process worker and no other executable strategy: refuse
+    # cleanly (disabled) with actionable remediation rather than advertise an
+    # inline fallback that has no executor.
     return validate_worker_profile(WorkerProfile(
-        platform_key, INLINE, None, (), runtime.worker.timeout_seconds,
-        False, "no verified native or fresh-process worker; safe inline fallback",
+        platform_key, DISABLED, None, (), runtime.worker.timeout_seconds,
+        False, f"no verified worker; run `maika platform verify {platform_key}`",
     ))
 
 

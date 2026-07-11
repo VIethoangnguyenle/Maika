@@ -7,8 +7,8 @@ import yaml
 
 from cli.runtime.platform_profile import write_platform_runtime_profile
 from cli.runtime.worker_resolver import (
+    DISABLED,
     FRESH_PROCESS,
-    INLINE,
     WorkerResolutionError,
     build_worker_argv,
     resolve_worker_profile,
@@ -33,11 +33,14 @@ def test_verified_fresh_process_uses_profile_for_requested_platform(tmp_path):
     assert profile.dangerous_permissions is False
 
 
-def test_advertised_only_profile_falls_back_inline(tmp_path):
+def test_unverified_worker_is_disabled_not_shadow_inline(tmp_path):
+    # An advertised-only, unverified profile must resolve to a truthful disabled
+    # state with remediation — never a shadow inline strategy with no executor.
     write_platform_runtime_profile(tmp_path, "claude-code")
     profile = resolve_worker_profile(tmp_path, "claude-code")
-    assert profile.strategy == INLINE
+    assert profile.strategy == DISABLED
     assert profile.executable is None
+    assert "maika platform verify claude-code" in profile.reason
 
 
 def test_override_is_bound_to_requested_platform(tmp_path):
