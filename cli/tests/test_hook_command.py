@@ -45,9 +45,12 @@ def test_allows_documentation_write(tmp_path, monkeypatch):
     monkeypatch.chdir(root)
     payload = '{"tool_name":"Write","tool_input":{"file_path":"README.md"}}'
     assert run_hook_write_gate("claude", stdin_text=payload) == 0
-    session = root / ".maika/runtime/current-session.yaml"
-    assert session.is_file()
-    assert "platform: claude-code" in session.read_text(encoding="utf-8")
+    sessions_dir = root / ".maika/runtime/sessions/claude-code"
+    assert sessions_dir.is_dir()
+    session_files = list(sessions_dir.glob("*.yaml"))
+    assert len(session_files) >= 1
+    content = session_files[0].read_text(encoding="utf-8")
+    assert "platform: claude-code" in content
 
 
 def test_denies_code_write_without_active_task(tmp_path, monkeypatch):

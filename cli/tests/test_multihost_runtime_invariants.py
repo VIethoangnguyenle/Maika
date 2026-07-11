@@ -105,6 +105,7 @@ def test_inverse_worker_resolves_codex_under_codex_host(tmp_path):
 
 def test_multihost_handoff_preserves_shared_task_state(tmp_path):
     from cli.runtime.session import record_session, resolve_active_platform
+    from cli.runtime.session_registry import set_active_platform
     from cli.runtime.worker_resolver import resolve_worker_profile
 
     _init(tmp_path, "codex")
@@ -117,7 +118,8 @@ def test_multihost_handoff_preserves_shared_task_state(tmp_path):
     record_session(tmp_path, "codex", source="native-hook", session_id="codex-session")
     assert resolve_active_platform(tmp_path)[0] == "codex"
     assert resolve_worker_profile(tmp_path, "codex").platform == "codex"
-    record_session(tmp_path, "claude-code", source="explicit-cli", session_id="claude-session")
+    # Handoff: select claude-code via active-platform (avoids ambiguity)
+    set_active_platform(tmp_path, "claude-code")
     assert resolve_active_platform(tmp_path)[0] == "claude-code"
     assert resolve_worker_profile(tmp_path, "claude-code").platform == "claude-code"
     assert state.read_bytes() == before

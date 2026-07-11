@@ -16,7 +16,7 @@ def test_runtime_set_and_current(tmp_path, capsys):
     assert run_runtime("current", str(tmp_path), None) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["platform"] == "codex"
-    assert payload["source"] == "current-session"
+    assert payload["source"] == "active-platform"
 
 
 def test_runtime_worker_profile_reports_canonical_selection(tmp_path, capsys):

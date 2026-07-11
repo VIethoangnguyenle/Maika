@@ -170,10 +170,13 @@ def main():
         "runtime", help="Inspect or select the current host runtime",
     )
     runtime_parser.add_argument(
-        "action", choices=["current", "set-platform", "worker-profile"],
+        "action", choices=["current", "set-platform", "clear-platform",
+                           "sessions", "worker-profile"],
     )
     runtime_parser.add_argument("platform_key", nargs="?", default=None)
     runtime_parser.add_argument("--target", default=".")
+    runtime_parser.add_argument("--prune", action="store_true",
+                                help="Prune stale sessions (with 'sessions' action)")
 
     # ─── update ───
     update_parser = subparsers.add_parser(
@@ -370,7 +373,8 @@ def main():
         )
     elif args.command == "runtime":
         from cli.commands.runtime import run_runtime
-        sys.exit(run_runtime(args.action, args.target, args.platform_key))
+        sys.exit(run_runtime(args.action, args.target, args.platform_key,
+                             prune=args.prune))
     elif args.command == "doctor" and args.doctor_command == "mcp":
         from cli.commands.doctor import run_doctor_mcp
         run_doctor_mcp(target_dir=args.target, fix=args.fix, assume_yes=args.yes)

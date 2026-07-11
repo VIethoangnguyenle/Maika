@@ -87,8 +87,10 @@ def run_hook_write_gate(runtime: str, platform: Optional[str] = None,
             # events, and under the single global session it would spuriously
             # conflict when verifying a second host (F8; fixed by the registry).
             if not os.environ.get("MAIKA_HOOK_SMOKE"):
+                session_id = (os.environ.get("MAIKA_SESSION_ID")
+                              or f"{runtime}-{os.getppid()}-{os.getpid()}")
                 record_session(root, platform, source="native-hook",
-                               session_id=f"{runtime}-hook")
+                               session_id=session_id)
         except (SessionError, PlatformProfileError) as exc:
             print(f"maika hook write-gate: {exc}", file=sys.stderr)
             return 2
