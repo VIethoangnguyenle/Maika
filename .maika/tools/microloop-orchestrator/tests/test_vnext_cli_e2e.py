@@ -503,6 +503,65 @@ out.write_text(yaml.safe_dump({'version': 1, 'status': 'success', 'touched_files
     state = yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))
     assert state["state"] == "COMPLETED"
     assert state["runtime_metrics"]["worker_calls"] == 1
+    assert not (ws / "LOOP.yaml").exists()  # W6: small happy path opens no change loop
+
+
+def test_scope_escape_opens_one_change_loop(tmp_path):
+    # W6 litmus: a worker that writes outside the declared scope must BLOCK the
+    # change AND open exactly one evidence-backed change loop routed to implementer.
+    source_framework = Path(__file__).resolve().parents[3]
+    fw_root = tmp_path / ".maika"
+    shutil.copytree(source_framework, fw_root)
+    _write_bootstrap(fw_root)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("before\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=tmp_path, check=True)
+    worker = tmp_path / "escape_worker.py"
+    worker.write_text("""import re, sys, yaml
+from pathlib import Path
+prompt = sys.argv[1]
+out = Path(re.search(r'^OUTPUT_FILE: (.+)$', prompt, re.M).group(1))
+Path('src/a.py').write_text('after\\n')
+Path('src/evil.py').write_text('outside declared scope\\n')  # scope escape
+out.write_text(yaml.safe_dump({'version': 1, 'status': 'success', 'touched_files': ['src/a.py'], 'observed_risk_signals': {}}))
+""", encoding="utf-8")
+    (fw_root / "profiles" / "execution-mode.yaml").write_text(yaml.safe_dump({
+        "workflow_engine": "vnext",
+        "worker": {"executable": sys.executable, "args": [str(worker), "{prompt}"]},
+    }), encoding="utf-8")
+    cli = Path(__file__).resolve().parents[4] / "cli" / "maika.py"
+
+    def public(*args):
+        return subprocess.run(
+            [sys.executable, str(cli), "task", *args, "--target", str(tmp_path)],
+            cwd=tmp_path, capture_output=True, text=True,
+        )
+
+    assert public("start", "--id", "esc", "--class", "small", "--title", "Escape").returncode == 0
+    ws = fw_root / "changes" / "esc"
+    task = yaml.safe_load((ws / "TASK.yaml").read_text(encoding="utf-8"))
+    task["scope"]["files"]["modify"] = ["src/a.py"]  # evil.py deliberately undeclared
+    task["verification"]["commands"] = [{"name": "smoke", "profile": "python-version", "expected": "Python"}]
+    (ws / "TASK.yaml").write_text(yaml.safe_dump(task), encoding="utf-8")
+    evidence = yaml.safe_load((ws / "EVIDENCE.yaml").read_text(encoding="utf-8"))
+    evidence["items"] = [{"id": "CODE-1", "statement": "a.py is the target"}]
+    (ws / "EVIDENCE.yaml").write_text(yaml.safe_dump(evidence), encoding="utf-8")
+
+    apply = public("apply", "--id", "esc")
+    assert apply.returncode != 0, apply.stdout + apply.stderr  # blocked on scope escape
+    assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["state"] == "BLOCKED"
+
+    loop = yaml.safe_load((ws / "LOOP.yaml").read_text(encoding="utf-8"))
+    assert loop["trigger"]["type"] == "scope_escape"
+    assert "src/evil.py" in loop["trigger"]["evidence_refs"]
+    assert loop["root_cause"] == "implementation_gap"
+    assert loop["route"] == "implementer"
+    assert loop["state"] == "routed"
+    assert yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8"))["active_loop_id"] == loop["loop_id"]
 
 
 def test_standard_change_cannot_compile_from_intake_without_reasoning(tmp_path):

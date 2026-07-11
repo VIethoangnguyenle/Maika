@@ -21,6 +21,7 @@ from pathlib import Path
 import yaml
 
 import adaptive_runtime as ar
+import loop_engineer as le
 from runtime_hardening import WorkspaceBusy, WorkspaceLock
 
 
@@ -57,6 +58,15 @@ _RECOVERY_ACTIONS = {
     "human_required": ["obtain the required trusted approval, then `task resume`"],
     "blocked": ["inspect the blocked task's result/review, fix the cause, then `task resume`"],
 }
+
+
+def _observe_friction(ws: Path, observation: dict) -> None:
+    """Best-effort Loop Engineer hook (W6). Advisory only — a loop-machinery
+    error must never block the safety-critical BLOCKED transition."""
+    try:
+        le.observe(ws, ws.name, observation)
+    except Exception:
+        pass
 
 
 def _blocked_metadata(reason_text: str | None, resume_state: str) -> dict:
@@ -556,6 +566,9 @@ def _main_unlocked(argv=None):
                 if observed["outside_scope"]:
                     reason = "actual worktree changes outside lightweight scope: " + ", ".join(observed["outside_scope"])
                     ar.invalidate_lightweight_execution_contract(ws, "invalid")
+                    _observe_friction(ws, {"trigger": "scope_escape",
+                                           "outside_scope": observed["outside_scope"],
+                                           "evidence_refs": observed["outside_scope"]})
                     blocked_doc, exit_code = _blocked_metadata(reason, resume_state="INTAKE")
                     vs.transition(ws, "BLOCKED", blocked=blocked_doc)
                     print(f"Run outcome: blocked ({blocked_doc['code']}): {reason}")
@@ -585,9 +598,13 @@ def _main_unlocked(argv=None):
                 vs.transition(ws, "FINAL_REVIEW")
                 print("Run outcome: done")
                 return EXIT_OK
-            blocked_doc, exit_code = _blocked_metadata(out.get("reason"), resume_state="EXECUTING")
+            reason = out.get("reason")
+            if reason and "retry budget" in reason.lower():
+                _observe_friction(ws, {"trigger": "repeated_failure", "retries_exhausted": True,
+                                       "evidence_refs": [reason]})
+            blocked_doc, exit_code = _blocked_metadata(reason, resume_state="EXECUTING")
             vs.transition(ws, "BLOCKED", blocked=blocked_doc)
-            print(f"Run outcome: blocked ({blocked_doc['code']}): {out.get('reason')}")
+            print(f"Run outcome: blocked ({blocked_doc['code']}): {reason}")
             return exit_code
         finally:
             lock.release()

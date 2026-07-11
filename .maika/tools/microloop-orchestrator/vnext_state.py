@@ -156,6 +156,28 @@ def load_state(ws):
     return _load_yaml(Path(ws) / "STATE.yaml")
 
 
+def active_loop_id(ws):
+    """The change's currently-open Loop Engineer loop id, or None."""
+    return load_state(ws).get("active_loop_id")
+
+
+def set_active_loop(ws, loop_id):
+    """Record the one active change loop (Loop Engineer, W6)."""
+    st = load_state(ws)
+    st["active_loop_id"] = loop_id
+    st["updated_at"] = _now()
+    _dump_yaml(st, Path(ws) / "STATE.yaml")
+    return st
+
+
+def clear_active_loop(ws):
+    st = load_state(ws)
+    st["active_loop_id"] = None
+    st["updated_at"] = _now()
+    _dump_yaml(st, Path(ws) / "STATE.yaml")
+    return st
+
+
 def transition(ws, new_state, blocked=None):
     st = load_state(ws)
     cur = st["state"]

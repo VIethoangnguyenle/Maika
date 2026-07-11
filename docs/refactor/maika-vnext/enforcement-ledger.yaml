@@ -486,6 +486,72 @@ entries:
     scheduled_wave: W7
     reviewed_at: 2026-07-10
 
+  # ---- change-level Loop Engineer (W6): evidence-backed change loops ----
+  - id: ENF-023
+    mechanism: change-loop-scope-escape
+    type: gate
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: >-
+        A worker writing outside the declared lightweight scope opens exactly one
+        evidence-backed change loop (root_cause implementation_gap → implementer);
+        the happy path opens none.
+      litmus:
+        command: /usr/bin/python3 -m pytest ".maika/tools/microloop-orchestrator/tests/test_vnext_cli_e2e.py::test_scope_escape_opens_one_change_loop" -q
+    implementation:
+      files:
+        - .maika/tools/microloop-orchestrator/loop_policy.py
+        - .maika/tools/microloop-orchestrator/loop_state.py
+        - .maika/tools/microloop-orchestrator/loop_router.py
+        - .maika/tools/microloop-orchestrator/loop_engineer.py
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+      consumers: [.maika/tools/microloop-orchestrator/orchestrator.py]
+    scope: {change_classes: [trivial, small]}
+    scheduled_wave: W6
+    reviewed_at: 2026-07-11
+
+  - id: ENF-024
+    mechanism: change-loop-repeated-failure
+    type: gate
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: >-
+        A task still blocked after the retry budget is exhausted opens exactly one
+        change loop (root_cause verification_gap → verification-specialist); a
+        first/within-budget failure stays a micro loop with no LOOP.yaml. The
+        orchestrator call site reuses the scope-escape-proven _observe_friction hook.
+      litmus:
+        command: /usr/bin/python3 -m pytest ".maika/tools/microloop-orchestrator/tests/test_loop_engineer.py" -q
+    implementation:
+      files:
+        - .maika/tools/microloop-orchestrator/loop_policy.py
+        - .maika/tools/microloop-orchestrator/loop_engineer.py
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+      consumers: [.maika/tools/microloop-orchestrator/orchestrator.py]
+    scheduled_wave: W6
+    reviewed_at: 2026-07-11
+
+  # ---- deferred change-loop triggers (no discrete runtime signal yet) ----
+  - id: DEF-005
+    mechanism: change-loop-stale-contract
+    type: gate
+    status: deferred
+    activation_condition: >-
+      A stale/invalidated execution contract that is NOT already covered by the
+      scope_escape or escalation paths, observed in a dogfood change.
+    reviewed_at: 2026-07-11
+
+  - id: DEF-006
+    mechanism: change-loop-human-correction
+    type: gate
+    status: deferred
+    activation_condition: >-
+      A discrete human-correction signal in an existing review/result artifact
+      (beyond the human_corrections counter), observed in a dogfood change.
+    reviewed_at: 2026-07-11
+
 
   # ---- knowledge-native (W2): grounding-package gates ----
   - id: KN-001

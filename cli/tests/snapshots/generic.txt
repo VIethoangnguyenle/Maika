@@ -108,6 +108,10 @@
 .maika/tools/microloop-orchestrator/
 .maika/tools/microloop-orchestrator/README.md
 .maika/tools/microloop-orchestrator/adaptive_runtime.py
+.maika/tools/microloop-orchestrator/loop_engineer.py
+.maika/tools/microloop-orchestrator/loop_policy.py
+.maika/tools/microloop-orchestrator/loop_router.py
+.maika/tools/microloop-orchestrator/loop_state.py
 .maika/tools/microloop-orchestrator/orchestrator.py
 .maika/tools/microloop-orchestrator/plan_compiler.py
 .maika/tools/microloop-orchestrator/plan_parser.py
