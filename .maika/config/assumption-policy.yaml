@@ -1,0 +1,44 @@
+# Assumption taxonomy — phân loại assumption theo risk (agent-facing plan §16).
+# Consumer cơ học: gate `knowledge-trace` (tools/gate-check/gates.py) đọc file này —
+# mọi assumption trong Knowledge Trace phải là typed record; action quyết định
+# tiếp tục / degrade / block-until-human. Không còn generic "ghi assumption và tiếp tục".
+#
+# Record schema bắt buộc (mọi type): id, type, statement, evidence_gap, expiry_condition.
+# Field bổ sung theo type nằm trong `requires` của từng type.
+version: 1
+
+types:
+  non_material:
+    action: continue
+    confidence_cap: medium
+    requires: []
+
+  operational_environment:
+    action: degrade
+    confidence_cap: medium
+    requires: [failed_probe, fallback, affected_claims]
+
+  behavior_changing:
+    action: block_spec
+    human_decision: true
+    requires: []
+
+  public_contract:
+    action: human_gate
+    human_decision: true
+    requires: []
+
+  persistence_destructive:
+    action: block
+    human_decision: true
+    requires: [database_evidence]
+
+  security:
+    action: block
+    human_decision: true
+    requires: []
+
+  migration:
+    action: block
+    human_decision: true
+    requires: [rollback]

@@ -176,6 +176,12 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/runtime/.gitignore"
 
+  - name: assumption-policy
+    type: profile
+    source: config/assumption-policy.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/assumption-policy.yaml"
+
   # ─── SKILLS ───
   - name: lightweight-change
     type: skill

@@ -83,10 +83,12 @@ Mâu thuẫn material **chưa resolve** thì **block design** (không được �
 - Zero-result (vd recall rỗng, không tìm thấy incident) là **evidence hợp lệ** và phải
   được ghi lại, không phải lý do bỏ qua provider hay bỏ trống coverage.
 
-### [CRITICAL] R-Know-10: Assumption tường minh
+### [CRITICAL] R-Know-10: Assumption tường minh + phân loại risk
 
-- Mọi giả định phải ghi kèm **confidence** và **expiry condition** (điều kiện khiến nó
-  hết hiệu lực). Không được suy luận ngầm dựa trên giả định chưa ghi.
+- Mọi giả định là một **typed record** theo `config/assumption-policy.yaml`
+  (id, type, statement, evidence_gap, expiry_condition). Không được suy luận ngầm
+  dựa trên giả định chưa ghi; type rủi ro (public contract, persistence, security,
+  migration, behavior-changing) bị gate chặn cho tới khi có human decision.
 
 ### [CRITICAL] R-Know-11: Invalidation
 

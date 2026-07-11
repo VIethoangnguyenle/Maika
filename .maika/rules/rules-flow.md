@@ -38,20 +38,23 @@
 - Thứ tự ưu tiên: xem chuỗi canonical tại `agent/KERNEL.md` §2 (Canonical Authority); agent runtime defaults luôn xếp cuối.
 
 
-### [CRITICAL] R-Flow-4: Over-verification hardstop — ghi Assumption, không loop
+### [CRITICAL] R-Flow-4: Over-verification hardstop — assumption phân loại theo risk
 
-- Khi agent gặp dữ liệu/cấu hình thiếu từ DB hoặc external system (ví dụ: Provider Code không tồn tại,
-  bảng trống, config chưa seed):
+- Khi agent gặp dữ liệu/cấu hình thiếu từ DB hoặc external system:
   - **Không được** quét lại DB/codebase quá **2 lần** để tìm cùng một thông tin.
-  - Sau lần thứ 2 không tìm thấy → **hardstop**:
-    1. Ghi assumption vào artifact của workspace hiện tại — section "Giả định & Rủi ro"
-       trong `INTENT.md` (standard/architectural) hoặc `TASK.yaml` (trivial/small):
-       `[ASSUMPTION] <tên data> chưa tồn tại trong DB. Cần backfill/seed trước khi apply.`
-    2. Ghi `[BLOCKED-DATA] <mô tả>` vào evidence artifact của phase
-       (`exploration/EVIDENCE_MANIFEST.yaml` hoặc `EVIDENCE.yaml`).
-    3. **Tiếp tục flow** dựa trên assumption, không chờ data được sửa.
-  - Nếu lỗi cấu hình cần user/DBA xử lý: đề xuất rõ action (ví dụ: câu SQL backfill) và
-    chuyển workspace sang **BLOCKED** (reason `user_input`) qua state machine.
+  - Sau lần thứ 2 không tìm thấy → **hardstop**: ghi một assumption record ĐÚNG
+    taxonomy tại `config/assumption-policy.yaml` (id, type, statement, evidence_gap,
+    expiry_condition + field theo type) vào artifact của workspace — section
+    "Giả định & Rủi ro" trong `INTENT.md` (standard/architectural) hoặc `TASK.yaml`
+    (trivial/small) và trong Knowledge Trace của decision bị ảnh hưởng.
+  - Hành vi theo `action` của type (KHÔNG còn generic "ghi assumption và tiếp tục"):
+    - `continue` (non_material): tiếp tục flow; confidence bị cap `medium`.
+    - `degrade` (operational_environment): ghi failed_probe + fallback +
+      affected_claims rồi tiếp tục với degradation.
+    - `block_spec` / `human_gate` / `block` (behavior_changing, public_contract,
+      persistence_destructive, security, migration): gate `knowledge-trace` sẽ CHẶN
+      cho tới khi record có `human_decision: approved`; chuyển workspace sang
+      **BLOCKED** (reason `user_input`) và đề xuất action cụ thể (vd câu SQL backfill).
 - Sau hardstop, không tiếp tục scan cùng một dữ liệu/cấu hình trong phiên hiện tại.
 
 ### [CRITICAL] R-Flow-5: Orchestrator mỏng — việc nặng chạy trong worker

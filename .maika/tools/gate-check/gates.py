@@ -1251,6 +1251,56 @@ def validate_dispatch_kernel(text: str) -> Result:
     return Result(False, "dispatch kernel missing: " + ", ".join(missing)) if missing else Result(True)
 
 
+_ASSUMPTION_POLICY = None
+_BLOCKING_ASSUMPTION_ACTIONS = {"block", "block_spec", "human_gate"}
+# Fallback khi target chưa có config/assumption-policy.yaml (compat window):
+# mọi type ngoài fallback bị coi là unknown -> fail, không silently continue.
+_ASSUMPTION_POLICY_FALLBACK = {
+    "non_material": {"action": "continue", "confidence_cap": "medium", "requires": []},
+}
+
+
+def _assumption_policy() -> dict:
+    """Load assumption taxonomy from config/assumption-policy.yaml (plan §16)."""
+    global _ASSUMPTION_POLICY
+    if _ASSUMPTION_POLICY is None:
+        path = Path(__file__).resolve().parents[2] / "config" / "assumption-policy.yaml"
+        if path.exists():
+            doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            _ASSUMPTION_POLICY = doc.get("types") or _ASSUMPTION_POLICY_FALLBACK
+        else:
+            _ASSUMPTION_POLICY = _ASSUMPTION_POLICY_FALLBACK
+    return _ASSUMPTION_POLICY
+
+
+def _validate_assumption_records(assumptions, decision_confidence) -> Result:
+    """Assumptions must be typed records; risky types block until human approval."""
+    policy = _assumption_policy()
+    for item in assumptions:
+        if not isinstance(item, dict):
+            return Result(False, "assumption must be a typed record "
+                                 "(see config/assumption-policy.yaml)")
+        atype = item.get("type")
+        spec = policy.get(atype)
+        if spec is None:
+            return Result(False, f"unknown assumption type {atype!r} "
+                                 "(see config/assumption-policy.yaml)")
+        base = ("id", "statement", "evidence_gap", "expiry_condition")
+        missing = [key for key in base if not item.get(key)]
+        missing += [key for key in spec.get("requires") or [] if not item.get(key)]
+        if missing:
+            return Result(False, f"assumption {item.get('id') or atype} missing: "
+                                 + ", ".join(missing))
+        action = spec.get("action")
+        if action in _BLOCKING_ASSUMPTION_ACTIONS and item.get("human_decision") != "approved":
+            return Result(False, f"assumption {item['id']} ({atype}) requires a human "
+                                 f"decision before proceeding (action: {action})")
+        if spec.get("confidence_cap") == "medium" and decision_confidence == "high":
+            return Result(False, f"assumption {item['id']} ({atype}) caps decision "
+                                 "confidence at medium")
+    return Result(True)
+
+
 def validate_knowledge_trace(text: str, valid_evidence_ids=None) -> Result:
     data, error = _yaml_mapping(text, "Knowledge Trace")
     if error:
@@ -1291,9 +1341,11 @@ def validate_knowledge_trace(text: str, valid_evidence_ids=None) -> Result:
                   if not isinstance(item, dict) or item.get("status") not in {"resolved", "superseded"}]
     if unresolved:
         return Result(False, "Knowledge Trace has unresolved conflicts")
-    for assumption in decision.get("assumptions") or []:
-        if not isinstance(assumption, dict) or not all(assumption.get(key) for key in ("statement", "confidence", "expiry")):
-            return Result(False, "Knowledge Trace assumption requires statement/confidence/expiry")
+    assumption_result = _validate_assumption_records(
+        decision.get("assumptions") or [], decision.get("confidence")
+    )
+    if not assumption_result.ok:
+        return assumption_result
     if str(decision.get("verdict") or "").lower() not in {"accepted", "approved", "verified"}:
         return Result(False, "Knowledge Trace verdict is not accepted")
     if decision.get("confidence") == "low" or decision.get("freshness") == "degraded":

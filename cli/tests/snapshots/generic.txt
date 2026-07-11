@@ -4,6 +4,7 @@
 .maika/config/
 .maika/config/artifact-authority.yaml
 .maika/config/artifact-registry.yaml
+.maika/config/assumption-policy.yaml
 .maika/config/install-manifest.yaml
 .maika/config/platforms.yaml
 .maika/config/project.yaml
