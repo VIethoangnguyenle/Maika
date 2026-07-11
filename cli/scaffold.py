@@ -154,6 +154,10 @@ def generate_resolved_config(
     """Write resolved-config.yaml under the platform's framework root."""
     config_path = target_dir / platform.framework_root / "resolved-config.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
+    if config_path.is_dir():
+        # Reject a directory at the canonical path deterministically: open() would
+        # raise IsADirectoryError on POSIX but PermissionError on Windows.
+        raise IsADirectoryError(f"resolved-config path is a directory: {config_path}")
     resolved = {
         "platform": platform.name,
         "framework_root": platform.framework_root,

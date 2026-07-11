@@ -38,6 +38,10 @@ dependencies = [
 test = [
     "pytest",
     "jsonschema>=4.0",
+    # Build backend so test_wheel_install's `pip wheel --no-build-isolation`
+    # works in a bare CI env — Windows hosted Python has no wheel preinstalled.
+    "setuptools>=68.0",
+    "wheel",
 ]
 
 [project.scripts]
