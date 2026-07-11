@@ -2,8 +2,7 @@
 # Bind vào state machine THẬT: tools/microloop-orchestrator/vnext_state.py
 # (STATES/ALLOWED/BLOCK_REASONS). Không có fixed phase chain toàn cục.
 # Validator: `maika content validate-router`; dry-run: `maika task route --id <id> --action <a>`.
-# skill: null = contract chạy bởi orchestrator/parent, chưa có skill riêng
-# (trivial/small apply nhận skill lightweight-change ở PR 5).
+# skill: null = action cơ học chạy bởi orchestrator/parent, không dispatch skill.
 version: 1
 
 actions:
@@ -134,8 +133,8 @@ actions:
     allowed_from: [INTAKE, EXECUTING]
     classes: [trivial, small, standard, architectural]
     skill_by_class:
-      trivial: null
-      small: null
+      trivial: lightweight-change
+      small: lightweight-change
       standard: executing-task
       architectural: executing-task
     role: implementation

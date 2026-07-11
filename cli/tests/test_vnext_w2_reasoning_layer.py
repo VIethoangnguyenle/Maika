@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / ".maika" / "skills"
 
 TARGET_SKILLS = {
+    "lightweight-change",
     "intent-analysis",
     "grounding-explorer",
     "database-explorer",

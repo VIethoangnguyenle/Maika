@@ -32,6 +32,7 @@ def test_every_class_reaches_completed(router):
 def test_trivial_apply_resolves_lightweight_and_exits_to_verifying(router):
     route = resolve_route(router, "apply", "trivial", "INTAKE")
     assert route["allowed"]
+    assert route["skill"] == "lightweight-change"
     assert route["next_state"] == "VERIFYING"  # A1: no REVIEWING dead-end
     follow = resolve_route(router, "verify", "trivial", route["next_state"])
     assert follow["allowed"]

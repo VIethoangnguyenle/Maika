@@ -171,6 +171,13 @@ plugins:
     output: "{{ platform.framework_root }}/config/workflow-router.yaml"
 
   # ─── SKILLS ───
+  - name: lightweight-change
+    type: skill
+    source: skills/lightweight-change/
+    template: false
+    output: "{{ platform.framework_root }}/skills/lightweight-change/"
+    copy_dir: true
+
   - name: intent-analysis
     type: skill
     source: skills/intent-analysis/

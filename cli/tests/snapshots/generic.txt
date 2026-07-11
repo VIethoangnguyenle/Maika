@@ -85,6 +85,8 @@
 .maika/skills/intent-analysis/SKILL.md
 .maika/skills/knowledge-curator/
 .maika/skills/knowledge-curator/SKILL.md
+.maika/skills/lightweight-change/
+.maika/skills/lightweight-change/SKILL.md
 .maika/skills/reviewing-change/
 .maika/skills/reviewing-change/SKILL.md
 .maika/skills/reviewing-task/

@@ -268,6 +268,33 @@ skills:
   gates:
   - knowledge-impact
   - skill-feedback
+- name: lightweight-change
+  version: '1.0'
+  description: 'Dùng khi apply một change class trivial/small: đọc micro-plan trong
+    TASK.yaml, inspect đúng source anchor, implement trong scope khai báo, chạy focused
+    verification và trả RESULT.yaml — không tạo SPEC/IMPLEMENTATION_PLAN/TASK_QUEUE;
+    escalate khi risk signal xuất hiện.'
+  routing:
+    mode: workflow
+    actions:
+    - apply
+    states:
+    - INTAKE
+    - EXECUTING
+    classes:
+    - trivial
+    - small
+  capabilities:
+    required:
+    - exact_source_inspection
+    - runtime_verification
+  outputs:
+    required:
+    - RESULT.yaml
+    optional:
+    - EVIDENCE.yaml
+  gates:
+  - result-contract
 - name: reviewing-change
   version: '3.0'
   description: 'Dùng khi mọi task review đã pass và trước verification: review toàn
