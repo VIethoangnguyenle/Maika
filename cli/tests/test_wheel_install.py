@@ -22,6 +22,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _run(cmd, **kw):
+    # Decode subprocess output as utf-8 explicitly — on Windows the default
+    # locale codec (cp1252) chokes on the Maika banner's non-ASCII bytes in the
+    # capture reader thread (PytestUnhandledThreadExceptionWarning).
+    kw.setdefault("encoding", "utf-8")
+    kw.setdefault("errors", "replace")
     return subprocess.run(cmd, check=True, capture_output=True, text=True, **kw)
 
 
@@ -93,6 +98,7 @@ def test_wheel_init_works_without_source_checkout(installed_maika, tmp_path):
         [str(installed_maika), "init", "--target", str(project),
          "--platform", "codex", "--language", "python", "--yes"],
         cwd=str(project), check=False, capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert (project / ".maika").is_dir()
