@@ -137,6 +137,15 @@ artifacts:
     runtime_authority: true
     policy_domain: artifact-lifecycle
     status: active
+  - path: .maika/config/artifact-authority.yaml
+    type: config
+    ownership: framework
+    producer: source
+    consumers: [content-validate-authority, ci]
+    scaffolded: true
+    runtime_authority: true
+    policy_domain: agent-artifact-authority
+    status: active
   - path: docs/archive/implemented/index.yaml
     type: historical
     ownership: framework

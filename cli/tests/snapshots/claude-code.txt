@@ -3,6 +3,7 @@
 .maika/
 .maika/MCP_SETUP.md
 .maika/config/
+.maika/config/artifact-authority.yaml
 .maika/config/artifact-registry.yaml
 .maika/config/install-manifest.yaml
 .maika/config/platforms.yaml

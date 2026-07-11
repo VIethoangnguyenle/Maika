@@ -150,6 +150,12 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/config/artifact-registry.yaml"
 
+  - name: artifact-authority
+    type: profile
+    source: config/artifact-authority.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/artifact-authority.yaml"
+
   # ─── SKILLS ───
   - name: intent-analysis
     type: skill
