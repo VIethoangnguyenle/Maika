@@ -86,6 +86,54 @@ def test_merge_managed_markdown_rejects_duplicate_blocks():
         merge_managed_markdown(doubled, "new")
 
 
+LEGACY_DOC = "# AGENTS.md — Maika  \n> Version: 3.0 | Cập nhật: 2026-06\n\n.agents/ là framework root\n"
+
+
+def test_strip_legacy_entrypoint_drops_old_maika_doc():
+    from cli.scaffold import strip_legacy_entrypoint
+    remaining, was_legacy = strip_legacy_entrypoint(LEGACY_DOC)
+    assert was_legacy is True
+    assert remaining == ""
+
+
+def test_strip_legacy_entrypoint_preserves_user_content():
+    from cli.scaffold import strip_legacy_entrypoint
+    user_doc = "# My project conventions\nDo X, not Y.\n"
+    remaining, was_legacy = strip_legacy_entrypoint(user_doc)
+    assert was_legacy is False
+    assert remaining == user_doc
+
+
+def test_stage_entrypoint_replaces_legacy_maika_doc_with_backup(tmp_path):
+    """H-run ngac 2026-07-12: init merged the current managed block UNDER a
+    2026-06 Maika entrypoint that documents a contradictory layout. A legacy
+    Maika-authored entrypoint must be replaced, not preserved as host content."""
+    staging = tmp_path / "staging"
+    target = tmp_path / "target"
+    staging.mkdir(); target.mkdir()
+    (staging / "AGENTS.md").write_text("managed body", encoding="utf-8")
+    (target / "AGENTS.md").write_text(LEGACY_DOC, encoding="utf-8")
+    stage_managed_entrypoint(staging, target, "AGENTS.md")
+    staged = (staging / "AGENTS.md").read_text(encoding="utf-8")
+    assert "Version: 3.0" not in staged
+    assert staged.startswith("<!-- maika:begin -->")
+    backup = target / "AGENTS.md.legacy.bak"
+    assert backup.exists() and backup.read_text(encoding="utf-8") == LEGACY_DOC
+
+
+def test_stage_entrypoint_still_merges_genuine_user_content(tmp_path):
+    staging = tmp_path / "staging"
+    target = tmp_path / "target"
+    staging.mkdir(); target.mkdir()
+    (staging / "AGENTS.md").write_text("managed body", encoding="utf-8")
+    (target / "AGENTS.md").write_text("# My project conventions\n", encoding="utf-8")
+    stage_managed_entrypoint(staging, target, "AGENTS.md")
+    staged = (staging / "AGENTS.md").read_text(encoding="utf-8")
+    assert staged.startswith("# My project conventions")
+    assert "<!-- maika:begin -->" in staged
+    assert not (target / "AGENTS.md.legacy.bak").exists()
+
+
 def test_managed_markdown_malformed_block_fails_before_target_mutation(tmp_path):
     staging = tmp_path / "staging"
     target = tmp_path / "target"
