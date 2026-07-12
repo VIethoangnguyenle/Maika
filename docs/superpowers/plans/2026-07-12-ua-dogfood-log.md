@@ -42,9 +42,38 @@ The pipeline is a multi-hour, multi-subagent interactive skill. Two agy attempts
 - Consequence: real graphs require an **interactive** `/understand` run (Antigravity, or Claude Code after `/plugin marketplace add Egonex-AI/Understand-Anything` → `/plugin install understand-anything`).
 - Leftover state: `.understand-anything/intermediate/{scan-result.json,batches.json}` from G2 kept in place (reusable by a future run; `--full` ignores them).
 
-## Grounding runs (pending a real graph)
+### G3 (supersedes F3's "not viable" for the orchestrated variant)
 
-Blocked until an interactive `/understand` run produces a real graph (see F3). Question archetypes prepared: (1) call-chain of a core flow, (2) impact of changing a central class, (3) domain-flow, (4) deliberately ambiguous anchor, (5) stale-relevant file.
+| # | Project | Executor | Result | Notes |
+|---|---------|----------|--------|-------|
+| G3 | agent-memory-arch-v3 | **Claude as main session, agy as per-wave file-analyzer** (6 waves × ~6 batches, machine-verified per wave; merge/normalize/Phase-6 assembly done deterministically by the orchestrator; Phases 3–5 single agy dispatches) | **SUCCESS** | 1799 nodes / 2854 edges / 10 layers / 13 tour steps; `build_graph_metadata` verdict `HEALTHY` + `FRESH`; import-recovery pass healed 214 imports wave 1 dropped. `/understand` IS viable via workers **iff** sliced and verified per wave — the single-session dispatch (G1/G2) remains non-viable. |
 
-| # | Project | Question | Tools actually called | UA primary? | Failure observed | Class |
-|---|---------|----------|----------------------|-------------|------------------|-------|
+## Grounding runs (graph: G3, maika-cli, commit a14930e)
+
+| # | Question | Tools actually called | UA primary? | Failure observed | Class |
+|---|----------|----------------------|-------------|------------------|-------|
+| GR-1 | Call-chain: how does `cli/maika.py` dispatch into command modules? | `trace_calls(file:cli/maika.py, depth 3)` | yes | Chain stops at `function:cli/maika.py:main` (2 entries) — cross-file `calls` edges too sparse to reach `cli/commands/*` even though `main()` calls them in source; `imports` edges do cover the fan-out. | fidelity |
+| GR-2 | Impact: who consumes `cli/agent_content/provider_capabilities.py`? | `find_impact(file:...provider_capabilities.py)` | yes | Returned self + test only. **Missed real consumer `cli/commands/content.py`** — its import is function-local, and the scanner's import map only captures top-level imports. Hidden-consumer risk is real, not hypothetical. | fidelity |
+| GR-3 | Domain flow: any workflow domain view? | `search_domain_nodes('workflow')` | yes | None — domain graph absent (`/understand-domain` never run); handled gracefully (empty result, no crash, capability simply unavailable). | none |
+| GR-4 | Ambiguous anchor: find `validate` | `search_nodes('validate', limit 8)` | yes | 154 total matches; API returns top-N **plus total count** — ambiguity is surfaced, no silent arbitrary selection. | none |
+| GR-5 | Stale-relevant: are uncommitted edits visible to freshness? | `check_freshness` (via `build_graph_metadata`) | yes | Freshness diffs `graph_commit..HEAD` (committed changes only); dirty-worktree edits are invisible and status stays FRESH. Low severity — worktree dirt is ephemeral — but "FRESH" overstates certainty on a dirty tree. | freshness |
+
+## Additional findings from G3 verification
+
+### F4 (fidelity): function-local imports are invisible → impact analysis misses hidden consumers
+
+GR-2 evidence. Remediation lives in the external UA engine (scanner), not our repos. Maika-side consequence: the provider doctrine's conditional CBM trigger `hidden_consumer_risk` and current-source authority are now **evidence-validated** — impact/call-chain graph evidence must not be treated as complete for material decisions.
+
+### F5 (production): ~19% of function summaries are formulaic templates
+
+270/1371 function nodes carry template summaries ("Provides core functional logic for X operations.", "Internal helper implementing X logic..."), concentrated in wave-1 files (`gates.py` 42, `task.py` 28, `vnext_dispatch.py` 17). File-level summaries are genuine. Worker cut corners inside big batches below the placeholder-detection threshold; wave verifier should also flag template-pattern summaries.
+
+### F6 (fidelity): cross-file `calls` edges too sparse for deep call-chain tracing
+
+GR-1 evidence. `call_chain_trace` on this graph degrades to import-level navigation beyond depth 1. Same engine-side root cause class as F4.
+
+## Exit gate verdict (Track 0 CLOSED)
+
+- **No Maika-repo or UA-MCP-repo code change is unlocked** by GR-1..5: F4/F6 remediation belongs to the external Understand-Anything engine (Egonex-AI plugin); F2's unlock was already shipped (UA-MCP v0.2.1 health verdict); GR-5 is low-severity and its fix (dirty-tree signal) would land in UA-MCP only if it ever misleads a real decision — not observed yet.
+- **Validated by evidence**: UA primary routing (5/5 runs used UA first), graceful degradation without domain graph, ambiguity surfacing, conditional-CBM doctrine for hidden consumers, health verdict on degenerate graphs.
+- Remaining Track 3 items stay deferred with unchanged unlock conditions.
