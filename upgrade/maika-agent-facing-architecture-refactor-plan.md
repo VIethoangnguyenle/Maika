@@ -1257,6 +1257,12 @@ gates:
 
 # 12. Evidence Broker
 
+> **DEFERRED (Wave E gate, 2026-07-12):** chưa build. Điều kiện mở lại (R3): trace
+> thật (dogfood §30 / harness real-agent) ghi nhận duplicate provider call — hiện
+> providers gần như chưa hoạt động (cbm 0 project indexed, UA graph chưa build) nên
+> broker sẽ quản lý những call chưa từng xảy ra. Ledger entry `observed_failure`
+> bắt buộc trước khi implement.
+
 ## 12.1 Mục tiêu
 
 Tách retrieval lifecycle khỏi từng skill.
@@ -1379,6 +1385,11 @@ evidence_metrics:
 ---
 
 # 13. Context package redesign
+
+> **DEFERRED (Wave E gate, 2026-07-12):** chưa build. Điều kiện mở lại (R4): cơ chế
+> token-measure có thật trên host mục tiêu + dogfood ghi nhận context overflow thật.
+> Hiện runtime đã có estimated_tokens (chars/4) + budget block cho implementation
+> dispatch (adaptive_runtime) — đủ cho tới khi có evidence ngược lại.
 
 ## 13.1 Role-specific package
 
@@ -2432,6 +2443,14 @@ all static jobs
 ---
 
 # 26. PR slicing
+
+> **STATUS (2026-07-12):** PR 1–7, 10–14 ĐÃ SHIP trên `master-v2`
+> (`8b688d1`..`e89b296`) — xem execution plan cho deviation từng PR. PR 8/9
+> DEFERRED theo gate §12/§13; PR 15 DEFERRED tới khi dogfood §30 chạy được với
+> worker thật (codex quota-prone — chạy manual/nightly); PR 16 DEFERRED theo
+> compatibility window §23.3 (mở từ 2026-07-12, đóng sau 2 release cycle —
+> legacy còn lại: write-gate SESSION-GATE fallback, dashboard reader,
+> knowledge/active skeleton + gitignore).
 
 ## PR 1 — Authority inventory and contradiction report
 

@@ -1,5 +1,14 @@
 # Kế hoạch thực hiện: Agent-Facing Architecture Refactor
 
+> **STATUS 2026-07-12 — WAVE A–D HOÀN THÀNH, WAVE E DEFERRED THEO GATE.**
+> 12 PR ship trên `master-v2` (PR1 `8b688d1` → PR14 `e89b296`), CI xanh mỗi PR
+> (baseline 1038 tests cuối wave D), đã push. Amendment A1–A6 áp trong PR 3
+> (+A6: router bind vào 14 state THẬT của vnext_state.py — SSOT §8 stamped).
+> Wave E: PR 8/9/15/16 đóng dấu DEFERRED trong SSOT §12/§13/§26 với điều kiện
+> mở lại cụ thể (duplicate-call trace / token-measure + overflow thật / dogfood
+> chạy được / hết compatibility window). Bước kế tiếp khi user muốn: Dogfood A
+> (§30 SSOT — 10 task trivial/small thật) để sinh evidence cho Wave E.
+
 > SSOT nội dung: `upgrade/maika-agent-facing-architecture-refactor-plan.md` (16 PR, §26).
 > Doc này quyết định **thứ tự thi công, amendment bắt buộc, và evidence-gate** cho từng PR —
 > không lặp lại nội dung SSOT.
