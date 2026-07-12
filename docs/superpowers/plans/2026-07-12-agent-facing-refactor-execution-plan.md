@@ -8,6 +8,7 @@
 > mở lại cụ thể (duplicate-call trace / token-measure + overflow thật / dogfood
 > chạy được / hết compatibility window). Bước kế tiếp khi user muốn: Dogfood A
 > (§30 SSOT — 10 task trivial/small thật) để sinh evidence cho Wave E.
+> Dogfood A (§30) hoàn thành 2026-07-12 — report: docs/refactor/agent-facing/dogfood-a-report.md; findings DF-1..DF-5 mở cho wave kế.
 
 > SSOT nội dung: `upgrade/maika-agent-facing-architecture-refactor-plan.md` (16 PR, §26).
 > Doc này quyết định **thứ tự thi công, amendment bắt buộc, và evidence-gate** cho từng PR —
