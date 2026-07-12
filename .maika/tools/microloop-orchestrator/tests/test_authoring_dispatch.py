@@ -35,7 +35,7 @@ def test_grounding_dispatch_starts_exploration_and_transitions(tmp_path):
     assert result["ok"], result
     assert result["state"] == "RECONCILING"
     assert "DISPATCH_TYPE: grounding" in prompts[0]
-    assert "exploration/GROUNDING.yaml" in prompts[0]
+    assert str(ws / "exploration" / "GROUNDING.yaml") in prompts[0]
     log = (ws / "generated" / "DISPATCH_LOG.jsonl").read_text(encoding="utf-8")
     assert '"dispatch_type": "grounding"' in log
 
