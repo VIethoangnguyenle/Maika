@@ -149,11 +149,36 @@ def main():
     content_parser.add_argument(
         "action",
         choices=["validate-authority", "validate-router", "validate-skills",
+                 "validate-interactions", "validate-external-workflows",
+                 "validate-generated-reports",
+                 "validate-provider-capabilities",
                  "scan-legacy", "migrate-legacy", "behavior-static"],
     )
     content_parser.add_argument("--target", default=".")
     content_parser.add_argument("--apply", action="store_true",
                                 help="migrate-legacy: perform the moves (default dry-run)")
+
+    remember_parser = subparsers.add_parser(
+        "remember", help="Record an explicit non-task user preference",
+    )
+    remember_parser.add_argument("statement")
+    remember_parser.add_argument("--target", default=".")
+    remember_parser.add_argument("--scope", choices=["session", "project", "global"],
+                                 default="project")
+    remember_parser.add_argument(
+        "--type", dest="preference_type",
+        choices=["coding_style", "naming", "architecture_preference", "workflow_preference"],
+        default="coding_style",
+    )
+
+    memory_parser = subparsers.add_parser(
+        "memory", help="List, forget, or explicitly promote preferences",
+    )
+    memory_parser.add_argument("action", choices=["list", "forget", "promote"])
+    memory_parser.add_argument("--target", default=".")
+    memory_parser.add_argument("--id", dest="preference_id", default=None)
+    memory_parser.add_argument("--scope", choices=["session", "project", "global"], default=None)
+    memory_parser.add_argument("--promotion-target", default=None)
 
     skill_parser = subparsers.add_parser("skill", help="Promote or reject a reviewed skill candidate")
     skill_parser.add_argument("action", choices=["promote", "reject"])
@@ -380,6 +405,19 @@ def main():
     elif args.command == "content":
         from cli.commands.content import run_content
         sys.exit(run_content(args.action, args.target, apply=args.apply))
+    elif args.command == "remember":
+        from cli.commands.memory import remember
+        code, _ = remember(
+            args.statement, target_dir=args.target, scope=args.scope,
+            preference_type=args.preference_type,
+        )
+        sys.exit(code)
+    elif args.command == "memory":
+        from cli.commands.memory import run_memory
+        sys.exit(run_memory(
+            args.action, target_dir=args.target, preference_id=args.preference_id,
+            scope=args.scope, promotion_target=args.promotion_target,
+        ))
     elif args.command == "skill":
         from cli.commands.skill import run_skill
         sys.exit(run_skill(args.action, args.target, args.candidate, args.review, args.promotion))

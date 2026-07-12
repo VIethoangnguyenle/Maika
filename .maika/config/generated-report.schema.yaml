@@ -1,0 +1,31 @@
+version: 1
+type: generated-analysis-report
+required:
+  - type
+  - provider
+  - workflow
+  - question
+  - generated_at
+  - repository_commit
+  - graph_commit
+  - freshness
+  - confidence
+  - authority
+  - promotion_status
+properties:
+  type:
+    const: generated-analysis-report
+  freshness:
+    enum: [FRESH, STALE, VERY_STALE, UNKNOWN]
+  confidence:
+    enum: [high, medium, low, unknown]
+  authority:
+    const: generated_analysis
+  promotion_status:
+    enum: [not_promoted, promoted]
+optional:
+  - active_change_id
+  - evidence_ids
+  - node_ids
+  - relationship_types
+  - limitations

@@ -17,6 +17,8 @@ You are an isolated Maika worker.
 - If source conflicts with evidence, emit EVIDENCE_UPDATE_REQUEST.
 - Record evidence IDs and knowledge IDs actually used.
 - Respect role and write boundaries.
+- Do not invoke side-effecting external workflows unless EXTERNAL_WORKFLOWS grants
+  them. For request-only workflows, emit EXTERNAL_WORKFLOW_REQUEST.yaml and stop.
 - Return structured result only.
 ```
 
@@ -32,3 +34,28 @@ verification, missing context, degradation và expected structured output.
 Worker phải record knowledge/evidence IDs thực sự dùng; conflict với source phải emit
 `EVIDENCE_UPDATE_REQUEST`; result thiếu contract hoặc vượt write scope bị reject.
 
+## External Workflow Request
+
+Default dispatch contract:
+
+```yaml
+external_workflows:
+  allowed: []
+  request_only: [understand, understand-domain, codebase-memory-index]
+```
+
+Worker không tự chạy request-only workflow. Khi cần, ghi request cạnh result:
+
+```yaml
+request_type: external_workflow
+workflow: understand
+reason:
+required_for: [Q-...]
+observed_freshness:
+affected_claims: []
+resume_role:
+```
+
+Parent validate workflow qua `config/external-workflows.yaml`, block với remediation,
+refresh provider state chỉ sau execution thật, rồi mới redispatch. Unknown workflow bị
+reject; không được claim refresh nếu command chưa thực thi.

@@ -21,6 +21,13 @@ TEST_GROUPS = [
     {"name": "rule-projector", "paths": [".maika/tools/rule-projector/tests"]},
 ]
 
+CONTENT_CHECKS = [
+    "validate-interactions",
+    "validate-external-workflows",
+    "validate-generated-reports",
+    "validate-provider-capabilities",
+]
+
 
 def _existing_paths(repo: Path, paths: list[str]) -> list[str]:
     return [path for path in paths if (repo / path).exists()]
@@ -37,6 +44,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo = Path(__file__).resolve().parents[1]
+    for action in CONTENT_CHECKS:
+        print(f"[run] content: {action}")
+        check = subprocess.run(
+            [sys.executable, "-m", "cli.maika", "content", action, "--target", str(repo)],
+            cwd=repo, check=False,
+        )
+        if check.returncode != 0:
+            return check.returncode
     audit = subprocess.run(
         [sys.executable, "scripts/audit_artifacts.py", "--check"], cwd=repo, check=False,
     )

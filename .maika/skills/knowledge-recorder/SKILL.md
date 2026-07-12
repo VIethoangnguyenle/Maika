@@ -38,6 +38,8 @@ promotion sau VERIFIED.
 ## Khi nào KHÔNG sử dụng
 - Để GHI durable knowledge (promote là việc của `knowledge-promoter`, sau VERIFIED).
 - Quan sát one-off không có evidence.
+- Explicit preference ngoài task; dùng learning lane `maika remember` thay vì tạo
+  change workspace.
 
 ## Đầu vào
 - User correction / review finding / discovery + source anchor.
@@ -70,7 +72,7 @@ Candidate KHÔNG phải knowledge — nó chờ verification; không được ci
 ## Bất biến
 - KHÔNG ghi vào `knowledge/long-term/` — write gate + role boundary chặn.
 - User từ chối → status `declined` + WARN vào `reviews/SKILL_FEEDBACK.yaml`.
-- Direct user directive vẫn phải có record + provenance (không bypass).
+- Direct user directive trong task vẫn phải có record + provenance (không bypass).
 
 ## Yêu cầu evidence
 Mỗi candidate cite source anchor hoặc user statement nguyên văn.

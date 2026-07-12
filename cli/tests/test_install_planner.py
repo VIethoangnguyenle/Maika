@@ -36,6 +36,8 @@ def test_ownership_shared_host_entrypoints_and_configs():
 def test_ownership_project_knowledge_is_preserved():
     assert ownership.classify(f"{FR}/knowledge/long-term/author-dna.yaml", FR) == ownership.PROJECT
     assert ownership.classify(f"{FR}/changes/C-1/CHANGE.yaml", FR) == ownership.PROJECT
+    assert ownership.classify(f"{FR}/reports/understand-chat/report.md", FR) == ownership.PROJECT
+    assert ownership.classify(f"{FR}/knowledge/preferences/project-preferences.yaml", FR) == ownership.PROJECT
 
 
 def test_ownership_generated_knowledge_index_is_framework():

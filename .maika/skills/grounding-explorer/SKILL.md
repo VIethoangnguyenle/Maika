@@ -16,6 +16,10 @@ routing:
 capabilities:
   required:
   - architecture_discovery
+  - domain_flow_trace
+  - call_chain_trace
+  - impact_analysis
+  - semantic_code_search
   - dependency_analysis
   - exact_source_inspection
   - historical_context_retrieval
@@ -60,7 +64,7 @@ khi planner báo thiếu evidence (targeted re-grounding).
 
 ## Câu hỏi tri thức
 - Flow hiện tại lắp ráp ở đâu? (architecture_discovery, exact_source_inspection)
-- Ai own contract? Blast radius tới đâu? (dependency_analysis)
+- Ai own contract? Call chain và blast radius tới đâu? (call_chain_trace, impact_analysis)
 - Change này từng gây incident chưa? (historical_context_retrieval)
 - Business rule/convention nào áp? (business_knowledge_retrieval, convention_retrieval)
 - DB object nào tham gia? (database_schema_inspection)
@@ -74,18 +78,24 @@ khi planner báo thiếu evidence (targeted re-grounding).
 
 ## Chính sách capability
 Capability IDs: `architecture_discovery`, `exact_source_inspection`,
-  `dependency_analysis`, `historical_context_retrieval`,
+  `domain_flow_trace`, `call_chain_trace`, `impact_analysis`,
+  `semantic_code_search`, `dependency_analysis`, `historical_context_retrieval`,
   `business_knowledge_retrieval`, `convention_retrieval`,
   `database_schema_inspection`, `runtime_verification`.
 Provider ưu tiên theo `jit/providers.md`; skill chỉ gọi capability, không gọi provider.
 
 ## Quy trình truy xuất
 1. Đọc `QUERY_PLAN.yaml`; mỗi câu hỏi → resolve capability từ required_evidence_types.
-2. Probe provider → ghi `TOOL_HEALTH.yaml` (probe thật, observed, freshness).
-3. UA cho kiến trúc/domain; CBM cho dependency/blast radius; source verify exact fact;
-   Agent Memory cho lịch sử; dispatch `database-explorer` khi cần DB.
-4. Ghi claim + provenance vào `EVIDENCE_MANIFEST.yaml`.
-5. Ghi conflict vào `CONFLICTS.yaml`; ghi coverage vào `COVERAGE.yaml`.
+2. Probe structured graph project + freshness; ghi observed graph commit và HEAD vào
+   `TOOL_HEALTH.yaml`.
+3. Chọn domain-graph hoặc code-graph entry strategy và resolve anchor nodes.
+4. Traverse domain flow, relationships, call chain hoặc impact bằng precise trace
+   capability; lấy node source cho material nodes.
+5. Chỉ gọi `semantic_code_search` khi anchor unresolved, relationship có gap,
+   relevant graph files stale, semantic intent ambiguous, hidden consumer search hoặc
+   independent corroboration là cần thiết; ghi reason cho mỗi support call.
+6. Verify exact material facts bằng `exact_source_inspection` trên current source.
+7. Ghi claim + provenance vào `EVIDENCE_MANIFEST.yaml`; ghi conflict và coverage.
 
 ## Thứ tự authority và precedence
 live DB state > current source > business contract hiện hành > fresh graph >
@@ -95,6 +105,23 @@ durable knowledge > historical memory > inference (xem `core/evidence.md` R-Know
 - 3 lens `codebase/business/conventions` không rỗng.
 - Mọi câu hỏi query-plan: answered hoặc blocked-có-lý-do.
 - Preferred provider khỏe không bị skip im lặng (hoặc có degradation record).
+- `GROUNDING.yaml` có structured trace contract:
+
+```yaml
+graph_trace:
+  provider:
+  project:
+  graph_commit:
+  repository_head:
+  freshness:
+  relevant_stale_files: []
+  anchor_nodes: []
+  traversals: []
+  support_calls: []
+  source_verifications: []
+```
+
+Mỗi traversal ghi node IDs + relationship types; mỗi support call ghi capability + reason.
 
 ## Bất biến
 - Source authoritative cho exact code fact; graph/memory hỗ trợ, không thay thế.
@@ -105,8 +132,9 @@ Verified code claim cần file + symbol + file_hash (sha256). Business claim c�
 hoặc status `inferred`. Convention claim cite rule ID/example/approved entry.
 
 ## Freshness và confidence
-Graph ghi `indexed_commit`; lệch HEAD → stale → degrade. Confidence high chỉ khi ≥2
-nguồn độc lập + verify bằng source (R-Know-5).
+Graph ghi `indexed_commit`; phân biệt stale file liên quan và không liên quan theo
+provider doctrine. Relevant stale làm giảm confidence; very-stale graph chỉ làm anchor.
+Confidence high chỉ khi ≥2 nguồn độc lập + verify bằng source (R-Know-5).
 
 ## Quy trình degradation
 Provider stale/absent → ghi degradation record có cấu trúc (provider, probe, observed,

@@ -165,6 +165,10 @@ skills:
   capabilities:
     required:
     - architecture_discovery
+    - domain_flow_trace
+    - call_chain_trace
+    - impact_analysis
+    - semantic_code_search
     - dependency_analysis
     - exact_source_inspection
     - historical_context_retrieval
@@ -357,6 +361,9 @@ skills:
   capabilities:
     required:
     - dependency_analysis
+    - call_chain_trace
+    - impact_analysis
+    - semantic_code_search
     - exact_source_inspection
     - historical_context_retrieval
     - runtime_verification
@@ -386,6 +393,9 @@ skills:
   capabilities:
     required:
     - dependency_analysis
+    - call_chain_trace
+    - impact_analysis
+    - semantic_code_search
     - exact_source_inspection
     - historical_context_retrieval
     - review_dispatch

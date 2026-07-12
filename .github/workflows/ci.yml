@@ -50,6 +50,16 @@ jobs:
           if ($settings -notmatch 'maika hook write-gate') { throw "canonical write-gate command missing" }
           if ($settings -notmatch '--platform claude-code') { throw "write-gate platform arg missing" }
           if (-not (Test-Path "$env:RUNNER_TEMP\demo\.maika\runtime\platforms\claude-code.yaml")) { throw "canonical runtime profile missing" }
+          @(
+            "config\interaction-router.yaml",
+            "config\external-workflows.yaml",
+            "config\generated-report.schema.yaml",
+            "profiles\provider-capabilities.yaml",
+            "reports\.gitignore",
+            "knowledge\preferences\.gitignore"
+          ) | ForEach-Object {
+            if (-not (Test-Path "$env:RUNNER_TEMP\demo\.maika\$_")) { throw "session interaction asset missing: $_" }
+          }
       - name: Bare update preserves launcher (regression 1A, E2E)
         shell: pwsh
         run: |
@@ -78,6 +88,15 @@ jobs:
           grep -q -- '--platform claude-code' "$settings" || { echo "write-gate platform arg missing"; exit 1; }
           grep -q 'py -3' "$settings" && { echo "Windows launcher leaked into Linux hooks"; exit 1; }
           test -f "$RUNNER_TEMP/demo/.maika/runtime/platforms/claude-code.yaml" || { echo "canonical runtime profile missing"; exit 1; }
+          for path in \
+            config/interaction-router.yaml \
+            config/external-workflows.yaml \
+            config/generated-report.schema.yaml \
+            profiles/provider-capabilities.yaml \
+            reports/.gitignore \
+            knowledge/preferences/.gitignore; do
+            test -f "$RUNNER_TEMP/demo/.maika/$path" || { echo "session interaction asset missing: $path"; exit 1; }
+          done
       - name: Bare update preserves the canonical hook (E2E)
         run: |
           ./install.sh "$RUNNER_TEMP/demo"

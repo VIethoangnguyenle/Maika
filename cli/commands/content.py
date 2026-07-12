@@ -108,5 +108,72 @@ def run_content(action: str, target_dir: str = ".", apply: bool = False) -> int:
             return 1
         print(f"workflow router valid: {len(doc.get('actions') or {})} actions")
         return 0
+    if action == "validate-interactions":
+        from cli.agent_content.interaction_router import (
+            load_interaction_router, validate_interaction_router,
+        )
+        framework = _framework_dir(target)
+        try:
+            doc = load_interaction_router(framework)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"Refused: {exc}")
+            return 2 if isinstance(exc, FileNotFoundError) else 1
+        errors = validate_interaction_router(doc)
+        if errors:
+            for error in errors:
+                print(f"interaction-router: {error}")
+            return 1
+        print(f"interaction router valid: {len(doc.get('routes') or {})} routes")
+        return 0
+    if action == "validate-external-workflows":
+        from cli.agent_content.external_workflows import (
+            load_external_workflows, validate_external_workflows,
+        )
+        framework = _framework_dir(target)
+        try:
+            doc = load_external_workflows(framework)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"Refused: {exc}")
+            return 2 if isinstance(exc, FileNotFoundError) else 1
+        errors = validate_external_workflows(doc)
+        if errors:
+            for error in errors:
+                print(f"external-workflow: {error}")
+            return 1
+        print(f"external workflows valid: {len(doc.get('workflows') or {})} workflows")
+        return 0
+    if action == "validate-generated-reports":
+        from cli.agent_content.generated_reports import validate_report_files
+        framework = _framework_dir(target)
+        try:
+            errors = validate_report_files(framework)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"Refused: {exc}")
+            return 2 if isinstance(exc, FileNotFoundError) else 1
+        if errors:
+            for error in errors:
+                print(f"generated-report: {error}")
+            return 1
+        print("generated report schema and documents valid")
+        return 0
+    if action == "validate-provider-capabilities":
+        from cli.agent_content.provider_capabilities import (
+            load_capability_registry, load_provider_capabilities,
+            validate_provider_capabilities,
+        )
+        framework = _framework_dir(target)
+        try:
+            mapping = load_provider_capabilities(framework)
+            registry = load_capability_registry(framework)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"Refused: {exc}")
+            return 2 if isinstance(exc, FileNotFoundError) else 1
+        errors = validate_provider_capabilities(mapping, registry)
+        if errors:
+            for error in errors:
+                print(f"provider-capability: {error}")
+            return 1
+        print(f"provider capabilities valid: {len(mapping.get('providers') or {})} providers")
+        return 0
     print(f"Unknown content action: {action}")
     return 2

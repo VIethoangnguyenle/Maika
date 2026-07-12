@@ -1,0 +1,34 @@
+# Session interaction classification. Task lifecycle routing remains in
+# config/workflow-router.yaml.
+version: 1
+
+precedence:
+  - explicit_native_command
+  - explicit_maika_command
+  - natural_language_classification
+
+routes:
+  task_change:
+    handler: task-workflow
+    creates_change_workspace: true
+    mutability: task_scoped
+
+  knowledge_query:
+    handler: native-or-provider-query
+    creates_change_workspace: false
+    mutability: read_or_report
+
+  knowledge_maintenance:
+    handler: external-workflow
+    creates_change_workspace: false
+    mutability: registered_artifacts_only
+
+  learning_event:
+    handler: learning-store
+    creates_change_workspace: false
+    mutability: learning_store_only
+
+  framework_admin:
+    handler: framework-command
+    creates_change_workspace: false
+    mutability: framework_scoped

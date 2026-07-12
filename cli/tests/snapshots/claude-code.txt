@@ -8,7 +8,10 @@
 .maika/config/artifact-authority.yaml
 .maika/config/artifact-registry.yaml
 .maika/config/assumption-policy.yaml
+.maika/config/external-workflows.yaml
+.maika/config/generated-report.schema.yaml
 .maika/config/install-manifest.yaml
+.maika/config/interaction-router.yaml
 .maika/config/platforms.yaml
 .maika/config/project.yaml
 .maika/config/workflow-router.yaml
@@ -26,6 +29,8 @@
 .maika/knowledge/long-term/knowledge-index.yaml
 .maika/knowledge/long-term/knowledge-snapshot.md
 .maika/knowledge/long-term/persona.template.yaml
+.maika/knowledge/preferences/
+.maika/knowledge/preferences/.gitignore
 .maika/knowledge/skill-evolution/
 .maika/knowledge/skill-evolution/accepted/
 .maika/knowledge/skill-evolution/accepted/.gitkeep
@@ -54,6 +59,9 @@
 .maika/profiles/capabilities.md
 .maika/profiles/capability-registry.yaml
 .maika/profiles/execution-mode.yaml
+.maika/profiles/provider-capabilities.yaml
+.maika/reports/
+.maika/reports/.gitignore
 .maika/resolved-config.yaml
 .maika/rules/
 .maika/rules/RULES.md

@@ -27,11 +27,14 @@ _SHARED_HOST = frozenset({
 })
 
 # Project-owned top-level subtrees under the framework root — user state.
-_PROJECT_TOP = frozenset({"changes", "archive", "loops"})
+_PROJECT_TOP = frozenset({"changes", "archive", "loops", "reports"})
 
 # Project-owned knowledge subtrees (user seeds/data). knowledge/templates and
 # knowledge/README.md are framework-shipped and refreshed on update.
-_PROJECT_KNOWLEDGE = ("knowledge/active", "knowledge/long-term", "knowledge/skill-evolution")
+_PROJECT_KNOWLEDGE = (
+    "knowledge/active", "knowledge/long-term", "knowledge/skill-evolution",
+    "knowledge/preferences",
+)
 
 # Framework-generated files that live inside a project subtree but are
 # regenerated every run (so they are replaceable, not preserved).

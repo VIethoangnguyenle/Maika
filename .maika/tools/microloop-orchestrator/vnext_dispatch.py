@@ -22,6 +22,10 @@ DISPATCH_TYPES = {
     "verification", "knowledge_curator", "skill_evolution_curator",
     "skill_evolution_implementer", "skill_evolution_reviewer",
 }
+DEFAULT_EXTERNAL_WORKFLOWS = {
+    "allowed": [],
+    "request_only": ["understand", "understand-domain", "codebase-memory-index"],
+}
 
 
 def _dispatch_kernel():
@@ -49,6 +53,57 @@ def _load(name, rel):
 
 def _read_queue(ws):
     return json.loads((Path(ws) / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+
+
+def _external_workflow_registry():
+    path = Path(__file__).resolve().parents[2] / "config" / "external-workflows.yaml"
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return doc.get("workflows") or {}
+
+
+def external_workflow_contract(task=None):
+    task = task or {}
+    supplied = task.get("external_workflows") or {}
+    contract = {
+        "allowed": list(supplied.get("allowed") or []),
+        "request_only": list(
+            supplied.get("request_only") or DEFAULT_EXTERNAL_WORKFLOWS["request_only"]
+        ),
+    }
+    known = set(_external_workflow_registry())
+    unknown = (set(contract["allowed"]) | set(contract["request_only"])) - known
+    if unknown:
+        raise ValueError(f"unknown external workflows in dispatch contract: {sorted(unknown)}")
+    return contract
+
+
+def validate_external_workflow_request(text, contract=None):
+    try:
+        doc = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        return False, f"invalid external workflow request YAML: {exc}", None
+    if not isinstance(doc, dict):
+        return False, "external workflow request must be a mapping", None
+    if doc.get("request_type") != "external_workflow":
+        return False, "request_type must be external_workflow", doc
+    workflow = doc.get("workflow")
+    registry = _external_workflow_registry()
+    if workflow not in registry:
+        return False, f"unknown external workflow: {workflow!r}", doc
+    contract = contract or external_workflow_contract()
+    permitted = set(contract["allowed"]) | set(contract["request_only"])
+    if workflow not in permitted:
+        return False, f"workflow not granted or requestable: {workflow}", doc
+    if not isinstance(doc.get("reason"), str) or not doc["reason"].strip():
+        return False, "external workflow request requires reason", doc
+    if not isinstance(doc.get("required_for"), list) or not doc["required_for"]:
+        return False, "external workflow request requires required_for", doc
+    for field in ("observed_freshness", "resume_role"):
+        if not isinstance(doc.get(field), str) or not doc[field].strip():
+            return False, f"external workflow request requires {field}", doc
+    if not isinstance(doc.get("affected_claims"), list):
+        return False, "external workflow request affected_claims must be a list", doc
+    return True, None, doc
 
 
 def _write_queue(ws, doc, expected_generation=None):
@@ -154,6 +209,9 @@ def build_prompt(klass, ws, brief_rel, result_rel, extra=None, task=None):
     capsule = task.get("capsule_path") or "none"
     context_package = task.get("context_package_path") or "none"
     prior_review = task.get("review_path") or "none"
+    external_workflows = json.dumps(
+        external_workflow_contract(task), ensure_ascii=False, sort_keys=True,
+    )
     lines = [
         f"DISPATCH_TYPE: {klass}",
         f"ROLE: {klass}",
@@ -166,6 +224,7 @@ def build_prompt(klass, ws, brief_rel, result_rel, extra=None, task=None):
         f"KNOWLEDGE_CAPSULE: {ws / capsule if capsule != 'none' else capsule}",
         f"CONTEXT_PACKAGE: {ws / context_package if context_package != 'none' else context_package}",
         f"PRIOR_REVIEW: {ws / prior_review if prior_review != 'none' else prior_review}",
+        f"EXTERNAL_WORKFLOWS: {external_workflows}",
         DISPATCH_KERNEL_ID,
         "",
         _dispatch_kernel(),
@@ -262,6 +321,16 @@ def run_authoring_dispatch(ws, role, runner, vs, validator=None):
         "ts": datetime.now(timezone.utc).isoformat(),
     })
     out_path = ws / spec["output"]
+    workflow_request = ws / "EXTERNAL_WORKFLOW_REQUEST.yaml"
+    if workflow_request.exists():
+        ok, reason, request = validate_external_workflow_request(
+            workflow_request.read_text(encoding="utf-8")
+        )
+        return {
+            "ok": False,
+            "reason": "EXTERNAL_WORKFLOW_REQUEST" if ok else reason,
+            "request": request,
+        }
     if not out_path.exists():
         return {"ok": False,
                 "reason": f"worker produced no {spec['output']} (exit {exit_code}: {output})"}
@@ -400,11 +469,32 @@ def _run_implementation_or_fix(ws, gates, task, runner, max_retries, dispatch_ty
         update_path = result_path.with_name(f"{task_id}.EVIDENCE_UPDATE_REQUEST.yaml")
         if update_path.exists():
             update_path.unlink()
+        workflow_request_path = result_path.with_name(
+            f"{task_id}.EXTERNAL_WORKFLOW_REQUEST.yaml"
+        )
+        if workflow_request_path.exists():
+            workflow_request_path.unlink()
         _update_task(ws, task_id, status="in_progress", attempts=attempt)
         exit_code, output = _dispatch_to_runner(
             ws, dispatch_type, current, current["brief_path"], current["result_path"],
             runner, attempt=attempt,
         )
+        if workflow_request_path.exists():
+            ok, reason, request = validate_external_workflow_request(
+                workflow_request_path.read_text(encoding="utf-8"),
+                external_workflow_contract(current),
+            )
+            _update_task(
+                ws, task_id, status="blocked",
+                blocked_reason="EXTERNAL_WORKFLOW_REQUEST" if ok else reason,
+                external_workflow_request=str(workflow_request_path.relative_to(ws)),
+            )
+            return {
+                "status": "blocked",
+                "reason": "EXTERNAL_WORKFLOW_REQUEST" if ok else reason,
+                "request": request,
+                "attempt": attempt,
+            }
         if update_path.exists():
             request = gates.validate_evidence_update_request(update_path.read_text(encoding="utf-8"))
             if request.ok:
