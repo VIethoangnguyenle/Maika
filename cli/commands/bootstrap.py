@@ -90,9 +90,11 @@ def run_bootstrap(target_dir: str = ".", home: Path | None = None) -> int:
         if not healthy:
             degradation.append({"provider_id": provider_id, "status": probe_status,
                                 "fallback": "current-source/read-only local evidence"})
-    rule_names = ["RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
-                  "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"]
-    rules_present = [name for name in rule_names if (framework / "rules" / name).exists()]
+    rules_dir = framework / "rules"
+    rules_present = sorted(
+        path.relative_to(rules_dir).as_posix()
+        for path in rules_dir.rglob("*.md")
+    ) if rules_dir.exists() else []
     active = _active_changes(framework)
     if not active:
         resume_state = "new"

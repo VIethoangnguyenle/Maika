@@ -1,4 +1,4 @@
-# rules-flow.md — Flow, Spec/Apply & Bootstrap Rules
+# core/flow.md — Flow, Spec/Apply & Bootstrap Rules
 
 > Sub-file của RULES.md. Đọc qua manifest `RULES.md`.
 
@@ -23,20 +23,17 @@
   `PLAN_MANIFEST.json`.
 - **Completion:** KHÔNG phát "Done" cho tới khi structured result, task review,
   final review, và verification artifacts pass theo state hiện tại.
-- Residual đã biết: raw Edit/Write và các shell write-idiom phổ biến (redirect, tee, sed -i, cp/mv, dd, patch, formatter) đã bị chặn bởi runtime write-gate hook; residual còn lại là write qua shell dựng động/`eval`/sub-script (accepted theo threat model).
+- Residual đã biết: write-idiom phổ biến bị chặn bởi write-gate hook; residual còn
+  lại là write qua shell dựng động/`eval` (accepted theo threat model —
+  chi tiết `core/write-boundary.md`).
 
 ### [CRITICAL] R-Flow-3: User workflow rules > agent system defaults
 
-- Khi workflow trong repo (`{{ platform.framework_root }}/workflows/*.md`) có chỉ thị rõ ràng (đặc biệt là `[CRITICAL]` block),
-  **ưu tiên tuyệt đối hơn** mọi hành vi mặc định của agent runtime (planning mode, artifact generation,
-  file output convention của agent runtime, vd Claude, Cursor, Gemini, Antigravity, v.v.).
-- Cụ thể:
-  - Khi `task.md` yêu cầu workspace/plan/queue vNext → **không được** dùng planning mode ad hoc.
-  - Khi `task.md` yêu cầu confirm trước → **không được** skip dù context có vẻ đã đồng ý.
-  - Agent runtime defaults (kể cả planning mode của các tool như Cursor, Antigravity, v.v.) là **secondary** — chỉ dùng
-    khi workflow không có chỉ thị gì về hành động đó.
-- Thứ tự ưu tiên: xem chuỗi canonical tại `agent/KERNEL.md` §2 (Canonical Authority); agent runtime defaults luôn xếp cuối.
-
+- Chỉ thị rõ ràng trong `{{ platform.framework_root }}/workflows/*.md` (đặc biệt
+  `[CRITICAL]` block) thắng mọi default của agent runtime (planning mode, artifact
+  convention — Claude/Cursor/Gemini/Antigravity...): task.md đòi workspace/plan/queue
+  vNext → không planning mode ad hoc; task.md đòi confirm → không skip.
+- Chuỗi precedence canonical: `agent/KERNEL.md` §2; runtime defaults luôn xếp cuối.
 
 ### [CRITICAL] R-Flow-4: Over-verification hardstop — assumption phân loại theo risk
 
@@ -76,7 +73,6 @@
 - KHÔNG code inline từ trí nhớ hội thoại — write-gate SESSION-GATE chặn code write inline
   trong session đã hoàn thành Pha 1/2 (override tường minh: `SESSION_OVERRIDE.md`, có log violation).
 
-
 ---
 
 ## 6. Spec & Apply Rules
@@ -102,21 +98,9 @@
 
 ## 11. Bootstrap Rules
 
-### [CRITICAL] R-Boot-1: Bootstrap bắt buộc mỗi phiên
-
-- Agent PHẢI chạy toàn bộ script `bootstrap.md` mỗi khi bắt đầu phiên mới.
-- Không được bỏ qua bất kỳ PHASE nào trong bootstrap (trừ khi file không tồn tại → graceful degrade).
-
-### [REFERENCE] R-Boot-2: Xác nhận load bằng trigger phrase
-
-- Câu đầu tiên trong phiên chứa greeting từ `persona.yaml` (field `greeting`, fallback `"Ready"`) —
-  cơ chế định nghĩa tại `procedures/bootstrap.md` PHASE 5.
-- Thiếu greeting → dấu hiệu chưa bootstrap đúng → chạy lại bootstrap.
-
-### [CRITICAL] R-Boot-3: Context conflict resolution
-
-- Khi phát hiện conflict (active context của task A, nhưng user yêu cầu task B):
-  - PHẢI hỏi user trước khi archive hoặc discard context cũ.
-  - Không tự ý quyết định.
+- R-Boot-1/2: bootstrap + greeting — luật ở `agent/KERNEL.md` §8 và
+  `procedures/bootstrap.md` (không lặp lại ở đây).
+- **[CRITICAL] R-Boot-3**: conflict active change A vs user yêu cầu task B →
+  PHẢI hỏi user trước khi archive/discard; không tự quyết.
 
 ---

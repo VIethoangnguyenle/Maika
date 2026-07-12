@@ -3,7 +3,7 @@
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-RULES = REPO_ROOT / ".maika" / "rules" / "rules-tool.md"
+RULES = REPO_ROOT / ".maika" / "rules" / "jit/providers.md"
 
 
 def _text():

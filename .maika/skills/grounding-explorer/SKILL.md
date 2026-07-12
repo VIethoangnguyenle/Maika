@@ -77,7 +77,7 @@ Capability IDs: `architecture_discovery`, `exact_source_inspection`,
   `dependency_analysis`, `historical_context_retrieval`,
   `business_knowledge_retrieval`, `convention_retrieval`,
   `database_schema_inspection`, `runtime_verification`.
-Provider ưu tiên theo `rules-tool.md`; skill chỉ gọi capability, không gọi provider.
+Provider ưu tiên theo `jit/providers.md`; skill chỉ gọi capability, không gọi provider.
 
 ## Quy trình truy xuất
 1. Đọc `QUERY_PLAN.yaml`; mỗi câu hỏi → resolve capability từ required_evidence_types.
@@ -89,7 +89,7 @@ Provider ưu tiên theo `rules-tool.md`; skill chỉ gọi capability, không g�
 
 ## Thứ tự authority và precedence
 live DB state > current source > business contract hiện hành > fresh graph >
-durable knowledge > historical memory > inference (xem `rules-knowledge.md` R-Know-2).
+durable knowledge > historical memory > inference (xem `core/evidence.md` R-Know-2).
 
 ## Kết quả bắt buộc
 - 3 lens `codebase/business/conventions` không rỗng.

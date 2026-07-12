@@ -1,39 +1,9 @@
-# rules-guard.md — Guard Rules (Pre-invoke, DNA, KI)
+# jit/teaching-moment.md — Teaching Moment & External KI (JIT)
 
-> Sub-file của RULES.md. Đọc qua manifest `RULES.md`.
+> JIT rule — load khi: phát hiện user correction (teaching moment) hoặc bootstrap
+> phát hiện external KI. Write boundary core: `core/write-boundary.md`.
 
 ---
-
-## 14. Guard Rules — Pre-invoke Guardrails
-
-### [CRITICAL] R-Guard-1: Kiểm tra pre_conditions trước khi gọi skill
-
-- Mỗi skill có thể khai báo block `pre_conditions:` trong frontmatter.
-- Trước khi thực thi bất kỳ skill nào có `pre_conditions:`, agent **PHẢI**:
-  1. Đọc từng condition trong list.
-  2. Kiểm tra điều kiện (`not_empty`, `not_skeleton`, `exists`, `phase_done`).
-  3. Nếu **tất cả** pass → thực thi skill bình thường.
-  4. Nếu **bất kỳ** condition fail → thực hiện `on_fail` action và **ABORT** skill đó.
-- `on_fail` action thường là:
-  - `ABORT — <hướng dẫn>`: dừng hoàn toàn, thông báo user.
-  - `WARN — <hướng dẫn>`: tiếp tục nhưng ghi cảnh báo vào artifact result/review
-    của phase hiện tại.
-- Không được bypass `pre_conditions` dù context có vẻ đủ — guard phải chạy deterministically.
-- Precondition guards phải chạy trước skill để lỗi không lan sang downstream skills.
-
-### [CRITICAL] R-Guard-2: vNext write gate
-
-Trước khi tạo/sửa bất kỳ application-code artifact nào, agent PHẢI có đúng một
-workspace vNext ở trạng thái `EXECUTING`:
-
-- `{{ platform.framework_root }}/changes/<id>/STATE.yaml`
-- `{{ platform.framework_root }}/changes/<id>/generated/PLAN_VALIDATION.json`
-- `{{ platform.framework_root }}/changes/<id>/generated/PLAN_MANIFEST.json`
-- `{{ platform.framework_root }}/changes/<id>/generated/TASK_QUEUE.json`
-
-Write-gate chỉ cho phép file nằm trong `files.create`, `files.modify`,
-`files.delete`, hoặc `files.test` của task `in_progress` hiện tại. Gate FAIL →
-**ABORT**, không được viết code. Chi tiết: `procedures/decision-gate.md`.
 
 ### [CRITICAL] R-DNA-7: Capture teaching moment ngay trong phiên
 

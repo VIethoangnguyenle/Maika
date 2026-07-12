@@ -43,7 +43,7 @@ Scaffold ở target phơi bày workflow chuẩn qua `maika task`:
 `ARCHIVE_MANIFEST.yaml`, và dời workspace sang `<framework-root>/archive/<change-id>`.
 Verification cũng bắt buộc `reviews/SKILL_FEEDBACK.yaml`; archive record feedback,
 cluster recurrence và chỉ tạo skill candidate khi threshold trong
-`rules/rules-skill-evolution.md` pass. Candidate không được auto-promote.
+`rules/jit/skill-evolution.md` pass. Candidate không được auto-promote.
 
 Mọi reconciliation/spec/plan/review/verification material decision phải pass gate
 `knowledge-trace`. Mọi fresh dispatch phải pass `context-package` và
@@ -89,7 +89,7 @@ ARCHIVE_MANIFEST.yaml
 - Change standard và architectural cần grounding đa nguồn (query plan → provider
   probe → evidence → reconcile) trước khi chốt thiết kế.
 - Provider ưu tiên khỏe không được skip im lặng; provider absent phải ghi
-  degradation record (xem `rules-tool.md`).
+  degradation record (xem `jit/providers.md`).
 - Implementer nhận brief bất biến + Task Knowledge Capsule, không nhận history
   của parent session.
 - Reviewer không sửa application code; task review APPROVED cần counter-evidence.

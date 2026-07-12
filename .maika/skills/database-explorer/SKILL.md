@@ -58,7 +58,7 @@ transaction/locking, job/outbox, audit, hoặc DB performance.
 ## Chính sách capability
 Capability IDs: `database_schema_inspection`, `database_dependency_analysis`,
   `exact_source_inspection`.
-Chỉ read-only; không tự chạy DDL/DML trong exploration (`rules-tool.md` R-Tool-9).
+Chỉ read-only; không tự chạy DDL/DML trong exploration (`jit/providers.md` R-Tool-9).
 
 ## Quy trình truy xuất
 1. Từ source, liệt kê entity/table/procedure trong scope.

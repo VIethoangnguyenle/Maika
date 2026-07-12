@@ -97,41 +97,53 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/rules/RULES.md"
 
-  - name: rules-flow
+  - name: rules-core-flow
     type: rule
-    source: rules/rules-flow.md
+    source: rules/core/flow.md
     template: false
-    output: "{{ platform.framework_root }}/rules/rules-flow.md"
+    output: "{{ platform.framework_root }}/rules/core/flow.md"
 
-  - name: rules-tool
+  - name: rules-jit-providers
     type: rule
-    source: rules/rules-tool.md
+    source: rules/jit/providers.md
     template: false
-    output: "{{ platform.framework_root }}/rules/rules-tool.md"
+    output: "{{ platform.framework_root }}/rules/jit/providers.md"
 
-  - name: rules-exec
+  - name: rules-core-verification
     type: rule
-    source: rules/rules-exec.md
+    source: rules/core/verification.md
     template: false
-    output: "{{ platform.framework_root }}/rules/rules-exec.md"
+    output: "{{ platform.framework_root }}/rules/core/verification.md"
 
-  - name: rules-knowledge
+  - name: rules-core-evidence
     type: rule
-    source: rules/rules-knowledge.md
+    source: rules/core/evidence.md
     template: false
-    output: "{{ platform.framework_root }}/rules/rules-knowledge.md"
+    output: "{{ platform.framework_root }}/rules/core/evidence.md"
 
-  - name: rules-skill-evolution
+  - name: rules-jit-skill-evolution
     type: rule
-    source: rules/rules-skill-evolution.md
+    source: rules/jit/skill-evolution.md
     template: false
-    output: "{{ platform.framework_root }}/rules/rules-skill-evolution.md"
+    output: "{{ platform.framework_root }}/rules/jit/skill-evolution.md"
 
-  - name: rules-guard
+  - name: rules-core-write-boundary
     type: rule
-    source: rules/rules-guard.md
+    source: rules/core/write-boundary.md
     template: false
-    output: "{{ platform.framework_root }}/rules/rules-guard.md"
+    output: "{{ platform.framework_root }}/rules/core/write-boundary.md"
+
+  - name: rules-jit-knowledge-lifecycle
+    type: rule
+    source: rules/jit/knowledge-lifecycle.md
+    template: false
+    output: "{{ platform.framework_root }}/rules/jit/knowledge-lifecycle.md"
+
+  - name: rules-jit-teaching-moment
+    type: rule
+    source: rules/jit/teaching-moment.md
+    template: false
+    output: "{{ platform.framework_root }}/rules/jit/teaching-moment.md"
 
   # ─── PROFILES ───
   - name: capabilities-profile

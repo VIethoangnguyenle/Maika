@@ -11,13 +11,15 @@
 CHECK {{ platform.config_entry_point }}        → không có: ABORT "Repo chưa cấu hình Agent Memory Architecture."
 CHECK {{ platform.framework_root }}/rules/RULES.md → không có: WARN, tiếp tục với guardrails mặc định
 READ: {{ platform.config_entry_point }}
-READ: {{ platform.framework_root }}/rules/RULES.md              ← manifest + index
-READ: {{ platform.framework_root }}/rules/rules-flow.md         ← flow constraints
-READ: {{ platform.framework_root }}/rules/rules-tool.md         ← tool permissions
-READ: {{ platform.framework_root }}/rules/rules-exec.md         ← data/arch/cost/obs
-READ: {{ platform.framework_root }}/rules/rules-knowledge.md    ← knowledge lifecycle + path
-READ: {{ platform.framework_root }}/rules/rules-skill-evolution.md ← verified skill learning
-READ: {{ platform.framework_root }}/rules/rules-guard.md        ← pre-invoke guards (đọc SAU cùng)
+READ: {{ platform.framework_root }}/rules/RULES.md                     ← manifest + load matrix
+READ: {{ platform.framework_root }}/rules/core/flow.md                 ← flow constraints
+READ: {{ platform.framework_root }}/rules/core/evidence.md             ← evidence law
+READ: {{ platform.framework_root }}/rules/core/write-boundary.md       ← pre-invoke guards
+READ: {{ platform.framework_root }}/rules/core/verification.md         ← execution + verification
+
+KHÔNG preload rules/jit/* — load theo bảng "JIT — load theo điều kiện" trong RULES.md
+(providers khi grounding/planning/review; knowledge-lifecycle khi planning/archive;
+skill-evolution sau VERIFIED; teaching-moment khi có user correction / external KI).
 ```
 
 ### PHASE 0.5 — External KI Conflict Check

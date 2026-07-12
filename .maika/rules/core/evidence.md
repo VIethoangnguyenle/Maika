@@ -1,8 +1,8 @@
-# rules-knowledge.md — Hiến pháp tri thức (Knowledge Constitution)
+# core/evidence.md — Hiến pháp evidence (CORE, always-on)
 
-> Sub-file của `RULES.md`. Đọc qua manifest `RULES.md`.
+> Core rule — luôn load qua manifest `RULES.md`. Lifecycle/promotion: xem `jit/knowledge-lifecycle.md`.
 > Định nghĩa cách Maika **truy hồi, xác thực, áp dụng và tiến hóa** tri thức dự án
-> xuyên suốt vòng đời thay đổi phần mềm. Provider doctrine cụ thể: xem `rules-tool.md`.
+> xuyên suốt vòng đời thay đổi phần mềm. Provider doctrine cụ thể: xem `jit/providers.md`.
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### [CRITICAL] R-Know-1: Nguồn tri thức (knowledge sources)
 
-Maika công nhận đúng các nguồn sau, không nguồn nào khác được coi là source of truth:
+Maika công nhận đúng các nguồn sau — không nguồn nào khác là source of truth:
 
 1. **Understand-Anything (UA)** — graph kiến trúc/domain, quan hệ module, tài liệu.
 2. **Codebase Memory (CBM)** — graph symbol/dependency, call path, phạm vi ảnh hưởng.
@@ -51,9 +51,8 @@ memory ref / DB object), `indexed_commit` (với graph), **freshness state**, v�
 
 ### R-Know-5: Confidence
 
-- `high` = ≥2 nguồn độc lập đồng thuận **và** exact fact đã verify bằng current source.
-- `medium` = một nguồn, hoặc nhiều nguồn nhưng chưa verify source.
-- `low` = chỉ inference / evidence stale / degradation.
+- `high` = ≥2 nguồn độc lập **và** exact fact đã verify bằng current source;
+  `medium` = một nguồn / chưa verify source; `low` = inference / stale / degradation.
 
 ### [CRITICAL] R-Know-6: Nghĩa vụ truy hồi (P1 + P2)
 
@@ -64,8 +63,8 @@ memory ref / DB object), `indexed_commit` (với graph), **freshness state**, v�
 
 ### R-Know-7: Provider usage
 
-Chính sách dùng provider (preferred provider, use-when-healthy, real probe, DB read-only,
-memory recall) định nghĩa tại **`rules-tool.md`** — không lặp lại ở đây (một nguồn duy nhất).
+Chính sách provider (preferred, use-when-healthy, probe, DB read-only, recall):
+**`jit/providers.md`** — một nguồn duy nhất.
 
 ### [CRITICAL] R-Know-8: Reconcile mâu thuẫn (conflict reconciliation)
 
@@ -89,49 +88,3 @@ Mâu thuẫn material **chưa resolve** thì **block design** (không được �
   (id, type, statement, evidence_gap, expiry_condition). Không được suy luận ngầm
   dựa trên giả định chưa ghi; type rủi ro (public contract, persistence, security,
   migration, behavior-changing) bị gate chặn cho tới khi có human decision.
-
-### [CRITICAL] R-Know-11: Invalidation
-
-- Tri thức sai / lỗi thời phải được **invalidate** ngay khi phát hiện; doc/entry bị thay
-  phải nhận header `Status: SUPERSEDED by <path> (<ngày>)` (đồng bộ dev-rule R6).
-
-### R-Know-12: Promotion
-
-- Tri thức đã **verified** mới được promote vào durable knowledge (Author DNA khi là
-  thinking lens đã confirmed; conventions khi đủ repeated evidence; `knowledge-snapshot.md`
-  khi là factual architecture). Extraction chỉ chạy **sau verified completion**.
-
-### R-Know-13: Supersession
-
-- Entry cũ khi bị thay ghi `superseded_by`, **không xóa lịch sử tri thức** — git + archive
-  giữ lịch sử.
-
-### R-Know-14: Knowledge slice (P8)
-
-- Mỗi implementation task nhận **slice nhỏ nhất liên quan** (code evidence, business rule,
-  convention, Author DNA, historical context, DB evidence, forbidden pattern, assumption,
-  freshness, confidence) — chi tiết capsule ở skill `writing-plan` / `knowledge-retriever`.
-
-### R-Know-15: Memory save
-
-- Sau verified completion, save episodic memory (bài học phòng incident, quyết định, rejected
-  approach) vào Agent Memory để recall cho change tương lai.
-
-### [CRITICAL] R-Know-16: Database evidence
-
-- Persistence-sensitive change phải mang DB evidence vào knowledge (xem `rules-tool.md`
-  R-Tool-9). Chênh lệch source ↔ live DB được ghi là conflict `database drift` và reconcile.
-
-### R-Know-17: Graph / index refresh
-
-- Change ảnh hưởng cấu trúc code/domain → trigger **graph refresh** (UA/CBM re-index) và
-  **regenerate knowledge index** (`knowledge-index.yaml`) khi cần.
-
----
-
-## Quy ước path knowledge
-
-Durable knowledge (`long-term/`, `templates/`, `skill-evolution/`) quy ước tại
-**`knowledge/README.md`**; task-scoped artifact quy ước tại
-**`config/artifact-authority.yaml`** (một decision — một source). Artifact
-grounding chính: `changes/<id>/exploration/GROUNDING.yaml`, `EVIDENCE_MANIFEST.yaml`.

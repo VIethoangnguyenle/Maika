@@ -23,8 +23,8 @@ def _write_bootstrap(framework_root):
     path.write_text(yaml.safe_dump({
         "version": 2, "completed": True, "timestamp": datetime.now(timezone.utc).isoformat(), "repository_commit": "unavailable",
         "entry_point": "AGENTS.md",
-        "rules_present": ["RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
-                          "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"],
+        "rules_present": ["RULES.md", "core/flow.md", "jit/providers.md", "core/verification.md",
+                          "core/evidence.md", "jit/skill-evolution.md", "core/write-boundary.md"],
         "knowledge_index": {"status": "loaded", "entries": 1},
         "configured_providers": [], "provider_probes": [], "episodic_provider_health": "not-configured",
         "active_changes": [], "resume_state": "new", "degradation": [],

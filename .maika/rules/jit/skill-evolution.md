@@ -1,4 +1,4 @@
-# rules-skill-evolution.md — Skill Evolution Constitution
+# jit/skill-evolution.md — Skill Evolution Constitution
 
 ## 12. Skill Evolution Rules
 

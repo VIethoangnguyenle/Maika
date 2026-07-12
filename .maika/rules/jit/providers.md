@@ -1,10 +1,11 @@
-# rules-tool.md — Provider Doctrine (Tool & MCP)
+# jit/providers.md — Provider Doctrine (JIT)
 
-> Sub-file của `RULES.md`. Đọc qua manifest `RULES.md`.
+> JIT rule — load khi: grounding/exploration, planning, review, hoặc change
+> chạm persistence (DB doctrine nằm ở đây).
 > Định nghĩa **provider doctrine**: capability nào ưu tiên provider nào, khi nào
 > BẮT BUỘC dùng, cách probe/freshness/degradation, và thẩm quyền của current source.
 > Nguyên tắc nền: **provider hỗ trợ suy luận, không ghi đè current source / live DB /
-> business contract hiện hành** (xem `rules-knowledge.md` §Thứ tự thẩm quyền).
+> business contract hiện hành** (xem `core/evidence.md` §Thứ tự thẩm quyền).
 
 ---
 

@@ -67,4 +67,4 @@ exceptions: {}
 resolved: {}
 
 # LƯU Ý: Coding philosophy KHÔNG thuộc file này — ghi vào author-dna.yaml
-# (xem R-DNA-7 Bước 0 trong rules-guard.md).
+# (xem R-DNA-7 Bước 0 trong core/write-boundary.md).

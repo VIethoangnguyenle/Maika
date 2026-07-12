@@ -137,6 +137,6 @@ def test_task_route_dry_run(tmp_path, maika_root, capsys):
 
 
 def test_fixed_flow_rule_is_dead():
-    rules_flow = (FRAMEWORK / "rules" / "rules-flow.md").read_text(encoding="utf-8")
+    rules_flow = (FRAMEWORK / "rules" / "core/flow.md").read_text(encoding="utf-8")
     assert "Chuỗi state cố định" not in rules_flow
     assert "workflow-router.yaml" in rules_flow

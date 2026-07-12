@@ -33,7 +33,7 @@ DISALLOWED_HEADINGS = [
 
 def _runtime_files():
     files = sorted(SKILLS.glob("*/SKILL.md"))
-    files += [RULES / n for n in ("rules-knowledge.md", "rules-tool.md", "rules-exec.md")]
+    files += [RULES / n for n in ("core/evidence.md", "jit/providers.md", "core/verification.md")]
     files += [ROOT / ".maika" / "workflows" / "task.md"]
     return [f for f in files if f.exists()]
 

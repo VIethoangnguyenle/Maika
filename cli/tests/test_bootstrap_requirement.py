@@ -35,8 +35,8 @@ def _env_report():
         "version": 2, "completed": True,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "repository_commit": "unavailable", "entry_point": "AGENTS.md",
-        "rules_present": ["RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
-                          "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"],
+        "rules_present": ["RULES.md", "core/flow.md", "jit/providers.md", "core/verification.md",
+                          "core/evidence.md", "jit/skill-evolution.md", "core/write-boundary.md"],
         "knowledge_index": {"status": "loaded", "entries": 1},
         "configured_providers": [], "provider_probes": [],
         "episodic_provider_health": "not-configured",
@@ -47,7 +47,7 @@ def _env_report():
 def test_bootstrap_complete_gate_uses_rules_present_facts():
     report = _env_report()
     assert GATES.validate_bootstrap_complete(yaml.safe_dump(report)).ok
-    report["rules_present"].remove("rules-skill-evolution.md")
+    report["rules_present"].remove("core/evidence.md")
     assert not GATES.validate_bootstrap_complete(yaml.safe_dump(report)).ok
     stale = _env_report()
     stale["rules_loaded"] = stale.pop("rules_present")  # legacy shape must fail

@@ -50,7 +50,7 @@ Capability IDs: `historical_context_retrieval`, `convention_retrieval`,
 `business_knowledge_retrieval`. Zero-result là evidence hợp lệ — ghi lại, không bỏ qua.
 
 ## Quy trình truy xuất
-1. Map knowledge question → capability → provider ưu tiên (rules-tool.md).
+1. Map knowledge question → capability → provider ưu tiên (jit/providers.md).
 2. Kéo entry qua index slice (JIT), không nạp full store.
 3. Phân loại kết quả: valid / superseded / conflicting / advisory.
 

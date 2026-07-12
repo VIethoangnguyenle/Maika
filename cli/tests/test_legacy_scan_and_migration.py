@@ -23,8 +23,8 @@ def test_agent_facing_content_is_legacy_clean():
 
 def test_scan_flags_seeded_reference(tmp_path):
     fw = tmp_path / ".maika"
-    (fw / "rules").mkdir(parents=True)
-    (fw / "rules" / "rules-flow.md").write_text(
+    (fw / "rules" / "core").mkdir(parents=True)
+    (fw / "rules" / "core" / "flow.md").write_text(
         "Đọc knowledge/active/REQUIREMENT.md trước khi spec\n", encoding="utf-8"
     )
     findings = scan_legacy_references(fw)

@@ -5,7 +5,7 @@ RULES = ROOT / "rules"
 
 
 def test_guard2_is_evidence_gate_and_generic():
-    text = (RULES / "rules-guard.md").read_text(encoding="utf-8")
+    text = (RULES / "core/write-boundary.md").read_text(encoding="utf-8")
     assert "TASK_QUEUE.json" in text
     assert "decision-gate" in text
     # generic-ised: no hard-coded artifact-type enum in the rule
@@ -14,13 +14,13 @@ def test_guard2_is_evidence_gate_and_generic():
 
 
 def test_rtool8_dispatch_gate():
-    text = (RULES / "rules-tool.md").read_text(encoding="utf-8")
+    text = (RULES / "jit/providers.md").read_text(encoding="utf-8")
     assert "handoff-slice" in text                     # references the gate validator
     assert "Applicable DNA/Conventions" in text         # required slice section
 
 
 def test_rflow_phase_gate():
-    text = (RULES / "rules-flow.md").read_text(encoding="utf-8")
+    text = (RULES / "core/flow.md").read_text(encoding="utf-8")
     assert "maika task apply" in text                    # public W5 entry point
     assert "PLAN_VALIDATION.json" in text                # plan gate validator
     assert "reviews/plan-review.md" in text              # review gate artifact
@@ -29,14 +29,14 @@ def test_rflow_phase_gate():
 
 
 def test_rtool_mcp_probe_collapse():
-    text = (RULES / "rules-tool.md").read_text(encoding="utf-8")
+    text = (RULES / "jit/providers.md").read_text(encoding="utf-8")
     assert "mcp-status" in text                          # probe gate validator
     assert "Runtime Ready" not in text or "rỗng = invalid" in text
     assert "secondary" not in text                       # removed skippable preference prose
 
 
 def test_rules_tool_mentions_bridge_fallback_and_node_checkpoint():
-    text = (ROOT / "rules" / "rules-tool.md").read_text(encoding="utf-8")
+    text = (ROOT / "rules" / "jit/providers.md").read_text(encoding="utf-8")
     assert "mcp-bridge" in text
     assert "NODE_CHECKPOINT.<node-id>.md" in text
     assert "CONTEXT_REQUEST.<node-id>.md" in text

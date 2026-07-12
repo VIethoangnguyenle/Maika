@@ -1195,8 +1195,9 @@ def validate_bootstrap_complete(text: str) -> Result:
     if not str(data.get("repository_commit") or "").strip():
         return Result(False, "bootstrap repository_commit cannot be empty")
     rules = set(data.get("rules_present") or [])
-    required_rules = {"RULES.md", "rules-flow.md", "rules-tool.md", "rules-exec.md",
-                      "rules-knowledge.md", "rules-skill-evolution.md", "rules-guard.md"}
+    # CORE rules must all be present; JIT files are listed as facts but load on demand.
+    required_rules = {"RULES.md", "core/flow.md", "core/evidence.md",
+                      "core/write-boundary.md", "core/verification.md"}
     if not required_rules <= rules:
         return Result(False, "bootstrap environment is missing a core rule file")
     index = data.get("knowledge_index") or {}
