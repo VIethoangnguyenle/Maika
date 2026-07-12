@@ -1,0 +1,69 @@
+version: 1
+
+workflows:
+  understand:
+    owner: understand-anything
+    invocation_type: native_passthrough
+    kind: knowledge_maintenance
+    task_workspace: forbidden
+    mutability: registered_artifacts_only
+    commands:
+      canonical: /understand
+    allowed_writes:
+      - .understand-anything/knowledge-graph.json
+      - .understand-anything/meta.json
+    produces:
+      - .understand-anything/knowledge-graph.json
+    freshness:
+      binds_to_repository_commit: true
+
+  understand-domain:
+    owner: understand-anything
+    invocation_type: native_passthrough
+    kind: knowledge_maintenance
+    task_workspace: forbidden
+    mutability: registered_artifacts_only
+    commands:
+      canonical: /understand-domain
+    allowed_writes:
+      - .understand-anything/domain-graph.json
+      - .understand-anything/meta.json
+    produces:
+      - .understand-anything/domain-graph.json
+    freshness:
+      binds_to_repository_commit: true
+
+  understand-chat:
+    owner: understand-anything
+    invocation_type: native_passthrough
+    kind: knowledge_query
+    task_workspace: not_required
+    mutability: read_or_report
+    commands:
+      canonical: /understand-chat
+    output_modes: [chat, generated_report]
+    allowed_report_paths:
+      - .maika/reports/understand-chat/**
+      - .maika/changes/*/exploration/UNDERSTAND_CHAT_*.md
+    forbidden_writes:
+      - .maika/knowledge/long-term/**
+      - .maika/rules/**
+      - .maika/skills/**
+      - src/**
+    promotion:
+      automatic: false
+
+  codebase-memory-index:
+    owner: codebase-memory-mcp
+    invocation_type: provider_operation
+    kind: knowledge_maintenance
+    task_workspace: forbidden
+    mutability: provider_index_only
+    produces: [provider-managed-index]
+
+  codebase-memory-query:
+    owner: codebase-memory-mcp
+    invocation_type: provider_query
+    kind: knowledge_query
+    task_workspace: not_required
+    mutability: read_only

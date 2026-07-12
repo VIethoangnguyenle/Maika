@@ -16,6 +16,9 @@ routing:
 capabilities:
   required:
   - dependency_analysis
+  - call_chain_trace
+  - impact_analysis
+  - semantic_code_search
   - exact_source_inspection
   - historical_context_retrieval
   - runtime_verification
@@ -57,13 +60,18 @@ Dùng sau khi mọi task review bắt buộc pass, trước verification/complet
 
 ## Chính sách capability
 Capability IDs: `exact_source_inspection`, `dependency_analysis`,
+  `call_chain_trace`, `impact_analysis`, `semantic_code_search`,
   `historical_context_retrieval`, `runtime_verification`.
 Đọc diff toàn change độc lập; đối chiếu với durable knowledge.
 
 ## Quy trình truy xuất
 1. Đọc spec/plan/results/reviews.
-2. Inspect full diff; kiểm integration + deletion discipline.
-3. Đối chiếu change với durable knowledge để tìm entry stale/superseded.
+2. Verify integration boundaries bằng structured call/impact trace; ghi graph freshness,
+   node IDs và relationship types.
+3. Dùng `semantic_code_search` cho alternate paths/hidden consumers khi risk áp dụng;
+   ghi reason, không gọi lặp nếu structured trace đã đủ.
+4. Inspect current source cho material facts, full diff và deletion discipline.
+5. Đối chiếu change với durable knowledge để tìm entry stale/superseded.
 
 ## Thứ tự authority và precedence
 current source (sau change) > durable knowledge > memory. Knowledge mâu thuẫn với

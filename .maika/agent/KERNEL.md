@@ -39,12 +39,24 @@ organizational policy
 ## 3. Workflow Routing
 
 - Route được resolve theo change class + current state; authority:
-  `workflows/task.md`. Không tồn tại fixed phase chain toàn cục cho mọi task.
+  `config/workflow-router.yaml`; `workflows/task.md` là human-readable projection.
+  Không tồn tại fixed phase chain toàn cục cho mọi task.
 - Trivial/small không tạo SPEC.md hay IMPLEMENTATION_PLAN.md — micro-plan nằm
   trong TASK.yaml.
 - Freeform "viết spec/viết code" phải route về `maika task`; không bypass workflow.
 - Risk signal xuất hiện giữa chừng (public contract, persistence, security) →
   escalate class tường minh, không âm thầm tiếp tục.
+
+### Session Interaction Boundary
+
+- `/task` chỉ quản lý lifecycle của application change.
+- Explicit native slash workflow không tự động route vào `/task`; explicit slash
+  command đứng trước natural-language classification.
+- Read-only query, graph/index maintenance, generated report, explicit user
+  learning và framework administration là các lane độc lập.
+- Native workflow chỉ được ghi artifact mà effect contract đã đăng ký cho phép.
+- Isolated task worker không được gọi side-effecting external workflow nếu dispatch
+  contract không cấp quyền tường minh.
 
 ## 4. Write Boundary
 
@@ -77,6 +89,8 @@ organizational policy
 
 ## 7. Learning Boundary
 
+- Explicit non-task user preference có thể ghi qua learning lane (`maika remember`)
+  mà không tạo change workspace; preference không tự trở thành hard rule.
 - Trong task: chỉ CAPTURE candidate; teaching moment cần user confirm
   (`rules/core/write-boundary.md` R-DNA-7).
 - PROMOTE durable knowledge chỉ sau VERIFIED, bởi knowledge-curator role

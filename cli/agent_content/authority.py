@@ -49,6 +49,13 @@ def validate_registry(doc: dict) -> list[str]:
             )
             continue
         sources[source] = decision
+        if decision == "generated_analysis_reports":
+            if spec.get("authority") != "generated_analysis":
+                errors.append("authorities.generated_analysis_reports: invalid authority")
+            if spec.get("canonical") is not False:
+                errors.append("authorities.generated_analysis_reports: canonical must be false")
+            if spec.get("promotion_required") is not True:
+                errors.append("authorities.generated_analysis_reports: promotion must be required")
 
     deprecated = doc.get("deprecated") or []
     if not isinstance(deprecated, list):

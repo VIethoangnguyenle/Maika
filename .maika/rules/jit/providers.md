@@ -23,8 +23,14 @@
 
 | Capability | Provider ưu tiên | Dùng cho |
 |---|---|---|
-| `architecture_discovery` | Understand-Anything (UA) | boundary, domain overview, flow, quan hệ module, tài liệu nội bộ |
-| `dependency_analysis` | Codebase Memory (CBM) | dependency path, call path, phạm vi ảnh hưởng (blast radius), symbol relationship |
+| `architecture_discovery` | Understand-Anything MCP (UA-MCP) | boundary, domain overview, quan hệ module, tài liệu nội bộ |
+| `domain_flow_trace` | UA-MCP | domain overview/detail/flow traversal |
+| `call_chain_trace` | UA-MCP | structured call-chain và relationship traversal |
+| `impact_analysis` | UA-MCP | structured impact và blast-radius traversal |
+| `graph_path_trace` | UA-MCP | path giữa graph nodes |
+| `inheritance_trace` | UA-MCP | class hierarchy traversal |
+| `semantic_code_search` | Codebase Memory (CBM) | semantic anchor discovery và graph-gap recovery |
+| `dependency_analysis` | CBM (compatibility aggregate) | semantic dependency/hidden consumer discovery trong lúc consumer migrate |
 | `exact_source_inspection` | **current source** | file, symbol, signature, test, behavior, configuration hiện tại |
 | `historical_context_retrieval` | Agent Memory | incident cũ, quyết định trước, rejected approach, review pattern lặp lại |
 | `business_knowledge_retrieval` | Agent Memory + tài liệu | tri thức nghiệp vụ, domain, tài liệu |
@@ -32,8 +38,34 @@
 | `database_schema_inspection` | Database Explorer (read-only) | table, column, constraint, index, package, procedure |
 | `database_dependency_analysis` | Database Explorer (read-only) | phụ thuộc DB, consumer SQL/package |
 
-- **UA là nguồn số 1** cho kiến trúc/domain — không được tụt xuống grep khi UA
-  available. **CBM là nguồn số 1** cho dependency/blast radius ở quy mô repo.
+- **UA-MCP là nguồn số 1** cho structured architecture/domain/call/impact/path/
+  inheritance trace khi graph áp dụng được. **CBM là nguồn số 1** cho semantic search.
+
+### [CRITICAL] R-Tool-2A: UA-MCP Primary Structured Trace
+
+Khi Understand-Anything graph healthy, đủ fresh và áp dụng được:
+
+- UA-MCP là primary cho architecture traversal, domain-flow traversal, graph
+  relationship, call chain, impact, graph path và inheritance trace.
+- CBM không thay structured traversal bằng generic semantic search khi graph đã có
+  cấu trúc cần thiết. CBM hỗ trợ semantic anchor discovery, graph-gap recovery,
+  hidden dependency search, independent corroboration và reviewer counter-evidence.
+- Current source vẫn authoritative cho exact code fact.
+
+Canonical trace: freshness probe → graph/domain anchor → structured UA-MCP
+traversal → conditional CBM support → exact source verification → evidence manifest.
+Mỗi CBM support call phải ghi reason: unresolved anchor, incomplete relationship,
+ambiguous semantic query, relevant stale graph files, reviewer corroboration, hoặc
+hidden consumer/dependency search.
+
+Freshness handling:
+
+- `FRESH`: UA-MCP primary; source verify material exact facts.
+- `STALE` chỉ ở file không liên quan: UA-MCP vẫn primary; ghi scoped freshness và
+  verify relevant source.
+- `STALE` ở file liên quan: UA-MCP chỉ là navigation evidence; CBM/source tạo current
+  trace, giảm confidence, có thể request refresh.
+- `VERY_STALE`: chỉ dùng initial anchor; không dùng làm primary material evidence.
 
 ### [CRITICAL] R-Tool-3: Use-when-healthy — không skip im lặng provider khỏe
 

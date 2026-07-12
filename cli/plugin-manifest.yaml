@@ -158,6 +158,12 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/profiles/capability-registry.yaml"
 
+  - name: provider-capabilities
+    type: profile
+    source: profiles/provider-capabilities.yaml
+    template: false
+    output: "{{ platform.framework_root }}/profiles/provider-capabilities.yaml"
+
   - name: execution-mode
     type: profile
     source: profiles/execution-mode.yaml
@@ -181,6 +187,38 @@ plugins:
     source: config/workflow-router.yaml
     template: false
     output: "{{ platform.framework_root }}/config/workflow-router.yaml"
+
+  - name: interaction-router
+    type: profile
+    source: config/interaction-router.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/interaction-router.yaml"
+
+  - name: external-workflows
+    type: profile
+    source: config/external-workflows.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/external-workflows.yaml"
+
+  - name: generated-report-schema
+    type: profile
+    source: config/generated-report.schema.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/generated-report.schema.yaml"
+
+  - name: generated-reports-skeleton
+    type: profile
+    source: .maika/reports/.gitignore
+    template: false
+    ownership: user
+    output: "{{ platform.framework_root }}/reports/.gitignore"
+
+  - name: preferences-skeleton
+    type: profile
+    source: .maika/knowledge/preferences/.gitignore
+    template: false
+    ownership: user
+    output: "{{ platform.framework_root }}/knowledge/preferences/.gitignore"
 
   - name: runtime-skeleton
     type: profile

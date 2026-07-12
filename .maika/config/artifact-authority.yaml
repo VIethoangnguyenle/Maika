@@ -60,6 +60,11 @@ authorities:
     source: knowledge/long-term/
   archive:
     source: archive/<change-id>/
+  generated_analysis_reports:
+    source: reports/
+    authority: generated_analysis
+    canonical: false
+    promotion_required: true
 
 # Legacy active-memory artifacts: KHÔNG còn là authority cho bất kỳ decision nào.
 # replacement null = discard (không có successor).

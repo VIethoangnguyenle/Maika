@@ -15,6 +15,9 @@ routing:
 capabilities:
   required:
   - dependency_analysis
+  - call_chain_trace
+  - impact_analysis
+  - semantic_code_search
   - exact_source_inspection
   - historical_context_retrieval
   - review_dispatch
@@ -52,13 +55,17 @@ Dùng sau khi một task result qua `result-contract` gate.
 
 ## Chính sách capability
 Capability IDs: `exact_source_inspection`, `dependency_analysis`,
+  `call_chain_trace`, `impact_analysis`, `semantic_code_search`,
   `historical_context_retrieval`, `runtime_verification`, `review_dispatch`.
 Reviewer tự đọc source, không dựa claim của brief.
 
 ## Quy trình truy xuất
 1. Đọc brief + result + diff.
-2. Independent inspect: mở source thật cho mỗi material behavior.
-3. Recall incident liên quan để kiểm regression.
+2. Reinspect primary structured trace độc lập; không lặp lại nguyên trace của implementer.
+3. Khi có blast-radius/hidden-consumer risk, dùng `semantic_code_search` tìm
+   counter-evidence và ghi support reason.
+4. Independent inspect: mở current source thật cho mỗi material behavior và finding.
+5. Recall incident liên quan để kiểm regression; ghi graph freshness trong review.
 
 ## Thứ tự authority và precedence
 current source > result claim > brief. Result nói "pass" nhưng source mâu thuẫn →
