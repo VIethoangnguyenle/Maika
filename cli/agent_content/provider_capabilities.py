@@ -50,8 +50,8 @@ def validate_provider_capabilities(mapping: dict, registry: dict) -> list[str]:
             errors.append(f"providers.{provider}: capabilities must be non-empty")
             continue
         probe = (provider_spec or {}).get("freshness_probe") or {}
-        if provider == "understand-anything-mcp" and probe.get("tool") not in UA_TOOLS:
-            errors.append("understand-anything-mcp: unknown freshness probe")
+        if provider == "understand-anything" and probe.get("tool") not in UA_TOOLS:
+            errors.append("understand-anything: unknown freshness probe")
         for capability, spec in mapped.items():
             prefix = f"providers.{provider}.capabilities.{capability}"
             if capability not in capabilities:
@@ -65,7 +65,7 @@ def validate_provider_capabilities(mapping: dict, registry: dict) -> list[str]:
                     errors.append(f"{prefix}: duplicate primary provider {primary_seen[capability]}")
                 primary_seen[capability] = provider
             tools = (spec or {}).get("tools") or []
-            if provider == "understand-anything-mcp":
+            if provider == "understand-anything":
                 unknown = set(tools) - UA_TOOLS
                 if unknown:
                     errors.append(f"{prefix}: unknown UA-MCP tools {sorted(unknown)!r}")
@@ -85,4 +85,35 @@ def validate_provider_capabilities(mapping: dict, registry: dict) -> list[str]:
     )
     if "exact_code_fact" not in (exact.get("authoritative_for") or []):
         errors.append("current-source must be authoritative for exact_code_fact")
+    return errors
+
+
+SYNTHETIC_PROVIDERS = {"current-source"}
+
+
+def validate_provider_identity(
+    mapping: dict,
+    registry: dict,
+    manifest_ids: set[str],
+    workflow_owners: set[str],
+) -> list[str]:
+    """Cross-surface identity check: every provider ID used in the profiles must be
+    a plugin-manifest mcp_capabilities key (or the synthetic current-source), and
+    every external-workflow owner must be a known provider ID."""
+    errors: list[str] = []
+    used: set[str] = set((mapping.get("providers") or {}).keys())
+    for capability, spec in (registry.get("capabilities") or {}).items():
+        primary = (spec or {}).get("primary_provider")
+        if primary:
+            used.add(primary)
+        for supporting in (spec or {}).get("supporting_providers") or []:
+            used.add(supporting)
+    known = manifest_ids | SYNTHETIC_PROVIDERS
+    for provider in sorted(used - known):
+        errors.append(
+            f"provider ID {provider!r} not in plugin-manifest mcp_capabilities "
+            f"(known: {sorted(known)!r})"
+        )
+    for owner in sorted(workflow_owners - used - known):
+        errors.append(f"workflow owner {owner!r} is not a known provider ID")
     return errors

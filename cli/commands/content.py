@@ -157,9 +157,10 @@ def run_content(action: str, target_dir: str = ".", apply: bool = False) -> int:
         print("generated report schema and documents valid")
         return 0
     if action == "validate-provider-capabilities":
+        import yaml
         from cli.agent_content.provider_capabilities import (
             load_capability_registry, load_provider_capabilities,
-            validate_provider_capabilities,
+            validate_provider_capabilities, validate_provider_identity,
         )
         framework = _framework_dir(target)
         try:
@@ -169,6 +170,23 @@ def run_content(action: str, target_dir: str = ".", apply: bool = False) -> int:
             print(f"Refused: {exc}")
             return 2 if isinstance(exc, FileNotFoundError) else 1
         errors = validate_provider_capabilities(mapping, registry)
+        # Cross-surface identity check needs the plugin manifest; initialized
+        # target projects don't carry cli/, so the check only runs in the
+        # framework checkout (where CI runs it).
+        manifest_path = target / "cli" / "plugin-manifest.yaml"
+        workflows_path = framework / "config" / "external-workflows.yaml"
+        if manifest_path.is_file():
+            manifest_doc = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+            manifest_ids = set((manifest_doc.get("mcp_capabilities") or {}).keys())
+            owners: set[str] = set()
+            if workflows_path.is_file():
+                wf_doc = yaml.safe_load(workflows_path.read_text(encoding="utf-8")) or {}
+                owners = {
+                    spec.get("owner")
+                    for spec in (wf_doc.get("workflows") or {}).values()
+                    if spec.get("owner")
+                }
+            errors += validate_provider_identity(mapping, registry, manifest_ids, owners)
         if errors:
             for error in errors:
                 print(f"provider-capability: {error}")
