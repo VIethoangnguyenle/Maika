@@ -141,10 +141,47 @@ Provider stale/absent → ghi degradation record có cấu trúc (provider, prob
 freshness, fallback, missing evidence, confidence impact) vào `TOOL_HEALTH.yaml`.
 Không degrade lặng lẽ.
 
+Schema gate-checked (`providers` là **map** theo tên provider; status chỉ nhận
+`ready | degraded | unavailable | unsupported`):
+
+```yaml
+# TOOL_HEALTH.yaml (schema example — gate `tool-health`)
+version: 1
+change_id: C-123
+providers:
+  understand-anything:
+    status: ready
+    probe:
+      operation: get_graph_metadata
+      observed: "1799 nodes / 2854 edges, graph_commit a14930e"
+    freshness: FRESH
+  codebase-memory-mcp:
+    status: unavailable
+    degradation:
+      probe_ran: true
+      error: "no index for this project"
+      fallback_used: current_source
+      missing_evidence: "semantic corroboration"
+      confidence_impact: "medium"
+```
+
+```yaml
+# QUERY_PLAN.yaml (schema example — gate `query-plan`)
+version: 1
+change_id: C-123
+questions:
+  - id: Q-CODE-001
+    question: "Where is the approve flow assembled?"
+    required_capabilities: [exact_source_inspection]
+    required_evidence_types: [exact_code_fact]
+```
+
 ## Quy trình
 1. Chạy Quy trình truy xuất ở trên.
 2. Reconcile sơ bộ; đánh dấu conflict material.
 3. Chạy gate `query-plan`, `tool-health`, `exploration-evidence`, `conflicts`, `coverage`.
+   Gate `exploration-evidence` nhận `GROUNDING.yaml` làm file chính và
+   `--against exploration/EVIDENCE_MANIFEST.yaml`.
 4. Trả readiness verdict (READY / NEEDS_CONTEXT / BLOCKED).
 
 ## Điều kiện dừng

@@ -63,13 +63,32 @@ def merge_managed_markdown(existing: str, managed: str) -> str:
     return existing + separator + block
 
 
+LEGACY_ENTRYPOINT_HEADER = "# AGENTS.md — Maika"
+
+
+def strip_legacy_entrypoint(existing: str) -> tuple[str, bool]:
+    """Drop a pre-managed-block Maika entrypoint so it is not preserved as
+    host-owned content. A genuine user file never starts with Maika's own
+    legacy header; keeping the old doc would ship contradictory doctrine
+    (observed: ngac 2026-07-12, v3.0 doc on top of the current managed block)."""
+    first = next((line for line in existing.splitlines() if line.strip()), "")
+    if first.strip().startswith(LEGACY_ENTRYPOINT_HEADER):
+        return "", True
+    return existing, False
+
+
 def stage_managed_entrypoint(staging: Path, target: Path, entrypoint: str) -> None:
     """Merge a staged Maika entrypoint with an existing shared host file."""
     staged_path = staging / entrypoint
     if not staged_path.exists():
         return
     target_path = target / entrypoint
-    existing = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
+    raw = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
+    existing, was_legacy = strip_legacy_entrypoint(raw)
+    if was_legacy:
+        backup = target_path.parent / f"{entrypoint}.legacy.bak"
+        if not backup.exists():
+            backup.write_text(raw, encoding="utf-8")
     managed = staged_path.read_text(encoding="utf-8")
     staged_path.write_text(merge_managed_markdown(existing, managed), encoding="utf-8")
 
