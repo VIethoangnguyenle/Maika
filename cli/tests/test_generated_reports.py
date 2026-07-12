@@ -12,7 +12,7 @@ FRAMEWORK = Path(__file__).resolve().parents[2] / ".maika"
 def _valid_report():
     return """---
 type: generated-analysis-report
-provider: understand-anything-mcp
+provider: understand-anything
 workflow: understand-chat
 question: Trace approval flow
 generated_at: 2026-07-12T00:00:00Z

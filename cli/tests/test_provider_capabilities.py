@@ -39,7 +39,7 @@ def test_canonical_provider_mapping_is_valid():
 
 def test_ua_is_primary_for_structured_traces():
     mapping, _ = _docs()
-    ua = mapping["providers"]["understand-anything-mcp"]["capabilities"]
+    ua = mapping["providers"]["understand-anything"]["capabilities"]
     for capability in (
         "architecture_discovery", "domain_flow_trace", "call_chain_trace",
         "impact_analysis", "graph_path_trace", "inheritance_trace",
@@ -59,7 +59,7 @@ def test_cbm_semantic_source_exact_and_compatibility_dependency():
 def test_unknown_capability_and_ua_tool_fail():
     mapping, registry = _docs()
     mapping = deepcopy(mapping)
-    ua = mapping["providers"]["understand-anything-mcp"]["capabilities"]
+    ua = mapping["providers"]["understand-anything"]["capabilities"]
     ua["unknown_trace"] = {"role": "supporting"}
     ua["call_chain_trace"]["tools"].append("invented_tool")
     errors = validate_provider_capabilities(mapping, registry)

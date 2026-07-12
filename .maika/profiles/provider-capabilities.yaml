@@ -1,6 +1,6 @@
 version: 1
 providers:
-  understand-anything-mcp:
+  understand-anything:
     freshness_probe:
       tool: get_graph_stats
     capabilities:

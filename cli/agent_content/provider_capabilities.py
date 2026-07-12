@@ -50,8 +50,8 @@ def validate_provider_capabilities(mapping: dict, registry: dict) -> list[str]:
             errors.append(f"providers.{provider}: capabilities must be non-empty")
             continue
         probe = (provider_spec or {}).get("freshness_probe") or {}
-        if provider == "understand-anything-mcp" and probe.get("tool") not in UA_TOOLS:
-            errors.append("understand-anything-mcp: unknown freshness probe")
+        if provider == "understand-anything" and probe.get("tool") not in UA_TOOLS:
+            errors.append("understand-anything: unknown freshness probe")
         for capability, spec in mapped.items():
             prefix = f"providers.{provider}.capabilities.{capability}"
             if capability not in capabilities:
@@ -65,7 +65,7 @@ def validate_provider_capabilities(mapping: dict, registry: dict) -> list[str]:
                     errors.append(f"{prefix}: duplicate primary provider {primary_seen[capability]}")
                 primary_seen[capability] = provider
             tools = (spec or {}).get("tools") or []
-            if provider == "understand-anything-mcp":
+            if provider == "understand-anything":
                 unknown = set(tools) - UA_TOOLS
                 if unknown:
                     errors.append(f"{prefix}: unknown UA-MCP tools {sorted(unknown)!r}")
