@@ -10,7 +10,7 @@ MAPPING_REL = "profiles/provider-capabilities.yaml"
 REGISTRY_REL = "profiles/capability-registry.yaml"
 ROLES = {"primary", "supporting"}
 UA_TOOLS = {
-    "list_projects", "get_graph_stats", "get_tour", "query_nodes",
+    "list_projects", "get_graph_stats", "get_graph_metadata", "get_tour", "query_nodes",
     "get_node_detail", "get_node_source", "get_relationships",
     "trace_call_chain", "get_layer_info", "find_entry_points", "find_impact",
     "find_path", "get_class_hierarchy", "search_by_file_path",

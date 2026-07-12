@@ -2,7 +2,7 @@ version: 1
 providers:
   understand-anything:
     freshness_probe:
-      tool: get_graph_stats
+      tool: get_graph_metadata
     capabilities:
       architecture_discovery:
         role: primary
