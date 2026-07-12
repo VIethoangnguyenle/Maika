@@ -63,6 +63,20 @@ def run_content(action: str, target_dir: str = ".", apply: bool = False) -> int:
         print(f"authority registry valid: {len(doc.get('authorities') or {})} decisions, "
               f"{len(doc.get('deprecated') or [])} deprecated paths")
         return 0
+    if action == "behavior-static":
+        from cli.behavior.harness import run_suite
+        framework = _framework_dir(target)
+        try:
+            report = run_suite(framework)
+        except FileNotFoundError as exc:
+            print(f"Refused: missing behavior surface: {exc}")
+            return 2
+        for fixture in report["fixtures"]:
+            print(f"{fixture['verdict']}: {fixture['fixture_id']} — {fixture['title']}")
+            for violation in fixture["violations"]:
+                print(f"  ! {violation}")
+        print(f"behavior-static verdict: {report['verdict']}")
+        return 0 if report["verdict"] == "PASS" else 1
     if action == "validate-skills":
         framework = _framework_dir(target)
         from cli.agent_content.skill_contract import validate_skill_contracts

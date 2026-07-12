@@ -149,7 +149,7 @@ def main():
     content_parser.add_argument(
         "action",
         choices=["validate-authority", "validate-router", "validate-skills",
-                 "scan-legacy", "migrate-legacy"],
+                 "scan-legacy", "migrate-legacy", "behavior-static"],
     )
     content_parser.add_argument("--target", default=".")
     content_parser.add_argument("--apply", action="store_true",

@@ -9,7 +9,7 @@ modules:
   consumed_by: python-import:cli/commands/status.py; file-dispatch:cli/agent_content/router.py;
     cli-entrypoint:.maika/procedures/bootstrap.md
 - path: .maika/tools/gate-check/gates.py
-  consumed_by: file-dispatch:cli/commands/bootstrap.py
+  consumed_by: file-dispatch:cli/behavior/harness.py
 - path: .maika/tools/knowledge-index/__init__.py
   consumed_by: package-marker-exemption
 - path: .maika/tools/knowledge-index/generate_index.py
