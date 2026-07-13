@@ -90,8 +90,14 @@ skills:
   capabilities:
     required:
     - database_schema_inspection
-    - database_dependency_analysis
     - exact_source_inspection
+    conditional:
+      database_dependency_analysis:
+        triggers:
+        - database_dependency_risk
+      semantic_code_search:
+        triggers:
+        - database_code_consumer_gap
   outputs:
     required:
     - exploration/DATABASE_CONTEXT.yaml
@@ -164,16 +170,37 @@ skills:
     - architectural
   capabilities:
     required:
-    - architecture_discovery
-    - domain_flow_trace
-    - call_chain_trace
-    - impact_analysis
-    - semantic_code_search
-    - dependency_analysis
     - exact_source_inspection
     - historical_context_retrieval
     - business_knowledge_retrieval
     - convention_retrieval
+    one_of:
+      structured_trace:
+      - architecture_discovery
+      - domain_flow_trace
+      - call_chain_trace
+    conditional:
+      impact_analysis:
+        triggers:
+        - blast_radius_required
+      semantic_code_search:
+        triggers:
+        - unresolved_anchor
+        - ambiguous_semantic_query
+        - graph_gap
+        - relevant_graph_stale
+        - hidden_consumer_risk
+        - ua_unavailable
+      dependency_analysis:
+        triggers:
+        - graph_gap
+        - ua_unavailable
+      database_schema_inspection:
+        triggers:
+        - persistence_change
+      database_dependency_analysis:
+        triggers:
+        - database_dependency_risk
   outputs:
     required:
     - exploration/GROUNDING.yaml
@@ -360,13 +387,31 @@ skills:
     - architectural
   capabilities:
     required:
-    - dependency_analysis
-    - call_chain_trace
-    - impact_analysis
-    - semantic_code_search
     - exact_source_inspection
-    - historical_context_retrieval
     - runtime_verification
+    conditional:
+      call_chain_trace:
+        triggers:
+        - reviewer_counter_evidence
+      impact_analysis:
+        triggers:
+        - blast_radius_required
+      semantic_code_search:
+        triggers:
+        - hidden_consumer_risk
+        - dynamic_wiring_risk
+        - reviewer_counter_evidence
+        - ua_unavailable
+      dependency_analysis:
+        triggers:
+        - graph_gap
+        - ua_unavailable
+      historical_context_retrieval:
+        triggers:
+        - reviewer_counter_evidence
+      database_schema_inspection:
+        triggers:
+        - persistence_change
   outputs:
     required:
     - reviews/FINAL_REVIEW.md
@@ -392,14 +437,32 @@ skills:
     - architectural
   capabilities:
     required:
-    - dependency_analysis
-    - call_chain_trace
-    - impact_analysis
-    - semantic_code_search
     - exact_source_inspection
-    - historical_context_retrieval
-    - review_dispatch
     - runtime_verification
+    - review_dispatch
+    conditional:
+      call_chain_trace:
+        triggers:
+        - reviewer_counter_evidence
+      impact_analysis:
+        triggers:
+        - blast_radius_required
+      semantic_code_search:
+        triggers:
+        - hidden_consumer_risk
+        - dynamic_wiring_risk
+        - reviewer_counter_evidence
+        - ua_unavailable
+      dependency_analysis:
+        triggers:
+        - graph_gap
+        - ua_unavailable
+      historical_context_retrieval:
+        triggers:
+        - reviewer_counter_evidence
+      database_schema_inspection:
+        triggers:
+        - persistence_change
   outputs:
     required:
     - reviews/
