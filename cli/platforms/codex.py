@@ -47,7 +47,15 @@ class CodexPlatform(BasePlatform):
         "list_spaces":       "list_spaces",
         "get_space_pages":   "get_space_pages",
         # ── Database (db_access MCP — server-level reference) ──
-        "db_query":          "db-remote",
+        "db_list_databases": "list_databases",
+        "db_list_tables":    "sql_list_tables",
+        "db_get_columns":    "sql_get_columns",
+        "db_get_constraints":"sql_get_constraints",
+        "db_sql_read":       "sql_read",
+        "db_mongo_read":     "mongo_read",
+        "db_sql_write":      "sql_write",
+        "db_mongo_write":    "mongo_write",
+        "db_sql_execute_script": "sql_execute_script",
 
         "search_web":        "search_web",
         "read_url":          "read_url",

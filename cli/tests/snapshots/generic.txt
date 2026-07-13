@@ -11,6 +11,7 @@
 .maika/config/interaction-router.yaml
 .maika/config/platforms.yaml
 .maika/config/project.yaml
+.maika/config/provider-registry.yaml
 .maika/config/workflow-router.yaml
 .maika/knowledge/
 .maika/knowledge/README.md

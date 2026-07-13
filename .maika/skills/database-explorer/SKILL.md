@@ -33,7 +33,7 @@ với evidence hoặc degradation record.
 
 ## Khi nào sử dụng
 Dùng khi `grounding-explorer` phát hiện tín hiệu persistence: entity/repository,
-native SQL, table/column/index/constraint, package/procedure, migration,
+native SQL, table/column/constraint, collection, migration,
 transaction/locking, job/outbox, audit, hoặc DB performance.
 
 ## Khi nào KHÔNG sử dụng
@@ -46,14 +46,15 @@ transaction/locking, job/outbox, audit, hoặc DB performance.
 - Kết nối DB read-only (nếu có).
 
 ## Câu hỏi tri thức
-- Table/column/constraint/index nào tham gia? (database_schema_inspection)
-- Object nào phụ thuộc / consumer SQL/package nào? (database_dependency_analysis)
+- Table/column/constraint hoặc Mongo collection/schema nào tham gia? (database_schema_inspection)
+- FK nào quan sát được và source nào consume SQL/object đó? (database_dependency_analysis)
 - Source khai schema có khớp live DB không (drift)?
 
 ## Loại evidence bắt buộc
-- `database_object`, `database_column`, `database_constraint`, `database_index`.
-- `database_package`, `database_procedure` (khi có).
-- `database_dependency`, `sql_consumer`, `package_consumer`.
+- `database_object`, `database_column`, `database_constraint`.
+- `database_dependency` trong phạm vi constraint metadata; `sql_consumer` từ current source.
+- Index/routine/package/dependency catalog không có trong `tools/list` phải ghi limitation,
+  không được suy đoán hoặc gọi tool không tồn tại.
 
 ## Chính sách capability
 Capability IDs: `database_schema_inspection`, `database_dependency_analysis`,
@@ -61,14 +62,16 @@ Capability IDs: `database_schema_inspection`, `database_dependency_analysis`,
 Chỉ read-only; không tự chạy DDL/DML trong exploration (`jit/providers.md` R-Tool-9).
 
 ## Quy trình truy xuất
-1. Từ source, liệt kê entity/table/procedure trong scope.
-2. Probe DB read-only: mô tả object, column, constraint, index, dependency.
-3. Map code consumer (repository, native query, package caller).
+1. Từ source, liệt kê entity/table/collection trong scope.
+2. Probe DB Access bằng đúng tool có trong `tools/list`: database/table/column/constraint
+   hoặc Mongo collection/schema.
+3. Map code consumer bằng current source (repository, native query, caller).
 4. So sánh source ↔ live → ghi drift.
 
 ## Thứ tự authority và precedence
-live DB state > current source > durable knowledge. Khác biệt source ↔ live là
-conflict `database drift`, resolve nghiêng về live state.
+Live DB là authority cho trạng thái quan sát của environment đã chọn; approved
+migration/spec là authority cho target state; current source là authority cho behavior
+ứng dụng. Mọi khác biệt phải phân loại drift, không mặc định live DB thắng target.
 
 ## Kết quả bắt buộc
 - `DATABASE_CONTEXT.yaml`: `read_only: true` + objects thật, hoặc degradation record.
@@ -87,7 +90,8 @@ Ghi thời điểm probe. Schema có thể đổi giữa các phiên → coi liv
 source-declared schema là medium confidence.
 
 ## Quy trình degradation
-DB không kết nối được (môi trường không có DB) → `DATABASE_CONTEXT.yaml` chứa
+MCP `db-access` không được cấu hình, không kết nối được, hoặc thiếu tool cần thiết →
+`DATABASE_CONTEXT.yaml` chứa
 degradation record + fallback = source-declared schema; hạ confidence; không block nếu
 change vẫn an toàn theo source.
 

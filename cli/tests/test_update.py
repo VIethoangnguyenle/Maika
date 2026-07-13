@@ -7,7 +7,7 @@ from cli.commands.update import run_update
 def _interactive(
     monkeypatch,
     platform_key,
-    mcps=("codebase-memory-mcp", "confluence", "db-remote"),
+    mcps=("codebase-memory-mcp", "confluence", "db-access"),
     language="python",
     inputs=("y",),
 ):

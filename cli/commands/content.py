@@ -160,16 +160,19 @@ def run_content(action: str, target_dir: str = ".", apply: bool = False) -> int:
         import yaml
         from cli.agent_content.provider_capabilities import (
             load_capability_registry, load_provider_capabilities,
+            load_provider_registry, validate_canonical_provider_registry,
             validate_provider_capabilities, validate_provider_identity,
         )
         framework = _framework_dir(target)
         try:
             mapping = load_provider_capabilities(framework)
             registry = load_capability_registry(framework)
+            provider_registry = load_provider_registry(framework)
         except (FileNotFoundError, ValueError) as exc:
             print(f"Refused: {exc}")
             return 2 if isinstance(exc, FileNotFoundError) else 1
         errors = validate_provider_capabilities(mapping, registry)
+        errors += validate_canonical_provider_registry(provider_registry, registry)
         # Cross-surface identity check needs the plugin manifest; initialized
         # target projects don't carry cli/, so the check only runs in the
         # framework checkout (where CI runs it).
@@ -187,6 +190,13 @@ def run_content(action: str, target_dir: str = ".", apply: bool = False) -> int:
                     if spec.get("owner")
                 }
             errors += validate_provider_identity(mapping, registry, manifest_ids, owners)
+            canonical_ids = set((provider_registry.get("providers") or {}).keys())
+            expected_ids = manifest_ids | {"current-source"}
+            if canonical_ids != expected_ids:
+                errors.append(
+                    "canonical provider registry IDs differ from manifest/synthetic IDs: "
+                    f"registry={sorted(canonical_ids)!r}, expected={sorted(expected_ids)!r}"
+                )
         if errors:
             for error in errors:
                 print(f"provider-capability: {error}")

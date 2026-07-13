@@ -51,3 +51,10 @@ providers:
         role: supporting
       inheritance_trace:
         role: supporting
+
+  db-access:
+    capabilities:
+      database_schema_inspection:
+        role: primary
+      database_dependency_analysis:
+        role: supporting

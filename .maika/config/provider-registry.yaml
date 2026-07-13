@@ -1,0 +1,104 @@
+version: 1
+
+providers:
+  understand-anything:
+    display_name: Understand-Anything MCP
+    kind: structured_code_graph
+    setup_ref: understand-anything
+    tool_contract:
+      tools:
+        - list_projects
+        - get_graph_stats
+        - get_graph_metadata
+        - get_tour
+        - query_nodes
+        - get_node_detail
+        - get_node_source
+        - get_relationships
+        - trace_call_chain
+        - get_layer_info
+        - find_entry_points
+        - find_impact
+        - find_path
+        - get_class_hierarchy
+        - search_by_file_path
+        - get_domain_overview
+        - get_domain_detail
+        - get_domain_flow_detail
+    capabilities:
+      primary: [architecture_discovery, domain_flow_trace, call_chain_trace, impact_analysis, graph_path_trace, inheritance_trace]
+
+  codebase-memory-mcp:
+    display_name: Codebase Memory MCP
+    kind: semantic_code_index
+    setup_ref: codebase-memory-mcp
+    capabilities:
+      primary: [semantic_code_search]
+      supporting: [architecture_discovery, call_chain_trace, impact_analysis]
+
+  current-source:
+    display_name: Current Source
+    kind: local_authority
+    synthetic: true
+    capabilities:
+      primary: [exact_source_inspection]
+    authoritative_for: [exact_code_fact, exact_application_behavior]
+
+  db-access:
+    display_name: DB Access
+    kind: database
+    configured_externally: true
+    client_config_key: db-access
+    tool_contract:
+      tools:
+        - list_databases
+        - sql_list_tables
+        - sql_get_columns
+        - sql_get_constraints
+        - sql_read
+        - sql_write
+        - sql_execute_script
+        - mongo_list_collections
+        - mongo_get_schema
+        - mongo_read
+        - mongo_write
+      lanes:
+        exploration:
+          source_capabilities: [read]
+          tools: [list_databases, sql_list_tables, sql_get_columns, sql_get_constraints, mongo_list_collections, mongo_get_schema]
+          mutability: read_only
+        data_probe:
+          source_capabilities: [read]
+          tools: [sql_read, mongo_read]
+          activation: explicit_runtime_data_question
+          mutability: read_only
+        explicit_write:
+          source_capabilities: [write]
+          tools: [sql_write, mongo_write]
+          activation: explicit_user_request
+          provider_confirmation_required: true
+          mutability: write
+        explicit_script:
+          source_capabilities: [script]
+          tools: [sql_execute_script]
+          activation: explicit_user_request
+          provider_confirmation_required: true
+          mutability: write
+    capabilities:
+      primary: [database_schema_inspection]
+      supporting: [database_dependency_analysis]
+
+  confluence:
+    display_name: Confluence
+    kind: document_index
+    setup_ref: confluence
+    capabilities:
+      supporting: [business_knowledge_retrieval]
+
+  agent-memory:
+    display_name: Agent Memory
+    kind: episodic_memory
+    setup_ref: agent-memory
+    capabilities:
+      primary: [historical_context_retrieval]
+      supporting: [business_knowledge_retrieval]

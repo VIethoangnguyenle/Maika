@@ -58,12 +58,12 @@ def test_missing_and_empty_configs_are_not_valid(tmp_path):
 
 def test_selected_server_matches_returns_present_and_missing(tmp_path):
     path = tmp_path / "mcp_config.json"
-    path.write_text(json.dumps({"mcpServers": {"db-remote": {}, "agent-memory": {}}}), encoding="utf-8")
+    path.write_text(json.dumps({"mcpServers": {"db-access": {}, "agent-memory": {}}}), encoding="utf-8")
     config = load_mcp_config(McpConfigCandidate(path, "workspace", "json"))
 
-    present, missing = selected_server_matches(config, ["db-remote", "codebase-memory-mcp"])
+    present, missing = selected_server_matches(config, ["db-access", "codebase-memory-mcp"])
 
-    assert present == ["db-remote"]
+    assert present == ["db-access"]
     assert missing == ["codebase-memory-mcp"]
 
 

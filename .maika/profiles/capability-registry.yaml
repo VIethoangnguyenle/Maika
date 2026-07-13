@@ -78,15 +78,16 @@ capabilities:
     tools: [read_file, search_text]
     preferred_evidence: [author_dna_rule, convention_rule]
   database_schema_inspection:
-    description: Kiểm tra table/column/constraint/index/package/procedure ở chế độ read-only.
-    tools: [db_query]
+    description: Kiểm tra database, table, column, constraint và Mongo collection/schema bằng tool DB Access hiện có.
+    tools: [db_list_databases, db_list_tables, db_get_columns, db_get_constraints]
     health: [database]
-    preferred_evidence: [database_object, database_column, database_constraint, database_index, database_package, database_procedure]
+    primary_provider: db-access
+    preferred_evidence: [database_object, database_column, database_constraint]
   database_dependency_analysis:
-    description: Phân tích phụ thuộc DB và consumer SQL/package ở chế độ read-only.
-    tools: [db_query]
+    description: Phân tích dependency DB trong phạm vi metadata provider hiện có; consumer code phải verify bằng current source.
+    tools: [db_get_constraints]
     health: [database]
-    preferred_evidence: [database_dependency, sql_consumer, package_consumer]
+    preferred_evidence: [database_dependency, sql_consumer]
   runtime_verification:
     description: Chạy lệnh build/test/lint/verification thật và đọc output.
     tools: [run_command, command_status]

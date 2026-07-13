@@ -126,14 +126,20 @@ def test_get_tool_fails_for_unknown_required_operation():
     assert "not_a_real_tool" in str(exc.value)
 
 
-def test_all_platforms_map_db_query():
+def test_all_platforms_map_real_db_access_operations():
     for key, cls in PLATFORMS.items():
-        assert "db_query" in cls().tool_mapping, f"{key} missing db_query mapping"
+        for operation in (
+            "db_list_databases", "db_list_tables", "db_get_columns", "db_get_constraints",
+            "db_sql_read", "db_mongo_read", "db_sql_write", "db_mongo_write",
+            "db_sql_execute_script",
+        ):
+            assert operation in cls().tool_mapping, f"{key} missing {operation} mapping"
 
 
-def test_db_query_resolves_in_render_context():
-    ctx = get_platform("claude-code").build_render_context(["db-remote"], "python")
-    assert ctx["tools"]["db_query"] == "db-remote"
+def test_db_access_operations_resolve_in_render_context():
+    ctx = get_platform("claude-code").build_render_context(["db-access"], "python")
+    assert ctx["tools"]["db_list_tables"] == "mcp__db-access__sql_list_tables"
+    assert ctx["tools"]["db_sql_write"] == "mcp__db-access__sql_write"
 
 
 DYNAMIC_MEMORY_OPS = {
