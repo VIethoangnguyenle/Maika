@@ -15,13 +15,31 @@ routing:
   - architectural
 capabilities:
   required:
-  - dependency_analysis
-  - call_chain_trace
-  - impact_analysis
-  - semantic_code_search
   - exact_source_inspection
-  - historical_context_retrieval
   - runtime_verification
+  conditional:
+    call_chain_trace:
+      triggers:
+      - reviewer_counter_evidence
+    impact_analysis:
+      triggers:
+      - blast_radius_required
+    semantic_code_search:
+      triggers:
+      - hidden_consumer_risk
+      - dynamic_wiring_risk
+      - reviewer_counter_evidence
+      - ua_unavailable
+    dependency_analysis:
+      triggers:
+      - graph_gap
+      - ua_unavailable
+    historical_context_retrieval:
+      triggers:
+      - reviewer_counter_evidence
+    database_schema_inspection:
+      triggers:
+      - persistence_change
 outputs:
   required:
   - reviews/FINAL_REVIEW.md
@@ -59,9 +77,13 @@ Dùng sau khi mọi task review bắt buộc pass, trước verification/complet
 - `database_object` (nếu persistence), `incident_reference` (regression).
 
 ## Chính sách capability
-Capability IDs: `exact_source_inspection`, `dependency_analysis`,
-  `call_chain_trace`, `impact_analysis`, `semantic_code_search`,
-  `historical_context_retrieval`, `runtime_verification`.
+Required: `exact_source_inspection`, `runtime_verification`.
+Conditional — chỉ gọi khi trigger kích hoạt, ghi trigger + reason:
+  `call_chain_trace` (reviewer_counter_evidence); `impact_analysis`
+  (blast_radius_required); `semantic_code_search` (hidden_consumer_risk,
+  dynamic_wiring_risk, reviewer_counter_evidence, ua_unavailable);
+  `dependency_analysis` (graph_gap, ua_unavailable); `historical_context_retrieval`
+  (reviewer_counter_evidence); `database_schema_inspection` (persistence_change).
 Đọc diff toàn change độc lập; đối chiếu với durable knowledge.
 
 ## Quy trình truy xuất

@@ -1,12 +1,24 @@
 # Provider Convergence — Phase 0 Inventory
 
-Status: AMENDED — see `upgrade/provider-convergence-integration-first-errata.md`
+Status: SUPERSEDED governing plan — see below (2026-07-14)
 Date: 2026-07-13
-Governing plan: `upgrade/maika-ua-db-access-provider-convergence-closure-plan.md`
+Governing plan: `upgrade/maika-computational-harness-closure-plan.md`
+Execution errata: `upgrade/maika-computational-harness-execution-errata.md`
 
-The original identity/PR assignments below are a point-in-time inventory. The errata
-is authoritative where this document proposes renaming DB Access internals, changing
-provider deployment topology, or making breaking changes to existing MCP tools.
+The original governing plan (`upgrade/maika-ua-db-access-provider-convergence-closure-plan.md`)
+and its errata (`upgrade/provider-convergence-integration-first-errata.md`) were removed
+on 2026-07-14; the Computational Harness Closure Plan supersedes both. That plan is
+Maika-only: the U (UA-MCP) and D (DB Access) slices referenced below are OUT OF SCOPE —
+those MCPs are treated as external black boxes. Slice numbers below use the OLD
+numbering; map to the new plan as: M1-old→shipped (PR #56), M2-old (contract pinning)
+→ folded into new M2/M4, M3-old→M2, M4-old→M4, M5-old→M5+M6, M6-old→M3+M4 (adapters),
+M7-old→M8, M8-old→M9, M9-old→M10, M10-old→M11.
+
+The findings themselves (identity/capability/gate/artifact/trigger matrices and the
+contradiction register C-01..C-27) remain the observed-failure evidence base (R3) for
+the new plan's enforcement work.
+
+The original identity/PR assignments below are a point-in-time inventory.
 
 ## Scope and baselines
 

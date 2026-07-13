@@ -16,8 +16,14 @@ routing:
 capabilities:
   required:
   - database_schema_inspection
-  - database_dependency_analysis
   - exact_source_inspection
+  conditional:
+    database_dependency_analysis:
+      triggers:
+      - database_dependency_risk
+    semantic_code_search:
+      triggers:
+      - database_code_consumer_gap
 outputs:
   required:
   - exploration/DATABASE_CONTEXT.yaml
@@ -57,8 +63,10 @@ transaction/locking, job/outbox, audit, hoặc DB performance.
   không được suy đoán hoặc gọi tool không tồn tại.
 
 ## Chính sách capability
-Capability IDs: `database_schema_inspection`, `database_dependency_analysis`,
-  `exact_source_inspection`.
+Required: `database_schema_inspection`, `exact_source_inspection`.
+Conditional — chỉ gọi khi trigger kích hoạt, ghi trigger + reason:
+  `database_dependency_analysis` (database_dependency_risk);
+  `semantic_code_search` (database_code_consumer_gap).
 Chỉ read-only; không tự chạy DDL/DML trong exploration (`jit/providers.md` R-Tool-9).
 
 ## Quy trình truy xuất

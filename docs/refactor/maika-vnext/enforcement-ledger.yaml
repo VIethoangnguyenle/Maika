@@ -591,6 +591,31 @@ entries:
     scope: {change_classes: [standard, architectural]}
     reviewed_at: 2026-07-12
 
+  - id: ENF-028
+    mechanism: typed-conditional-capabilities
+    type: validator
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        C-08/C-09 (inventory 2026-07-13): skill contract schema only supported
+        capabilities.required, so grounding-explorer and reviewing-change
+        mechanically required CBM semantic_code_search despite conditional
+        doctrine (jit/providers.md R-Tool-2A); no trigger vocabulary existed,
+        so conditional support calls could not be validated (B1, harness plan §8).
+    implementation:
+      files: [cli/agent_content/skill_contract.py, .maika/profiles/capability-registry.yaml]
+      consumers:
+        - cli/tests/test_skill_contracts.py
+        - cli/tests/test_structured_trace_skills.py
+        - .maika/skills/grounding-explorer/SKILL.md
+        - .maika/skills/reviewing-task/SKILL.md
+        - .maika/skills/reviewing-change/SKILL.md
+        - .maika/skills/database-explorer/SKILL.md
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-14
+
   # ---- deferred change-loop triggers (no discrete runtime signal yet) ----
   - id: DEF-005
     mechanism: change-loop-stale-contract

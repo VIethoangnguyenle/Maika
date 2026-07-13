@@ -4,6 +4,10 @@ Every skill's frontmatter carries a typed contract:
 
 - ``routing``: mode (workflow | dispatch | conditional), actions, states, classes
 - ``capabilities.required``: capability IDs (profiles/capability-registry.yaml)
+- ``capabilities.one_of``: named groups; at least one member must be satisfied
+  at runtime (e.g. structured_trace)
+- ``capabilities.conditional``: capability -> ``{triggers: [...]}``; only
+  callable when a declared trigger (registry ``triggers:`` vocabulary) fires
 - ``outputs.required`` / ``outputs.optional``: artifact paths with an authority
   entry in config/artifact-authority.yaml
 - ``gates``: completion gate names (tools/gate-check VALIDATORS)
@@ -25,6 +29,7 @@ from cli.agent_content.authority import load_registry
 from cli.agent_content.router import _runtime_surfaces, load_router
 
 MODES = ("workflow", "dispatch", "conditional")
+CAPABILITY_KEYS = {"required", "one_of", "conditional"}
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
@@ -54,6 +59,75 @@ def _artifact_covered(path: str, sources: list[str]) -> bool:
     return False
 
 
+def _validate_capabilities(
+    name: str, block: dict | None, capabilities: set[str], triggers_vocab: set[str]
+) -> list[str]:
+    """Typed capability semantics (harness plan §8): required / one_of / conditional."""
+    errors: list[str] = []
+    block = block or {}
+    unknown_keys = set(block) - CAPABILITY_KEYS
+    if unknown_keys:
+        errors.append(f"{name}: unknown capabilities keys {sorted(unknown_keys)}")
+    required = block.get("required") or []
+    if not required:
+        errors.append(f"{name}: capabilities.required must not be empty")
+    for capability in required:
+        if capability not in capabilities:
+            errors.append(f"{name}: unknown capability {capability}")
+
+    one_of = block.get("one_of") or {}
+    if not isinstance(one_of, dict):
+        errors.append(f"{name}: capabilities.one_of must map group -> capability list")
+        one_of = {}
+    for group, members in one_of.items():
+        if not isinstance(members, list) or not members:
+            errors.append(f"{name}: one_of group {group} must be a non-empty list")
+            continue
+        for capability in members:
+            if capability not in capabilities:
+                errors.append(f"{name}: unknown capability {capability} in one_of {group}")
+        overlap = set(members) & set(required)
+        if overlap:
+            errors.append(
+                f"{name}: {sorted(overlap)} cannot be both required and one_of ({group})"
+            )
+    one_of_members = {
+        member for members in one_of.values() if isinstance(members, list)
+        for member in members
+    }
+
+    conditional = block.get("conditional") or {}
+    if not isinstance(conditional, dict):
+        errors.append(
+            f"{name}: capabilities.conditional must map capability -> {{triggers: [...]}}"
+        )
+        conditional = {}
+    for capability, spec in conditional.items():
+        if capability not in capabilities:
+            errors.append(f"{name}: unknown conditional capability {capability}")
+        if capability in required:
+            errors.append(f"{name}: {capability} cannot be both required and conditional")
+        if capability in one_of_members:
+            errors.append(f"{name}: {capability} cannot be both one_of and conditional")
+        spec = spec or {}
+        unknown_spec = set(spec) - {"triggers"}
+        if unknown_spec:
+            errors.append(
+                f"{name}: conditional {capability} has unknown keys {sorted(unknown_spec)}"
+            )
+        declared = spec.get("triggers") or []
+        if not declared:
+            errors.append(
+                f"{name}: conditional capability {capability} must declare >=1 trigger"
+            )
+        for trigger in declared:
+            if trigger not in triggers_vocab:
+                errors.append(
+                    f"{name}: unknown trigger {trigger} for conditional {capability}"
+                )
+    return errors
+
+
 def _router_skill_actions(router: dict) -> dict[str, set[str]]:
     """skill name -> set of router actions that dispatch it."""
     mapping: dict[str, set[str]] = {}
@@ -79,11 +153,11 @@ def validate_skill_contracts(framework_dir: Path) -> list[str]:
     ]
     contracts = load_contracts(framework_dir)
     routed = _router_skill_actions(router)
-    capabilities = set(
-        yaml.safe_load(
-            (framework_dir / "profiles" / "capability-registry.yaml").read_text(encoding="utf-8")
-        ).get("capabilities") or {}
-    )
+    registry_doc = yaml.safe_load(
+        (framework_dir / "profiles" / "capability-registry.yaml").read_text(encoding="utf-8")
+    ) or {}
+    capabilities = set(registry_doc.get("capabilities") or {})
+    triggers_vocab = set(registry_doc.get("triggers") or {})
 
     for name, contract in contracts.items():
         if contract is None:
@@ -137,12 +211,11 @@ def validate_skill_contracts(framework_dir: Path) -> list[str]:
         for klass in classes:
             if klass not in ("trivial", "small", "standard", "architectural"):
                 errors.append(f"{name}: unknown routing class {klass}")
-        required_caps = (contract.get("capabilities") or {}).get("required") or []
-        if not required_caps:
-            errors.append(f"{name}: capabilities.required must not be empty")
-        for capability in required_caps:
-            if capability not in capabilities:
-                errors.append(f"{name}: unknown capability {capability}")
+        errors.extend(
+            _validate_capabilities(
+                name, contract.get("capabilities"), capabilities, triggers_vocab
+            )
+        )
         outputs = contract.get("outputs") or {}
         declared = list(outputs.get("required") or []) + list(outputs.get("optional") or [])
         if mode != "conditional" and not outputs.get("required"):
