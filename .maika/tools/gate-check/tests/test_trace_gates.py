@@ -66,7 +66,7 @@ def _evidence(tmp_path, **over):
         ],
         "graph": {"project": "maika", "graph_commit": "abc123",
                   "repository_head": "abc123", "freshness": "FRESH",
-                  "health": "HEALTHY"},
+                  "health": "HEALTHY", "observation": UA_HASH},
         "anchors": ["svc.dispatch"],
         "traversals": [
             {"capability": "call_chain_trace", "observations": [UA_HASH],
@@ -223,8 +223,42 @@ def test_source_verification_hash_mismatch_fails(tmp_path):
 def test_unhealthy_graph_requires_limitation(tmp_path):
     result = _check(tmp_path, graph={
         "project": "maika", "graph_commit": "abc", "repository_head": "abc",
-        "freshness": "UNKNOWN", "health": "UNAVAILABLE"}, complete=False)
+        "freshness": "UNKNOWN", "health": "UNAVAILABLE",
+        "observation": UA_HASH}, complete=False)
     assert not result.ok and "limitations" in result.reason
+
+
+def test_hand_written_graph_without_probe_observation_fails(tmp_path):
+    """Mutation #4: worker claims fresh graph without response hash."""
+    result = _check(tmp_path, graph={
+        "project": "maika", "graph_commit": "abc123", "repository_head": "abc123",
+        "freshness": "FRESH", "health": "HEALTHY"})
+    assert not result.ok and "recorded probe observation" in result.reason
+
+
+def test_prose_limitation_rejected(tmp_path):
+    result = _check(tmp_path, limitations=["UA was down, trust me"], complete=False)
+    assert not result.ok and "kind + detail" in result.reason
+
+
+def test_limitation_excuses_one_of_group_with_incomplete_trace(tmp_path):
+    result = _check(
+        tmp_path, graph={}, provider_observations=[], traversals=[],
+        limitations=[{"kind": "provider_unconfigured", "one_of": "structured_trace",
+                      "detail": "UA MCP not configured on this host"}],
+        complete=False,
+    )
+    assert result.ok, result.reason
+
+
+def test_excused_trace_cannot_claim_complete(tmp_path):
+    result = _check(
+        tmp_path, graph={}, provider_observations=[], traversals=[],
+        limitations=[{"kind": "provider_unconfigured", "one_of": "structured_trace",
+                      "detail": "UA MCP not configured on this host"}],
+        complete=True,
+    )
+    assert not result.ok and "not complete" in result.reason
 
 
 def test_missing_graph_with_ua_limitation_passes(tmp_path):

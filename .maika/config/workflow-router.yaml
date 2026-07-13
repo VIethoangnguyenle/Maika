@@ -32,12 +32,15 @@ actions:
     role: grounding
     produces:
       - exploration/QUERY_PLAN.yaml
+      - exploration/TRACE_REQUEST.yaml
+      - exploration/TRACE_EVIDENCE.yaml
       - exploration/TOOL_HEALTH.yaml
       - exploration/GROUNDING.yaml
       - exploration/EVIDENCE_MANIFEST.yaml
       - exploration/CONFLICTS.yaml
       - exploration/COVERAGE.yaml
-    completion_gates: [query-plan, tool-health, exploration-evidence, coverage]
+    completion_gates: [query-plan, tool-health, exploration-evidence, coverage,
+                       provider-invocations, trace-request, trace-evidence]
     success_state: RECONCILING
     failure_routes:
       missing_context: {state: BLOCKED, reason: grounding}

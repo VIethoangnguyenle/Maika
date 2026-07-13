@@ -175,11 +175,18 @@ def _run_reasoning_validation(ws: Path, framework_path: Path, repo_root, gates):
             invocations_path.read_text(encoding="utf-8"),
             provider_registry=provider_registry,
         )
+    # M5 router flip: trace request/evidence are mandatory for exploration —
+    # explore only runs for standard/architectural changes (workflow-router).
     trace_request_path = ws / "exploration" / "TRACE_REQUEST.yaml"
     trace_evidence_path = ws / "exploration" / "TRACE_EVIDENCE.yaml"
-    trace_request_res = gates.Result(True)
-    trace_evidence_res = gates.Result(True)
-    if trace_request_path.exists():
+    if not trace_request_path.exists():
+        trace_request_res = gates.Result(
+            False, "exploration/TRACE_REQUEST.yaml missing — run "
+                   "vnext-compile-trace-request after QUERY_PLAN")
+        trace_evidence_res = gates.Result(
+            False, "exploration/TRACE_EVIDENCE.yaml cannot be validated without "
+                   "TRACE_REQUEST.yaml")
+    else:
         trace_request_res = gates.validate_trace_request(
             trace_request_path.read_text(encoding="utf-8"),
             valid_capabilities=set(capabilities),
