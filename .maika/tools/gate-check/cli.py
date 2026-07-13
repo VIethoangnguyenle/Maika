@@ -31,6 +31,7 @@ VALIDATORS = {
     "conflicts": "validate_conflicts",
     "coverage": "validate_coverage",
     "database-context": "validate_database_context",
+    "provider-invocations": "validate_provider_invocations",
     "spec": "validate_vnext_spec",
     "brief-integrity": "validate_brief_integrity",
     "capsule-integrity": "validate_capsule_integrity",
@@ -149,6 +150,14 @@ def main(argv=None):
         for spec_ in caps.values():
             coverable.update(spec_.get("preferred_evidence") or [])
         kwargs["coverable_evidence"] = coverable
+    elif args.gate == "provider-invocations":
+        registry_path = (
+            Path(__file__).resolve().parents[2] / "config" / "provider-registry.yaml"
+        )
+        kwargs["provider_registry"] = (
+            (yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {})
+            if registry_path.exists() else {}
+        )
     elif args.gate == "spec":
         if not args.against:
             print("FAIL — --against is required for spec gate (CHANGE.yaml)")
