@@ -8,6 +8,7 @@ import yaml
 
 MAPPING_REL = "profiles/provider-capabilities.yaml"
 REGISTRY_REL = "profiles/capability-registry.yaml"
+PROVIDER_REGISTRY_REL = "config/provider-registry.yaml"
 ROLES = {"primary", "supporting"}
 UA_TOOLS = {
     "list_projects", "get_graph_stats", "get_graph_metadata", "get_tour", "query_nodes",
@@ -33,6 +34,66 @@ def load_provider_capabilities(framework_dir: Path) -> dict:
 
 def load_capability_registry(framework_dir: Path) -> dict:
     return _load(Path(framework_dir) / REGISTRY_REL, "registry")
+
+
+def load_provider_registry(framework_dir: Path) -> dict:
+    return _load(Path(framework_dir) / PROVIDER_REGISTRY_REL, "provider registry")
+
+
+def validate_canonical_provider_registry(doc: dict, capabilities: dict) -> list[str]:
+    errors: list[str] = []
+    providers = doc.get("providers")
+    if doc.get("version") != 1 or not isinstance(providers, dict) or not providers:
+        return ["provider registry requires version 1 and a non-empty providers map"]
+    known_caps = set(capabilities.get("capabilities") or {})
+    for provider_id, spec in providers.items():
+        prefix = f"providers.{provider_id}"
+        if not spec.get("display_name") or not spec.get("kind"):
+            errors.append(f"{prefix}: display_name and kind are required")
+        if not spec.get("synthetic"):
+            if spec.get("configured_externally"):
+                if spec.get("client_config_key") != provider_id:
+                    errors.append(f"{prefix}: client_config_key must equal provider ID")
+            elif spec.get("setup_ref") != provider_id:
+                errors.append(f"{prefix}: setup_ref must equal canonical provider ID")
+        contract = spec.get("contract") or {}
+        if contract and contract.get("id") != provider_id:
+            errors.append(f"{prefix}: contract ID must equal canonical provider ID")
+        for role in ("primary", "supporting"):
+            for capability in (spec.get("capabilities") or {}).get(role) or []:
+                if capability not in known_caps:
+                    errors.append(f"{prefix}: unknown capability {capability}")
+        if provider_id == "understand-anything":
+            tools = set((spec.get("tool_contract") or {}).get("tools") or [])
+            if tools != UA_TOOLS:
+                errors.append(
+                    f"{prefix}: tool contract differs from tested UA tool snapshot"
+                )
+        if provider_id == "db-access":
+            tool_contract = spec.get("tool_contract") or {}
+            tools = set(tool_contract.get("tools") or [])
+            lanes = tool_contract.get("lanes") or {}
+            if not tools or not isinstance(lanes, dict):
+                errors.append(f"{prefix}: tool contract and lanes are required")
+                continue
+            for lane, lane_spec in lanes.items():
+                unknown = set((lane_spec or {}).get("tools") or []) - tools
+                if unknown:
+                    errors.append(f"{prefix}.tool_contract.lanes.{lane}: unknown tools {sorted(unknown)!r}")
+            exploration = set((lanes.get("exploration") or {}).get("tools") or [])
+            privileged = {
+                "sql_write", "mongo_write", "sql_execute_script",
+            }
+            leaked = exploration & privileged
+            if leaked:
+                errors.append(f"{prefix}: exploration lane exposes privileged tools {sorted(leaked)!r}")
+            for lane in ("explicit_write", "explicit_script"):
+                lane_spec = lanes.get(lane) or {}
+                if lane_spec.get("activation") != "explicit_user_request":
+                    errors.append(f"{prefix}.tool_contract.lanes.{lane}: explicit user activation required")
+                if lane_spec.get("provider_confirmation_required") is not True:
+                    errors.append(f"{prefix}.tool_contract.lanes.{lane}: provider confirmation required")
+    return errors
 
 
 def validate_provider_capabilities(mapping: dict, registry: dict) -> list[str]:

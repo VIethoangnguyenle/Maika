@@ -5,6 +5,7 @@ import yaml
 
 from cli.agent_content.provider_capabilities import (
     load_capability_registry, load_provider_capabilities, validate_provider_capabilities,
+    load_provider_registry, validate_canonical_provider_registry,
 )
 
 REPO = Path(__file__).resolve().parents[2]
@@ -110,3 +111,45 @@ def test_repo_provider_ids_converge_across_surfaces():
     from cli.agent_content.provider_capabilities import validate_provider_identity
     mapping, registry, manifest_ids, owners = _identity_inputs()
     assert validate_provider_identity(mapping, registry, manifest_ids, owners) == []
+
+
+def test_canonical_provider_registry_is_valid_and_owns_db_access():
+    _mapping, capabilities = _docs()
+    providers = load_provider_registry(FRAMEWORK)
+    assert validate_canonical_provider_registry(providers, capabilities) == []
+    db = providers["providers"]["db-access"]
+    assert db["configured_externally"] is True
+    assert db["client_config_key"] == "db-access"
+    assert "runtime" not in db
+    assert db["tool_contract"]["lanes"]["explicit_write"]["activation"] == "explicit_user_request"
+    assert db["tool_contract"]["lanes"]["explicit_write"]["provider_confirmation_required"] is True
+
+
+def test_ua_registry_uses_observed_tool_snapshot_without_provider_rewrite():
+    _mapping, capabilities = _docs()
+    providers = load_provider_registry(FRAMEWORK)
+    ua = providers["providers"]["understand-anything"]
+    assert "contract" not in ua
+    assert "get_graph_metadata" in ua["tool_contract"]["tools"]
+    assert validate_canonical_provider_registry(providers, capabilities) == []
+
+
+def test_db_exploration_lane_rejects_write_tool_leak():
+    _mapping, capabilities = _docs()
+    providers = deepcopy(load_provider_registry(FRAMEWORK))
+    providers["providers"]["db-access"]["tool_contract"]["lanes"]["exploration"]["tools"].append(
+        "sql_write"
+    )
+    errors = validate_canonical_provider_registry(providers, capabilities)
+    assert any("exploration lane exposes privileged tools" in error for error in errors)
+
+
+def test_db_write_lane_requires_explicit_user_request_and_provider_confirmation():
+    _mapping, capabilities = _docs()
+    providers = deepcopy(load_provider_registry(FRAMEWORK))
+    lane = providers["providers"]["db-access"]["tool_contract"]["lanes"]["explicit_write"]
+    lane["activation"] = "automatic"
+    lane["provider_confirmation_required"] = False
+    errors = validate_canonical_provider_registry(providers, capabilities)
+    assert any("explicit user activation required" in error for error in errors)
+    assert any("provider confirmation required" in error for error in errors)

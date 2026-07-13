@@ -35,8 +35,8 @@
 | `historical_context_retrieval` | Agent Memory | incident cũ, quyết định trước, rejected approach, review pattern lặp lại |
 | `business_knowledge_retrieval` | Agent Memory + tài liệu | tri thức nghiệp vụ, domain, tài liệu |
 | `convention_retrieval` | durable knowledge | Author DNA, conventions, rule IDs |
-| `database_schema_inspection` | Database Explorer (read-only) | table, column, constraint, index, package, procedure |
-| `database_dependency_analysis` | Database Explorer (read-only) | phụ thuộc DB, consumer SQL/package |
+| `database_schema_inspection` | DB Access qua Database Explorer | database, table, column, constraint, collection/schema |
+| `database_dependency_analysis` | DB Access constraints + current source | FK metadata và consumer SQL; capability DB không có phải degrade tường minh |
 
 - **UA-MCP là nguồn số 1** cho structured architecture/domain/call/impact/path/
   inheritance trace khi graph áp dụng được. **CBM là nguồn số 1** cho semantic search.
@@ -80,6 +80,8 @@ Freshness handling:
 
 - Provider health phải đến từ **probe thật**: `mcp-status` ghi provider health trước
   khi dựa vào dynamic capability; `maika doctor mcp` chẩn đoán config + runtime.
+- Maika dùng MCP config key `db-access` mà user đã cấu hình. Không suy đoán provider
+  chạy local/remote, không yêu cầu local binary, và không đọc DB/tunnel credentials.
 - **Registration ≠ có data.** Một provider đăng ký nhưng graph/index rỗng thì probe
   rỗng = **invalid** (không được coi là sẵn sàng). Phải verify provider có DATA, không
   chỉ có REGISTRATION.
@@ -118,9 +120,16 @@ Freshness handling:
 - Node progress có thể ghi `NODE_CHECKPOINT.<node-id>.md`.
 - Context còn thiếu có thể yêu cầu qua `CONTEXT_REQUEST.<node-id>.md`.
 
-### [CRITICAL] R-Tool-9: Database read-only
+### [CRITICAL] R-Tool-9: Database operation boundary
 
-- Exploration DB **chỉ read-only** — không tự động chạy DDL hoặc DML trong exploration.
+- DB Access là provider có cả `read`, `write` và `script`; Maika không được mô tả
+  toàn provider là read-only hoặc che các tool ghi hợp lệ.
+- Lane `database-explorer` **chỉ read-only** — không tự động chạy DDL hoặc DML trong
+  exploration và không được thấy write/script tools trong context của lane này.
+- `sql_write`, `mongo_write` và `sql_execute_script` chỉ được route khi user yêu cầu
+  thao tác ghi tường minh, chọn đúng source/database/environment, và vẫn phải qua
+  preview + confirmation token của DB Access. Confirmation token là safety của
+  provider, không thay thế intent tường minh của user.
 - Persistence-sensitive change (entity, repository, native SQL, table/column/index,
   constraint, package/procedure, migration, transaction, locking, job/outbox, audit)
   **PHẢI** có DB evidence; chênh lệch giữa source và live DB state phải được reconcile.

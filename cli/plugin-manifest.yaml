@@ -31,9 +31,9 @@ mcp_capabilities:
     provides: document_search
     display: "Confluence — Wiki/document search"
 
-  db-remote:
+  db-access:
     provides: db_access
-    display: "DB Remote — Database schema exploration (read-only)"
+    display: "DB Access — configured MCP for metadata, read, write and script operations"
 
   understand-anything:
     provides: code_exploration
@@ -175,6 +175,12 @@ plugins:
     source: config/artifact-registry.yaml
     template: false
     output: "{{ platform.framework_root }}/config/artifact-registry.yaml"
+
+  - name: provider-registry
+    type: profile
+    source: config/provider-registry.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/provider-registry.yaml"
 
   - name: artifact-authority
     type: profile

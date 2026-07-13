@@ -529,7 +529,7 @@ Khi agent bắt đầu một session trong repo có Maika, nó bootstrap context
 Core: AGENTS.md v3.0 + RULES (manifest + flow/tool/exec/knowledge/guard)
 Skills: intent-analysis | grounding-explorer | architecture-reconciler | writing-spec | ...
 Workflows: maika task
-Platform: codex | MCPs: codebase-memory-mcp, db-remote
+Platform: codex | MCPs: codebase-memory-mcp, db-access
 Active context: REQUIREMENT empty | EXPLORE_CONTEXT empty
 Author DNA: approved
 Archive: 3 tickets

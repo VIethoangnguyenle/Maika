@@ -44,7 +44,7 @@ def test_doctor_writes_report_for_missing_native_config(tmp_path):
 def test_doctor_matches_selected_server_in_existing_config(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
-    write_resolved(target, mcps=["codebase-memory-mcp", "db-remote"])
+    write_resolved(target, mcps=["codebase-memory-mcp", "db-access"])
     cfg = target / ".agents" / "mcp_config.json"
     cfg.write_text(json.dumps({"mcpServers": {"codebase-memory-mcp": {"command": "npx"}}}), encoding="utf-8")
 
@@ -52,7 +52,7 @@ def test_doctor_matches_selected_server_in_existing_config(tmp_path):
 
     text = (target / ".maika" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
     assert "matched: codebase-memory-mcp" in text
-    assert "missing: db-remote" in text
+    assert "missing: db-access" in text
     assert "native: partial" in text
     assert "bridge: not-probed" in text
 
@@ -60,7 +60,7 @@ def test_doctor_matches_selected_server_in_existing_config(tmp_path):
 def test_build_doctor_status_marks_partial_native_state_for_partial_match(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
-    write_resolved(target, mcps=["codebase-memory-mcp", "db-remote"])
+    write_resolved(target, mcps=["codebase-memory-mcp", "db-access"])
     cfg = target / ".agents" / "mcp_config.json"
     cfg.write_text(json.dumps({"mcpServers": {"codebase-memory-mcp": {"command": "npx"}}}), encoding="utf-8")
 

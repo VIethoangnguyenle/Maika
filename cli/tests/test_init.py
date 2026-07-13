@@ -20,7 +20,7 @@ from cli.scaffold import load_manifest
 def _interactive(
     monkeypatch,
     platform_key,
-    mcps=("codebase-memory-mcp", "confluence", "db-remote"),
+    mcps=("codebase-memory-mcp", "confluence", "db-access"),
     language="python",
     inputs=("y",),
 ):
@@ -115,10 +115,10 @@ def test_questionary_call_shapes_match_init_usage():
 
 
 def test_parse_multi_values_accepts_repeated_and_comma_values():
-    assert parse_multi_values(["codebase-memory-mcp,confluence", "db-remote"]) == [
+    assert parse_multi_values(["codebase-memory-mcp,confluence", "db-access"]) == [
         "codebase-memory-mcp",
         "confluence",
-        "db-remote",
+        "db-access",
     ]
 
 

@@ -13,7 +13,7 @@ def test_context_request_requires_request_type_and_missing_evidence():
         "node_id: L1\n"
         "request_type: context\n"
         "missing:\n  - AD_USER column metadata\n"
-        "suggested_tools:\n  - db-remote\n"
+        "suggested_tools:\n  - db-access\n"
         "blocked_reason: cannot choose the correct repository method\n"
     )
     assert g.validate_context_request(empty).ok is False

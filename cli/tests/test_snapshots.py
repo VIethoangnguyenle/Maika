@@ -9,15 +9,15 @@ from cli.commands.init import run_init
 
 PLATFORM_OPTIONS = {
     "antigravity": {
-        "mcps": ["codebase-memory-mcp", "confluence", "db-remote"],
+        "mcps": ["codebase-memory-mcp", "confluence", "db-access"],
         "language": "python",
     },
     "codex": {
-        "mcps": ["codebase-memory-mcp", "confluence", "db-remote"],
+        "mcps": ["codebase-memory-mcp", "confluence", "db-access"],
         "language": "python",
     },
     "claude-code": {
-        "mcps": ["codebase-memory-mcp", "confluence", "db-remote"],
+        "mcps": ["codebase-memory-mcp", "confluence", "db-access"],
         "language": "python",
     },
     "generic": {
