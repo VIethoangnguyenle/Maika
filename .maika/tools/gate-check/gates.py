@@ -485,6 +485,23 @@ def validate_intent(text: str, change_text: str = "") -> Result:
     return Result(True)
 
 
+def _verify_source_file(repo_root, file, fhash, symbol=None):
+    """Mechanically re-verify a source anchor: existence, current sha256, symbol
+    presence. Returns an error string or None. Shared by exploration-evidence
+    and trace-evidence (R5 — one enforcement path for source authenticity)."""
+    import hashlib
+    p = file if os.path.isabs(file) else os.path.join(repo_root, file)
+    if not os.path.isfile(p):
+        return f"file not found: {file}"
+    raw = open(p, "rb").read()
+    actual = "sha256:" + hashlib.sha256(raw).hexdigest()
+    if actual != fhash:
+        return f"file_hash mismatch (stale/fabricated): {file}"
+    if symbol and symbol not in raw.decode("utf-8", errors="replace"):
+        return f"symbol '{symbol}' not found in {file}"
+    return None
+
+
 def validate_exploration_evidence(text: str, evidence_text: str = "", repo_root=None) -> Result:
     """Gate `exploration-evidence` — three-lens grounding + claim manifest.
 
@@ -537,16 +554,9 @@ def validate_exploration_evidence(text: str, evidence_text: str = "", repo_root=
                 if not _SHA256_FMT.match(fhash):
                     return Result(False, f"{cid}: source {i} missing file_hash")
                 if repo_root:
-                    import hashlib
-                    p = file if os.path.isabs(file) else os.path.join(repo_root, file)
-                    if not os.path.isfile(p):
-                        return Result(False, f"{cid}: source {i} file not found: {file}")
-                    raw = open(p, "rb").read()
-                    actual = "sha256:" + hashlib.sha256(raw).hexdigest()
-                    if actual != fhash:
-                        return Result(False, f"{cid}: source {i} file_hash mismatch (stale/fabricated): {file}")
-                    if symbol not in raw.decode("utf-8", errors="replace"):
-                        return Result(False, f"{cid}: source {i} symbol '{symbol}' not found in {file}")
+                    problem = _verify_source_file(repo_root, file, fhash, symbol)
+                    if problem:
+                        return Result(False, f"{cid}: source {i} {problem}")
     return Result(True)
 
 
@@ -1079,6 +1089,205 @@ def validate_provider_invocations(text, provider_registry=None) -> Result:
                     f"line {lineno}: tool {record['tool']!r} not in "
                     f"{record['provider_id']} tested tool snapshot",
                 )
+    return Result(True)
+
+
+_TRACE_FRESHNESS = {"FRESH", "STALE", "VERY_STALE", "UNKNOWN"}
+_TRACE_HEALTH = {"HEALTHY", "DEGRADED", "INVALID", "UNAVAILABLE"}
+
+
+def validate_trace_request(text, valid_capabilities=None, trigger_vocabulary=None) -> Result:
+    """Gate `trace-request` — orchestrator-compiled capability requirements for a
+    structured trace (harness plan §7; capability-requirements semantics folded
+    in per errata E1). Provider-neutral: only capability IDs and triggers."""
+    doc = yaml.safe_load(text) or {}
+    if doc.get("version") != 1:
+        return Result(False, "TRACE_REQUEST.yaml requires version 1")
+    if not doc.get("change_id"):
+        return Result(False, "TRACE_REQUEST.yaml requires change_id")
+    questions = doc.get("questions")
+    if not isinstance(questions, list) or not questions:
+        return Result(False, "TRACE_REQUEST.yaml requires a non-empty questions list")
+    for q in questions:
+        if not q.get("id") or not str(q.get("question") or "").strip():
+            return Result(False, "trace request question requires id and question text")
+    required = doc.get("required_capabilities") or []
+    one_of = doc.get("one_of") or {}
+    conditional = doc.get("conditional") or {}
+    one_of_members = [m for members in one_of.values() for m in (members or [])]
+    if valid_capabilities is not None:
+        for cap in list(required) + one_of_members + list(conditional):
+            if cap not in valid_capabilities:
+                return Result(False, f"unknown capability {cap!r}")
+    overlap = set(required) & set(conditional)
+    if overlap:
+        return Result(False, f"capabilities both required and conditional: {sorted(overlap)}")
+    for capability, spec in conditional.items():
+        triggers = (spec or {}).get("triggers") or []
+        if not triggers:
+            return Result(False, f"conditional capability {capability} requires triggers")
+        if trigger_vocabulary is not None:
+            for trigger in triggers:
+                if trigger not in trigger_vocabulary:
+                    return Result(False, f"unknown trigger {trigger!r} for {capability}")
+    if not doc.get("freshness_requirement") or not doc.get("source_verification_requirement"):
+        return Result(False, "trace request requires freshness_requirement and "
+                             "source_verification_requirement")
+    return Result(True)
+
+
+def _invocation_hash_index(invocations_text):
+    index = {}
+    for line in (invocations_text or "").splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict) and record.get("response_hash"):
+            index[record["response_hash"]] = record
+    return index
+
+
+def validate_trace_evidence(text, request_text=None, invocations_text=None,
+                            repo_root=None) -> Result:
+    """Gate `trace-evidence` — provider-neutral trace evidence (harness plan §7/§14).
+
+    Validates LINKAGE, not content truth (errata E6): every observation and
+    support call must be hash-bound to a host-delegated invocation record;
+    traversals must reference recorded observations; conditional capability use
+    requires an activating trigger + reason; required/one_of capabilities must
+    be covered; source verifications are mechanically re-hashed; a truncated
+    observation forbids `complete: true`."""
+    doc = yaml.safe_load(text) or {}
+    if doc.get("version") != 1:
+        return Result(False, "TRACE_EVIDENCE.yaml requires version 1")
+    if not doc.get("change_id"):
+        return Result(False, "TRACE_EVIDENCE.yaml requires change_id")
+    request = (yaml.safe_load(request_text) or {}) if request_text else {}
+    if request and request.get("change_id") != doc.get("change_id"):
+        return Result(False, "trace evidence change_id disagrees with TRACE_REQUEST")
+
+    observations = doc.get("provider_observations") or []
+    invocations = (_invocation_hash_index(invocations_text)
+                   if invocations_text is not None else None)
+    obs_hashes = set()
+    truncated = False
+    for i, obs in enumerate(observations, 1):
+        for key in ("provider_id", "tool", "response_hash"):
+            if not obs.get(key):
+                return Result(False, f"observation {i}: missing {key}")
+        if invocations is not None:
+            record = invocations.get(obs["response_hash"])
+            if record is None:
+                return Result(False, f"observation {i}: response_hash has no "
+                                     "provider invocation record")
+            if (record.get("provider_id") != obs["provider_id"]
+                    or record.get("tool") != obs["tool"]):
+                return Result(False, f"observation {i}: provider/tool disagree "
+                                     "with invocation record")
+        obs_hashes.add(obs["response_hash"])
+        truncated = truncated or bool(obs.get("truncated"))
+
+    limitations = doc.get("limitations") or []
+    graph = doc.get("graph") or {}
+    if graph:
+        for key in ("project", "graph_commit", "repository_head", "freshness", "health"):
+            if not graph.get(key):
+                return Result(False, f"graph block missing {key}")
+        if str(graph["freshness"]).upper() not in _TRACE_FRESHNESS:
+            return Result(False, f"unknown graph freshness {graph['freshness']!r}")
+        health = str(graph["health"]).upper()
+        if health not in _TRACE_HEALTH:
+            return Result(False, f"unknown graph health {graph['health']!r}")
+        if health in {"INVALID", "UNAVAILABLE"} and not limitations:
+            return Result(False, f"graph health {health} requires a limitations "
+                                 "entry (structured degradation)")
+    elif not limitations:
+        return Result(False, "missing graph block requires a limitations entry "
+                             "(e.g. ua_unavailable degradation)")
+
+    required = set(request.get("required_capabilities") or []) if request else set()
+    one_of = request.get("one_of") or {}
+    conditional = request.get("conditional") or {}
+    known_caps = (required
+                  | {m for members in one_of.values() for m in (members or [])}
+                  | set(conditional))
+    covered = set()
+    for i, traversal in enumerate(doc.get("traversals") or [], 1):
+        capability = traversal.get("capability")
+        if not capability:
+            return Result(False, f"traversal {i}: capability required")
+        refs = traversal.get("observations") or []
+        if not refs:
+            return Result(False, f"traversal {i}: must reference observation "
+                                 "response hashes")
+        for ref in refs:
+            if ref not in obs_hashes:
+                return Result(False, f"traversal {i}: references unrecorded "
+                                     f"observation {ref!r}")
+        if request and capability not in known_caps:
+            return Result(False, f"traversal {i}: capability {capability!r} not "
+                                 "in trace request")
+        if capability in conditional:
+            trigger = traversal.get("trigger")
+            if not trigger or not str(traversal.get("reason") or "").strip():
+                return Result(False, f"traversal {i}: conditional capability "
+                                     f"{capability} requires trigger + reason")
+            declared = (conditional[capability] or {}).get("triggers") or []
+            if trigger not in declared:
+                return Result(False, f"traversal {i}: trigger {trigger!r} not "
+                                     f"declared for {capability}")
+        covered.add(capability)
+
+    for i, call in enumerate(doc.get("support_calls") or [], 1):
+        for key in ("provider_id", "capability", "trigger", "reason", "response_hash"):
+            if not str(call.get(key) or "").strip():
+                return Result(False, f"support call {i}: missing {key} "
+                                     "(conditional support needs trigger + reason)")
+        if invocations is not None and call["response_hash"] not in invocations:
+            return Result(False, f"support call {i}: response_hash has no "
+                                 "provider invocation record")
+        if request:
+            spec = conditional.get(call["capability"])
+            if spec is None:
+                return Result(False, f"support call {i}: capability "
+                                     f"{call['capability']!r} is not conditional "
+                                     "in the trace request")
+            if call["trigger"] not in ((spec or {}).get("triggers") or []):
+                return Result(False, f"support call {i}: trigger {call['trigger']!r} "
+                                     f"not declared for {call['capability']}")
+
+    verifications = doc.get("source_verifications") or []
+    for i, entry in enumerate(verifications, 1):
+        file = entry.get("file")
+        fhash = str(entry.get("sha256") or "")
+        if not file or not _SHA256_FMT.match(fhash):
+            return Result(False, f"source verification {i}: file + sha256 required")
+        if repo_root:
+            problem = _verify_source_file(repo_root, file, fhash, entry.get("symbol"))
+            if problem:
+                return Result(False, f"source verification {i}: {problem}")
+    if verifications:
+        covered.add("exact_source_inspection")
+
+    if request:
+        missing = required - covered
+        if missing:
+            return Result(False, f"required capabilities uncovered: {sorted(missing)}")
+        for group, members in one_of.items():
+            if members and not (set(members) & covered):
+                return Result(False, f"one_of group {group} unsatisfied "
+                                     f"(need one of {sorted(members)})")
+
+    if doc.get("confidence") not in {"high", "medium", "low"}:
+        return Result(False, "trace evidence requires confidence high|medium|low")
+    if doc.get("complete") is True:
+        if truncated:
+            return Result(False, "complete: true with a truncated observation")
+        if request and request.get("source_verification_requirement") and not verifications:
+            return Result(False, "complete: true requires source verifications")
     return Result(True)
 
 

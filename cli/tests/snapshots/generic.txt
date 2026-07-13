@@ -139,6 +139,7 @@
 .maika/tools/microloop-orchestrator/plan_parser.py
 .maika/tools/microloop-orchestrator/requirements.txt
 .maika/tools/microloop-orchestrator/runtime_hardening.py
+.maika/tools/microloop-orchestrator/trace_compiler.py
 .maika/tools/microloop-orchestrator/vnext_dispatch.py
 .maika/tools/microloop-orchestrator/vnext_state.py
 .maika/tools/rule-projector/

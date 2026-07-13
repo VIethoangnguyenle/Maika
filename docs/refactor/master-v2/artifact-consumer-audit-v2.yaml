@@ -32,8 +32,9 @@ modules:
   consumed_by: file-dispatch:cli/commands/loop.py; dynamic-consumer:cli/commands/loop.py:file-dispatched
     by _load_module(target, fr, name)
 - path: .maika/tools/microloop-orchestrator/orchestrator.py
-  consumed_by: file-dispatch:cli/commands/task.py; dynamic-consumer:cli/commands/task.py:orchestrator
-    + vnext_state + runtime_hardening loaded via spec_from_file_location
+  consumed_by: file-dispatch:cli/commands/task.py; cli-entrypoint:.maika/skills/grounding-explorer/SKILL.md;
+    dynamic-consumer:cli/commands/task.py:orchestrator + vnext_state + runtime_hardening
+    loaded via spec_from_file_location
 - path: .maika/tools/microloop-orchestrator/plan_compiler.py
   consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py;
     file-dispatch:.maika/tools/microloop-orchestrator/vnext_dispatch.py
@@ -43,6 +44,8 @@ modules:
   consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py;
     file-dispatch:cli/commands/skill.py; dynamic-consumer:cli/commands/task.py:orchestrator
     + vnext_state + runtime_hardening loaded via spec_from_file_location
+- path: .maika/tools/microloop-orchestrator/trace_compiler.py
+  consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py
 - path: .maika/tools/microloop-orchestrator/vnext_dispatch.py
   consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py
 - path: .maika/tools/microloop-orchestrator/vnext_state.py

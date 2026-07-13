@@ -175,12 +175,31 @@ def _run_reasoning_validation(ws: Path, framework_path: Path, repo_root, gates):
             invocations_path.read_text(encoding="utf-8"),
             provider_registry=provider_registry,
         )
+    trace_request_path = ws / "exploration" / "TRACE_REQUEST.yaml"
+    trace_evidence_path = ws / "exploration" / "TRACE_EVIDENCE.yaml"
+    trace_request_res = gates.Result(True)
+    trace_evidence_res = gates.Result(True)
+    if trace_request_path.exists():
+        trace_request_res = gates.validate_trace_request(
+            trace_request_path.read_text(encoding="utf-8"),
+            valid_capabilities=set(capabilities),
+            trigger_vocabulary=set(registry.get("triggers") or {}),
+        )
+        trace_evidence_res = gates.validate_trace_evidence(
+            trace_evidence_path.read_text(encoding="utf-8")
+            if trace_evidence_path.exists() else "",
+            request_text=trace_request_path.read_text(encoding="utf-8"),
+            invocations_text=(invocations_path.read_text(encoding="utf-8")
+                              if invocations_path.exists() else ""),
+            repo_root=repo_root,
+        )
     checks = [
         ("intent", intent_res), ("exploration-evidence", evidence_res),
         ("query-plan", query_res), ("tool-health", health_res),
         ("conflicts", conflict_res), ("coverage", coverage_res),
         ("memory-recall", memory_res), ("database-context", database_res),
         ("provider-invocations", provider_res),
+        ("trace-request", trace_request_res), ("trace-evidence", trace_evidence_res),
     ]
     ok = all(result.ok for _, result in checks)
     (ws / "generated" / "EXPLORATION_VALIDATION.json").write_text(json.dumps({
@@ -372,6 +391,10 @@ def _add_vnext_commands(sub):
     explore_parser.add_argument("--workspace", required=True)
     explore_parser.add_argument("--repo-root", required=True)
 
+    trace_request_parser = sub.add_parser("vnext-compile-trace-request")
+    trace_request_parser.add_argument("--workspace", required=True)
+    trace_request_parser.add_argument("--repo-root", required=True)
+
     transition_parser = sub.add_parser("vnext-transition")
     transition_parser.add_argument("--workspace", required=True)
     transition_parser.add_argument("--repo-root", required=True)
@@ -449,6 +472,32 @@ def _main_unlocked(argv=None):
             return 1
         suffix = " (already started)" if previous == "EXPLORING" else ""
         print(f"Exploration state: {state['state']}{suffix}")
+        return 0
+
+    if args.command == "vnext-compile-trace-request":
+        state = vs.load_state(ws)
+        if state.get("state") != "EXPLORING":
+            print(f"Refused: wrong state {state.get('state')} (expected EXPLORING)")
+            return 1
+        if not (ws / "exploration" / "QUERY_PLAN.yaml").exists():
+            print("Refused: exploration/QUERY_PLAN.yaml required before trace request")
+            return 1
+        import trace_compiler as tc
+        path = tc.write_trace_request(ws, framework_path)
+        registry_path = framework_path / "profiles" / "capability-registry.yaml"
+        if not registry_path.exists():
+            registry_path = (Path(__file__).resolve().parents[2]
+                             / "profiles" / "capability-registry.yaml")
+        registry_doc = yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {}
+        res = gates.validate_trace_request(
+            path.read_text(encoding="utf-8"),
+            valid_capabilities=set(registry_doc.get("capabilities") or {}),
+            trigger_vocabulary=set(registry_doc.get("triggers") or {}),
+        )
+        if not res.ok:
+            print(f"Gate trace-request failed: {res.reason}")
+            return 1
+        print(f"Trace request compiled at {path}")
         return 0
 
     if args.command == "vnext-transition":

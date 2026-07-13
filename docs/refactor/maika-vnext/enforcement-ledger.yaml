@@ -642,6 +642,39 @@ entries:
     scope: {change_classes: [standard, architectural]}
     reviewed_at: 2026-07-14
 
+  - id: ENF-030
+    mechanism: trace-request-and-evidence
+    type: gate
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        C-11/C-12 (inventory 2026-07-13): no canonical trace request/evidence
+        artifacts exist; active gates require provider-specific prose
+        (node_id/blast-radius regex, KG-unavailable line, CBM node checks), so
+        a complete UA trace cannot pass neutrally and worker-authored trace
+        claims carry no invocation linkage (B2). Trace request is now
+        orchestrator-compiled; evidence is hash-bound to invocation records.
+    implementation:
+      files:
+        - .maika/tools/gate-check/gates.py
+        - .maika/tools/microloop-orchestrator/trace_compiler.py
+        - cli/mcp/integration/understand_anything.py
+        - cli/mcp/integration/codebase_memory.py
+        - cli/mcp/integration/current_source.py
+        - cli/mcp/integration/trace_store.py
+      consumers:
+        - .maika/tools/gate-check/cli.py
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+        - cli/commands/provider.py
+        - .maika/skills/grounding-explorer/SKILL.md
+        - .maika/tools/gate-check/tests/test_trace_gates.py
+        - .maika/tools/microloop-orchestrator/tests/test_trace_compiler.py
+        - cli/tests/test_trace_evidence_flow.py
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-14
+
   # ---- deferred change-loop triggers (no discrete runtime signal yet) ----
   - id: DEF-005
     mechanism: change-loop-stale-contract

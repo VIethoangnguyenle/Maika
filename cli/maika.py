@@ -218,7 +218,7 @@ def main():
         "provider",
         help="Record host-delegated provider invocation evidence",
     )
-    provider_parser.add_argument("action", choices=["record"])
+    provider_parser.add_argument("action", choices=["record", "verify-source"])
     provider_parser.add_argument("--target", default=".")
     provider_parser.add_argument("--id", dest="change_id", default=None)
     provider_parser.add_argument("--provider", dest="provider_id", default=None)
@@ -234,6 +234,10 @@ def main():
     provider_parser.add_argument("--normalized-artifact", default="")
     provider_parser.add_argument("--trigger", default="")
     provider_parser.add_argument("--reason", default="")
+    provider_parser.add_argument("--file", default=None,
+                                 help="Source file for verify-source")
+    provider_parser.add_argument("--symbol", default="",
+                                 help="Symbol that must appear in --file")
 
     runtime_parser = subparsers.add_parser(
         "runtime", help="Inspect or select the current host runtime",
@@ -483,6 +487,8 @@ def main():
             normalized_artifact=args.normalized_artifact,
             trigger=args.trigger,
             reason=args.reason,
+            file=args.file,
+            symbol=args.symbol,
         ))
     elif args.command == "runtime":
         from cli.commands.runtime import run_runtime

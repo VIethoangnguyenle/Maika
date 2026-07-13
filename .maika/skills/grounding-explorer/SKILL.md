@@ -114,16 +114,24 @@ Provider ưu tiên theo `jit/providers.md`; skill chỉ gọi capability, không
 
 ## Quy trình truy xuất
 1. Đọc `QUERY_PLAN.yaml`; mỗi câu hỏi → resolve capability từ required_evidence_types.
-2. Probe structured graph project + freshness; ghi observed graph commit và HEAD vào
-   `TOOL_HEALTH.yaml`.
-3. Chọn domain-graph hoặc code-graph entry strategy và resolve anchor nodes.
-4. Traverse domain flow, relationships, call chain hoặc impact bằng precise trace
-   capability; lấy node source cho material nodes.
-5. Chỉ gọi `semantic_code_search` khi anchor unresolved, relationship có gap,
-   relevant graph files stale, semantic intent ambiguous, hidden consumer search hoặc
-   independent corroboration là cần thiết; ghi reason cho mỗi support call.
-6. Verify exact material facts bằng `exact_source_inspection` trên current source.
-7. Ghi claim + provenance vào `EVIDENCE_MANIFEST.yaml`; ghi conflict và coverage.
+2. Compile trace request (orchestrator, không tự viết):
+   `orchestrator.py vnext-compile-trace-request --workspace <ws> --repo-root <root>`
+   → `exploration/TRACE_REQUEST.yaml`.
+3. Probe structured graph project + freshness; ghi observed graph commit và HEAD vào
+   `TOOL_HEALTH.yaml`. Mỗi MCP call (probe lẫn traversal) phải record qua
+   `maika provider record --provider <id> --tool <t> --request-file <req> --response-file <res>`
+   — record tạo hash + provider observation trong `TRACE_EVIDENCE.yaml`.
+4. Chọn domain-graph hoặc code-graph entry strategy và resolve anchor nodes.
+5. Traverse domain flow, relationships, call chain hoặc impact bằng precise trace
+   capability; lấy node source cho material nodes. Viết traversal vào
+   `TRACE_EVIDENCE.yaml` tham chiếu response hash của observation tương ứng.
+6. Chỉ gọi `semantic_code_search` khi một trigger conditional kích hoạt; record call
+   với `--trigger <trigger> --reason "<why>"` (support call thiếu trigger/reason bị
+   gate từ chối).
+7. Verify exact material facts bằng
+   `maika provider verify-source --file <path> --symbol <symbol>` — Maika tự hash,
+   gate re-verify (không tự viết sha256).
+8. Ghi claim + provenance vào `EVIDENCE_MANIFEST.yaml`; ghi conflict và coverage.
 
 ## Thứ tự authority và precedence
 live DB state > current source > business contract hiện hành > fresh graph >
