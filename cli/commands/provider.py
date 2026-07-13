@@ -13,10 +13,16 @@ from pathlib import Path
 
 import yaml
 
+from cli.mcp.integration import codebase_memory, current_source, understand_anything
 from cli.mcp.integration.base import (
     append_invocation,
     build_invocation_record,
     utc_now,
+)
+from cli.mcp.integration.trace_store import (
+    add_observation,
+    add_source_verification,
+    add_support_call,
 )
 from cli.scaffold import load_resolved_config
 
@@ -26,6 +32,23 @@ INVOCATIONS_REL = "exploration/PROVIDER_INVOCATIONS.jsonl"
 def _framework_root(target: Path) -> str:
     resolved = load_resolved_config(target)
     return (resolved or {}).get("framework_root", ".maika")
+
+
+def _verify_source_action(target: Path, framework: Path, change_id: str,
+                          file: str, symbol: str) -> int:
+    workspace = framework / "changes" / change_id
+    if not (workspace / "STATE.yaml").exists() and not (workspace / "CHANGE.yaml").exists():
+        print(f"no such change workspace: {workspace}")
+        return 1
+    try:
+        entry = current_source.verify_source(target, file, symbol or None)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"source verification failed: {exc}")
+        return 1
+    path = add_source_verification(workspace, change_id, entry)
+    print(f"verified {file} -> {path}")
+    print(f"sha256={entry['sha256']}")
+    return 0
 
 
 def run_provider(
@@ -45,7 +68,17 @@ def run_provider(
     normalized_artifact: str = "",
     trigger: str = "",
     reason: str = "",
+    file: str | None = None,
+    symbol: str = "",
 ) -> int:
+    if action == "verify-source":
+        if not change_id or not file:
+            print("provider verify-source requires --id and --file")
+            return 2
+        target = Path(target_dir).resolve()
+        return _verify_source_action(
+            target, target / _framework_root(target), change_id, file, symbol
+        )
     if action != "record":
         print(f"Unknown provider action: {action}")
         return 2
@@ -103,6 +136,26 @@ def run_provider(
         reason=reason,
     )
     path = append_invocation(workspace / INVOCATIONS_REL, record)
+
+    # Adapter normalization (plan §13): machine-produced TRACE_EVIDENCE sections.
+    response_bytes = Path(response_file).read_bytes()
+    if provider_id == understand_anything.PROVIDER_ID:
+        observation = understand_anything.normalize_response(tool, response_bytes)
+        add_observation(workspace, change_id, observation)
+    elif provider_id == codebase_memory.PROVIDER_ID:
+        if trigger:
+            try:
+                support = codebase_memory.build_support_call(
+                    tool=tool, trigger=trigger, reason=reason, raw=response_bytes,
+                )
+            except ValueError as exc:
+                print(f"support call rejected: {exc}")
+                return 1
+            add_support_call(workspace, change_id, support)
+        else:
+            print("warning: CBM call recorded without --trigger; the trace-evidence "
+                  "gate rejects conditional support without trigger + reason")
+
     print(f"recorded {provider_id}/{tool} -> {path}")
     print(f"request_hash={record['request_hash']}")
     print(f"response_hash={record['response_hash']}")

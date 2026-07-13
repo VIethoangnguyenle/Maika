@@ -32,6 +32,8 @@ VALIDATORS = {
     "coverage": "validate_coverage",
     "database-context": "validate_database_context",
     "provider-invocations": "validate_provider_invocations",
+    "trace-request": "validate_trace_request",
+    "trace-evidence": "validate_trace_evidence",
     "spec": "validate_vnext_spec",
     "brief-integrity": "validate_brief_integrity",
     "capsule-integrity": "validate_capsule_integrity",
@@ -158,6 +160,22 @@ def main(argv=None):
             (yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {})
             if registry_path.exists() else {}
         )
+    elif args.gate == "trace-request":
+        reg = yaml.safe_load(
+            (Path(__file__).resolve().parents[2] / "profiles" / "capability-registry.yaml")
+            .read_text(encoding="utf-8")
+        ) or {}
+        kwargs["valid_capabilities"] = set(reg.get("capabilities") or {})
+        kwargs["trigger_vocabulary"] = set(reg.get("triggers") or {})
+    elif args.gate == "trace-evidence":
+        exploration = Path(args.file).resolve().parent
+        request_path = exploration / "TRACE_REQUEST.yaml"
+        invocations_path = exploration / "PROVIDER_INVOCATIONS.jsonl"
+        if request_path.exists():
+            kwargs["request_text"] = request_path.read_text(encoding="utf-8")
+        if invocations_path.exists():
+            kwargs["invocations_text"] = invocations_path.read_text(encoding="utf-8")
+        kwargs["repo_root"] = args.repo_root or os.getcwd()
     elif args.gate == "spec":
         if not args.against:
             print("FAIL — --against is required for spec gate (CHANGE.yaml)")
