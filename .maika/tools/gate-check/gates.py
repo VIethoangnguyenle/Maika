@@ -3,6 +3,7 @@
 Each returns a Result(ok, reason). They check the CONTENT (evidence) of a
 checkpoint/report — never whether a tool was 'called'. See spec §2.
 """
+import json
 import os
 import re
 from dataclasses import dataclass
@@ -1022,6 +1023,62 @@ def validate_database_context(text) -> Result:
     degradation = doc.get("degradation")
     if not objects and not (isinstance(degradation, dict) and degradation):
         return Result(False, "DATABASE_CONTEXT.yaml requires DB objects or a structured degradation record")
+    return Result(True)
+
+
+_INVOCATION_HASH = re.compile(r"^sha256:[0-9a-f]{64}$")
+_INVOCATION_TS = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+)
+_INVOCATION_REQUIRED = (
+    "trace_id", "change_id", "role", "provider_id", "tool", "invocation_mode",
+    "request_hash", "response_hash", "started_at", "ended_at", "status",
+)
+_INVOCATION_STATUSES = {"success", "error", "timeout"}
+
+
+def validate_provider_invocations(text, provider_registry=None) -> Result:
+    """Gate `provider-invocations` — every trusted MCP call needs a host-delegated
+    invocation record with payload hashes (harness plan §7/§12; blocker B3).
+    Validates linkage (registered provider, snapshot tool, hash/timestamp shape),
+    not the semantic truth of the response (errata E6)."""
+    lines = [line for line in (text or "").splitlines() if line.strip()]
+    if not lines:
+        return Result(False, "no provider invocation records")
+    providers = (provider_registry or {}).get("providers") or {}
+    for lineno, line in enumerate(lines, 1):
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            return Result(False, f"line {lineno}: invalid JSON record")
+        if not isinstance(record, dict):
+            return Result(False, f"line {lineno}: record must be a JSON object")
+        missing = [field for field in _INVOCATION_REQUIRED if not record.get(field)]
+        if missing:
+            return Result(False, f"line {lineno}: missing fields {missing}")
+        if record["invocation_mode"] != "host_mcp":
+            return Result(False, f"line {lineno}: invocation_mode must be host_mcp")
+        if record["status"] not in _INVOCATION_STATUSES:
+            return Result(False, f"line {lineno}: unknown status {record['status']!r}")
+        for key in ("request_hash", "response_hash"):
+            if not _INVOCATION_HASH.match(str(record[key])):
+                return Result(False, f"line {lineno}: {key} must be sha256:<64 hex>")
+        for key in ("started_at", "ended_at"):
+            if not _INVOCATION_TS.match(str(record[key])):
+                return Result(False, f"line {lineno}: {key} must be an ISO-8601 timestamp")
+        if providers:
+            spec = providers.get(record["provider_id"])
+            if spec is None:
+                return Result(
+                    False, f"line {lineno}: unknown provider {record['provider_id']!r}"
+                )
+            snapshot = set(((spec.get("tool_contract") or {}).get("tools")) or [])
+            if snapshot and record["tool"] not in snapshot:
+                return Result(
+                    False,
+                    f"line {lineno}: tool {record['tool']!r} not in "
+                    f"{record['provider_id']} tested tool snapshot",
+                )
     return Result(True)
 
 

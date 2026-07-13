@@ -159,11 +159,28 @@ def _run_reasoning_validation(ws: Path, framework_path: Path, repo_root, gates):
         database_res = gates.validate_database_context(
             database_path.read_text(encoding="utf-8") if database_path.exists() else ""
         )
+    invocations_path = ws / "exploration" / "PROVIDER_INVOCATIONS.jsonl"
+    provider_res = gates.Result(True)
+    if invocations_path.exists():
+        registry_file = framework_path / "config" / "provider-registry.yaml"
+        if not registry_file.exists():
+            registry_file = (
+                Path(__file__).resolve().parents[2] / "config" / "provider-registry.yaml"
+            )
+        provider_registry = (
+            yaml.safe_load(registry_file.read_text(encoding="utf-8")) or {}
+            if registry_file.exists() else {}
+        )
+        provider_res = gates.validate_provider_invocations(
+            invocations_path.read_text(encoding="utf-8"),
+            provider_registry=provider_registry,
+        )
     checks = [
         ("intent", intent_res), ("exploration-evidence", evidence_res),
         ("query-plan", query_res), ("tool-health", health_res),
         ("conflicts", conflict_res), ("coverage", coverage_res),
         ("memory-recall", memory_res), ("database-context", database_res),
+        ("provider-invocations", provider_res),
     ]
     ok = all(result.ok for _, result in checks)
     (ws / "generated" / "EXPLORATION_VALIDATION.json").write_text(json.dumps({

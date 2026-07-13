@@ -214,6 +214,27 @@ def main():
     task_parser.add_argument("--action", dest="action_arg", default=None,
                              help="Routed action for `task route` dry-run")
 
+    provider_parser = subparsers.add_parser(
+        "provider",
+        help="Record host-delegated provider invocation evidence",
+    )
+    provider_parser.add_argument("action", choices=["record"])
+    provider_parser.add_argument("--target", default=".")
+    provider_parser.add_argument("--id", dest="change_id", default=None)
+    provider_parser.add_argument("--provider", dest="provider_id", default=None)
+    provider_parser.add_argument("--tool", default=None)
+    provider_parser.add_argument("--role", default=None)
+    provider_parser.add_argument("--request-file", default=None)
+    provider_parser.add_argument("--response-file", default=None)
+    provider_parser.add_argument("--status", default="success",
+                                 choices=["success", "error", "timeout"])
+    provider_parser.add_argument("--started-at", default=None)
+    provider_parser.add_argument("--ended-at", default=None)
+    provider_parser.add_argument("--trace-id", default=None)
+    provider_parser.add_argument("--normalized-artifact", default="")
+    provider_parser.add_argument("--trigger", default="")
+    provider_parser.add_argument("--reason", default="")
+
     runtime_parser = subparsers.add_parser(
         "runtime", help="Inspect or select the current host runtime",
     )
@@ -444,6 +465,25 @@ def main():
             no_browser=args.no_browser,
             brain_platform=args.brain_platform,
         )
+    elif args.command == "provider":
+        from cli.commands.provider import run_provider
+        sys.exit(run_provider(
+            args.action,
+            target_dir=args.target,
+            change_id=args.change_id,
+            provider_id=args.provider_id,
+            tool=args.tool,
+            role=args.role,
+            request_file=args.request_file,
+            response_file=args.response_file,
+            status=args.status,
+            started_at=args.started_at,
+            ended_at=args.ended_at,
+            trace_id=args.trace_id,
+            normalized_artifact=args.normalized_artifact,
+            trigger=args.trigger,
+            reason=args.reason,
+        ))
     elif args.command == "runtime":
         from cli.commands.runtime import run_runtime
         sys.exit(run_runtime(args.action, args.target, args.platform_key,
