@@ -667,6 +667,7 @@ entries:
       consumers:
         - .maika/tools/gate-check/cli.py
         - .maika/tools/microloop-orchestrator/orchestrator.py
+        - .maika/config/workflow-router.yaml
         - cli/commands/provider.py
         - .maika/skills/grounding-explorer/SKILL.md
         - .maika/tools/gate-check/tests/test_trace_gates.py

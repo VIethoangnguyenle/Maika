@@ -1191,11 +1191,27 @@ def validate_trace_evidence(text, request_text=None, invocations_text=None,
         truncated = truncated or bool(obs.get("truncated"))
 
     limitations = doc.get("limitations") or []
+    excused_caps, excused_groups = set(), set()
+    for i, limitation in enumerate(limitations, 1):
+        if not isinstance(limitation, dict) or not limitation.get("kind") \
+                or not str(limitation.get("detail") or "").strip():
+            return Result(False, f"limitation {i}: requires kind + detail "
+                                 "(structured degradation, no prose)")
+        if limitation.get("capability"):
+            excused_caps.add(limitation["capability"])
+        if limitation.get("one_of"):
+            excused_groups.add(limitation["one_of"])
+
     graph = doc.get("graph") or {}
     if graph:
         for key in ("project", "graph_commit", "repository_head", "freshness", "health"):
             if not graph.get(key):
                 return Result(False, f"graph block missing {key}")
+        # Mutation #4: a graph claim must be produced by a recorded probe —
+        # the block carries the response hash of its metadata observation.
+        if graph.get("observation") not in obs_hashes:
+            return Result(False, "graph block is not backed by a recorded probe "
+                                 "observation (fresh-graph claim needs response hash)")
         if str(graph["freshness"]).upper() not in _TRACE_FRESHNESS:
             return Result(False, f"unknown graph freshness {graph['freshness']!r}")
         health = str(graph["health"]).upper()
@@ -1273,17 +1289,20 @@ def validate_trace_evidence(text, request_text=None, invocations_text=None,
         covered.add("exact_source_inspection")
 
     if request:
-        missing = required - covered
+        missing = required - covered - excused_caps
         if missing:
             return Result(False, f"required capabilities uncovered: {sorted(missing)}")
         for group, members in one_of.items():
-            if members and not (set(members) & covered):
+            if members and not (set(members) & covered) and group not in excused_groups:
                 return Result(False, f"one_of group {group} unsatisfied "
                                      f"(need one of {sorted(members)})")
 
     if doc.get("confidence") not in {"high", "medium", "low"}:
         return Result(False, "trace evidence requires confidence high|medium|low")
     if doc.get("complete") is True:
+        if excused_caps or excused_groups:
+            return Result(False, "complete: true while limitations excuse "
+                                 "capabilities/groups (degraded trace is not complete)")
         if truncated:
             return Result(False, "complete: true with a truncated observation")
         if request and request.get("source_verification_requirement") and not verifications:

@@ -142,6 +142,33 @@ def _write_valid_reasoning(ws, repo_root):
     (ws / "exploration" / "MEMORY_RECALL.md").write_text(
         "agent-memory unavailable — skip recall/save\n", encoding="utf-8"
     )
+    # M5: trace request/evidence are mandatory for exploration validation.
+    # This host has no UA MCP configured, so the structured_trace one_of group
+    # is excused by a structured limitation and complete stays false.
+    (ws / "exploration" / "TRACE_REQUEST.yaml").write_text(yaml.safe_dump({
+        "version": 1, "change_id": "demo",
+        "questions": [{"id": "Q-1", "question": "What exact behavior exists?",
+                       "required_capabilities": ["exact_source_inspection"]}],
+        "anchors": [],
+        "required_capabilities": ["exact_source_inspection"],
+        "one_of": {"structured_trace": [
+            "architecture_discovery", "domain_flow_trace", "call_chain_trace"]},
+        "conditional": {"semantic_code_search": {"triggers": ["ua_unavailable"]}},
+        "freshness_requirement": "graph_commit_current_or_scoped_stale",
+        "source_verification_requirement": "material_exact_facts_source_verified",
+    }, sort_keys=False), encoding="utf-8")
+    (ws / "exploration" / "TRACE_EVIDENCE.yaml").write_text(yaml.safe_dump({
+        "version": 1, "change_id": "demo",
+        "provider_observations": [], "graph": {}, "anchors": [], "traversals": [],
+        "impact": [], "support_calls": [],
+        "source_verifications": [{"file": "src/demo_mod.py", "sha256": real_hash,
+                                  "symbol": "demo_func"}],
+        "limitations": [{"kind": "provider_unconfigured",
+                         "one_of": "structured_trace",
+                         "detail": "UA MCP not configured on this host; "
+                                   "TOOL_HEALTH records the degradation"}],
+        "confidence": "medium", "complete": False,
+    }, sort_keys=False), encoding="utf-8")
 
 
 def _write_small_spec(ws):

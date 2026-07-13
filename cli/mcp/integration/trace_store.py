@@ -54,7 +54,14 @@ def add_observation(workspace: Path, change_id: str, observation: dict) -> Path:
     graph = observation.pop("graph", None)
     doc["provider_observations"] = list(doc.get("provider_observations") or []) + [observation]
     if graph:
-        doc["graph"] = {**(doc.get("graph") or {}), **graph}
+        # Bind the graph claim to the probe observation that produced it —
+        # a hand-written graph block cannot survive the trace-evidence gate
+        # (mutation #4: fresh-graph claim without response hash).
+        doc["graph"] = {
+            **(doc.get("graph") or {}),
+            **graph,
+            "observation": observation["response_hash"],
+        }
     save_trace_evidence(path, doc)
     return path
 

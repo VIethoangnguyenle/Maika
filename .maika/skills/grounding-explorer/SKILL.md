@@ -50,17 +50,23 @@ outputs:
   required:
   - exploration/GROUNDING.yaml
   - exploration/EVIDENCE_MANIFEST.yaml
+  - exploration/TRACE_REQUEST.yaml
+  - exploration/TRACE_EVIDENCE.yaml
   - exploration/TOOL_HEALTH.yaml
   - exploration/CONFLICTS.yaml
   - exploration/COVERAGE.yaml
   optional:
   - exploration/QUERY_PLAN.yaml
+  - exploration/PROVIDER_INVOCATIONS.jsonl
   - exploration/DATABASE_CONTEXT.yaml
 gates:
 - query-plan
 - tool-health
 - exploration-evidence
 - coverage
+- provider-invocations
+- trace-request
+- trace-evidence
 ---
 # Grounding Explorer
 
