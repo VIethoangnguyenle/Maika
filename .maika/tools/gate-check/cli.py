@@ -24,8 +24,37 @@ VALIDATORS = {
     "code-evidence": "validate_code_evidence",
     "vnext-plan": "validate_vnext_plan",
     "vnext-workspace": "validate_change_workspace",
+    "intent": "validate_intent",
+    "exploration-evidence": "validate_exploration_evidence",
+    "query-plan": "validate_query_plan",
+    "tool-health": "validate_tool_health",
+    "conflicts": "validate_conflicts",
+    "coverage": "validate_coverage",
+    "database-context": "validate_database_context",
+    "database-request": "validate_database_request",
+    "provider-invocations": "validate_provider_invocations",
+    "trace-request": "validate_trace_request",
+    "trace-evidence": "validate_trace_evidence",
+    "spec": "validate_vnext_spec",
     "brief-integrity": "validate_brief_integrity",
+    "capsule-integrity": "validate_capsule_integrity",
+    "evidence-update-request": "validate_evidence_update_request",
     "result-contract": "validate_result_contract",
+    "task-review": "validate_task_review",
+    "final-review": "validate_final_review",
+    "plan-review": "validate_plan_review",
+    "knowledge-impact": "validate_knowledge_impact",
+    "verification-report": "validate_verification_report",
+    "agent-kernel": "validate_agent_kernel",
+    "bootstrap-complete": "validate_bootstrap_complete",
+    "bootstrap-ack": "validate_bootstrap_ack",
+    "context-package": "validate_context_package",
+    "dispatch-kernel": "validate_dispatch_kernel",
+    "knowledge-trace": "validate_knowledge_trace",
+    "skill-feedback": "validate_skill_feedback",
+    "skill-evolution-candidate": "validate_skill_evolution_candidate",
+    "skill-evolution-review": "validate_skill_evolution_review",
+    "skill-evolution-promotion": "validate_skill_evolution_promotion",
 }
 
 
@@ -102,15 +131,95 @@ def main(argv=None):
             import hashlib
             kwargs["spec_sha256"] = hashlib.sha256(
                 Path(args.against).read_bytes()).hexdigest()
+    elif args.gate == "intent":
+        if not args.against:
+            print("FAIL — --against is required for intent gate (CHANGE.yaml)")
+            return 2
+        kwargs["change_text"] = Path(args.against).read_text(encoding="utf-8")
+    elif args.gate == "exploration-evidence":
+        if not args.against:
+            print("FAIL — --against is required for exploration-evidence gate")
+            return 2
+        kwargs["evidence_text"] = Path(args.against).read_text(encoding="utf-8")
+        kwargs["repo_root"] = args.repo_root or os.getcwd()
+    elif args.gate == "query-plan":
+        reg = yaml.safe_load(
+            (Path(__file__).resolve().parents[2] / "profiles" / "capability-registry.yaml")
+            .read_text(encoding="utf-8")
+        ) or {}
+        caps = reg.get("capabilities") or {}
+        kwargs["valid_capabilities"] = set(caps)
+        coverable = set()
+        for spec_ in caps.values():
+            coverable.update(spec_.get("preferred_evidence") or [])
+        kwargs["coverable_evidence"] = coverable
+    elif args.gate == "provider-invocations":
+        registry_path = (
+            Path(__file__).resolve().parents[2] / "config" / "provider-registry.yaml"
+        )
+        kwargs["provider_registry"] = (
+            (yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {})
+            if registry_path.exists() else {}
+        )
+    elif args.gate == "database-context":
+        registry_path = (
+            Path(__file__).resolve().parents[2] / "config" / "provider-registry.yaml"
+        )
+        kwargs["provider_registry"] = (
+            (yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {})
+            if registry_path.exists() else {}
+        )
+        request_path = Path(args.file).resolve().parent / "DATABASE_REQUEST.yaml"
+        if request_path.exists():
+            kwargs["request_text"] = request_path.read_text(encoding="utf-8")
+    elif args.gate == "trace-request":
+        reg = yaml.safe_load(
+            (Path(__file__).resolve().parents[2] / "profiles" / "capability-registry.yaml")
+            .read_text(encoding="utf-8")
+        ) or {}
+        kwargs["valid_capabilities"] = set(reg.get("capabilities") or {})
+        kwargs["trigger_vocabulary"] = set(reg.get("triggers") or {})
+    elif args.gate == "trace-evidence":
+        exploration = Path(args.file).resolve().parent
+        request_path = exploration / "TRACE_REQUEST.yaml"
+        invocations_path = exploration / "PROVIDER_INVOCATIONS.jsonl"
+        if request_path.exists():
+            kwargs["request_text"] = request_path.read_text(encoding="utf-8")
+        if invocations_path.exists():
+            kwargs["invocations_text"] = invocations_path.read_text(encoding="utf-8")
+        kwargs["repo_root"] = args.repo_root or os.getcwd()
+    elif args.gate == "spec":
+        if not args.against:
+            print("FAIL — --against is required for spec gate (CHANGE.yaml)")
+            return 2
+        change_doc = yaml.safe_load(Path(args.against).read_text(encoding="utf-8")) or {}
+        kwargs["change_class"] = change_doc.get("class", "standard")
     elif args.gate == "brief-integrity":
         import json
         ws_root = Path(args.file).resolve().parents[1]
         kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+    elif args.gate == "capsule-integrity":
+        import json
+        ws_root = Path(args.file).resolve().parents[1]
+        kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+        kwargs["task_id"] = Path(args.file).name.split(".")[0]
+        ev = ws_root / "exploration" / "EVIDENCE_MANIFEST.yaml"
+        if ev.exists():
+            kwargs["evidence_manifest_text"] = ev.read_text(encoding="utf-8")
     elif args.gate == "result-contract":
         import json
         ws_root = Path(args.file).resolve().parents[1]
         kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
         kwargs["task_id"] = Path(args.file).stem
+    elif args.gate == "task-review":
+        import json
+        ws_root = Path(args.file).resolve().parents[1]
+        kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+        kwargs["task_id"] = Path(args.file).stem
+    elif args.gate == "final-review":
+        import json
+        ws_root = Path(args.file).resolve().parents[1]
+        kwargs["queue_doc"] = json.loads((ws_root / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
 
     res = getattr(g, VALIDATORS[args.gate])(text, **kwargs)
     print(("PASS" if res.ok else f"FAIL — {res.reason}"))

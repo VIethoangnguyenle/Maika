@@ -1,14 +1,50 @@
 # tests/test_vnext_dispatch.py
 import json
+import copy
 import subprocess
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 import vnext_dispatch as vd
 import vnext_state as vs
 import plan_compiler as pc
+import adaptive_runtime as ar
+
+REVIEW_TRACE = """
+## Knowledge Trace
+```yaml
+decision:
+  id: DEC-REVIEW-001
+  statement: Approve verified task behavior.
+  type: verification_claim
+  knowledge_questions: ["Does current source satisfy the task?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: verified
+  verdict: approved
+```
+"""
+
+
+def _review(ws, review_type, verdict="APPROVED", body="", task_id=None):
+    queue = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
+    normalized = "CHANGES_REQUESTED" if verdict == "CHANGES_REQUIRED" else verdict
+    task_line = f"task_id: {task_id}\n" if task_id else ""
+    return (
+        "---\nschema_version: 1\n"
+        f"review_type: {review_type}\nverdict: {normalized}\n{task_line}"
+        f"reviewed_commit: {queue['base_commit']}\n"
+        f"reviewed_plan_hash: sha256:{queue['plan_sha256']}\n---\n{body}"
+    )
 
 def _setup(tmp_path):
-    ws = vs.init_workspace(tmp_path / "changes", "demo", "small", "t")
+    ws = vs.init_workspace(tmp_path / "changes", "demo", "standard", "t")
     (ws / "SPEC.md").write_text("# spec\n", encoding="utf-8")
     (tmp_path / "src").mkdir(exist_ok=True); (tmp_path / "tests").mkdir(exist_ok=True)
     (tmp_path / "src" / "a.py").write_text("A = 1\n")
@@ -20,12 +56,27 @@ def _setup(tmp_path):
     sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path,
                          capture_output=True, text=True).stdout.strip()
     import hashlib
+    evidence_sha = hashlib.sha256(
+        (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_bytes()
+    ).hexdigest()
     plan_text = f"""---
 change_id: demo
 plan_version: 1
+knowledge_trace:
+  id: DEC-PLAN-001
+  statement: Decompose the verified change.
+  type: task_decomposition
+  knowledge_questions: ["What tasks are required?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
 base_commit: {sha}
 spec_hash: sha256:{hashlib.sha256((ws / "SPEC.md").read_bytes()).hexdigest()}
-evidence_hash: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+evidence_hash: sha256:{evidence_sha}
 ---
 
 # Plan
@@ -56,7 +107,13 @@ def test_review_plan_approved(tmp_path):
     def runner(prompt):
         # Extract output file path from a marker or similar logic in real implementation
         out = ws / "review_output.txt"
-        out.write_text("VERDICT: APPROVED\n- stub")
+        out.write_text(_review(
+            ws, "plan",
+            # repo-relative POSIX anchor (matches the other review bodies); an
+            # absolute OS path here would embed Windows backslashes and fail the
+            # posix _FILE_PATH anchor extraction on Windows.
+            body="## Counter-evidence\n- src/a.py:1 — confirmed in current source\n" + REVIEW_TRACE,
+        ), encoding="utf-8")  # body has a non-ASCII em dash; utf-8 required for the utf-8 read back
         return 0, ""
     assert vd.review_plan(ws, runner, output_path=ws / "review_output.txt") == "APPROVED"
 
@@ -77,60 +134,272 @@ def test_review_plan_missing_output(tmp_path):
     assert vd.review_plan(ws, runner, output_path=ws / "review_output.txt") == "FINDINGS"
 
 
-def test_dispatch_happy_path(tmp_path):
+def test_full_dispatch_uses_project_worker_budget(tmp_path):
     ws, root = _setup(tmp_path)
-    
-    def dummy_worker(tid, brief_path, result_path):
-        import yaml
-        res = {
-            "task_id": tid,
-            "status": "success",
-            "files": {"create": ["src/b.py"]},
-            "verification": {"passed": True, "output": "ok"}
-        }
-        Path(result_path).write_text(yaml.safe_dump(res, sort_keys=False), encoding="utf-8")
-        return True
-
-    vd.run_dispatch(ws, repo_root=root, worker_fn=dummy_worker)
-    
-    q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
-    assert q["tasks"][0]["status"] == "success"
+    calls = []
+    policy = ar.RuntimePolicy.from_config({
+        "token_budget": {"standard": {"max_worker_calls": 0}},
+    })
+    result = vd.run_queue(ws, root, lambda prompt: calls.append(prompt),
+                          runtime_policy=policy, max_retries=0)
+    assert result["status"] == "blocked"
+    assert "worker-call budget exhausted" in result["reason"]
+    assert calls == []
 
 
-def test_dispatch_stops_on_brief_integrity_fail(tmp_path):
+def test_queue_generation_compare_and_swap_rejects_stale_writer(tmp_path):
+    ws, _ = _setup(tmp_path)
+    first = vd._read_queue(ws)
+    stale = copy.deepcopy(first)
+    first["runtime_metrics"]["tool_calls"] = 1
+    vd._write_queue(ws, first, expected_generation=first["generation"])
+    stale["runtime_metrics"]["tool_calls"] = 2
+    try:
+        vd._write_queue(ws, stale, expected_generation=stale["generation"])
+        assert False, "stale queue writer should fail"
+    except ValueError as exc:
+        assert "generation mismatch" in str(exc)
+
+
+def _runner_for_w3(ws, calls, *, first_review="APPROVED"):
+    review_verdicts = [first_review]
+
+    def runner(prompt):
+        calls.append(prompt)
+        markers = dict(
+            line.split(": ", 1) for line in prompt.splitlines() if ": " in line
+        )
+        dispatch_type = markers["DISPATCH_TYPE"]
+        task_id = markers.get("TASK_ID", "TASK-001")
+        output = Path(markers["OUTPUT_FILE"])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if dispatch_type in {"implementation", "fix"}:
+            (ws.parents[1] / "src" / "b.py").write_text("B = 1\n", encoding="utf-8")
+            output.write_text(
+                "\n".join([
+                    f"task_id: {task_id}",
+                    "status: success",
+                    "files:",
+                    "  create: [src/b.py]",
+                    "verification:",
+                    "  passed: true",
+                    "  output: ok",
+                    "consumed:",
+                    "  evidence_ids: [CODE-001]",
+                    "  knowledge_ids: []",
+                    "",
+                ]),
+                encoding="utf-8",
+            )
+        elif dispatch_type == "task_review":
+            verdict = review_verdicts.pop(0) if review_verdicts else "APPROVED"
+            body = ""
+            if verdict == "APPROVED":
+                body = "## Counter-evidence\n- src/b.py:1 — behavior confirmed in current source\n" + REVIEW_TRACE
+            output.write_text(_review(ws, "task", verdict, body, task_id), encoding="utf-8")
+        elif dispatch_type == "final_review":
+            output.write_text(_review(
+                ws, "final", body="## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE
+            ), encoding="utf-8")
+            (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
+                "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
+                "graph_refresh_required: false\nmemory_updates: []\n",
+                encoding="utf-8",
+            )
+        return 0, "ok"
+
+    return runner
+
+
+def test_run_queue_uses_fresh_dispatches_and_reviews_every_task(tmp_path):
     ws, root = _setup(tmp_path)
-    (ws / "briefs" / "TASK-001.md").write_text("Sửa đổi lén", encoding="utf-8")
-    
-    called = []
-    def dummy_worker(tid, brief_path, result_path):
-        called.append(tid)
-        return True
+    calls = []
+    runner = _runner_for_w3(ws, calls)
 
-    res = vd.run_dispatch(ws, repo_root=root, worker_fn=dummy_worker)
-    assert res == False
-    assert not called
+    out = vd.run_queue(ws, root, runner, max_retries=1)
+
+    assert out["status"] == "done"
     q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
-    assert q["tasks"][0]["status"] == "failed"
+    assert q["tasks"][0]["status"] == "done"
+    assert q["tasks"][0]["review_path"] == "reviews/TASK-001.md"
+    assert (ws / "reviews" / "FINAL_REVIEW.md").exists()
+    assert [p.splitlines()[0] for p in calls] == [
+        "DISPATCH_TYPE: implementation",
+        "DISPATCH_TYPE: task_review",
+        "DISPATCH_TYPE: final_review",
+    ]
 
 
-def test_dispatch_stops_on_worker_fail(tmp_path):
+def test_run_queue_blocks_when_exit_zero_has_no_result_file(tmp_path):
     ws, root = _setup(tmp_path)
-    
-    def dummy_worker(tid, brief_path, result_path):
-        import yaml
-        res = {
-            "task_id": tid,
-            "status": "failure",
-            "files": {},
-            "verification": {"passed": False, "output": "error"}
-        }
-        Path(result_path).write_text(yaml.safe_dump(res, sort_keys=False), encoding="utf-8")
-        return False
 
-    res = vd.run_dispatch(ws, repo_root=root, worker_fn=dummy_worker)
-    assert res == False
+    out = vd.run_queue(ws, root, lambda prompt: (0, "no artifact"), max_retries=0)
+
+    assert out["status"] == "blocked"
+    assert out["task_id"] == "TASK-001"
     q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text(encoding="utf-8"))
-    assert q["tasks"][0]["status"] == "failed"
+    assert q["tasks"][0]["status"] == "blocked"
+
+
+def test_run_queue_routes_evidence_update_request_without_blind_retry(tmp_path):
+    ws, root = _setup(tmp_path)
+    calls = []
+
+    def runner(prompt):
+        calls.append(prompt)
+        request = ws / "results" / "TASK-001.EVIDENCE_UPDATE_REQUEST.yaml"
+        request.write_text(
+            "task_id: TASK-001\nstatus: STALE_KNOWLEDGE\n"
+            "reason: source hash changed\naffected_evidence: [CODE-001]\n",
+            encoding="utf-8",
+        )
+        return 0, "reground"
+
+    out = vd.run_queue(ws, root, runner, max_retries=2)
+    assert out["status"] == "blocked"
+    assert out["reason"] == "EVIDENCE_UPDATE_REQUEST"
+    assert len(calls) == 1
+    task = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text())["tasks"][0]
+    assert task["evidence_update_request"].endswith("EVIDENCE_UPDATE_REQUEST.yaml")
+
+
+def test_run_queue_dispatches_fix_after_task_review_findings(tmp_path):
+    ws, root = _setup(tmp_path)
+    calls = []
+    review_verdicts = ["CHANGES_REQUIRED", "APPROVED"]
+
+    def runner(prompt):
+        calls.append(prompt)
+        markers = dict(
+            line.split(": ", 1) for line in prompt.splitlines() if ": " in line
+        )
+        dispatch_type = markers["DISPATCH_TYPE"]
+        task_id = markers.get("TASK_ID", "TASK-001")
+        output = Path(markers["OUTPUT_FILE"])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if dispatch_type in {"implementation", "fix"}:
+            (ws.parents[1] / "src" / "b.py").write_text("B = 1\n", encoding="utf-8")
+            output.write_text(
+                f"""task_id: {task_id}
+status: success
+files:
+  create: [src/b.py]
+verification:
+  passed: true
+  output: ok
+consumed:
+  evidence_ids: [CODE-001]
+  knowledge_ids: []
+""",
+                encoding="utf-8",
+            )
+        elif dispatch_type == "task_review":
+            verdict = review_verdicts.pop(0)
+            body = ""
+            if verdict == "APPROVED":
+                body = "## Counter-evidence\n- src/b.py:1 — confirmed in source\n" + REVIEW_TRACE
+            output.write_text(_review(ws, "task", verdict, body, task_id), encoding="utf-8")
+        elif dispatch_type == "final_review":
+            output.write_text(_review(
+                ws, "final", body="## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE
+            ), encoding="utf-8")
+            (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
+                "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
+                "graph_refresh_required: false\nmemory_updates: []\n",
+                encoding="utf-8",
+            )
+        return 0, "ok"
+
+    out = vd.run_queue(ws, root, runner, max_retries=1)
+
+    assert out["status"] == "done"
+    assert [p.splitlines()[0] for p in calls] == [
+        "DISPATCH_TYPE: implementation",
+        "DISPATCH_TYPE: task_review",
+        "DISPATCH_TYPE: fix",
+        "DISPATCH_TYPE: task_review",
+        "DISPATCH_TYPE: final_review",
+    ]
+
+
+def test_run_queue_resumes_reviewing_task_without_reimplementation(tmp_path):
+    ws, root = _setup(tmp_path)
+    (root / "src" / "b.py").write_text("B = 1\n", encoding="utf-8")
+    q_path = ws / "generated" / "TASK_QUEUE.json"
+    q = json.loads(q_path.read_text(encoding="utf-8"))
+    q["tasks"][0]["status"] = "reviewing"
+    q["tasks"][0]["attempts"] = 0
+    q_path.write_text(json.dumps(q, indent=2), encoding="utf-8")
+    (ws / "results" / "TASK-001.yaml").write_text(
+        """task_id: TASK-001
+status: success
+files:
+  create: [src/b.py]
+verification:
+  passed: true
+  output: ok
+consumed:
+  evidence_ids: [CODE-001]
+  knowledge_ids: []
+""",
+        encoding="utf-8",
+    )
+    calls = []
+
+    def runner(prompt):
+        calls.append(prompt)
+        markers = dict(
+            line.split(": ", 1) for line in prompt.splitlines() if ": " in line
+        )
+        output = Path(markers["OUTPUT_FILE"])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if markers["DISPATCH_TYPE"] == "task_review":
+            output.write_text(_review(
+                ws, "task", body="## Counter-evidence\n- src/b.py:1 — confirmed in source\n" + REVIEW_TRACE,
+                task_id="TASK-001",
+            ), encoding="utf-8")
+        elif markers["DISPATCH_TYPE"] == "final_review":
+            output.write_text(_review(
+                ws, "final", body="## Counter-evidence\n- src/b.py:1 — verified\n" + REVIEW_TRACE
+            ), encoding="utf-8")
+            (output.parent / "KNOWLEDGE_IMPACT.yaml").write_text(
+                "stale_entries: []\nsuperseded_decisions: []\nnew_candidates: []\n"
+                "graph_refresh_required: false\nmemory_updates: []\n",
+                encoding="utf-8",
+            )
+        return 0, "ok"
+
+    out = vd.run_queue(ws, root, runner, max_retries=1)
+
+    assert out["status"] == "done"
+    assert [p.splitlines()[0] for p in calls] == [
+        "DISPATCH_TYPE: task_review",
+        "DISPATCH_TYPE: final_review",
+    ]
+
+
+def test_run_queue_resumes_changes_required_task_with_fix_dispatch(tmp_path):
+    ws, root = _setup(tmp_path)
+    q_path = ws / "generated" / "TASK_QUEUE.json"
+    q = json.loads(q_path.read_text(encoding="utf-8"))
+    q["tasks"][0]["status"] = "changes_required"
+    q["tasks"][0]["attempts"] = 0
+    q["tasks"][0]["review_path"] = "reviews/TASK-001.md"
+    q_path.write_text(json.dumps(q, indent=2), encoding="utf-8")
+    (ws / "reviews" / "TASK-001.md").write_text(
+        "TASK_ID: TASK-001\nVERDICT: CHANGES_REQUIRED\n", encoding="utf-8"
+    )
+    calls = []
+    runner = _runner_for_w3(ws, calls)
+
+    out = vd.run_queue(ws, root, runner, max_retries=1)
+
+    assert out["status"] == "done"
+    assert [p.splitlines()[0] for p in calls] == [
+        "DISPATCH_TYPE: fix",
+        "DISPATCH_TYPE: task_review",
+        "DISPATCH_TYPE: final_review",
+    ]
 
 
 def test_planning_dispatch_fail(tmp_path):
@@ -143,3 +412,52 @@ def test_planning_dispatch_fail(tmp_path):
     req = yaml.safe_load((ws / "CONTEXT_REQUEST.yaml").read_text(encoding="utf-8"))
     assert req["request_type"] == "context"
     assert "expected required" in req["missing"][0]
+
+
+# ── M7: DB lane context injected into the database-explorer prompt ───────────
+
+def test_database_lane_context_pins_allowed_and_denied_tools():
+    framework = Path(__file__).resolve().parents[3]  # .maika/
+    context = vd.database_lane_context(framework)
+    assert "sql_list_tables" in context and "mongo_get_schema" in context
+    for denied in ("sql_write", "mongo_write", "sql_execute_script", "sql_read"):
+        assert denied in context.split("DENIED_DB_TOOLS", 1)[1]
+    assert "data_probe_required" in context
+
+
+# ── M8: content-addressed control surfaces in every dispatch prompt ─────────
+
+def test_control_surfaces_pin_skill_and_registry_hashes(tmp_path):
+    """Mutation #10: worker prompt lacks skill hash -> must fail here."""
+    import hashlib as _h
+    framework = tmp_path / ".maika"
+    skill_md = framework / "skills" / "grounding-explorer" / "SKILL.md"
+    skill_md.parent.mkdir(parents=True)
+    skill_md.write_text("---\nname: grounding-explorer\n---\nbody\n", encoding="utf-8")
+    registry = framework / "config" / "provider-registry.yaml"
+    registry.parent.mkdir(parents=True)
+    registry.write_text("version: 1\nproviders: {}\n", encoding="utf-8")
+    ws = framework / "changes" / "C-1"
+    (ws / "exploration").mkdir(parents=True)
+    (ws / "exploration" / "TRACE_REQUEST.yaml").write_text("version: 1\n", encoding="utf-8")
+
+    block = vd.control_surfaces_block(ws, "grounding")
+
+    skill_sha = _h.sha256(skill_md.read_bytes()).hexdigest()
+    registry_sha = _h.sha256(registry.read_bytes()).hexdigest()
+    assert f"SKILL_SHA256: sha256:{skill_sha}" in block
+    assert f"PROVIDER_REGISTRY_SHA256: sha256:{registry_sha}" in block
+    assert "TRACE_REQUEST_SHA256: sha256:" in block
+    assert "DATABASE_CONTEXT_FILE" not in block  # absent artifact is not pinned
+    assert "Do not infer provider policy from memory." in block
+    assert "Do not call tools outside the allowed lane." in block
+
+
+def test_every_dispatch_prompt_carries_control_surfaces(tmp_path):
+    framework = tmp_path / ".maika"
+    ws = framework / "changes" / "C-2"
+    ws.mkdir(parents=True)
+    prompt = vd.build_prompt("implementation", ws, "briefs/TASK-001.md",
+                             "results/TASK-001.yaml")
+    assert "CONTROL_SURFACES (content-addressed" in prompt
+    assert "Do not claim provider health without invocation evidence." in prompt

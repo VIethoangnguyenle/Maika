@@ -3,34 +3,38 @@
 > Mọi gate cùng một hình dạng. Gate kiểm BẰNG CHỨNG trong artifact, không kiểm "đã gọi tool chưa".
 
 ## Hình dạng chung
-1. Tại điểm quyết định → tra `knowledge/long-term/knowledge-index.yaml` (đã nạp ở bootstrap).
-2. Kéo SLICE just-in-time: entry có `applies_to` khớp artifact-type hiện tại.
-3. Ghi CHECKPOINT artifact (theo template) chứa bằng chứng bắt buộc.
-4. Precondition kiểm checkpoint bằng `gate-check`:
-   `python3 {{ platform.framework_root }}/tools/gate-check/cli.py <gate> <file>`
-   exit≠0 → on_fail (ABORT/degrade).
+1. Tại điểm quyết định → đọc artifact canonical trong `changes/<id>/`.
+2. Chạy validator deterministic bằng `gate-check` hoặc orchestrator vNext.
+3. Ghi verdict vào `generated/*.json`, `results/*.yaml`, hoặc `reviews/*.md`.
+4. Exit khác 0 hoặc verdict khác `APPROVED` → on_fail (ABORT/degrade).
 
-## Năm điểm cắm
+## Điểm cắm vNext
 | Gate | file kiểm | validator |
 |------|-----------|-----------|
-| knowledge-before-code | `knowledge/active/KNOWLEDGE_CHECKPOINT.md` | `knowledge-checkpoint` |
-| subagent injection | `knowledge/active/TASK_HANDOFF.<node>.md` | `handoff-slice` |
-| implementation preflight | `knowledge/active/TASK_HANDOFF.<node>.md` hoặc `IMPLEMENTATION_CONTEXT.md` | `implementation-context` |
-| phase-non-bypass | `knowledge/active/AGENT_TRANSPARENCY.md` | `phase-chain` |
+| intent | `CHANGE.yaml`, `INTENT.md` | `intent` |
+| exploration evidence | `exploration/GROUNDING.yaml`, `exploration/EVIDENCE_MANIFEST.yaml` | `exploration-evidence` |
+| spec | `SPEC.md` | `spec` |
+| plan | `IMPLEMENTATION_PLAN.md` | `vnext-plan` |
+| brief | `briefs/TASK-*.md` | `vnext-brief` |
+| task result | `results/TASK-*.yaml` | `vnext-result` |
+| task review | `reviews/TASK-*.md` | `task-review` |
+| final review | `reviews/FINAL_REVIEW.md` | `final-review` |
 | MCP-probe | dòng MCP-status (bootstrap report / transparency) | `mcp-status` |
-
-## Token bằng chứng BẮT BUỘC (để pass, không bị false-negative)
-
-Validator khớp token theo chữ — khi điền checkpoint phải dùng đúng các token sau (không paraphrase):
-
-- **knowledge-checkpoint:** ít nhất 1 rule-id dạng `XX-n` / `XXX-n` (vd `SP-6`, `HP-12`, `IW-05`) **và** một trong:
-  - bằng chứng graph: cả hai token `node_id:` (hoặc `node_id=`) **và** `blast-radius`; **hoặc**
-  - dòng degrade đúng chữ: `KG unavailable — grep fallback, MEDIUM`.
-  - hoặc (project chưa có governance): dòng "no approved DNA/conventions … LOW" → pass ở mức LOW confidence.
-- **handoff-slice:** section `## Applicable DNA/Conventions` không rỗng, chứa ≥1 rule-id dạng `XX-n`.
-- **implementation-context:** `## Applicable DNA/Conventions` chứa ≥1 rule-id, `## Evidence`
-  chứa UA evidence (`domain_overview`, `domain_flow`, `domain_relationships`) hoặc dòng
-  explicit UA degrade/override, và `## Allowed Files` không rỗng. Write-gate còn kiểm
-  target file đang sửa phải khớp một dòng trong `Allowed Files`.
-- **phase-chain:** các marker `Pha 1 DONE`, `Pha 2 DONE`, … liên tục từ 1 (không nhảy cóc).
+| agent kernel | `agent/KERNEL.md` + platform entry point | `agent-kernel` |
+| bootstrap env | `runtime/BOOTSTRAP_ENV_REPORT.yaml` | `bootstrap-complete` |
+| bootstrap ack | `runtime/AGENT_BOOTSTRAP_ACK.yaml` | `bootstrap-ack` |
+| context package | `generated/CONTEXT_PACKAGE.<role>.yaml` | `context-package` |
+| dispatch prompt | dispatch log/prompt | `dispatch-kernel` |
+| material decision | trace block/artifact | `knowledge-trace` |
+| skill feedback | `reviews/SKILL_FEEDBACK.yaml` | `skill-feedback` |
+| skill candidate | `knowledge/skill-evolution/candidates/*.yaml` | `skill-evolution-candidate` |
+| skill review | candidate review artifact | `skill-evolution-review` |
+| skill promotion | promotion record | `skill-evolution-promotion` |
 - **mcp-status:** số probe thật (`nodes=…`/`edges=…`) **hoặc** dòng degrade `KG unavailable — … MEDIUM`. "Runtime Ready" rỗng = FAIL.
+
+## Knowledge Trace blocking law
+
+`reconciliation`, `spec`, `plan`, `task review`, `final review` và `verification`
+phải validate mọi material decision bằng `knowledge-trace`. Chỉ kiểm heading/evidence
+reference là chưa đủ. Trace thiếu evidence ID, freshness, authority, confidence,
+assumption hoặc có unresolved conflict phải fail và không transition state.

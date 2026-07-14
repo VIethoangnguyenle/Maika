@@ -9,15 +9,15 @@ from cli.commands.init import run_init
 
 PLATFORM_OPTIONS = {
     "antigravity": {
-        "mcps": ["codebase-memory-mcp", "confluence", "db-remote"],
+        "mcps": ["codebase-memory-mcp", "confluence", "db-access"],
         "language": "python",
     },
     "codex": {
-        "mcps": ["codebase-memory-mcp", "confluence", "db-remote"],
+        "mcps": ["codebase-memory-mcp", "confluence", "db-access"],
         "language": "python",
     },
     "claude-code": {
-        "mcps": ["codebase-memory-mcp", "confluence", "db-remote"],
+        "mcps": ["codebase-memory-mcp", "confluence", "db-access"],
         "language": "python",
     },
     "generic": {
@@ -80,12 +80,10 @@ def test_platform_scaffold_tree_matches_snapshot(tmp_path, maika_root, platform_
     assert actual == expected
     if platform_key in {"antigravity", "codex"}:
         assert "AGENTS.md" in actual
-        assert ".agents/resolved-config.yaml" in actual
-        assert ".maika/resolved-config.yaml" not in actual
+        assert ".maika/resolved-config.yaml" in actual
     elif platform_key == "claude-code":
         assert "CLAUDE.md" in actual
-        assert ".claude/resolved-config.yaml" in actual
-        assert ".maika/resolved-config.yaml" not in actual
+        assert ".maika/resolved-config.yaml" in actual
     elif platform_key == "generic":
         assert "AGENTS.md" in actual
         assert ".maika/resolved-config.yaml" in actual

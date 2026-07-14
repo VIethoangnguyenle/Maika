@@ -31,9 +31,9 @@ mcp_capabilities:
     provides: document_search
     display: "Confluence — Wiki/document search"
 
-  db-remote:
+  db-access:
     provides: db_access
-    display: "DB Remote — Database schema exploration (read-only)"
+    display: "DB Access — configured MCP for metadata, read, write and script operations"
 
   understand-anything:
     provides: code_exploration
@@ -75,12 +75,20 @@ languages:
 # ═══════════════════════════════════════════════════════════
 plugins:
 
-  # ─── META-PROMPT ───
+  # ─── AGENT KERNEL ───
+  # Rendered into the host entrypoint managed block (always-on constitution).
   - name: agents-md
-    type: meta-prompt
-    source: meta-prompt.md
+    type: kernel-entrypoint
+    source: agent/KERNEL.md
     template: false
     output: "{{ platform.config_entry_point }}"
+
+  # Canonical kernel file in the target tree (hash/ack reference).
+  - name: agent-kernel
+    type: kernel
+    source: agent/KERNEL.md
+    template: false
+    output: "{{ platform.framework_root }}/agent/KERNEL.md"
 
   # ─── RULES (mostly static) ───
   - name: rules-manifest
@@ -89,86 +97,258 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/rules/RULES.md"
 
-  - name: rules-flow
+  - name: rules-core-flow
     type: rule
-    source: rules/rules-flow.md
+    source: rules/core/flow.md
     template: false
-    output: "{{ platform.framework_root }}/rules/rules-flow.md"
+    output: "{{ platform.framework_root }}/rules/core/flow.md"
 
-  - name: rules-tool
+  - name: rules-jit-providers
     type: rule
-    source: rules/rules-tool.md
+    source: rules/jit/providers.md
     template: false
-    output: "{{ platform.framework_root }}/rules/rules-tool.md"
+    output: "{{ platform.framework_root }}/rules/jit/providers.md"
 
-  - name: rules-exec
+  - name: rules-core-verification
     type: rule
-    source: rules/rules-exec.md
+    source: rules/core/verification.md
     template: false
-    output: "{{ platform.framework_root }}/rules/rules-exec.md"
+    output: "{{ platform.framework_root }}/rules/core/verification.md"
 
-  - name: rules-knowledge
+  - name: rules-core-evidence
     type: rule
-    source: rules/rules-knowledge.md
+    source: rules/core/evidence.md
     template: false
-    output: "{{ platform.framework_root }}/rules/rules-knowledge.md"
+    output: "{{ platform.framework_root }}/rules/core/evidence.md"
 
-  - name: rules-guard
+  - name: rules-jit-skill-evolution
     type: rule
-    source: rules/rules-guard.md
+    source: rules/jit/skill-evolution.md
     template: false
-    output: "{{ platform.framework_root }}/rules/rules-guard.md"
+    output: "{{ platform.framework_root }}/rules/jit/skill-evolution.md"
+
+  - name: rules-core-write-boundary
+    type: rule
+    source: rules/core/write-boundary.md
+    template: false
+    output: "{{ platform.framework_root }}/rules/core/write-boundary.md"
+
+  - name: rules-jit-knowledge-lifecycle
+    type: rule
+    source: rules/jit/knowledge-lifecycle.md
+    template: false
+    output: "{{ platform.framework_root }}/rules/jit/knowledge-lifecycle.md"
+
+  - name: rules-jit-teaching-moment
+    type: rule
+    source: rules/jit/teaching-moment.md
+    template: false
+    output: "{{ platform.framework_root }}/rules/jit/teaching-moment.md"
+
+  # ─── PROFILES ───
+  - name: capabilities-profile
+    type: profile
+    source: profiles/capabilities.md
+    template: false
+    output: "{{ platform.framework_root }}/profiles/capabilities.md"
+
+  - name: capability-registry
+    type: profile
+    source: profiles/capability-registry.yaml
+    template: false
+    output: "{{ platform.framework_root }}/profiles/capability-registry.yaml"
+
+  - name: provider-capabilities
+    type: profile
+    source: profiles/provider-capabilities.yaml
+    template: false
+    output: "{{ platform.framework_root }}/profiles/provider-capabilities.yaml"
+
+  - name: execution-mode
+    type: profile
+    source: profiles/execution-mode.yaml
+    template: false
+    output: "{{ platform.framework_root }}/profiles/execution-mode.yaml"
+
+  - name: artifact-registry
+    type: profile
+    source: config/artifact-registry.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/artifact-registry.yaml"
+
+  - name: provider-registry
+    type: profile
+    source: config/provider-registry.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/provider-registry.yaml"
+
+  - name: artifact-authority
+    type: profile
+    source: config/artifact-authority.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/artifact-authority.yaml"
+
+  - name: workflow-router
+    type: profile
+    source: config/workflow-router.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/workflow-router.yaml"
+
+  - name: interaction-router
+    type: profile
+    source: config/interaction-router.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/interaction-router.yaml"
+
+  - name: external-workflows
+    type: profile
+    source: config/external-workflows.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/external-workflows.yaml"
+
+  - name: generated-report-schema
+    type: profile
+    source: config/generated-report.schema.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/generated-report.schema.yaml"
+
+  - name: generated-reports-skeleton
+    type: profile
+    source: .maika/reports/.gitignore
+    template: false
+    ownership: user
+    output: "{{ platform.framework_root }}/reports/.gitignore"
+
+  - name: preferences-skeleton
+    type: profile
+    source: .maika/knowledge/preferences/.gitignore
+    template: false
+    ownership: user
+    output: "{{ platform.framework_root }}/knowledge/preferences/.gitignore"
+
+  - name: runtime-skeleton
+    type: profile
+    source: runtime/.gitignore
+    template: false
+    output: "{{ platform.framework_root }}/runtime/.gitignore"
+
+  - name: assumption-policy
+    type: profile
+    source: config/assumption-policy.yaml
+    template: false
+    output: "{{ platform.framework_root }}/config/assumption-policy.yaml"
 
   # ─── SKILLS ───
-  - name: requirement-analyst
+  - name: lightweight-change
     type: skill
-    source: skills/requirement-analyst/
+    source: skills/lightweight-change/
     template: false
-    output: "{{ platform.framework_root }}/skills/requirement-analyst/"
+    output: "{{ platform.framework_root }}/skills/lightweight-change/"
     copy_dir: true
 
-  - name: spec-extract
+  - name: intent-analysis
     type: skill
-    source: skills/spec-extract/
+    source: skills/intent-analysis/
     template: false
-    output: "{{ platform.framework_root }}/skills/spec-extract/"
+    output: "{{ platform.framework_root }}/skills/intent-analysis/"
     copy_dir: true
 
-  - name: db-explorer
+  - name: grounding-explorer
     type: skill
-    source: skills/db-explorer/
+    source: skills/grounding-explorer/
     template: false
-    output: "{{ platform.framework_root }}/skills/db-explorer/"
-    copy_dir: true
-    requires_capability: db_access
-
-  - name: codebase-explorer
-    type: skill
-    source: skills/codebase-explorer/
-    template: false
-    output: "{{ platform.framework_root }}/skills/codebase-explorer/"
-    copy_dir: true
-    requires_capability: code_exploration
-
-  - name: architecture-reviewer
-    type: skill
-    source: skills/architecture-reviewer/
-    template: false
-    output: "{{ platform.framework_root }}/skills/architecture-reviewer/"
+    output: "{{ platform.framework_root }}/skills/grounding-explorer/"
     copy_dir: true
 
-  - name: knowledge-curator
+  - name: database-explorer
     type: skill
-    source: skills/knowledge-curator/
+    source: skills/database-explorer/
     template: false
-    output: "{{ platform.framework_root }}/skills/knowledge-curator/"
+    output: "{{ platform.framework_root }}/skills/database-explorer/"
     copy_dir: true
 
-  - name: convention-intelligence-builder
+  - name: architecture-reconciler
     type: skill
-    source: skills/convention-intelligence-builder/
+    source: skills/architecture-reconciler/
     template: false
-    output: "{{ platform.framework_root }}/skills/convention-intelligence-builder/"
+    output: "{{ platform.framework_root }}/skills/architecture-reconciler/"
+    copy_dir: true
+
+  - name: grounded-brainstorming
+    type: skill
+    source: skills/grounded-brainstorming/
+    template: false
+    output: "{{ platform.framework_root }}/skills/grounded-brainstorming/"
+    copy_dir: true
+
+  - name: writing-spec
+    type: skill
+    source: skills/writing-spec/
+    template: false
+    output: "{{ platform.framework_root }}/skills/writing-spec/"
+    copy_dir: true
+
+  - name: writing-plan
+    type: skill
+    source: skills/writing-plan/
+    template: false
+    output: "{{ platform.framework_root }}/skills/writing-plan/"
+    copy_dir: true
+
+  - name: validating-plan
+    type: skill
+    source: skills/validating-plan/
+    template: false
+    output: "{{ platform.framework_root }}/skills/validating-plan/"
+    copy_dir: true
+
+  - name: executing-task
+    type: skill
+    source: skills/executing-task/
+    template: false
+    output: "{{ platform.framework_root }}/skills/executing-task/"
+    copy_dir: true
+
+  - name: reviewing-task
+    type: skill
+    source: skills/reviewing-task/
+    template: false
+    output: "{{ platform.framework_root }}/skills/reviewing-task/"
+    copy_dir: true
+
+  - name: reviewing-change
+    type: skill
+    source: skills/reviewing-change/
+    template: false
+    output: "{{ platform.framework_root }}/skills/reviewing-change/"
+    copy_dir: true
+
+  - name: verification-before-completion
+    type: skill
+    source: skills/verification-before-completion/
+    template: false
+    output: "{{ platform.framework_root }}/skills/verification-before-completion/"
+    copy_dir: true
+
+  - name: knowledge-retriever
+    type: skill
+    source: skills/knowledge-retriever/
+    template: false
+    output: "{{ platform.framework_root }}/skills/knowledge-retriever/"
+    copy_dir: true
+
+  - name: knowledge-recorder
+    type: skill
+    source: skills/knowledge-recorder/
+    template: false
+    output: "{{ platform.framework_root }}/skills/knowledge-recorder/"
+    copy_dir: true
+
+  - name: knowledge-promoter
+    type: skill
+    source: skills/knowledge-promoter/
+    template: false
+    output: "{{ platform.framework_root }}/skills/knowledge-promoter/"
     copy_dir: true
 
   - name: author-dna-builder
@@ -178,18 +358,11 @@ plugins:
     output: "{{ platform.framework_root }}/skills/author-dna-builder/"
     copy_dir: true
 
-  - name: spec-validator
+  - name: convention-intelligence-builder
     type: skill
-    source: skills/spec-validator/
+    source: skills/convention-intelligence-builder/
     template: false
-    output: "{{ platform.framework_root }}/skills/spec-validator/"
-    copy_dir: true
-
-  - name: document-writer
-    type: skill
-    source: skills/document-writer/
-    template: false
-    output: "{{ platform.framework_root }}/skills/document-writer/"
+    output: "{{ platform.framework_root }}/skills/convention-intelligence-builder/"
     copy_dir: true
 
   - name: infra-tdd
@@ -197,27 +370,6 @@ plugins:
     source: skills/infra-tdd/
     template: false
     output: "{{ platform.framework_root }}/skills/infra-tdd/"
-    copy_dir: true
-
-  - name: openspec-explore
-    type: skill
-    source: skills/openspec-explore/
-    template: false
-    output: "{{ platform.framework_root }}/skills/openspec-explore/"
-    copy_dir: true
-
-  - name: openspec-propose
-    type: skill
-    source: skills/openspec-propose/
-    template: false
-    output: "{{ platform.framework_root }}/skills/openspec-propose/"
-    copy_dir: true
-
-  - name: openspec-archive-change
-    type: skill
-    source: skills/openspec-archive-change/
-    template: false
-    output: "{{ platform.framework_root }}/skills/openspec-archive-change/"
     copy_dir: true
 
   - name: skill-index-data
@@ -233,49 +385,6 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/workflows/task.md"
 
-  - name: workflow-idea-to-task
-    type: workflow
-    source: workflows/idea-to-task.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/idea-to-task.md"
-
-  - name: workflow-index-source
-    type: workflow
-    source: workflows/index-source.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/index-source.md"
-    requires_capability: code_exploration
-
-  - name: workflow-convention-scan
-    type: workflow
-    source: workflows/convention-scan.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/convention-scan.md"
-
-  - name: workflow-approve-conventions
-    type: workflow
-    source: workflows/approve-conventions.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/approve-conventions.md"
-
-  - name: workflow-dna-scan
-    type: workflow
-    source: workflows/dna-scan.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/dna-scan.md"
-
-  - name: workflow-approve-dna
-    type: workflow
-    source: workflows/approve-dna.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/approve-dna.md"
-
-  - name: workflow-tdd
-    type: workflow
-    source: workflows/tdd.md
-    template: false
-    output: "{{ platform.framework_root }}/workflows/tdd.md"
-
   # ─── PROCEDURES ───
   - name: bootstrap
     type: procedure
@@ -289,23 +398,23 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/procedures/context-loader.md"
 
+  - name: decision-gate
+    type: procedure
+    source: procedures/decision-gate.md
+    template: false
+    output: "{{ platform.framework_root }}/procedures/decision-gate.md"
+
+  - name: dispatch-kernel
+    type: procedure
+    source: procedures/dispatch-kernel.md
+    template: false
+    output: "{{ platform.framework_root }}/procedures/dispatch-kernel.md"
+
   - name: context-compressor
     type: procedure
     source: procedures/context-compressor.md
     template: false
     output: "{{ platform.framework_root }}/procedures/context-compressor.md"
-
-  - name: token-tracking
-    type: procedure
-    source: procedures/token-tracking.md
-    template: false
-    output: "{{ platform.framework_root }}/procedures/token-tracking.md"
-
-  - name: executor
-    type: procedure
-    source: procedures/executor.md
-    template: false
-    output: "{{ platform.framework_root }}/procedures/executor.md"
 
   - name: reviewer
     type: procedure
@@ -367,7 +476,7 @@ plugins:
     type: hook
     source: hooks/claude-code/settings.json
     template: true
-    output: "{{ platform.framework_root }}/settings.json"
+    output: ".claude/settings.json"
     requires_platform_capability: write_gate_hook
     requires_platform: claude-code
 
@@ -383,7 +492,7 @@ plugins:
     type: hook
     source: hooks/antigravity/hooks.json
     template: true
-    output: "{{ platform.framework_root }}/hooks.json"
+    output: ".agents/hooks.json"
     requires_platform_capability: write_gate_hook
     requires_platform: antigravity
 
@@ -394,6 +503,20 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/knowledge/templates/"
     copy_dir: true
+
+  - name: knowledge-readme
+    type: knowledge
+    source: .maika/knowledge/README.md
+    template: false
+    output: "{{ platform.framework_root }}/knowledge/README.md"
+
+  - name: skill-evolution-store
+    type: knowledge
+    source: .maika/knowledge/skill-evolution/
+    template: false
+    output: "{{ platform.framework_root }}/knowledge/skill-evolution/"
+    copy_dir: true
+    ownership: user
 
   - name: knowledge-active-skeleton
     type: template

@@ -5,12 +5,9 @@
         "matcher": "Edit|Write|MultiEdit|Bash",
         "hooks": [
           {
+            "id": "maika.write-gate.v1",
             "type": "command",
-{% if is_windows %}
-            "command": "{{ hook_python }} \"%CLAUDE_PROJECT_DIR%/{{ platform.framework_root }}/hooks/write-gate/write_gate.py\" --framework-root {{ platform.framework_root }} --runtime claude"
-{% else %}
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/{{ platform.framework_root }}/hooks/write-gate/write_gate.py --framework-root {{ platform.framework_root }} --runtime claude"
-{% endif %}
+            "command": "maika hook write-gate --runtime claude --platform claude-code"
           }
         ]
       }

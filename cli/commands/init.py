@@ -5,17 +5,20 @@ import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from cli.assets import asset_root, load_asset_manifest
+from cli.install.planner import build_plan
+from cli.install.transaction import Transaction
 from cli.mcp import ua_setup
 from cli.platforms import PLATFORMS, get_platform
 from cli.renderer import create_renderer
 from cli.scaffold import (
-    load_manifest,
     scaffold_plugins,
     scaffold_native_skill_exports,
     generate_resolved_config,
     generate_knowledge_index,
     verify_no_unresolved,
-    sync_tree,
+    stage_managed_entrypoint,
+    stage_managed_json_configs,
 )
 
 
@@ -174,6 +177,7 @@ def emit_mcp_setup_files(target, platform, platform_key, selected_mcps, manifest
     Shared by init and update --reconfigure."""
     mcp_caps = manifest.get("mcp_capabilities", {})
     setup_path = target / platform.framework_root / "MCP_SETUP.md"
+    setup_path.parent.mkdir(parents=True, exist_ok=True)
     wrote = False
     for mcp_key in selected_mcps:
         capability = mcp_caps.get(mcp_key, {})
@@ -199,16 +203,17 @@ def run_init(
     language: Optional[str] = None,
     assume_yes: bool = False,
     ua_mcp_dir: Optional[str] = None,
-    hook_python: Optional[str] = None,
-) -> None:
+    migration_files: Optional[dict[str, Path]] = None,
+    verify_platform: bool = False,
+) -> "OperationResult":
     """Main init command — scaffold Maika into a target project."""
     target = Path(target_dir).resolve()
-    maika = Path(maika_root).resolve() if maika_root else Path(__file__).resolve().parent.parent.parent
+    maika = asset_root(maika_root)
 
     print(f"\n  Maika Framework v3.0 — init")
     print(f"  Target: {target}\n  Source: {maika}")
 
-    manifest = load_manifest(maika)
+    manifest = load_asset_manifest(maika)
     platform_key, selected_mcps, language = resolve_init_choices(
         manifest,
         platform_key=platform_key,
@@ -226,13 +231,16 @@ def run_init(
     print(f"  Target:    {target}\n{'─' * 50}")
     if not assume_yes and input("\nTiến hành scaffold? [Y/n]: ").strip().lower() == "n":
         print("\n❌ Đã huỷ.")
-        return
+        from cli.runtime.result import OperationResult
+        return OperationResult("blocked", False, exit_code=2, message="cancelled")
 
-    context = platform.build_render_context(selected_mcps, language, hook_python=hook_python)
+    context = platform.build_render_context(selected_mcps, language)
     jinja_env = create_renderer(str(maika))
     print("\nScaffolding Maika framework...\n")
 
+    framework_root = platform.framework_root
     staging = Path(tempfile.mkdtemp(prefix="maika-init-"))
+    backups = Path(tempfile.mkdtemp(prefix="maika-backup-"))
     try:
         stats = scaffold_plugins(
             manifest.get("plugins", []), maika, staging, context, jinja_env,
@@ -245,26 +253,64 @@ def run_init(
             for p in offenders:
                 print(f"     • {p.relative_to(staging)}")
             print("  Target was NOT modified.")
-            return
-        sync_tree(staging, target)
+            from cli.runtime.result import OperationResult
+            return OperationResult("blocked", False, exit_code=1,
+                                   message="unresolved template markers")
+        # Build the complete desired tree in staging, then apply atomically.
+        stage_managed_entrypoint(staging, target, platform.config_entry_point)
+        stage_managed_json_configs(staging, target)
+        generate_knowledge_index(maika, staging, framework_root)
+        generate_resolved_config(staging, platform, selected_mcps, language)
+        from cli.runtime.platform_profile import write_platform_runtime_profile
+        write_platform_runtime_profile(staging, platform_key)
+        for logical, source in (migration_files or {}).items():
+            destination = staging / ".maika" / logical
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        emit_mcp_setup_files(staging, platform, platform_key, selected_mcps, manifest, ua_dir)
+        # Canonical metadata is part of the same transaction as core/adapter
+        # files; no post-commit writes may leave a partial installation.
+        from cli.config import platforms as platforms_cfg
+        from cli.config import project as project_cfg
+        project_config = project_cfg.enable(project_cfg.load(target), platform_key)
+        project_cfg.save(staging, project_config)
+        platforms_cfg.write_platforms_config(staging, project_config["platforms"]["enabled"])
+        platforms_cfg.record_install(staging, platform_key, platforms_cfg.adapter_files(platform_key))
+        # Detection (and, with --verify-platform, the hook/worker smoke) runs
+        # after the project config is staged so the hook command can resolve the
+        # project. Persists real binary detection so a fresh install reports its
+        # true tier instead of advertising a worker the orchestrator refuses (F2).
+        from cli.platforms.probe import probe_and_persist
+        probe_result = probe_and_persist(staging, platform_key, verify=verify_platform)
+        plan = build_plan(staging, target, "init", framework_root)
+        journal = Transaction(staging, target, backups).apply(plan)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
-
-    generate_knowledge_index(maika, target, platform.framework_root)
-    generate_resolved_config(target, platform, selected_mcps, language, hook_python=hook_python)
-
-    emit_mcp_setup_files(target, platform, platform_key, selected_mcps, manifest, ua_dir)
+        shutil.rmtree(backups, ignore_errors=True)
 
     total = stats["rendered"] + stats["copied"] + stats["dirs"]
     print(f"\n{'═' * 50}")
     print(f"  Done! Maika scaffolded for {platform.display_name}")
     print(f"  {total} plugins installed, {stats['skipped']} skipped")
     print(f"{'═' * 50}")
+    if platform.worker_binary and not verify_platform:
+        print("\n  ⚠  Worker not verified yet — run before dispatching tasks:")
+        print(f"       maika platform verify {platform_key}")
     print("\n  Next steps:")
     print(f"  1. Customize {platform.framework_root}/knowledge/long-term/persona.yaml")
-    print("  2. Run /dna-scan to build author DNA")
-    print("  3. Start your first task: /task <ticket-or-idea>\n")
+    print("  2. Start your first task: maika task start --id <id> --title '<title>'")
+    print("  3. Continue with: maika task status --id <id>\n")
     if selected_mcps:
         print(f"  4. Run MCP diagnostics: maika doctor mcp --target {target}\n")
     if UA_MCP_KEY in selected_mcps:
         print(f"  5. Wire Understand-Anything: see {platform.framework_root}/MCP_SETUP.md\n")
+    from cli.runtime.result import OperationResult
+    if verify_platform and probe_result.verification.get("worker") != "verified":
+        return OperationResult(
+            "partial-safe", True, exit_code=1,
+            transaction_id=journal.get("transaction_id"),
+            message="installation committed but platform worker verification failed",
+        )
+    return OperationResult("committed", True,
+                           transaction_id=journal.get("transaction_id"),
+                           message="installation committed")

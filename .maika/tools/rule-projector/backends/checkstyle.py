@@ -59,9 +59,9 @@ def main(argv=None):
     ap.add_argument("--ir", required=True)
     ap.add_argument("--out", default="generated/checkstyle.generated.xml")
     args = ap.parse_args(argv)
-    ir = json.loads(Path(args.ir).read_text())
+    ir = json.loads(Path(args.ir).read_text(encoding="utf-8"))
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(ir_to_checkstyle(ir))
+    Path(args.out).write_text(ir_to_checkstyle(ir), encoding="utf-8")
     print(f"checkstyle written: {args.out}")
     return 0
 

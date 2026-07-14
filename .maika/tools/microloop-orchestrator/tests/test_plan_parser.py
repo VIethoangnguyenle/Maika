@@ -1,10 +1,29 @@
 # tests/test_plan_parser.py
+import sys
+from pathlib import Path
+
 import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
 import plan_parser as pp
 
 PLAN = """---
 change_id: demo
 plan_version: 1
+knowledge_trace:
+  id: DEC-PLAN-001
+  statement: Decompose the verified change.
+  type: task_decomposition
+  knowledge_questions: ["What tasks are required?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
 base_commit: abc123
 spec_hash: sha256:aaa
 evidence_hash: sha256:bbb

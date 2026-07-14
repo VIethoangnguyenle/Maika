@@ -55,7 +55,28 @@ def index_snapshot(snapshot_path):
     return out
 
 
-def build_index(dna_path, conventions_path, snapshot_path=None):
+def index_project_knowledge(project_path):
+    out = []
+    root = Path(project_path)
+    if not root.is_dir():
+        return out
+    for path in sorted(root.glob("*.yaml")):
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if not isinstance(data, dict) or not data.get("id"):
+            continue
+        out.append({
+            "id": data["id"], "store": "project-knowledge",
+            "path": str(Path("project-knowledge") / path.name),
+            "title": data.get("title") or data.get("statement") or data["id"],
+            "applies_to": data.get("applies_to") or [],
+            "status": data.get("status", "active"),
+            "freshness": data.get("freshness", "verified"),
+            "confidence": data.get("confidence", "medium"),
+        })
+    return out
+
+
+def build_index(dna_path, conventions_path, snapshot_path=None, project_path=None):
     entries = []
     for path, store in ((dna_path, "author-dna"), (conventions_path, "conventions")):
         p = Path(path)
@@ -64,6 +85,8 @@ def build_index(dna_path, conventions_path, snapshot_path=None):
             entries.extend(walk_entries(data, store))
     if snapshot_path:
         entries.extend(index_snapshot(snapshot_path))
+    if project_path:
+        entries.extend(index_project_knowledge(project_path))
     return entries
 
 
@@ -71,7 +94,8 @@ def main(argv=None):
     argv = argv or sys.argv[1:]
     long_term = Path(argv[0]) if argv else Path(__file__).resolve().parents[2] / "knowledge" / "long-term"
     entries = build_index(long_term / "author-dna.yaml", long_term / "conventions.yaml",
-                           snapshot_path=long_term / "knowledge-snapshot.md")
+                           snapshot_path=long_term / "knowledge-snapshot.md",
+                           project_path=long_term / "project-knowledge")
     out_file = long_term / "knowledge-index.yaml"
     header = "# TỰ ĐỘNG TẠO BỞI generate_index.py — KHÔNG CHỈNH SỬA THỦ CÔNG\n"
     out_file.write_text(header + yaml.safe_dump({"entries": entries}, allow_unicode=True, sort_keys=False), encoding="utf-8")

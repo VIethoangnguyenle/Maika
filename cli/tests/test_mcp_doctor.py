@@ -33,7 +33,7 @@ def test_doctor_writes_report_for_missing_native_config(tmp_path):
 
     run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
 
-    report = target / ".agents" / "knowledge" / "active" / "mcp-doctor-report.md"
+    report = target / ".maika" / "knowledge" / "active" / "mcp-doctor-report.md"
     text = report.read_text(encoding="utf-8")
     assert "Platform: antigravity" in text
     assert "codebase-memory-mcp" in text
@@ -44,15 +44,15 @@ def test_doctor_writes_report_for_missing_native_config(tmp_path):
 def test_doctor_matches_selected_server_in_existing_config(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
-    write_resolved(target, mcps=["codebase-memory-mcp", "db-remote"])
+    write_resolved(target, mcps=["codebase-memory-mcp", "db-access"])
     cfg = target / ".agents" / "mcp_config.json"
     cfg.write_text(json.dumps({"mcpServers": {"codebase-memory-mcp": {"command": "npx"}}}), encoding="utf-8")
 
     run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
 
-    text = (target / ".agents" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
+    text = (target / ".maika" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
     assert "matched: codebase-memory-mcp" in text
-    assert "missing: db-remote" in text
+    assert "missing: db-access" in text
     assert "native: partial" in text
     assert "bridge: not-probed" in text
 
@@ -60,7 +60,7 @@ def test_doctor_matches_selected_server_in_existing_config(tmp_path):
 def test_build_doctor_status_marks_partial_native_state_for_partial_match(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
-    write_resolved(target, mcps=["codebase-memory-mcp", "db-remote"])
+    write_resolved(target, mcps=["codebase-memory-mcp", "db-access"])
     cfg = target / ".agents" / "mcp_config.json"
     cfg.write_text(json.dumps({"mcpServers": {"codebase-memory-mcp": {"command": "npx"}}}), encoding="utf-8")
 
@@ -93,7 +93,7 @@ def test_doctor_report_redacts_secrets_in_matched_server_config(tmp_path):
 
     run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
 
-    text = (target / ".agents" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
+    text = (target / ".maika" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
     assert "npx" in text            # non-secret detail is shown
     assert "<redacted>" in text     # env value is redacted
     assert "supersecret" not in text
@@ -124,7 +124,7 @@ def test_doctor_fix_copies_known_good_antigravity_ide_config(tmp_path):
     assert json.loads(dest.read_text(encoding="utf-8"))["mcpServers"]["codebase-memory-mcp"]["command"] == "npx"
 
 
-def test_doctor_fix_backs_up_existing_non_empty_destination(tmp_path):
+def test_doctor_fix_cleanly_replaces_existing_destination_without_backup(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
     write_resolved(target, platform="antigravity", mcps=["codebase-memory-mcp"])
@@ -137,8 +137,8 @@ def test_doctor_fix_backs_up_existing_non_empty_destination(tmp_path):
 
     run_doctor_mcp(str(target), fix=True, assume_yes=True, home=home)
 
-    assert (dest.parent / "mcp_config.json.bak").exists()
-    assert "old" in (dest.parent / "mcp_config.json.bak").read_text(encoding="utf-8")
+    assert not (dest.parent / ("mcp_config.json." + "bak")).exists()
+    assert "old" not in dest.read_text(encoding="utf-8")
 
 
 def _init_ua(tmp_path, home):
@@ -209,7 +209,7 @@ def test_doctor_reports_memory_daemon_down_with_start_hint(tmp_path, monkeypatch
 
     run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
 
-    text = (target / ".agents" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
+    text = (target / ".maika" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
     assert "agent-memory daemon: DOWN (http://localhost:3111)" in text
     assert "npm i -g @agentmemory/agentmemory" in text
     assert "agentmemory doctor" in text
@@ -224,7 +224,7 @@ def test_doctor_reports_memory_daemon_running(tmp_path, monkeypatch):
 
     run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
 
-    text = (target / ".agents" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
+    text = (target / ".maika" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
     assert "agent-memory daemon: RUNNING (http://localhost:3111)" in text
 
 
@@ -237,7 +237,7 @@ def test_doctor_memory_daemon_respects_agentmemory_url_env(tmp_path, monkeypatch
 
     run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
 
-    text = (target / ".agents" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
+    text = (target / ".maika" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
     assert "agent-memory daemon: RUNNING (http://127.0.0.1:4222)" in text
 
 
@@ -248,5 +248,5 @@ def test_doctor_omits_memory_daemon_line_when_not_selected(tmp_path):
 
     run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
 
-    text = (target / ".agents" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
+    text = (target / ".maika" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
     assert "agent-memory daemon" not in text

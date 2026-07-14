@@ -5,12 +5,9 @@
         "matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command",
         "hooks": [
           {
+            "id": "maika.write-gate.v1",
             "type": "command",
-{% if is_windows %}
-            "command": "{{ hook_python }} {{ platform.framework_root }}/hooks/write-gate/write_gate.py --framework-root {{ platform.framework_root }} --runtime antigravity",
-{% else %}
-            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/{{ platform.framework_root }}/hooks/write-gate/write_gate.py\" --framework-root {{ platform.framework_root }} --runtime antigravity",
-{% endif %}
+            "command": "maika hook write-gate --runtime antigravity --platform antigravity",
             "statusMessage": "Checking Maika write gate"
           }
         ]

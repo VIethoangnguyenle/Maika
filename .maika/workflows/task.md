@@ -1,550 +1,97 @@
 ---
-description: Orchestrator /task (đa pha) cho ideation + ticket + OpenSpec.
+description: Workflow task chuẩn của Maika (knowledge-native).
 ---
 
-# /task — Orchestrator chính
-
-`/task` là cổng vào duy nhất cho mọi công việc liên quan đến task trong repo này.
-
-Các chế độ sử dụng:
-
-- `/task <ý-tưởng-hoặc-link>`      → Pha 1: ideation / requirement / explore.
-- `/task spec <ticket-id-or-link>` → Pha 2: sinh spec (propose).
-- `/task apply <ticket-id>`        → Pha 3: apply spec vào code.
-
-Trước khi kết thúc mỗi pha quan trọng, hãy cập nhật `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`.
-
-> **Path convention**: Tất cả file context tuân theo quy ước trong `{{ platform.framework_root }}/rules/RULES.md` section "Path Convention".
-
----
-
-## 0. Bootstrap context (bắt buộc)
-
-Trước khi bắt đầu bất kỳ nhánh nào, luôn chạy bước bootstrap:
-
-1. Kiểm tra `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`:
-   - Nếu file có nội dung thật (không chỉ là template trống) → hỏi user:
-     > "Active context đang có dữ liệu từ task trước. Reset cho task mới hay giữ lại?"
-   - Nếu user chọn reset hoặc file là template trống → giữ nguyên skeleton.
-2. Tương tự cho `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`.
-3. Reset `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md` — **chỉ khi bắt đầu task mới**
-   (Pha 1) hoặc user chọn reset ở bước 1. Khi vào `/task spec` / `/task apply` của task đang chạy:
-   KHÔNG reset — giữ "Lịch sử pha" (marker `Pha N DONE` là input của write-gate và resume detection).
-   - Ghi mới với task/ticket ID hiện tại.
-   - Đánh dấu `[x] {{ platform.config_entry_point }}` và `[x] {{ platform.framework_root }}/rules/RULES.md` nếu đã đọc.
-   - Ghi vào "Lịch sử pha": `Bootstrap | <thời điểm> | Task: <input>`.
-   - Bao gồm section `## Teaching Moment Check` ở trạng thái non-passing (status rỗng) như template `AGENT_TRANSPARENCY.tpl.md`. KHÔNG pre-fill `status: none`.
-
-4. Tạo hoặc reset `{{ platform.framework_root }}/knowledge/active/TOKEN_LOG.md`:
-   - Nếu chưa tồn tại: tạo từ template `{{ platform.framework_root }}/knowledge/templates/TOKEN_LOG.tpl.md`.
-   - Điền: ticket-id (hoặc "unknown" nếu IDEA_ONLY), timestamp bắt đầu, model name (nếu biết).
-   - Ghi bootstrap token estimate vào section "Bootstrap".
-
----
-
-## 0b. Dispatch mode — Orchestrator mỏng (R-Flow-5)
-
-Đọc `{{ platform.framework_root }}/profiles/execution-mode.yaml` một lần khi bootstrap:
-
-- `execution_mode` = `subagent` hoặc `fresh-session` → các skill đọc-nặng của Pha 1
-  (`spec-extract`, `codebase-explorer`, `db-explorer`) PHẢI chạy trong worker context:
-  - `subagent`: dispatch qua Agent tool với prompt:
-    _"Đọc `{{ platform.framework_root }}/skills/<skill>/SKILL.md`, thực thi với input `<URL/ticket>`,
-    ghi output vào file knowledge mà skill chỉ định."_
-  - `fresh-session`: gọi helper `dispatch_worker(prompt, make_worker_runner(worker_command,
-    worker_timeout_seconds), retries=max_retries)` trong
-    `{{ platform.framework_root }}/tools/microloop-orchestrator/orchestrator.py` với cùng prompt.
-  - Parent KHÔNG đọc tài liệu nguồn / KHÔNG quét code trực tiếp; chỉ đọc lại
-    `REQUIREMENT.md` / `EXPLORE_CONTEXT.md` sau khi worker xong (R-Flow-5).
-  - Worker `blocked` sau max_retries → fallback chạy inline + ghi WARN vào AGENT_TRANSPARENCY:
-    `[DISPATCH-FALLBACK] <skill> chạy inline — worker fail: <lý do>`.
-- `execution_mode` = `inline-reload` → chạy inline như cũ (LCD).
-- Hỏi–đáp với user LUÔN ở parent (tương tác), dựa trên file knowledge đã ghi.
-
----
-
-## 1. `/task <ý-tưởng-hoặc-link>` — Pha 1: Hiểu vấn đề
-
-### 1.1 Nhận diện loại input
-
-Từ giá trị `<ý-tưởng-hoặc-link>`, phân loại:
-
-- Chuỗi chứa URL hoặc key của ticket (ví dụ: `ABC-123`) → `HAS_TICKET`.
-- Chuỗi chứa URL tài liệu (wiki/Confluence/PRD/...) nhưng không có ticket → `HAS_DOC_ONLY`.
-- Còn lại → `IDEA_ONLY`.
-
-Sau khi nhận diện:
-
-- Cập nhật `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md` mục "Nguồn đã đọc" với loại input tương ứng.
-- Ghi lại raw input (ý tưởng, link) để trace.
-
----
-
-### 1.2 Nhánh IDEA_ONLY — Ideation
-
-1. Tạo file `ideation-*.md` trong `{{ platform.framework_root }}/knowledge/active/ideation/` theo template:
-   - Ghi:
-     - Tóm tắt ý tưởng.
-     - Động lực (tại sao muốn làm).
-     - Bối cảnh sơ bộ (hệ thống nào, đối tượng chính là ai).
-2. Hỏi–đáp với user để:
-   - Làm rõ mục tiêu business.
-   - Gợi ý phạm vi (in-scope / out-of-scope).
-   - Gợi ý các Acceptance Criteria ở mức high-level.
-3. (Tuỳ chọn) Gọi `codebase-explorer`:
-   - Để hiểu codebase hiện tại đang có module/service nào *có thể* liên quan.
-   - Ghi lại vào `ideation-*.md` phần “Liên hệ với hệ thống hiện tại”.
-4. Cập nhật lại `ideation-*.md` với:
-   - Scope đề xuất.
-   - AC đề xuất (chưa phải commit cuối cùng).
-5. Cập nhật `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
-   - Đánh dấu đã tạo/ cập nhật file ideation.
-6. Gợi ý user:
-   - Tạo ticket chính thức (Jira/…).
-   - Sau khi có ticket, dùng `/task <ticket-link-or-id>` để đi tiếp Pha 1 cho `HAS_TICKET`.
-
----
-
-### 1.3 Nhánh HAS_DOC_ONLY — Có tài liệu, chưa có ticket
-
-1. Gọi skill `spec-extract`:
-   - Trích nội dung có cấu trúc từ tài liệu vào `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`.
-   - Ghi rõ nguồn tài liệu (URL, tên trang).
-2. Kiểm tra Độ tin cậy do `spec-extract` gán:
-   - Nếu **THẤP**:
-     - Ghi cảnh báo vào `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`.
-     - Thông báo cho user rằng tài liệu chưa đủ tin cậy để đi tiếp (architecture/spec/implementation).
-     - Dừng pipeline tại đây cho tới khi tài liệu được cập nhật.
-   - Nếu **CAO/TRUNG BÌNH**:
-     - Có thể dùng `/opsx:explore` để thảo luận thêm với user dựa trên REQUIREMENT vừa tạo.
-3. Gợi ý user:
-   - Tạo ticket từ `REQUIREMENT`.
-   - Sau đó quay lại `/task <ticket-link-or-id>` để đi qua luồng `HAS_TICKET`.
-
----
-
-### 1.4 Nhánh HAS_TICKET — Task cụ thể
-
-1. Gọi `requirement-analyst`:
-   - Đọc toàn bộ ticket + tài liệu liên kết.
-   - Chuẩn hoá `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md` với context, As-is/To-be, scope, AC, giả định, vấn đề yêu cầu.
-2. Nếu requirement chạm tới dữ liệu:
-   - Gọi `db-explorer`:
-     - Khám phá tầng database liên quan (schema, constraint, trigger/procedure…).
-     - Cập nhật section "Tầng Database (db-explorer)" trong `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`.
-3. Gọi `codebase-explorer`:
-   - **UA-first** (xem `codebase-explorer` SKILL §Quy tắc cốt lõi): `{{ tools.domain_overview }}` →
-     `{{ tools.domain_flow }}` để map domain/flow/entry-point/ranh giới async TRƯỚC.
-   - Đọc `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`, map yêu cầu → domain/module/service.
-   - **Codebase Memory hỗ trợ SAU**: `{{ tools.search_code }}` định vị symbol, `{{ tools.read_file }}`
-     extract logic trong hàm tại node UA đã chỉ. Lỗi Codebase MCP ≠ UA chết — vẫn dùng UA.
-   - KG/UA vắng → gợi ý `/understand` rebuild; tạm grep với Độ tin cậy thấp hơn (không bịa).
-   - Cập nhật section "Kiến trúc code hiện tại (codebase-explorer)" trong EXPLORE_CONTEXT.
-   - **Ghi kèm identifier** (UA domain/flow/entry-point hoặc node_id) cho mỗi component quan trọng.
-4. Gọi `architecture-reviewer`:
-   - Đối chiếu `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md` + `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md` + `{{ platform.framework_root }}/knowledge/long-term/knowledge-snapshot.md`.
-   - Nếu EXPLORE_CONTEXT có node IDs → dùng KG tools (`{{ tools.find_blast_radius }}`, `{{ tools.read_file }}`, `{{ tools.get_dependencies }}`) để verify.
-   - Đánh giá:
-     - Điểm align với kiến trúc hiện tại.
-     - Điểm xung đột/rủi ro (boundary, ownership, coupling, DB, non-functional…).
-   - Ghi mức độ nghiêm trọng (LOW/MEDIUM/HIGH/BLOCKER) và Độ tin cậy kiến trúc (CAO/TRUNG BÌNH/THẤP).
-4a. **[H1 — BLOCKER Recovery]** Nếu `architecture-reviewer` đánh dấu mức **BLOCKER**:
-   - Cập nhật `phase_state: blocked-by-arch` trong AGENT_TRANSPARENCY.md.
-   - Ghi rõ vào AGENT_TRANSPARENCY.md:
-     ```
-     [BLOCKER-ARCH] {mô tả blocker}
-     Cần action: {gợi ý cụ thể — workshop kiến trúc / làm rõ requirement / bổ sung khám phá}
-     Unblock khi: {điều kiện để tiếp tục — vd: "user xác nhận approach"}
-     ```
-   - **Dừng pipeline** — không tiếp tục sang Pha 2 khi còn BLOCKER chưa resolve.
-   - Hiển thị cho user:
-     - Tóm tắt blocker (1-3 câu).
-     - Gợi ý action cụ thể để unblock.
-     - Câu hỏi rõ ràng để user quyết định.
-   - **Khi user đã resolve** (xác nhận approach hoặc điều chỉnh requirement):
-     - Cập nhật `phase_state: phase-1-done` (xoá blocked state).
-     - Ghi vào AGENT_TRANSPARENCY: `[BLOCKER-ARCH RESOLVED] {timestamp} — {cách resolve}`
-     - Tiếp tục flow bình thường.
-
-   Tương tự cho **BLOCKED-DATA** (từ R-Flow-4):
-   - Ghi `[BLOCKED-DATA] {mô tả} — tiếp tục với assumption đã ghi.`
-   - Tiếp tục flow dựa trên assumption (không chờ data — theo R-Flow-4).
-     KHÔNG đổi `phase_state` — giá trị `blocked-by-data` chặn archive (gate `archive-ready`)
-     trong khi flow này vẫn chạy tiếp, task sẽ kẹt ở cuối.
-
-5. Gọi `/opsx:explore` — **[H2] BẮT BUỘC** trong các trường hợp sau, tuỳ chọn còn lại:
-   - **BẮT BUỘC khi**:
-     - Độ tin cậy kiến trúc từ `architecture-reviewer` = **THẤP** hoặc **TRUNG BÌNH**, HOẶC
-     - `task_type` = `changerequest` (thay đổi behaviour hiện tại, không phải feature mới).
-   - **Tuỳ chọn khi**: Độ tin cậy = CAO và task_type = feature / fixbug / refactor.
-   - Nội dung explore:
-     - Tóm tắt lại hiểu biết hiện tại cho user:
-       - `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md`.
-       - Bối cảnh code + DB từ `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md`.
-       - Các rủi ro kiến trúc chính.
-     - Cho phép user đặt câu hỏi, refine thêm trước khi sang Pha 2.
-   - Ghi vào AGENT_TRANSPARENCY: `[H2] opsx-explore: {required|optional} — lý do: {confidence level hoặc task_type}`
-6. Cập nhật `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
-   - Nguồn đã đọc (ticket, tài liệu, code/DB).
-   - Skill/tool đã gọi thành công:
-     - requirement-analyst, db-explorer, codebase-explorer, architecture-reviewer.
-     - Knowledge Graph MCP (chi tiết):
-       - `[ ] {{ tools.graph_stats }}`
-       - `[ ] {{ tools.search_code }}`
-       - `[ ] {{ tools.read_file }}`
-       - `[ ] {{ tools.get_dependencies }} / {{ tools.trace_flow }}`
-       - `[ ] {{ tools.get_symbol }}`
-       - `[ ] {{ tools.find_blast_radius }}`
-     - UA domain tools (nếu có):
-       - `[ ] {{ tools.domain_overview }}`
-       - `[ ] {{ tools.domain_flow }}`
-       - `[ ] {{ tools.domain_relationships }}`
-     - Codebase Memory (nếu có).
-   - Cảnh báo:
-     - Thiếu KG graph / thiếu quyền DB / thiếu codebase-access.
-   - Độ tin cậy tổng quan sau Pha 1.
-
-7. Ghi token checkpoint vào `{{ platform.framework_root }}/knowledge/active/TOKEN_LOG.md`:
-   - Điền timestamp kết thúc Pha 1.
-   - Estimate token Pha 1: input (files đọc + tool calls) + output (REQUIREMENT + EXPLORE_CONTEXT + AGENT_TRANSPARENCY).
-   - Liệt kê tool calls đáng chú ý ({{ tools.read_file }} nhiều lần, tài liệu dài...).
-   - Cập nhật dòng "Pha 1" trong bảng Tóm tắt.
-   - Nếu tổng Pha 1 > 50,000 tokens estimate: ghi cảnh báo vào section "Cảnh báo".
-   - Tham chiếu protocol đầy đủ: `{{ platform.framework_root }}/procedures/token-tracking.md`.
-
-8. **Đánh dấu Pha 1 hoàn thành** vào `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
-   - Thêm dòng vào section "Lịch sử pha": `Pha 1 DONE | <timestamp> | REQUIREMENT + EXPLORE_CONTEXT đã ghi`
-   - Cập nhật `phase_state: phase-1-done` trong block `## Phase State`.
-   - Ghi rõ ticket_id (hoặc "HAS_DOC_ONLY / IDEA_ONLY" nếu không có ticket).
-   - **Mục đích**: Khi phiên bị truncate và resume, agent đọc được marker này để biết Pha 1 đã xong
-     → **không được re-trigger Pha 1** dù active context có vẻ thiếu ticket ID.
-   > **Resume rule**: Nếu `phase_state` = `phase-1-done` hoặc cao hơn → coi Pha 1 đã hoàn thành.
-   > Không hỏi lại, không re-run exploration. Chuyển thẳng sang hướng dẫn user chạy `/task spec`.
-
-9. **[POST-PHASE SELF-CHECK — Pha 1]** Trước khi báo "Pha 1 xong" với user:
-   - `[ ]` REQUIREMENT.md không còn là skeleton (có nội dung thực).
-   - `[ ]` EXPLORE_CONTEXT.md đã được ghi (db-explorer và/hoặc codebase-explorer đã chạy).
-   - `[ ]` AGENT_TRANSPARENCY.md có `phase_state: phase-1-done`.
-   - `[ ]` TOKEN_LOG.md đã ghi checkpoint Pha 1.
-   - `[ ]` architecture-reviewer đã chạy và ghi độ tin cậy.
-   Nếu bất kỳ ô nào chưa tick: hoàn thành trước khi tiếp tục.
-
-10. **[SESSION-BOUNDARY — Pha 1]** Sau khi POST-PHASE SELF-CHECK pass:
-    - **Đường chính** (Pha 1 đã dispatch qua worker theo mục 0b): session này vẫn mỏng —
-      có thể tiếp tục `/task spec` trong CÙNG session, không cần mở mới.
-    - **Nếu Pha 1 đã chạy inline** (inline-reload hoặc dispatch fallback):
-      > "Pha 1 hoàn thành. **Vui lòng mở session mới** để chạy `/task spec`.
-      > Context đã lưu đầy đủ vào `{{ platform.framework_root }}/knowledge/active/`.
-      > Session mới sẽ Bootstrap fresh — rule/DNA ở top-of-mind, tránh Context Dilution."
-    - **Escalation theo TOKEN_LOG**: nếu estimate Pha 1 > 50,000 tokens → lời nhắc trên trở thành
-      **BẮT BUỘC**: "Context đã vượt ngưỡng an toàn, khả năng cao đã compact — rules/DNA
-      không còn đảm bảo trong context. Mở session mới trước khi tiếp tục."
-    - Nếu user vẫn tiếp tục cùng session sau cảnh báo:
-      - Ghi WARN vào AGENT_TRANSPARENCY: `[SESSION-BOUNDARY] Tiếp tục cùng session sau Pha 1 — rủi ro Context Dilution.`
-      - **Không block tại đây** — nhưng lưu ý: write-gate SESSION-GATE sẽ chặn code write inline
-        ở Pha 3 trong session này (override: `SESSION_OVERRIDE.md` theo template, có log violation).
-
-
----
-
-## 2. `/task spec <ticket-id-or-link>` — Pha 2: Sinh spec (propose)
-
-Mục tiêu: dùng OpenSpec để sinh **spec kỹ thuật** dựa trên REQUIREMENT + bối cảnh hệ thống đã hiểu ở Pha 1.
-
-> **[CRITICAL / BẮT BUỘC]**: 
-> - **KHÔNG ĐƯỢC** dùng thói quen mặc định của Agent (như tự ý sinh file `implementation_plan.md` hay `plan.md` ở ngoài thư mục repo).
-> - **BẮT BUỘC** phải gọi quy trình OpenSpec (`/opsx:propose` hoặc sử dụng skill `openspec-propose`) để sinh bộ artifact chuẩn (`proposal.md`, `design.md`, `spec.md`, `tasks.md`) lưu vào `openspec/changes/<change-id>/`.
-
-1. Định vị context theo ticket:
-   - Đọc `{{ platform.framework_root }}/knowledge/active/REQUIREMENT.md` tương ứng ticket.
-   - Đọc `{{ platform.framework_root }}/knowledge/active/EXPLORE_CONTEXT.md` (tầng DB + code liên quan).
-2. Tóm tắt nhanh cho user:
-   - Bối cảnh business.
-   - Kiến trúc hiện tại chạm tới yêu cầu.
-   - Rủi ro chính (nếu có) từ architecture-reviewer.
-3. Cập nhật `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
-   - Đánh dấu đã vào Pha 2 (`/task spec`).
-   - Ghi nguồn đã đọc.
-4. Hỏi user confirm — **bắt buộc, không được skip**:
-   - Hỏi rõ: “Dùng bộ REQUIREMENT + context hiện tại để sinh spec nhé?”
-   - Nếu user yêu cầu điều chỉnh nhỏ (scope, AC, approach…), cập nhật trước khi tiếp tục.
-   > **[HARDBLOCK]**: Không được suy luận “user đã đồng ý” từ message trước đó, dù message có vẻ
-   > rõ ràng (ví dụ: _“triển khai spec để coding”_ không có nghĩa đã confirm OpenSpec flow).
-   > Đây là checkpoint kiểm soát duy nhất trước khi thực thi — nếu bỏ qua, mọi lỗi sau đều
-   > không phát hiện được sớm.
-5. Khi user xác nhận rõ ràng:
-   - Cập nhật `phase_state: phase-2-in-progress` trong AGENT_TRANSPARENCY.md.
-   - **[MEMORY-RECALL GATE — R-Tool-6]** Trước khi gọi OpenSpec:
-     - Nếu `resolved-config.yaml → mcps` chứa `agent-memory`: gọi `{{ tools.dynamic_memory_recall }}`
-       (query prefix tên project từ REQUIREMENT.md) và ghi dòng evidence vào AGENT_TRANSPARENCY.md:
-       `agent-memory recall — query:"<query>" · results:<N> — ảnh hưởng reasoning`
-     - Nếu KHÔNG chứa `agent-memory` (hoặc backend chết): đảm bảo AGENT_TRANSPARENCY.md có dòng degrade
-       `agent-memory unavailable — skip recall/save`.
-     - Chạy gate: `python3 {{ platform.framework_root }}/tools/gate-check/cli.py memory-recall {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`
-       — PHẢI pass (exit 0) rồi mới được gọi OpenSpec.
-   - Gọi OpenSpec:
-     - Thường là `/opsx:propose`.
-   - **Không được** dùng planning mode mặc định của agent (sinh `implementation_plan.md`, `plan.md`,
-     hoặc bất kỳ file nào ra ngoài `openspec/changes/<change-id>/`) — kể cả khi agent
-     runtime có planning mode nằm ngoài workflow này (vd Cursor, Antigravity, v.v.).
-   - Chờ spec được sinh ra (bộ artifact trong `openspec/changes/<change-id>/`).
-   - **Integration coverage**: nếu REQUIREMENT có section "Integrations & Field Mapping" với
-     integration mới → `tasks.md` sinh ra PHẢI có task mapper/adapter tương ứng cho từng
-     integration (DTO + mapping thuộc contract node trong CONTRACT_DAG ở Pha 3).
-   - Xác nhận output path là `openspec/changes/<change-id>/` trước khi báo cáo hoàn thành.
-   - **[H5 — State Invalidation]** Sau khi `/opsx:propose` thành công:
-     - Ghi `OPENSPEC_STATE: propose_done` vào AGENT_TRANSPARENCY.md (section Cảnh báo / Hạn chế).
-     - Cập nhật `phase_state: phase-2-done`.
-     - Thêm dòng vào section "Lịch sử pha": `Pha 2 DONE | <timestamp> | spec tại openspec/changes/<change-id>/`
-       — marker literal `Pha 2 DONE` là input của write-gate (apply-gate) và resume detection;
-       chỉ ghi `phase_state` mà thiếu dòng này thì mọi code-write Pha 3 bị block.
-     - Ý nghĩa: bất kỳ thay đổi requirement nào SAU điểm này đều làm OpenSpec spec hiện tại
-       **stale** — phải chạy lại `/opsx:propose` nếu REQUIREMENT bị sửa.
-6. Thông báo:
-   - Đường dẫn hoặc tên file spec.
-   - Nhắc user review, cho feedback (có thể lặp lại `/opsx:propose` nếu cần refine).
-7. Cập nhật `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
-   - Ghi rõ:
-     - Đã sinh spec cho ticket nào.
-     - File spec tương ứng.
-     - Độ tin cậy (dựa trên chất lượng REQUIREMENT + context).
-
-8. Ghi token checkpoint vào `{{ platform.framework_root }}/knowledge/active/TOKEN_LOG.md`:
-   - Điền timestamp kết thúc Pha 2.
-   - Estimate token Pha 2: input (REQUIREMENT + EXPLORE_CONTEXT + OpenSpec instructions) + output (spec file).
-   - Cập nhật dòng "Pha 2" trong bảng Tóm tắt.
-   - Tham chiếu protocol đầy đủ: `{{ platform.framework_root }}/procedures/token-tracking.md`.
-
-9. **[POST-PHASE SELF-CHECK — Pha 2]** Trước khi báo "Pha 2 xong" với user:
-   - `[ ]` spec file tồn tại trong `openspec/changes/<change-id>/`.
-   - `[ ]` AGENT_TRANSPARENCY.md có `phase_state: phase-2-done`.
-   - `[ ]` Dòng `Pha 2 DONE | …` đã có trong section "Lịch sử pha".
-   - `[ ]` `OPENSPEC_STATE: propose_done` đã ghi vào AGENT_TRANSPARENCY.md.
-   - `[ ]` TOKEN_LOG.md đã ghi checkpoint Pha 2.
-   Nếu bất kỳ ô nào chưa tick: hoàn thành trước khi tiếp tục.
-
-10. **[SESSION-BOUNDARY — Pha 2]** Sau khi POST-PHASE SELF-CHECK pass:
-    - **Đường chính** (execution_mode = subagent/fresh-session): tiếp tục `/task apply` trong
-      CÙNG session — mỗi node code chạy trong worker context mới (§3 bước 5.c), parent chỉ
-      điều phối nên không cần mở session mới.
-    - **Nếu execution_mode = inline-reload** (code sẽ chạy inline trong session này):
-      > "Pha 2 hoàn thành. **Vui lòng mở session mới** để chạy `/task apply`.
-      > Spec đã lưu tại `openspec/changes/<change-id>/`.
-      > Session mới sẽ Bootstrap fresh — DNA/conventions ở top-of-mind khi code."
-    - **Escalation theo TOKEN_LOG**: nếu tổng estimate Pha 1+2 > 50,000 tokens → lời nhắc trên
-      trở thành **BẮT BUỘC** (context có nguy cơ đã compact).
-    - Nếu user vẫn tiếp tục cùng session:
-      - Ghi WARN vào AGENT_TRANSPARENCY: `[SESSION-BOUNDARY] Tiếp tục cùng session sau Pha 2 — rủi ro Context Dilution khi code.`
-      - **Chỉ được code khi implementation preflight pass** — micro-loop Pha 3 (SP1b)
-        phải ghi `TASK_HANDOFF.<node>.md` chứa `## Applicable DNA/Conventions`,
-        `## Evidence`, và `## Allowed Files`; `write-gate` sẽ block code write nếu
-        handoff/context thiếu, stale, hoặc không match target file.
-      - Ngoài ra write-gate SESSION-GATE chặn code write inline trong session đã hoàn thành
-        Pha 1/2 (kể cả khi handoff hợp lệ) — đường đúng là dispatch worker hoặc session mới;
-        override tường minh qua `SESSION_OVERRIDE.md`.
-
----
-
-## 3. `/task apply <ticket-id>` — Pha 3: Apply spec vào code
-
-Mục tiêu: dùng OpenSpec để áp dụng spec đã được chấp thuận vào codebase một cách có kiểm soát.
-
-1. Định vị spec & context:
-   - Tìm spec tương ứng ticket (tên file hoặc metadata trong spec).
-   - Đọc spec để nắm:
-     - File/module sẽ bị chạm.
-     - Thay đổi chính (API, logic, DB migration… nếu có).
-2. Tóm tắt cho user:
-   - “Spec này dự kiến sẽ chạm vào: …”
-   - “Các loại thay đổi chính: …”
-
-2a. **[DNA-RELOAD — NGHỈ HƯU ở SP1b]** Nghi thức re-read DNA cho cả pha trước khi code đã được
-    thay bằng **cấu trúc**: micro-loop (bước 5) lắp `dna_slice` (HP liên quan + `complexity_thresholds`
-    + style liên quan) vào `TASK_HANDOFF` của **từng task**, nên DNA luôn ở recency window của executor
-    khi sinh code — đúng task, đúng lúc, không phụ thuộc agent tự nhớ reload.
-    > "Sandwich defense" vẫn còn nhưng đổi dạng: rule ở đầu (bootstrap) + rule trong handoff mỗi task (cấu trúc).
-    > R-Guard-2 (gate per-artifact) vẫn áp dụng cho executor; rule cơ học giờ do mechanical gate SP1a chặn deterministic.
-
-3. **[M1 — Spec Validation]** Chạy `spec-validator` trước khi apply:
-   - Gọi `spec-validator.pre_apply_gate(spec_path, requirement_path)`:
-     - Nếu **BLOCK**: dừng apply, hiển thị issues, hỏi user fix spec rồi chạy lại `/task spec`.
-     - Nếu **PASS**: tiếp tục.
-   - Gọi `spec-validator.ac_coverage(spec_path, requirement_path)`:
-     - Nếu có AC chưa cover: hiển thị danh sách, hỏi user có muốn tiếp không.
-   - Gọi `spec-validator.integration_coverage(spec_path, requirement_path)`:
-     - Nếu có integration chưa có task mapper/adapter: hiển thị danh sách, hỏi user có muốn tiếp không.
-
-4. Hỏi **xác nhận cuối cùng**:
-   - Nêu rõ đây là bước sẽ đề nghị thay đổi code theo spec.
-   - Nếu user muốn, có thể giới hạn phạm vi (chỉ generate patch, không apply; hoặc chỉ apply một phần).
-5. Khi user đồng ý — cập nhật `phase_state: applying` trong AGENT_TRANSPARENCY.md, rồi
-   **Orchestrate Hybrid Contract DAG micro-loop (SP1d)**:
-   - **Dashboard runtime contract bắt buộc (P5):**
-     - Log cả vòng đời của agent cha vào `{{ platform.framework_root }}/knowledge/active/microloop/ACTIVITY_LOG.jsonl`,
-       không chỉ subagent. Dùng `actor: parent` cho các event như `phase_changed`,
-       `parent_note`, `spec_started`, `spec_done`, `apply_started`, `archive_started`, `archive_done`.
-     - Mirror context trực quan của agent cha từ IDE brain/cuộc trò chuyện với human vào
-       `{{ platform.framework_root }}/knowledge/active/PARENT_BRAIN.md` khi bắt đầu apply và khi có quyết định mới.
-       Nếu dùng helper Python, gọi `write_parent_brain(...)`; event tương ứng là `parent_brain_updated`.
-     - Trước khi dispatch executor/subagent đầu tiên, tạo `{{ platform.framework_root }}/knowledge/active/microloop/TASK_QUEUE.md`
-       từ danh sách node/task sẽ chạy, với `status: pending`, `handoff_path`, `result_path`, và `depends_on`.
-     - Append `task_queue_created` vào `{{ platform.framework_root }}/knowledge/active/microloop/ACTIVITY_LOG.jsonl`.
-     - Khi ghi `TASK_HANDOFF.<node-id>.md`, append `subagent_spawned` với `task_id`, label, và path.
-     - Đường fresh-session: driver (`orchestrator.py apply`) TỰ quản các event
-       `in_progress`/`done`/`blocked`/`subagent_started`/`subagent_blocked` — KHÔNG emit thủ công.
-     - Chỉ khi tier `subagent`/`inline-reload` (parent tự vận hành): dùng helpers
-       `update_task_status`, `write_task_result`, `append_activity_event` trong
-       `{{ platform.framework_root }}/tools/microloop-orchestrator/orchestrator.py` theo đúng
-       vòng đời in_progress → done/blocked.
-   a. Build `KNOWLEDGE_PACK.md` from REQUIREMENT, EXPLORE_CONTEXT, knowledge-snapshot,
-      conventions, author-dna, OpenSpec artifacts, UA/KG evidence, db-explorer evidence, and relevant archive/memory.
-      - Section "Integrations & Field Mapping" của REQUIREMENT là nguồn BẮT BUỘC của
-        Knowledge Pack khi task có integration mới.
-      - If task complexity = `complex` and KG graph is unavailable/stale: BLOCK unless user explicitly overrides.
-      - If task touches DB and db-explorer evidence is missing: BLOCK and request db-explorer.
-      - Record confidence and overrides in AGENT_TRANSPARENCY.
-   b. Build `CONTRACT_DAG.md` from OpenSpec `tasks.md`:
-      - `contract` nodes: base/interface/abstract class/DTO/schema/public contract.
-      - `leaf` nodes: child classes/adapters/mappers/repository implementations.
-      - `integration` nodes: DI/wiring/registry/config/migration registration.
-      - `test` nodes: unit/integration/spec tests.
-      - `review` nodes: extraction/verification.
-   c. Run Contract Lane sequentially:
-      - Assemble `TASK_HANDOFF.<node-id>.md` with Knowledge Pack slice, DNA slice, convention slice,
-        architecture boundary, allowed/read-only files, and feedback if retrying.
-      - Node mapper/adapter: nhúng NGUYÊN bảng field mapping của integration tương ứng vào
-        `## Evidence` / `## Constraints` của handoff — executor không tự tra lại tài liệu;
-        cú pháp serialize cụ thể resolve từ dna_slice/convention_slice.
-      - After writing each handoff, record `subagent_spawned` in `ACTIVITY_LOG.jsonl`.
-      - Dispatch executor theo `{{ platform.framework_root }}/profiles/execution-mode.yaml`:
-        - `fresh-session` (đường chính): sau khi ghi XONG toàn bộ handoff, chạy MỘT lệnh từ project root:
-          `python3 {{ platform.framework_root }}/tools/microloop-orchestrator/orchestrator.py apply --active-dir {{ platform.framework_root }}/knowledge/active`
-          Driver tự chạy vòng lặp node (dispatch worker, retry, event, resume). Exit 0 → sang bước 6;
-          exit ≠ 0 → đọc message, sửa nguyên nhân (handoff/feedback), đặt node về `pending`, chạy lại.
-        - `subagent`: Agent tool với prompt từ `tiers/subagent.py`, parent tự vận hành vòng lặp per node.
-        - `inline-reload`: prompt từ `tiers/inline_reload.py`, chạy trong session hiện tại (LCD).
-      - Tier subagent/inline-reload: mark node `in_progress` trước dispatch, `done`/`blocked` sau result;
-        run mechanical gate + semantic surface-check per node.
-      - On PASS, generate/freeze `CONTRACT_SNAPSHOT.<node-id>.md` with contract_version.
-      - On FAIL after max retries, mark node `blocked` and stop for user decision.
-   d. Run Implementation Lane in safe parallel batches:
-      - Only nodes with dependencies done and no write conflicts can share a batch.
-      - Leaf nodes receive `contract_snapshot` and `contract_version`.
-      - Leaf nodes cannot edit frozen contract/base files or shared wiring files.
-      - Missing context produces `CONTEXT_REQUEST.<node-id>.md`; orchestrator enriches Knowledge Pack and resumes.
-      - Missing contract hook produces `CONTRACT_CHANGE_REQUEST.<node-id>.md`; if accepted, rerun Contract Lane,
-        increment contract_version, and mark downstream nodes stale.
-      - Wiring needs produce `INTEGRATION_REQUEST.<node-id>.md`.
-   e. Run Integration Lane:
-      - Integration Agent is the only executor allowed to edit shared registry/config/wiring files.
-      - It consumes all `INTEGRATION_REQUEST.*.md` files and applies deterministic, grouped changes.
-   f. Run Verification Lane:
-      - Ensure no nodes remain `pending`, `in_progress`, `blocked`, or `stale`.
-      - Run compile/typecheck/tests when available.
-      - Run spec-validator post checks, including contract_version and allowed-file checks.
-      - Run extraction review against all changed files and present `EXTRACTION_REPORT.md` to user.
-   g. Persist state in `{{ platform.framework_root }}/knowledge/active/microloop/` so Pha 3 can resume after session truncation.
-6. Sau khi micro-loop xong:
-   - Chạy `spec-validator.post_apply_verify(spec_path, changed_files)` — ghi kết quả vào AGENT_TRANSPARENCY.
-   - Nếu có diff/PR, thông báo lại link hoặc danh sách file thay đổi.
-   - Đề nghị bước tiếp theo:
-     - Review code.
-     - Update test.
-     - Triển khai / release, v.v. (ở mức gợi ý, không ép).
-7. Cập nhật `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md`:
-   - Đánh dấu:
-     - Đã chạy `/task apply`.
-     - Code đã được chỉnh theo spec (ở mức đề xuất/patch/PR).
-   - Ghi:
-     - Spec nào đã apply.
-     - Bất kỳ hạn chế nào (ví dụ: apply một phần, lỗi khi apply, cần manual follow-up).
-   - Thêm dòng vào section "Lịch sử pha": `Pha 3 DONE | <timestamp> | apply hoàn tất`
-   - Cập nhật `phase_state: completed`.
-
-8. Ghi token checkpoint CUỐI TASK vào `{{ platform.framework_root }}/knowledge/active/TOKEN_LOG.md`:
-   - Điền timestamp kết thúc Pha 3.
-   - Estimate token Pha 3: input (spec + codebase context) + output (code changes).
-   - Cập nhật dòng "Pha 3" và dòng **TỔNG TASK** trong bảng Tóm tắt.
-   - Đây là lần ghi cuối trước khi `knowledge-curator` archive TOKEN_LOG.md.
-   - Tham chiếu protocol đầy đủ: `{{ platform.framework_root }}/procedures/token-tracking.md`.
-
-9. **[POST-PHASE SELF-CHECK — Pha 3]** Trước khi gọi knowledge-curator archive:
-   - `[ ]` Micro-loop hoàn tất: mọi task trong `TASK_QUEUE` = `done` (không còn `pending`/`blocked`).
-   - `[ ]` Extraction review đã chạy, `EXTRACTION_REPORT` đã trình user.
-   - `[ ]` Code changes / diff / PR đã được tóm tắt cho user.
-   - `[ ]` AGENT_TRANSPARENCY.md có `phase_state: applying` → đã cập nhật thành `completed`.
-   - `[ ]` Dòng `Pha 3 DONE | …` đã có trong section "Lịch sử pha".
-   - `[ ]` TOKEN_LOG.md đã ghi TỔNG TASK.
-   - `[ ]` Không có BLOCKER chưa resolve trong AGENT_TRANSPARENCY.md.
-   - `[ ]` spec-validator DNA compliance check (gate #6) đã chạy.
-   - `[ ]` KNOWLEDGE_PACK.md exists and confidence/override status is recorded.
-   - `[ ]` CONTRACT_DAG.md has no `pending` / `in_progress` / `blocked` / `stale` nodes.
-   - `[ ]` Every leaf node with `contract_ref` uses the current `contract_version`.
-   - `[ ]` All `CONTEXT_REQUEST`, `CONTRACT_CHANGE_REQUEST`, and `INTEGRATION_REQUEST` files are resolved or explicitly documented.
-   - `[ ]` Teaching Moment Check trong AGENT_TRANSPARENCY.md đã resolved — chạy `python3 {{ platform.framework_root }}/tools/gate-check/cli.py teaching-moment {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md` và pass (exit 0) trước khi gọi knowledge-curator.
-   Nếu bất kỳ ô nào chưa tick: hoàn thành trước khi gọi knowledge-curator.
-
-10. **[SESSION-BOUNDARY — Pha 3]** Sau khi archive hoàn thành:
-    - Thông báo user:
-      > "Task hoàn thành và đã archive. **Vui lòng mở session mới** cho task tiếp theo.
-      > Session mới sẽ Bootstrap fresh với knowledge-snapshot đã cập nhật."
-    - Đây là kết thúc tự nhiên của task — session mới là best practice, không chỉ là gợi ý.
-    - Ngoại lệ: nếu toàn bộ task chạy theo đường dispatch worker (mục 0b + §3 bước 5.c),
-      parent vẫn mỏng — có thể nhận task mới trong cùng session sau khi archive xong.
-
----
-
-## 4. Lưu ý chung cho `/task`
-
-- `/task` chỉ là **orchestrator**:
-  - Không thay thế logic chi tiết của từng skill (requirement-analyst, db-explorer, codebase-explorer, architecture-reviewer, spec-extract, OpenSpec).
-  - Chỉ quyết định **thứ tự gọi** và **điều kiện dừng/tiếp tục** giữa các pha.
-- Ngôn ngữ và xử lý luôn generic:
-  - Không encode domain nghiệp vụ cụ thể vào workflow.
-  - Chỉ nói về ticket, tài liệu, DB, codebase, spec, kiến trúc.
-- Luôn trung thực về trạng thái:
-  - Nếu thiếu UA, thiếu DB access, thiếu code access → phải được phản ánh rõ trong `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md` và trong Độ tin cậy của mọi kết luận.
-
----
-
-## 5. Tích hợp Knowledge Curator (v2.0)
-
-Sau khi `/task apply` Pha 3 hoàn thành thành công:
-
-```
-1. Gọi knowledge-curator.archive_active_context(ticket_id):
-   - Lưu toàn bộ active/ vào {{ platform.framework_root }}/knowledge/archive/{ticket_id}/
-
-2. Gọi knowledge-curator.update_knowledge_snapshot(discoveries):
-   - Trích discoveries từ EXPLORE_CONTEXT.md:
-     - Các table/column mới phát hiện
-     - Modules/services đã map
-     - Business rules đã xác nhận
-   - Cập nhật {{ platform.framework_root }}/knowledge/long-term/knowledge-snapshot.md
-
-3. Gọi knowledge-curator.push_to_agent_memory(ticket_id):
-   - Push memory đã lọc qua 4 tầng chất lượng lên agent-memory (M7)
-   - PHẢI chạy TRƯỚC reset — reset xoá active/ là mất nguồn push
-   - agent-memory unavailable → ghi degrade `agent-memory unavailable — skip recall/save`, không block
-
-4. Gọi knowledge-curator.reset_active_context():
-   - Reset active/ về skeleton sạch
-
-5. Cập nhật {{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md (mới, sau reset):
-   - Ghi: "Task {ticket_id} completed and archived at {timestamp}"
-   - Mark: [x] knowledge-curator: archive + update_snapshot + push_to_agent_memory + reset
-
-6. Thông báo user:
-   "Task {ticket_id} đã hoàn thành. Context đã được archive.
-    Knowledge snapshot đã cập nhật với {n} phát hiện mới.
-    Sẵn sàng nhận task mới!"
+# /task
+
+Maika chạy workflow adaptive, knowledge-native. Mọi task có execution contract và
+Dev Loop; Spec Loop và Plan Loop chỉ chạy theo `workflow` được classifier ghi vào
+`CHANGE.yaml` (và `TASK.yaml` cho lightweight task):
+
+```text
+trivial       Inspect → Change → Static Check
+small         Focused Evidence → Micro-plan → Implement → Verify
+standard      Focused Grounding → Conditional Spec → Compact Plan → Implement → Review → Verify
+architectural Grounding → Spec/Audit → Full Plan/Audit → Implement → Review → Verify → Human Gate
 ```
 
----
+## Lệnh public
 
-## 6. Path Convention
+Scaffold ở target phơi bày workflow chuẩn qua `maika task`:
 
-> Path canonical cho tất cả file context được định nghĩa tại một nơi duy nhất:
-> **`{{ platform.framework_root }}/rules/RULES.md` — Section 12, R-Path-1**
->
-> Không duplicate bảng path ở đây. Khi cần tra cứu path, đọc RULES.md.
+- `maika task start --id <change-id> --class <class> --title <title>`
+- `maika task explore --id <change-id>` — dispatch `grounding-explorer` + gate + transition
+- `maika task reconcile --id <change-id>` — dispatch `architecture-reconciler`
+- `maika task brainstorm --id <change-id>` — dispatch `grounded-brainstorming` (optional, giữ state)
+- `maika task spec --id <change-id>` — dispatch `writing-spec` → SPEC_REVIEW
+- `maika task validate-spec --id <change-id>` — gate cơ học SPEC_REVIEW → PLANNING
+- `maika task plan --id <change-id>` — dispatch `writing-plan` + compile → PLAN_REVIEW
+- `maika task validate-plan --id <change-id>`
+- `maika task review --id <change-id>`
+- `maika task apply --id <change-id>`
+- `maika task route --id <change-id> --action <action>` — dry-run giải thích route
+- `maika task verify --id <change-id>`
+- `maika task archive --id <change-id>`
+- `maika task status [--id <change-id>]`
+- `maika task resume --id <change-id>`
+- `maika task cancel --id <change-id>`
+
+`maika task verify` chạy lệnh thật khai trong `verification/COMMANDS.yaml`, ghi
+`verification/VERIFICATION_REPORT.md`, rồi đánh dấu workspace `COMPLETED`.
+`maika task archive` yêu cầu verified completion + `reviews/KNOWLEDGE_IMPACT.yaml`,
+áp knowledge lifecycle, regenerate `knowledge/long-term/knowledge-index.yaml`, ghi
+`ARCHIVE_MANIFEST.yaml`, và dời workspace sang `<framework-root>/archive/<change-id>`.
+Verification cũng bắt buộc `reviews/SKILL_FEEDBACK.yaml`; archive record feedback,
+cluster recurrence và chỉ tạo skill candidate khi threshold trong
+`rules/jit/skill-evolution.md` pass. Candidate không được auto-promote.
+
+Mọi reconciliation/spec/plan/review/verification material decision phải pass gate
+`knowledge-trace`. Mọi fresh dispatch phải pass `context-package` và
+`dispatch-kernel`, đồng thời mang Task Knowledge Capsule path/hash.
+
+Workflow chạy thật end-to-end — người dùng **không** phải tự sửa `STATE.yaml`,
+grounding artifact, result, review, queue, hay verification report.
+
+## Thứ tự artifact đầy đủ (standard/architectural)
+
+```text
+CHANGE.yaml
+INTENT.md
+exploration/QUERY_PLAN.yaml
+exploration/TOOL_HEALTH.yaml
+exploration/GROUNDING.yaml
+exploration/EVIDENCE_MANIFEST.yaml
+exploration/CONFLICTS.yaml
+exploration/COVERAGE.yaml
+exploration/DATABASE_CONTEXT.yaml   # khi có database/persistence impact
+RECONCILIATION.md
+SPEC.md
+IMPLEMENTATION_PLAN.md
+generated/PLAN_VALIDATION.json
+generated/PLAN_MANIFEST.json
+generated/TASK_QUEUE.json
+briefs/TASK-001.md
+briefs/TASK-001.knowledge.yaml
+results/TASK-001.yaml
+reviews/TASK-001.md
+reviews/FINAL_REVIEW.md
+reviews/KNOWLEDGE_IMPACT.yaml
+verification/COMMANDS.yaml
+verification/VERIFICATION_REPORT.md
+ARCHIVE_MANIFEST.yaml
+```
+
+## Rules
+
+- Trivial/small không bị ép tạo `SPEC.md` hoặc `IMPLEMENTATION_PLAN.md`; micro-plan
+  nằm trong `TASK.yaml`.
+- `workflow.execution_contract` và `workflow.dev_loop` luôn là `required`.
+- Change standard và architectural cần grounding đa nguồn (query plan → provider
+  probe → evidence → reconcile) trước khi chốt thiết kế.
+- Provider ưu tiên khỏe không được skip im lặng; provider absent phải ghi
+  degradation record (xem `jit/providers.md`).
+- Implementer nhận brief bất biến + Task Knowledge Capsule, không nhận history
+  của parent session.
+- Reviewer không sửa application code; task review APPROVED cần counter-evidence.
+- Write application-code không khai báo bị chặn bởi write gate.
+- Completion cần structured result, review, và verification chạy lệnh thật.

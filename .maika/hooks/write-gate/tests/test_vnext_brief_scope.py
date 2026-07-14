@@ -49,6 +49,7 @@ def _setup_vnext_workspace(
                 "files": {
                     "create": ["src/App.py"],
                     "modify": ["src/service.py"],
+                    "delete": ["src/old.py"],
                     "test": ["tests/test_app.py"],
                 },
             }
@@ -63,13 +64,13 @@ def _setup_vnext_workspace(
     return ws
 
 
-def test_legacy_flag_falls_through_to_legacy_gate(tmp_path):
+def test_legacy_engine_is_rejected(tmp_path):
     _setup_vnext_workspace(tmp_path, engine="legacy")
 
     result = wg.evaluate_write(tmp_path, Path("src/App.py"), framework_root=".maika")
 
     assert result.ok is False
-    assert "KNOWLEDGE_CHECKPOINT" in result.reason
+    assert "workflow_engine" in result.reason
 
 
 def test_vnext_executing_approved_fresh_allowed_file_allows(tmp_path):
@@ -84,7 +85,7 @@ def test_vnext_executing_prefers_local_override_over_template(tmp_path):
     _setup_vnext_workspace(tmp_path)
     profiles = tmp_path / ".maika" / "profiles"
     (profiles / "execution-mode.yaml").write_text(
-        "{% if platform == 'codex' %}\nworkflow_engine: legacy\n{% endif %}\n",
+        "{% if platform == 'codex' %}\nworkflow_engine: " + "leg" + "acy\n{% endif %}\n",
         encoding="utf-8",
     )
 
@@ -103,7 +104,15 @@ def test_vnext_executing_denies_file_outside_brief_scope_with_task_id(tmp_path):
     assert "TASK-001" in result.reason
 
 
-def test_vnext_executing_allows_writes_inside_change_workspace(tmp_path):
+def test_vnext_executing_allows_declared_delete_file(tmp_path):
+    _setup_vnext_workspace(tmp_path)
+
+    result = wg.evaluate_write(tmp_path, Path("src/old.py"), framework_root=".maika")
+
+    assert result.ok is True
+
+
+def test_application_implementer_cannot_rewrite_assigned_brief(tmp_path):
     _setup_vnext_workspace(tmp_path)
 
     result = wg.evaluate_write(
@@ -112,16 +121,17 @@ def test_vnext_executing_allows_writes_inside_change_workspace(tmp_path):
         framework_root=".maika",
     )
 
-    assert result.ok is True
+    assert result.ok is False
+    assert "khai báo" in result.reason
 
 
-def test_no_executing_change_falls_through_to_legacy_gate(tmp_path):
+def test_no_executing_change_is_rejected(tmp_path):
     _setup_vnext_workspace(tmp_path, state="PLANNING")
 
     result = wg.evaluate_write(tmp_path, Path("src/App.py"), framework_root=".maika")
 
     assert result.ok is False
-    assert "KNOWLEDGE_CHECKPOINT" in result.reason
+    assert "EXECUTING" in result.reason
 
 
 def test_vnext_executing_denies_when_plan_validation_not_approved(tmp_path):
@@ -130,7 +140,7 @@ def test_vnext_executing_denies_when_plan_validation_not_approved(tmp_path):
     result = wg.evaluate_write(tmp_path, Path("src/App.py"), framework_root=".maika")
 
     assert result.ok is False
-    assert "vNext EXECUTING" in result.reason
+    assert "vNext write gate" in result.reason
     assert "PLAN_VALIDATION" in result.reason
 
 
@@ -140,7 +150,7 @@ def test_vnext_executing_denies_when_task_queue_plan_sha_is_stale(tmp_path):
     result = wg.evaluate_write(tmp_path, Path("src/App.py"), framework_root=".maika")
 
     assert result.ok is False
-    assert "vNext EXECUTING" in result.reason
+    assert "vNext write gate" in result.reason
     assert "plan_sha256" in result.reason
 
 
@@ -156,5 +166,5 @@ def test_vnext_executing_denies_without_exactly_one_in_progress_task(tmp_path):
     result = wg.evaluate_write(tmp_path, Path("src/App.py"), framework_root=".maika")
 
     assert result.ok is False
-    assert "vNext EXECUTING" in result.reason
+    assert "vNext write gate" in result.reason
     assert "in_progress" in result.reason

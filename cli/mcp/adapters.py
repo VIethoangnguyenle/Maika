@@ -31,7 +31,7 @@ class McpPlatformAdapter:
 _ADAPTERS = {
     "antigravity": McpPlatformAdapter(
         platform="antigravity",
-        framework_root=".agents",
+        framework_root=".maika",
         candidates=(
             ("workspace", ".agents/mcp_config.json", "json"),
             ("cli", "~/.gemini/antigravity-cli/mcp_config.json", "json"),
@@ -41,7 +41,7 @@ _ADAPTERS = {
     ),
     "claude-code": McpPlatformAdapter(
         platform="claude-code",
-        framework_root=".claude",
+        framework_root=".maika",
         candidates=(
             ("workspace", ".mcp.json", "json"),
             ("user", "~/.claude/mcp_config.json", "json"),
@@ -49,7 +49,7 @@ _ADAPTERS = {
     ),
     "codex": McpPlatformAdapter(
         platform="codex",
-        framework_root=".agents",
+        framework_root=".maika",
         candidates=(
             ("workspace", ".codex/config.toml", "toml"),
             ("user", "~/.codex/config.toml", "toml"),

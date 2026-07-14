@@ -1,0 +1,60 @@
+version: 1
+providers:
+  understand-anything:
+    freshness_probe:
+      tool: get_graph_metadata
+    capabilities:
+      architecture_discovery:
+        role: primary
+        tools: [get_graph_stats, get_tour, get_layer_info, get_relationships]
+      domain_flow_trace:
+        role: primary
+        tools: [get_domain_overview, get_domain_detail, get_domain_flow_detail]
+      call_chain_trace:
+        role: primary
+        tools: [query_nodes, trace_call_chain, get_relationships, get_node_source]
+      impact_analysis:
+        role: primary
+        tools: [find_impact, get_relationships, get_node_source]
+      graph_path_trace:
+        role: primary
+        tools: [find_path]
+      inheritance_trace:
+        role: primary
+        tools: [get_class_hierarchy, get_node_source]
+      semantic_code_search:
+        role: supporting
+
+  codebase-memory-mcp:
+    capabilities:
+      semantic_code_search:
+        role: primary
+      architecture_discovery:
+        role: supporting
+      call_chain_trace:
+        role: supporting
+      impact_analysis:
+        role: supporting
+      dependency_analysis:
+        role: primary
+
+  current-source:
+    capabilities:
+      exact_source_inspection:
+        role: primary
+        authoritative_for: [exact_code_fact]
+      domain_flow_trace:
+        role: supporting
+      call_chain_trace:
+        role: supporting
+      impact_analysis:
+        role: supporting
+      inheritance_trace:
+        role: supporting
+
+  db-access:
+    capabilities:
+      database_schema_inspection:
+        role: primary
+      database_dependency_analysis:
+        role: supporting

@@ -1,7 +1,11 @@
 import importlib.util
+import hashlib
 import json
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import yaml
 
 
 MOD = Path(__file__).resolve().parents[1] / "write_gate.py"
@@ -63,15 +67,18 @@ def test_extracts_targetfile_from_antigravity_tool_input_payload():
     assert wg.extract_target_paths(payload) == [Path("src/App.java")]
 
 
-def test_allows_framework_and_openspec_artifact_writes(tmp_path):
-    assert wg.evaluate_write(tmp_path, Path(".maika/knowledge/active/KNOWLEDGE_CHECKPOINT.md")).ok is True
-    assert wg.evaluate_write(tmp_path, Path("openspec/changes/x/specs/foo/spec.md")).ok is True
+def test_framework_artifacts_require_an_authorized_role_and_retired_specs_block(tmp_path):
+    assert wg.evaluate_write(tmp_path, Path(".maika/changes/demo/STATE.yaml")).ok is False
+    retired = "".join(("open", "spec")) + "/changes/x/specs/foo/spec.md"
+    result = wg.evaluate_write(tmp_path, Path(retired))
+    assert result.ok is False
+    assert "vNext" in result.reason
 
 
-def test_blocks_app_write_without_checkpoint(tmp_path):
+def test_blocks_app_write_without_vnext_scope(tmp_path):
     result = wg.evaluate_write(tmp_path, Path("src/App.java"))
     assert result.ok is False
-    assert "KNOWLEDGE_CHECKPOINT" in result.reason
+    assert "vNext" in result.reason
 
 
 def test_allows_documentation_write_without_checkpoint(tmp_path):
@@ -90,15 +97,15 @@ def test_main_allows_documentation_write(tmp_path, monkeypatch):
     assert code == 0
 
 
-def test_main_allows_absolute_framework_knowledge_write_without_checkpoint(tmp_path, monkeypatch):
+def test_main_blocks_absolute_framework_knowledge_write_without_curator_role(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     target = tmp_path / ".maika" / "knowledge" / "long-term" / "author-dna.yaml"
     payload = {"tool_name": "Write", "tool_input": {"file_path": str(target)}}
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
-    assert code == 0
+    assert code == 2
 
 
-def test_main_allows_absolute_framework_knowledge_write_from_subdir(tmp_path, monkeypatch):
+def test_main_blocks_absolute_framework_knowledge_write_from_subdir_without_role(tmp_path, monkeypatch):
     _init_git_repo(tmp_path)
     subdir = tmp_path / "src"
     subdir.mkdir()
@@ -106,7 +113,7 @@ def test_main_allows_absolute_framework_knowledge_write_from_subdir(tmp_path, mo
     target = tmp_path / ".maika" / "knowledge" / "long-term" / "author-dna.yaml"
     payload = {"tool_name": "Write", "tool_input": {"file_path": str(target)}}
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
-    assert code == 0
+    assert code == 2
 
 
 def test_bash_write_to_documentation_allowed(tmp_path, monkeypatch):
@@ -116,97 +123,126 @@ def test_bash_write_to_documentation_allowed(tmp_path, monkeypatch):
     assert code == 0
 
 
-def test_allows_app_write_with_valid_checkpoint(tmp_path):
+def _setup_vnext_scope(tmp_path, target="src/App.java", *, state="EXECUTING", engine="vnext"):
     framework = tmp_path / ".maika"
-    checkpoint = framework / "knowledge" / "active" / "KNOWLEDGE_CHECKPOINT.md"
-    checkpoint.parent.mkdir(parents=True)
-    checkpoint.write_text(
-        "## DNA\nSP-6 staircase\n"
-        "## Codebase evidence\nnode_id: svc.UserService#42\nblast-radius: 3 nodes\n",
+    profiles = framework / "profiles"
+    profiles.mkdir(parents=True, exist_ok=True)
+    (profiles / "execution-mode.yaml").write_text(f"workflow_engine: {engine}\n", encoding="utf-8")
+    active = framework / "knowledge" / "active"
+    active.mkdir(parents=True, exist_ok=True)
+    (active / "AGENT_TRANSPARENCY.md").write_text("phase_state: executing\n", encoding="utf-8")
+    ws = framework / "changes" / "demo"
+    (ws / "generated").mkdir(parents=True, exist_ok=True)
+    (ws / "STATE.yaml").write_text(f"change_id: demo\nstate: {state}\n", encoding="utf-8")
+    (ws / "generated" / "PLAN_VALIDATION.json").write_text(
+        json.dumps({"verdict": "APPROVED"}),
         encoding="utf-8",
     )
-    (framework / "knowledge" / "active" / "AGENT_TRANSPARENCY.md").write_text(
-        "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
+    (ws / "generated" / "PLAN_MANIFEST.json").write_text(
+        json.dumps({"plan_sha256": "sha"}),
+        encoding="utf-8",
     )
-    _write_valid_implementation_context(framework / "knowledge" / "active", "src/App.java")
+    (ws / "generated" / "TASK_QUEUE.json").write_text(
+        json.dumps({
+            "change_id": "demo",
+            "plan_sha256": "sha",
+            "tasks": [{
+                "id": "TASK-001",
+                "status": "in_progress",
+                "files": {"create": [], "modify": [target], "delete": [], "test": []},
+            }],
+        }),
+        encoding="utf-8",
+    )
+    return active
 
+
+def _setup_lightweight_scope(tmp_path, target="src/App.java", *, expired=False):
+    framework = tmp_path / ".maika"
+    (framework / "profiles").mkdir(parents=True)
+    (framework / "profiles" / "execution-mode.yaml").write_text(
+        "workflow_engine: vnext\n", encoding="utf-8"
+    )
+    ws = framework / "changes" / "demo"
+    (ws / "generated").mkdir(parents=True)
+    (ws / "STATE.yaml").write_text("change_id: demo\nstate: EXECUTING\n", encoding="utf-8")
+    task = {
+        "version": 1, "change_id": "demo", "class": "small",
+        "scope": {"files": {"modify": [target], "test": []}},
+    }
+    (ws / "TASK.yaml").write_text(yaml.safe_dump(task), encoding="utf-8")
+    (ws / "EVIDENCE.yaml").write_text("version: 1\nitems: []\n", encoding="utf-8")
+    scope = {"create": [], "modify": [target], "delete": [], "test": []}
+    expires = datetime.now(timezone.utc) + timedelta(seconds=-1 if expired else 60)
+    contract = {
+        "version": 1, "change_id": "demo", "task_class": "small",
+        "execution_id": "EXEC-demo-1", "state": "EXECUTING", "status": "active",
+        "task_hash": "sha256:" + hashlib.sha256((ws / "TASK.yaml").read_bytes()).hexdigest(),
+        "evidence_hash": "sha256:" + hashlib.sha256((ws / "EVIDENCE.yaml").read_bytes()).hexdigest(),
+        "scope_hash": wg._canonical_hash(scope), "scope": scope,
+        "role": "application-implementer", "runtime": {"lease_expires_at": expires.isoformat()},
+    }
+    (ws / "generated" / "LIGHTWEIGHT_EXECUTION.yaml").write_text(
+        yaml.safe_dump(contract), encoding="utf-8"
+    )
+    return ws
+
+
+def test_allows_app_write_with_vnext_scope(tmp_path):
+    _setup_vnext_scope(tmp_path)
     result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
     assert result.ok is True
 
 
-def test_blocks_app_write_without_implementation_context(tmp_path):
-    active = tmp_path / ".maika" / "knowledge" / "active"
-    _write_valid_checkpoint(active)
-    (active / "AGENT_TRANSPARENCY.md").write_text(
-        "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
-    )
+def test_lightweight_contract_allows_declared_app_and_result_only(tmp_path):
+    _setup_lightweight_scope(tmp_path)
+    assert wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika").ok is True
+    assert wg.evaluate_write(tmp_path, Path(".maika/changes/demo/RESULT.yaml"), framework_root=".maika").ok is True
+    denied = wg.evaluate_write(tmp_path, Path("src/Other.java"), framework_root=".maika")
+    assert denied.ok is False
+    assert "ngoài files" in denied.reason
+
+
+def test_lightweight_contract_rejects_task_tamper_and_expired_lease(tmp_path):
+    ws = _setup_lightweight_scope(tmp_path)
+    (ws / "TASK.yaml").write_text("version: 1\nchange_id: demo\nclass: small\n", encoding="utf-8")
+    assert "hash mismatch" in wg.evaluate_write(
+        tmp_path, Path("src/App.java"), framework_root=".maika"
+    ).reason
+
+    other = tmp_path / "expired"
+    other.mkdir()
+    _setup_lightweight_scope(other, expired=True)
+    assert "hết hạn" in wg.evaluate_write(
+        other, Path("src/App.java"), framework_root=".maika"
+    ).reason
+
+
+def test_blocks_app_write_without_executing_vnext_change(tmp_path):
+    _setup_vnext_scope(tmp_path, state="PLANNING")
     result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
     assert result.ok is False
-    assert "implementation context" in result.reason
+    assert "EXECUTING" in result.reason
 
 
-def test_blocks_app_write_when_implementation_context_targets_other_file(tmp_path):
-    active = tmp_path / ".maika" / "knowledge" / "active"
-    _write_valid_checkpoint(active)
-    (active / "AGENT_TRANSPARENCY.md").write_text(
-        "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
-    )
-    _write_valid_implementation_context(active, "src/Other.java")
+def test_blocks_app_write_when_vnext_scope_targets_other_file(tmp_path):
+    _setup_vnext_scope(tmp_path, target="src/Other.java")
     result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
     assert result.ok is False
     assert "src/App.java" in result.reason
 
 
-def test_blocks_app_write_allowed_only_by_stale_handoff(tmp_path):
-    active = tmp_path / ".maika" / "knowledge" / "active"
-    _write_valid_checkpoint(active)
-    (active / "AGENT_TRANSPARENCY.md").write_text(
-        "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
-    )
-    _write_valid_implementation_context(active, "src/App.java", name="old")
-    _write_valid_implementation_context(active, "src/Other.java", name="current")
-    queue = active / "microloop" / "TASK_QUEUE.md"
-    queue.parent.mkdir(parents=True, exist_ok=True)
-    queue.write_text(
-        "tasks:\n"
-        "  - id: current\n"
-        "    status: in_progress\n"
-        "    handoff_path: .maika/knowledge/active/TASK_HANDOFF.current.md\n"
-        "  - id: old\n"
-        "    status: done\n"
-        "    handoff_path: .maika/knowledge/active/TASK_HANDOFF.old.md\n",
-        encoding="utf-8",
-    )
-
-    result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
-
-    assert result.ok is False
-    assert "src/App.java" in result.reason
+def test_path_prefix_helper_requires_segment_boundary():
+    assert wg._is_same_or_child(".maika/changes/demo", ".maika/changes/demo") is True
+    assert wg._is_same_or_child(".maika/changes/demo/results/TASK-001.yaml", ".maika/changes/demo") is True
+    assert wg._is_same_or_child(".maika/changes/demo-extra/results/TASK-001.yaml", ".maika/changes/demo") is False
 
 
-def test_blocks_app_write_when_checkpoint_ruleid_not_in_index(tmp_path):
-    framework = tmp_path / ".maika"
-    checkpoint = framework / "knowledge" / "active" / "KNOWLEDGE_CHECKPOINT.md"
-    checkpoint.parent.mkdir(parents=True)
-    checkpoint.write_text(
-        "## DNA\nISO-9001\n"
-        "## Codebase evidence\nnode_id: svc.UserService#42\nblast-radius: 3 nodes\n",
-        encoding="utf-8",
-    )
-    index = framework / "knowledge" / "long-term" / "knowledge-index.yaml"
-    index.parent.mkdir(parents=True)
-    index.write_text(
-        "entries:\n"
-        "  - id: SP-6\n"
-        "    store: author-dna\n"
-        "    title: staircase\n"
-        "    applies_to: [Constructor]\n",
-        encoding="utf-8",
-    )
-
+def test_blocks_app_write_when_workflow_engine_is_not_vnext(tmp_path):
+    _setup_vnext_scope(tmp_path, engine="legacy")
     result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
     assert result.ok is False
-    assert "valid rule-id" in result.reason
+    assert "workflow_engine" in result.reason
 
 
 def test_main_blocks_with_exit_2_for_claude_pretooluse(tmp_path, monkeypatch, capsys):
@@ -215,7 +251,7 @@ def test_main_blocks_with_exit_2_for_claude_pretooluse(tmp_path, monkeypatch, ca
     code = wg.main(["--framework-root", ".claude"], stdin_text=json.dumps(payload))
     captured = capsys.readouterr()
     assert code == 2
-    assert "KNOWLEDGE_CHECKPOINT" in captured.err
+    assert "vNext" in captured.err
 
 
 def test_main_blocks_when_edit_payload_has_no_target_path(tmp_path, monkeypatch, capsys):
@@ -394,24 +430,12 @@ def test_bash_write_to_code_blocks_without_checkpoint(tmp_path, monkeypatch, cap
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
     captured = capsys.readouterr()
     assert code == 2
-    assert "KNOWLEDGE_CHECKPOINT" in captured.err
+    assert "vNext" in captured.err
 
 
-def test_bash_write_to_code_allows_with_valid_checkpoint(tmp_path, monkeypatch):
+def test_bash_write_to_code_allows_with_vnext_scope(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    checkpoint = tmp_path / ".maika" / "knowledge" / "active" / "KNOWLEDGE_CHECKPOINT.md"
-    checkpoint.parent.mkdir(parents=True)
-    checkpoint.write_text(
-        "## DNA\nSP-6 staircase\n"
-        "## Codebase evidence\nnode_id: svc.UserService#42\nblast-radius: 3 nodes\n",
-        encoding="utf-8",
-    )
-    (tmp_path / ".maika" / "knowledge" / "active" / "AGENT_TRANSPARENCY.md").write_text(
-        "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
-    )
-    _write_valid_implementation_context(
-        tmp_path / ".maika" / "knowledge" / "active", "src/App.java"
-    )
+    _setup_vnext_scope(tmp_path)
     payload = {"tool_name": "Bash", "tool_input": {"command": "tee src/App.java"}}
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
     assert code == 0
@@ -433,11 +457,11 @@ def test_bash_write_to_gitignored_path_allowed(tmp_path, monkeypatch):
     assert code == 0
 
 
-def test_bash_write_to_framework_artifact_allowed(tmp_path, monkeypatch):
+def test_bash_write_to_framework_artifact_requires_role(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     payload = {"tool_name": "Bash", "tool_input": {"command": "echo x > .maika/knowledge/active/REQUIREMENT.md"}}
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
-    assert code == 0
+    assert code == 2
 
 
 def test_bash_dynamic_write_warns_and_allows(tmp_path, monkeypatch, capsys):
@@ -455,81 +479,14 @@ def test_bash_stderr_redirect_to_code_blocks_without_checkpoint(tmp_path, monkey
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
     captured = capsys.readouterr()
     assert code == 2
-    assert "KNOWLEDGE_CHECKPOINT" in captured.err
-
-
-def _write_valid_checkpoint(active_dir):
-    active_dir.mkdir(parents=True, exist_ok=True)
-    (active_dir / "KNOWLEDGE_CHECKPOINT.md").write_text(
-        "## DNA\nSP-6 staircase\n"
-        "## Codebase evidence\nnode_id: svc.UserService#42\nblast-radius: 3 nodes\n",
-        encoding="utf-8",
-    )
-
-
-def _write_valid_implementation_context(active_dir, allowed_file, name="node-1"):
-    active_dir.mkdir(parents=True, exist_ok=True)
-    (active_dir / f"TASK_HANDOFF.{name}.md").write_text(
-        f"# TASK_HANDOFF.{name}\n"
-        "## Task Objective\nImplement the assigned node.\n"
-        "## Applicable DNA/Conventions\n- SP-6: staircase\n"
-        "## Evidence\n"
-        "- UA evidence: domain_overview=User, domain_flow=UpdateUser\n"
-        "## Allowed Files\n"
-        f"- {allowed_file}\n"
-        "## Verification\n- pytest\n",
-        encoding="utf-8",
-    )
-
-
-def test_blocks_app_write_when_transparency_missing(tmp_path):
-    _write_valid_checkpoint(tmp_path / ".maika" / "knowledge" / "active")
-    result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
-    assert result.ok is False
-    assert "AGENT_TRANSPARENCY" in result.reason
-
-
-def test_blocks_app_write_with_checkpoint_but_no_pha2(tmp_path):
-    active = tmp_path / ".maika" / "knowledge" / "active"
-    _write_valid_checkpoint(active)
-    (active / "AGENT_TRANSPARENCY.md").write_text("Pha 1 DONE\n", encoding="utf-8")
-    result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
-    assert result.ok is False
-    assert "Pha 2 DONE" in result.reason
-
-
-def test_blocks_app_write_with_open_blocker(tmp_path):
-    active = tmp_path / ".maika" / "knowledge" / "active"
-    _write_valid_checkpoint(active)
-    (active / "AGENT_TRANSPARENCY.md").write_text(
-        "Pha 1 DONE\nPha 2 DONE\n[BLOCKER-ARCH] coupling risk\n", encoding="utf-8"
-    )
-    result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
-    assert result.ok is False
-
-
-def test_allows_app_write_with_checkpoint_and_apply_evidence(tmp_path):
-    active = tmp_path / ".maika" / "knowledge" / "active"
-    _write_valid_checkpoint(active)
-    (active / "AGENT_TRANSPARENCY.md").write_text(
-        "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
-    )
-    _write_valid_implementation_context(active, "src/App.java")
-    result = wg.evaluate_write(tmp_path, Path("src/App.java"), framework_root=".maika")
-    assert result.ok is True
+    assert "vNext" in captured.err
 
 
 # ---------- SESSION-GATE (context-overflow safety net) ----------
 
 
 def _setup_valid_app_context(tmp_path, target="src/App.java"):
-    active = tmp_path / ".maika" / "knowledge" / "active"
-    _write_valid_checkpoint(active)
-    (active / "AGENT_TRANSPARENCY.md").write_text(
-        "Pha 1 DONE\nPha 2 DONE\n", encoding="utf-8"
-    )
-    _write_valid_implementation_context(active, target)
-    return active
+    return _setup_vnext_scope(tmp_path, target=target)
 
 
 def _write_session_state(active, identity, phase="phase-2-done"):

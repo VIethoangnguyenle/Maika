@@ -1,6 +1,5 @@
 """Tests for the dashboard SSE server."""
 import json
-import os
 import threading
 import textwrap
 import time
@@ -28,6 +27,15 @@ def _make_maika_project(tmp_path, name="p"):
     )
     (proj / "AGENTS.md").write_text("# agents\n", encoding="utf-8")
     return proj, active
+
+
+def _make_workspace(proj, change_id="demo"):
+    ws = proj / ".maika" / "changes" / change_id
+    for sub in ("generated", "briefs", "results", "reviews"):
+        (ws / sub).mkdir(parents=True, exist_ok=True)
+    (ws / "STATE.yaml").write_text(f"change_id: {change_id}\nstate: EXECUTING\n", encoding="utf-8")
+    (ws / "CHANGE.yaml").write_text(f"change_id: {change_id}\ntitle: Demo\n", encoding="utf-8")
+    return ws
 
 
 def test_serialize_includes_name_and_progress():
@@ -66,38 +74,26 @@ def test_snapshot_non_maika_project_is_idle(tmp_path):
     assert runs[0]["tasks_total"] == 0
 
 
-def test_snapshot_includes_subagent_handoff_prompts(tmp_path):
+def test_snapshot_includes_task_briefs(tmp_path):
     reg = tmp_path / "projects.yaml"
     proj, active = _make_maika_project(tmp_path)
-    human = active / "TASK_HANDOFF.napas-human.md"
-    agent = active / "TASK_HANDOFF.napas-agent.md"
-    human.write_text(
-        textwrap.dedent(
-            """\
-            # TASK_HANDOFF.napas-human
-
-            ## Task Objective
-            Create the human SRS.
-            """
-        ),
+    ws = _make_workspace(proj)
+    (ws / "generated" / "TASK_QUEUE.json").write_text(
+        json.dumps({"tasks": [
+            {"id": "TASK-001", "title": "Create human SRS", "status": "pending"},
+            {"id": "TASK-002", "title": "Create agent SRS", "status": "pending"},
+        ]}),
         encoding="utf-8",
     )
-    agent.write_text(
-        "# TASK_HANDOFF.napas-agent\n\n## Task Objective\nCreate the agent SRS.\n",
-        encoding="utf-8",
-    )
-    # Force distinct mtimes: both writes can land in the same kernel tick,
-    # and _collect_artifacts orders by (mtime, name) for chronological intent.
-    now = time.time()
-    os.utime(human, (now - 10, now - 10))
-    os.utime(agent, (now, now))
+    (ws / "briefs" / "TASK-001.md").write_text("# Brief\n\nCreate the human SRS.\n", encoding="utf-8")
+    (ws / "briefs" / "TASK-002.md").write_text("# Brief\n\nCreate the agent SRS.\n", encoding="utf-8")
     registry.register(reg, str(proj))
 
     runs = server.snapshot(reg)
 
-    assert [a["id"] for a in runs[0]["subagents"]] == ["napas-human", "napas-agent"]
+    assert [a["id"] for a in runs[0]["subagents"]] == ["TASK-001", "TASK-002"]
     assert "Create the human SRS" in runs[0]["subagents"][0]["prompt"]
-    assert runs[0]["subagents"][1]["name"] == "napas agent"
+    assert runs[0]["subagents"][1]["name"] == "TASK 002"
 
 
 def test_snapshot_includes_parent_brain_mirror(tmp_path):
@@ -129,41 +125,21 @@ def test_snapshot_includes_parent_brain_mirror(tmp_path):
 def test_snapshot_merges_queue_result_and_activity_log(tmp_path):
     reg = tmp_path / "projects.yaml"
     proj, active = _make_maika_project(tmp_path)
-    microloop = active / "microloop"
-    microloop.mkdir()
-    (active / "TASK_HANDOFF.napas-human.md").write_text(
-        "# TASK_HANDOFF.napas-human\n\nPrompt human.\n", encoding="utf-8"
-    )
-    (active / "TASK_HANDOFF.napas-agent.md").write_text(
-        "# TASK_HANDOFF.napas-agent\n\nPrompt agent.\n", encoding="utf-8"
-    )
-    (microloop / "TASK_RESULT.napas-human.md").write_text(
-        "# TASK_RESULT.napas-human\n\nstatus: done\n\n## Summary\nHuman done.\n",
+    ws = _make_workspace(proj, "SME-TRANSFER-002")
+    (ws / "briefs" / "TASK-001.md").write_text("# Brief\n\nPrompt human.\n", encoding="utf-8")
+    (ws / "briefs" / "TASK-002.md").write_text("# Brief\n\nPrompt agent.\n", encoding="utf-8")
+    (ws / "results" / "TASK-001.yaml").write_text("task_id: TASK-001\nstatus: done\nsummary: Human done.\n", encoding="utf-8")
+    (ws / "generated" / "TASK_QUEUE.json").write_text(
+        json.dumps({"change_id": "SME-TRANSFER-002", "tasks": [
+            {"id": "TASK-001", "title": "Create human SRS", "status": "done"},
+            {"id": "TASK-002", "title": "Create agent SRS", "status": "in_progress"},
+        ]}),
         encoding="utf-8",
     )
-    (microloop / "TASK_QUEUE.md").write_text(
-        textwrap.dedent(
-            """\
-            ticket_id: SME-TRANSFER-002
-            execution_mode: subagent
-            tasks:
-              - id: napas-human
-                desc: Create human SRS
-                status: done
-                handoff_path: .maika/knowledge/active/TASK_HANDOFF.napas-human.md
-                result_path: .maika/knowledge/active/microloop/TASK_RESULT.napas-human.md
-              - id: napas-agent
-                desc: Create agent SRS
-                status: in_progress
-                handoff_path: .maika/knowledge/active/TASK_HANDOFF.napas-agent.md
-            """
-        ),
-        encoding="utf-8",
-    )
-    (microloop / "ACTIVITY_LOG.jsonl").write_text(
+    (ws / "generated" / "DISPATCH_LOG.jsonl").write_text(
         '{"ts":"2026-06-19T23:49:00+07:00","actor":"parent","event":"phase_changed","summary":"Parent entered apply","phase":"phase-3-in-progress"}\n'
-        '{"ts":"2026-06-19T23:50:00+07:00","event":"subagent_spawned","task_id":"napas-human"}\n'
-        '{"ts":"2026-06-19T23:51:00+07:00","event":"subagent_started","task_id":"napas-agent"}\n',
+        '{"ts":"2026-06-19T23:50:00+07:00","event":"worker_spawned","task_id":"TASK-001"}\n'
+        '{"ts":"2026-06-19T23:51:00+07:00","event":"worker_started","task_id":"TASK-002"}\n',
         encoding="utf-8",
     )
     registry.register(reg, str(proj))
@@ -174,12 +150,12 @@ def test_snapshot_merges_queue_result_and_activity_log(tmp_path):
     assert run["tasks_done"] == 1
     assert run["active_task"] == "Create agent SRS"
     assert [a["status"] for a in run["subagents"]] == ["done", "in_progress"]
-    assert run["subagents"][0]["result"].startswith("# TASK_RESULT.napas-human")
+    assert run["subagents"][0]["result"].startswith("task_id: TASK-001")
     assert run["subagents"][1]["result"] is None
     assert [e["event"] for e in run["events"]] == [
         "phase_changed",
-        "subagent_spawned",
-        "subagent_started",
+        "worker_spawned",
+        "worker_started",
     ]
     assert run["events"][0]["actor"] == "parent"
     assert run["events"][0]["summary"] == "Parent entered apply"
@@ -189,39 +165,36 @@ def test_snapshot_merges_queue_result_and_activity_log(tmp_path):
 def test_snapshot_bad_activity_log_marks_stale(tmp_path):
     reg = tmp_path / "projects.yaml"
     proj, active = _make_maika_project(tmp_path)
-    microloop = active / "microloop"
-    microloop.mkdir()
-    (microloop / "ACTIVITY_LOG.jsonl").write_text('{"event":"ok"}\nnot-json\n', encoding="utf-8")
+    ws = _make_workspace(proj)
+    (ws / "generated" / "DISPATCH_LOG.jsonl").write_text('{"event":"ok"}\nnot-json\n', encoding="utf-8")
     registry.register(reg, str(proj))
 
     run = server.snapshot(reg)[0]
 
     assert run["stale"] is True
     assert run["events"] == [{"event": "ok"}]
-    assert "ACTIVITY_LOG.jsonl:2" in run["errors"][0]
+    assert "DISPATCH_LOG.jsonl:2" in run["errors"][0]
 
 
 def test_snapshot_bad_task_queue_marks_stale(tmp_path):
     reg = tmp_path / "projects.yaml"
     proj, active = _make_maika_project(tmp_path)
-    microloop = active / "microloop"
-    microloop.mkdir()
-    (microloop / "TASK_QUEUE.md").write_text("tasks: [unterminated\n", encoding="utf-8")
+    ws = _make_workspace(proj)
+    (ws / "generated" / "TASK_QUEUE.json").write_text('{"tasks": [', encoding="utf-8")
     registry.register(reg, str(proj))
 
     run = server.snapshot(reg)[0]
 
     assert run["stale"] is True
     assert run["subagents"] == []
-    assert "TASK_QUEUE.md" in run["errors"][0]
+    assert "TASK_QUEUE.json" in run["errors"][0]
 
 
 def test_snapshot_task_queue_tasks_not_a_list_marks_stale(tmp_path):
     reg = tmp_path / "projects.yaml"
     proj, active = _make_maika_project(tmp_path)
-    microloop = active / "microloop"
-    microloop.mkdir()
-    (microloop / "TASK_QUEUE.md").write_text("tasks: not-a-list\n", encoding="utf-8")
+    ws = _make_workspace(proj)
+    (ws / "generated" / "TASK_QUEUE.json").write_text(json.dumps({"tasks": "not-a-list"}), encoding="utf-8")
     registry.register(reg, str(proj))
 
     run = server.snapshot(reg)[0]
@@ -231,12 +204,13 @@ def test_snapshot_task_queue_tasks_not_a_list_marks_stale(tmp_path):
 
 
 def test_snapshot_reader_stale_survives_runtime_merge(tmp_path):
-    # AGENT_TRANSPARENCY present but unparseable -> read_run marks stale.
+    # Malformed STATE.yaml -> read_run marks stale.
     # read_runtime never reads that file, so its stale=False must NOT clobber
     # the reader's flag when the two dicts are merged in snapshot().
     reg = tmp_path / "projects.yaml"
     proj, active = _make_maika_project(tmp_path)
-    (active / "AGENT_TRANSPARENCY.md").write_text("not valid frontmatter\n", encoding="utf-8")
+    ws = _make_workspace(proj)
+    (ws / "STATE.yaml").write_text("state: [unterminated\n", encoding="utf-8")
     registry.register(reg, str(proj))
 
     run = server.snapshot(reg)[0]

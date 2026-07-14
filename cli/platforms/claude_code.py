@@ -8,8 +8,10 @@ class ClaudeCodePlatform(BasePlatform):
     name = "claude-code"
     display_name = "Anthropic Claude Code"
     config_entry_point = "CLAUDE.md"
-    framework_root = ".claude"
     native_skill_export = None
+    worker_binary = "claude"
+    worker_base_args = ["-p", "--prompt-file"]
+    dangerous_permission_flag = "--dangerously-skip-permissions"
 
     tool_mapping = {
         # ── File Operations ──
@@ -50,7 +52,15 @@ class ClaudeCodePlatform(BasePlatform):
         "get_space_pages":   "mcp__confluence__get_space_pages",
 
         # ── Database (db_access MCP — server-level reference) ──
-        "db_query":          "db-remote",
+        "db_list_databases": "mcp__db-access__list_databases",
+        "db_list_tables":    "mcp__db-access__sql_list_tables",
+        "db_get_columns":    "mcp__db-access__sql_get_columns",
+        "db_get_constraints":"mcp__db-access__sql_get_constraints",
+        "db_sql_read":       "mcp__db-access__sql_read",
+        "db_mongo_read":     "mcp__db-access__mongo_read",
+        "db_sql_write":      "mcp__db-access__sql_write",
+        "db_mongo_write":    "mcp__db-access__mongo_write",
+        "db_sql_execute_script": "mcp__db-access__sql_execute_script",
 
         # ── Web ──
         "search_web":        "WebSearch",
@@ -70,6 +80,10 @@ class ClaudeCodePlatform(BasePlatform):
         "subagent": True,       # Claude Code has Task tool
         "artifacts": False,     # No artifact system like Antigravity
         "browser": False,
+        "fresh_session": True,
+        "task_dispatch": True,
+        "review_dispatch": True,
+        "model_selection": True,
         "write_gate_hook": True,
     }
 
@@ -77,7 +91,7 @@ class ClaudeCodePlatform(BasePlatform):
 
     notes = [
         "CLAUDE.md is the config entry point",
-        "Maika runtime scaffolds into .claude/",
+        "Maika canonical runtime lives in .maika/",
         "MCP tools use double underscore prefix: mcp__<server>__<tool>",
         "Claude Code uses Task tool for subagent delegation",
     ]

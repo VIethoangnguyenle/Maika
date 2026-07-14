@@ -1,0 +1,86 @@
+version: 1
+baseline:
+  branch: master-v2
+  commit: 2d3a1f887349b20cd6675703f546edf74bde40d6
+artifacts:
+  - path: cli/workers.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers:
+      production:
+        - cli.commands.doctor
+      test:
+        - cli.tests.test_worker_strategy
+    runtime_authority: false
+    status: shadow
+    evidence: actual task execution constructs worker argv in microloop orchestrator
+    decision: wire canonical replacement then delete
+    remediated_status: deleted
+    replacement: cli/runtime/worker_resolver.py
+  - path: cli/platforms/detection.py
+    type: runtime
+    ownership: framework
+    producer: source
+    consumers:
+      production:
+        - cli.commands.doctor
+      test:
+        - cli.tests.test_platform_detection
+    runtime_authority: false
+    status: shadow
+    evidence: platform enable and task execution do not consume detection output
+    decision: replace with typed probe consumed by profile generation and verification
+    remediated_status: deleted
+    replacement: cli/platforms/probe.py
+  - path: .maika/profiles/execution-mode.yaml
+    type: config
+    ownership: framework
+    producer: cli.plugin-manifest.yaml
+    consumers:
+      production:
+        - cli.commands.task
+        - microloop-orchestrator
+        - write-gate
+    runtime_authority: true
+    status: active
+    evidence: contains platform-rendered worker command in shared core
+    decision: retain shared policy only; move worker data to platform runtime profiles
+    remediated_status: active-shared-policy-only
+  - path: .maika/procedures/token-tracking.md
+    type: template
+    ownership: framework
+    producer: cli.plugin-manifest.yaml
+    consumers:
+      production: []
+      test: []
+    runtime_authority: false
+    status: candidate-delete
+    evidence: manifest is the only live scaffold reference; TOKEN_LOG references are historical docs
+    decision: delete after stale-reference and scaffold validation
+    remediated_status: deleted
+  - path: resolved-config.yaml#hook_python
+    type: config
+    ownership: framework
+    producer: cli.scaffold.generate_resolved_config
+    consumers:
+      production:
+        - cli.commands.update
+    runtime_authority: false
+    status: deprecated
+    evidence: native hooks invoke `maika hook`; rendered templates do not consume hook_python
+    decision: ignore with compatibility warning, repair away, then remove producer and CLI flags
+    remediated_status: compatibility
+    expires_after: 2026-12-31
+  - path: docs/superpowers/plans
+    type: historical
+    ownership: framework
+    producer: development-process
+    consumers:
+      production: []
+      test: []
+    runtime_authority: false
+    status: historical
+    evidence: completed implementation plans remain beside current documentation
+    decision: archive implemented plans and exclude them from default knowledge retrieval
+    remediated_status: historical-indexed

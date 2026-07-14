@@ -1,0 +1,83 @@
+# Artifact authority registry — MỘT authority cho mỗi agent-facing decision.
+# Khác với artifact-registry.yaml (audit vòng đời file source-tree): file này trả lời
+# "artifact nào là nguồn sự thật khi agent cần quyết định X trong lúc chạy task".
+# Đường dẫn tương đối với framework root; `<change-id>` = workspace đang active.
+# Consumer cơ học: `maika content validate-authority` (cli/agent_content/authority.py).
+version: 1
+
+authorities:
+  current_change:
+    source: changes/<change-id>/CHANGE.yaml
+  current_state:
+    source: changes/<change-id>/STATE.yaml
+  intent:
+    source: changes/<change-id>/INTENT.md
+  exploration:
+    source: changes/<change-id>/exploration/
+  reconciliation:
+    source: changes/<change-id>/RECONCILIATION.md
+  specification:
+    source: changes/<change-id>/SPEC.md
+  implementation_plan:
+    source: changes/<change-id>/IMPLEMENTATION_PLAN.md
+  task_queue:
+    source: changes/<change-id>/generated/TASK_QUEUE.json
+  spec_validation:
+    source: changes/<change-id>/generated/SPEC_VALIDATION.json
+  plan_validation:
+    source: changes/<change-id>/generated/PLAN_VALIDATION.json
+  plan_manifest:
+    source: changes/<change-id>/generated/PLAN_MANIFEST.json
+  dispatch_log:
+    source: changes/<change-id>/generated/DISPATCH_LOG.jsonl
+  task_briefs:
+    source: changes/<change-id>/briefs/
+  task_results:
+    source: changes/<change-id>/results/
+  task_reviews:
+    source: changes/<change-id>/reviews/
+  # Candidate capture trong change (promote chỉ sau VERIFIED — kernel §7).
+  learning_candidates:
+    source: changes/<change-id>/learning/
+  # Lightweight workspace (trivial/small): micro-plan + focused evidence + result.
+  micro_plan:
+    source: changes/<change-id>/TASK.yaml
+  focused_evidence:
+    source: changes/<change-id>/EVIDENCE.yaml
+  lightweight_result:
+    source: changes/<change-id>/RESULT.yaml
+  verification_commands:
+    source: changes/<change-id>/verification/COMMANDS.yaml
+  verification:
+    source: changes/<change-id>/verification/VERIFICATION_REPORT.md
+  archive_manifest:
+    source: changes/<change-id>/ARCHIVE_MANIFEST.yaml
+  bootstrap_report:
+    source: runtime/BOOTSTRAP_ENV_REPORT.yaml
+  bootstrap_ack:
+    source: runtime/AGENT_BOOTSTRAP_ACK.yaml
+  durable_knowledge:
+    source: knowledge/long-term/
+  archive:
+    source: archive/<change-id>/
+  generated_analysis_reports:
+    source: reports/
+    authority: generated_analysis
+    canonical: false
+    promotion_required: true
+
+# Legacy active-memory artifacts: KHÔNG còn là authority cho bất kỳ decision nào.
+# replacement null = discard (không có successor).
+deprecated:
+  - path: knowledge/active/REQUIREMENT.md
+    replacement: changes/<change-id>/INTENT.md
+  - path: knowledge/active/EXPLORE_CONTEXT.md
+    replacement: changes/<change-id>/exploration/
+  - path: knowledge/active/AGENT_TRANSPARENCY.md
+    replacement: changes/<change-id>/generated/DISPATCH_LOG.jsonl
+  - path: knowledge/active/TOKEN_LOG.md
+    replacement: null
+  - path: knowledge/active/ideation/
+    replacement: changes/<change-id>/RECONCILIATION.md
+  - path: knowledge/active/BOOTSTRAP_REPORT.yaml
+    replacement: runtime/BOOTSTRAP_ENV_REPORT.yaml

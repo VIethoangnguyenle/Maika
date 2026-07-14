@@ -54,7 +54,7 @@ cd maika
 # Headless (CI/script): .\install.ps1 C:\path\to\project -Yes -Platform claude-code -Language python
 ```
 
-> ⚠️ **Giới hạn mixed-OS:** file hook được render theo OS của máy chạy `maika init/update` gần nhất. Team dùng chung repo trên cả Windows lẫn Linux sẽ thấy hook command đổi qua lại trong git — mỗi máy cần chạy lại `maika update` sau khi checkout từ OS khác. Thiết kế hook cross-OS chung là follow-up riêng khi team multi-OS cần.
+> ℹ️ **Hook cross-OS:** host hook chạy một lệnh OS-agnostic duy nhất — `maika hook write-gate --runtime <claude|codex|antigravity>` — giống hệt trên Windows lẫn Linux, nên không còn đổi qua lại trong git. Lệnh này định vị project root, đọc canonical config rồi uỷ quyền cho write-gate của chính project (không nhân bản policy). Yêu cầu `maika` có trên PATH của mỗi máy.
 
 Installer sẽ:
 
@@ -95,21 +95,18 @@ cp .maika/knowledge/long-term/persona.template.yaml .maika/knowledge/long-term/p
 
 Sau đó sửa `persona.yaml` theo phong cách tương tác mong muốn. File này là per-developer và được gitignore.
 
-### 3. Onboard codebase hiện có
+### 3. Start a vNext task
 
-Trong AI agent đã đọc Maika runtime:
+Tạo workspace cho thay đổi đầu tiên:
 
 ```txt
-/convention-scan
-/approve-conventions
-
-/dna-scan
-/approve-dna
+maika task start --id daily-limit --class standard --title "Daily transaction limits"
+maika task status --id daily-limit
 ```
 
-Hai flow này tạo:
-
-- `conventions.yaml`: naming, structure, upstream constraints và design patterns đã được approve.
+Author DNA và conventions được quản lý bởi các skill `author-dna-builder` và
+`convention-intelligence-builder` trong workflow chính, không còn qua workflow
+riêng.
 - `author-dna.yaml`: judgment layer về triết lý code của tác giả hoặc team.
 
 Muốn xem một `author-dna.yaml` đã điền đầy trông thế nào, xem [docs/examples/author-dna-cleancode.yaml](docs/examples/author-dna-cleancode.yaml).
@@ -139,7 +136,7 @@ AI coding agent thường fail không phải vì không biết syntax. Nó fail 
 | Quên context phiên trước | Quyết định kiến trúc biến mất sau khi chat reset | `knowledge-snapshot.md` và archive giữ lại tri thức |
 | Code quá sớm | Agent nhảy vào diff khi requirement còn mơ hồ | `/task` buộc đi qua requirement và exploration |
 | Không nhớ convention | Naming và pattern phụ thuộc trí nhớ ngắn hạn | `conventions.yaml` và `author-dna.yaml` làm source of truth |
-| Không biết blast radius | Sửa một file nhưng bỏ qua module phụ thuộc | `codebase-explorer`, KG/MCP và architecture review tạo evidence |
+| Không biết blast radius | Sửa một file nhưng bỏ qua module phụ thuộc | `grounding-explorer` tạo evidence và blast-radius |
 | Không audit được | Không rõ agent đã giả định gì | `AGENT_TRANSPARENCY.md` ghi tool call, confidence, blocker và decision |
 | Dễ làm mất tri thức | Bài học từ review chỉ nằm trong chat | teaching moments được capture vào knowledge layer |
 
@@ -157,7 +154,7 @@ Các file agent đọc để biết phải làm việc thế nào:
 
 - `AGENTS.md`, `CLAUDE.md` hoặc entry point tương ứng platform.
 - `rules/*.md`: flow, tool, data, cost, knowledge, guard rules.
-- `workflows/*.md`: `/task`, `/idea-to-task`, `/convention-scan`, `/dna-scan`, OpenSpec flows.
+- `workflows/task.md`: `maika task`.
 - `skills/*/SKILL.md`: hướng dẫn theo vai trò.
 - `procedures/*.md`: bootstrap, context-loader, context-compressor, token tracking.
 
@@ -180,7 +177,8 @@ Các công cụ hỗ trợ runtime:
 - `microloop-orchestrator`: điều phối contract DAG cho apply phase phức tạp.
 - `write-gate`: chặn write khi phase/spec/session boundary chưa đạt điều kiện.
 - `execution-mode`: chọn dispatch mode `subagent`, `fresh-session`, hoặc `inline-reload` theo platform.
-- CLI `maika init/update/status`: scaffold, re-render, kiểm trạng thái install.
+- CLI `maika init/update/status`: scaffold, re-render, kiểm trạng thái install (`status --json` cho snapshot máy đọc được).
+- CLI vận hành: `maika platform` (multi-host), `maika hook write-gate` (host hook OS-agnostic), `maika doctor setup` (health đầy đủ, `--json`), `maika loop` (điều phối change-loop: status/inspect/approve/reject/resume/close), `maika migrate/repair/uninstall` (lifecycle — giữ nguyên knowledge/changes mặc định).
 
 ---
 
@@ -189,31 +187,35 @@ Các công cụ hỗ trợ runtime:
 Maika áp dụng một flow bắt buộc cho task thực tế:
 
 ```txt
-Ideation -> Requirement -> Architecture -> Spec -> Apply
-    |            |              |          |       |
- ideation     REQUIREMENT   EXPLORE     OpenSpec  code
- draft        .md           _CONTEXT    change    diff
-                            .md
+Intent -> Grounding -> Reconciliation -> Spec -> Plan -> Run
+   |          |              |           |      |     |
+CHANGE     GROUNDING     RECONCILIATION SPEC   PLAN  queue
+INTENT     EVIDENCE      .md            .md    .md   briefs/results
 ```
 
 Mỗi pha có artifact riêng:
 
 | Pha | Mục tiêu | Artifact |
 |---|---|---|
-| Ideation | Biến ý tưởng thô thành phạm vi task | `active/ideation/ideation-*.md` |
-| Requirement | Chuẩn hoá yêu cầu, AC, risk, assumption, ASCII Flow / State Diagram khi cần | `active/REQUIREMENT.md` |
-| Architecture | Khám phá DB/code/flow, phát hiện rủi ro | `active/EXPLORE_CONTEXT.md` |
-| Spec | Sinh spec kỹ thuật và OpenSpec change | `openspec/changes/<id>/` |
-| Apply | Apply spec vào code có checkpoint và review | code diff + transparency log |
+| Intent | Phân loại change và ghi intent | `CHANGE.yaml`, `INTENT.md` |
+| Grounding | Khám phá codebase/business/conventions | `GROUNDING.yaml`, `EVIDENCE_MANIFEST.yaml` |
+| Reconciliation | So khớp current/desired behavior và approach | `RECONCILIATION.md` |
+| Spec | Sinh contract hành vi | `SPEC.md` |
+| Plan | Sinh plan code-level và queue | `IMPLEMENTATION_PLAN.md`, generated JSON |
+| Run | Chạy brief, result, review, verify, archive | briefs/results/reviews/verification/archive |
 
-Rule quan trọng: `/task apply` chỉ được đi tiếp khi spec đã có, architecture blocker đã resolve, và user đã confirm.
+Rule quan trọng: implementation chỉ đi tiếp khi spec, plan validation, compiled
+brief, result contract, review, and verification gates are satisfied.
 
 Trong flow hiện tại, `/task` là orchestrator mỏng:
 
-- Pha 1 chuẩn hoá requirement có section `Integrations & Field Mapping` để mapper API/DB/event không bị mất khi sang spec.
-- Pha 2 chạy `spec-validator.check_integration_coverage()` để cảnh báo integration có trong requirement nhưng thiếu trong spec.
-- Pha 3 dispatch task con qua subagent hoặc fresh-session worker khi platform hỗ trợ; agent cha chỉ giữ phase state, file path và tóm tắt ngắn.
-- `SESSION-GATE` trong write-gate chặn code write inline trong cùng session đã chạy Pha 1/2, trừ khi có override tường minh bằng `SESSION_OVERRIDE.md`.
+- `intent-analysis` and `grounding-explorer` produce evidence before design.
+- `writing-spec`, `writing-plan`, and `validating-plan` keep spec and plan
+  mechanically tied to evidence.
+- `executing-task`, `reviewing-task`, and `reviewing-change` keep implementation,
+  result, and review contexts isolated.
+- `verification-before-completion` requires fresh command evidence before
+  completion.
 
 ---
 
@@ -268,18 +270,21 @@ Maika ship một bộ skill module hoá theo vai trò.
 
 | Skill | Vai trò | Khi nào dùng |
 |---|---|---|
-| `requirement-analyst` | Chuẩn hoá yêu cầu | Khi nhận ticket/task mới |
-| `spec-extract` | Trích xuất spec từ docs + ASCII Flow / State Diagram khi có flow/state/data path | Khi input là wiki, PRD, Confluence |
-| `db-explorer` | Khám phá DB read-only | Khi task chạm schema, config, data |
-| `codebase-explorer` | Map yêu cầu sang codebase | Sau requirement hoặc DB exploration |
-| `architecture-reviewer` | Review boundary, coupling, risk | Trước khi sinh spec |
-| `knowledge-curator` | Archive và cập nhật knowledge | Sau task hoặc khi có teaching moment |
+| `intent-analysis` | Chuẩn hoá intent và phân loại change | Khi nhận ticket/task mới |
+| `grounding-explorer` | Tạo grounding ba lens + evidence manifest | Trước khi design |
+| `architecture-reconciler` | Reconcile current/desired behavior, seams, conflicts | Trước brainstorming/spec |
+| `grounded-brainstorming` | So sánh approach dựa trên evidence | Khi có nhiều hướng khả thi |
+| `writing-spec` | Viết SPEC.md + ASCII Flow / State Diagram khi có flow/state/data path | Sau reconciliation |
+| `writing-plan` | Viết implementation plan code-level | Sau SPEC.md |
+| `validating-plan` | Validate plan, AC coverage, hashes, anchors | Trước compile/run |
+| `executing-task` | Chạy một immutable task brief | Khi queue có task pending |
+| `reviewing-task` | Review từng task result | Sau implementation |
+| `reviewing-change` | Review whole change | Trước verification |
+| `verification-before-completion` | Verify completion evidence | Trước archive |
+| `knowledge-curator` | Archive và cập nhật knowledge index | Sau verify |
 | `convention-intelligence-builder` | Quét convention codebase | Khi onboard hoặc sau refactor lớn |
 | `author-dna-builder` | Encode judgment layer | Khi cần style/philosophy của tác giả |
-| `spec-validator` | Validate spec trước/sau apply | Trước và sau thay đổi code |
 | `infra-tdd` | Technical Design Document 5 tầng | Khi thay đổi ảnh hưởng kiến trúc/hạ tầng |
-| `document-writer` | Viết tài liệu kỹ thuật | README, ADR, architecture docs |
-| `openspec-*` | Tích hợp OpenSpec | Explore, propose, archive change |
 
 ---
 
@@ -287,20 +292,26 @@ Maika ship một bộ skill module hoá theo vai trò.
 
 | Command | Mục đích |
 |---|---|
-| `/task <input>` | Pha 1: hiểu vấn đề, chuẩn hoá requirement, explore context |
-| `/task spec <ticket>` | Pha 2: sinh spec kỹ thuật |
-| `/task apply <ticket>` | Pha 3: apply spec vào code |
-| `/idea-to-task` | Chuyển ideation thành draft ticket |
-| `/index-source` | Index codebase cho semantic search |
-| `/convention-scan` | Quét convention codebase |
-| `/approve-conventions` | Promote `conventions.draft.yaml` thành `conventions.yaml` |
-| `/dna-scan` | Quét và encode author DNA |
-| `/approve-dna` | Promote `author-dna.draft.yaml` thành `author-dna.yaml` |
-| `/tdd <module>` | Sinh Technical Design Document |
-| `/opsx-explore` | OpenSpec explore mode |
-| `/opsx-propose` | Tạo proposal/design/tasks/spec delta |
-| `/opsx-apply` | Implement từ OpenSpec change |
-| `/opsx-archive` | Archive OpenSpec change đã xong |
+| `maika task start --id <id> --title <title>` | Tạo workspace vNext |
+| `maika task explore --id <id>` | Bắt đầu exploration (`INTAKE → EXPLORING`, idempotent) |
+| `maika task validate-reasoning --id <id>` | Validate intent + grounding evidence |
+| `maika task spec --id <id>` | Validate `SPEC.md` |
+| `maika task plan --id <id>` | Compile `IMPLEMENTATION_PLAN.md` |
+| `maika task review --id <id>` | Dispatch independent plan review |
+| `maika task apply --id <id>` | Dispatch implementation, task review, fixes, final review |
+| `maika task status [--id <id>]` | Xem state và task queue |
+| `maika task cancel --id <id>` | Huỷ workspace |
+
+Workflow được chọn theo risk class: `trivial` dùng `TASK.yaml`; `small` dùng
+`TASK.yaml`, `EVIDENCE.yaml`, `RESULT.yaml`; `standard` và `architectural` giữ
+full grounding/spec/plan/review chain. Classifier chỉ nâng class khi evidence mới
+cho thấy contract, persistence, event, concurrency, security, migration hoặc
+cross-service impact; class đã xác nhận không tự động bị hạ.
+
+Verification command dùng schema versioned (`executable`, `args`, `category`) và
+chạy với `shell=False`. `small` cần ít nhất một real command, `standard` cần test
+hoặc build, còn `architectural` cần cả build và test. Docker/Kubernetes/Terraform
+và migration tool cần human confirmation.
 
 ---
 
@@ -359,8 +370,8 @@ Doctor không sửa config trừ khi bạn chạy:
 
 ## 📊 Dashboard Control Tower
 
-Maika có dashboard local để quan sát agent chính, micro-loop và subagent theo thời gian thực.
-Dashboard đọc các runtime artifact trong `knowledge/active/` và serve UI qua SSE, bind local
+Maika có dashboard local để quan sát task vNext theo thời gian thực.
+Dashboard đọc các runtime artifact trong `changes/<change-id>/` và serve UI qua SSE, bind local
 ở `127.0.0.1`.
 
 ### Chạy dashboard
@@ -417,12 +428,13 @@ không đè `PARENT_BRAIN.md` hiện có.
 
 | Artifact | Vai trò |
 |---|---|
-| `AGENT_TRANSPARENCY.md` | phase, ticket, confidence, trạng thái tổng |
 | `PARENT_BRAIN.md` | context trực quan của agent cha từ IDE brain/conversation |
-| `microloop/TASK_QUEUE.md` | task list, status, progress `x/N` |
-| `TASK_HANDOFF.*.md` | prompt/handoff từng subagent nhận |
-| `microloop/TASK_RESULT.*.md` | kết quả từng subagent hoặc node |
-| `microloop/ACTIVITY_LOG.jsonl` | timeline append-only cho parent và subagent |
+| `changes/<id>/STATE.yaml` | state hiện tại của task |
+| `changes/<id>/generated/TASK_QUEUE.json` | task list, status, progress `x/N` |
+| `changes/<id>/briefs/TASK-*.md` | immutable brief từng worker nhận |
+| `changes/<id>/results/TASK-*.yaml` | kết quả từng task |
+| `changes/<id>/reviews/*.md` | task/final review |
+| `changes/<id>/generated/DISPATCH_LOG.jsonl` | timeline append-only cho dispatch |
 
 Dashboard chỉ đọc các file này khi serve. Việc sync parent brain là một command explicit riêng.
 
@@ -430,13 +442,13 @@ Dashboard chỉ đọc các file này khi serve. Việc sync parent brain là m�
 
 **Vì sao progress là 0%?**
 
-Nếu chưa có `microloop/TASK_QUEUE.md`, dashboard không có mẫu số `N` để tính progress. Trong
-trạng thái này UI sẽ hiển thị phase-only hoặc `waiting for microloop TASK_QUEUE`.
+Nếu chưa có `generated/TASK_QUEUE.json`, dashboard không có mẫu số `N` để tính progress. Trong
+trạng thái này UI sẽ hiển thị phase-only hoặc `waiting for TASK_QUEUE.json`.
 
 **Vì sao thấy subagent nhưng không thấy progress?**
 
-Có `TASK_HANDOFF.*.md` nhưng chưa có `TASK_QUEUE.md`. Đây là handoff-only transitional state.
-Pha 3 chuẩn phải tạo queue trước khi dispatch subagent.
+Có brief nhưng chưa có `TASK_QUEUE.json`. Hãy chạy `maika task plan --id <id>` để tạo queue
+trước khi dispatch worker.
 
 **Vì sao parent brain trống?**
 
@@ -446,8 +458,8 @@ brain artifact.
 
 **Vì sao dashboard đánh dấu stale?**
 
-Một artifact bị malformed, ví dụ YAML lỗi trong `TASK_QUEUE.md` hoặc JSONL lỗi trong
-`ACTIVITY_LOG.jsonl`. UI vẫn render project khác và hiển thị path lỗi.
+Một artifact bị malformed, ví dụ JSON lỗi trong `TASK_QUEUE.json` hoặc JSONL lỗi trong
+`DISPATCH_LOG.jsonl`. UI vẫn render project khác và hiển thị path lỗi.
 
 **Làm sao verify SSE?**
 
@@ -465,8 +477,8 @@ Message đầu tiên phải bắt đầu bằng `data: [` và chứa snapshot hi
 - `/api/runs` trả JSON snapshot.
 - `/events` gửi snapshot đầu tiên ngay khi connect.
 - Project không có active run hiển thị idle.
-- Project có `TASK_QUEUE.md` hiển thị progress thật `x/N`.
-- Subagent card hiển thị prompt và result drawer khi artifact tồn tại.
+- Project có `TASK_QUEUE.json` hiển thị progress thật `x/N`.
+- Task card hiển thị brief, result, và review drawer khi artifact tồn tại.
 - Parent brain panel hiển thị khi có `PARENT_BRAIN.md`.
 - Malformed queue/log không làm sập dashboard; UI hiển thị stale/error.
 
@@ -483,11 +495,13 @@ Task active
 |-- TOKEN_LOG.md
 |
 |  /task spec
-|  /task apply
+|  maika task apply
+|  maika task verify
+|  maika task archive
 v
 Task complete
 |
-|-- knowledge-curator archives active context
+|-- knowledge-curator archives verified context
 |-- knowledge-snapshot.md gets new architecture facts
 |-- conventions.yaml may be marked stale after refactor
 |-- active/ resets to templates
@@ -513,9 +527,9 @@ Khi agent bắt đầu một session trong repo có Maika, nó bootstrap context
 
 ```txt
 Core: AGENTS.md v3.0 + RULES (manifest + flow/tool/exec/knowledge/guard)
-Skills: requirement-analyst | spec-extract | db-explorer | codebase-explorer | ...
-Workflows: /task | /idea-to-task | /index-source | /convention-scan | /dna-scan
-Platform: codex | MCPs: codebase-memory-mcp, db-remote
+Skills: intent-analysis | grounding-explorer | architecture-reconciler | writing-spec | ...
+Workflows: maika task
+Platform: codex | MCPs: codebase-memory-mcp, db-access
 Active context: REQUIREMENT empty | EXPLORE_CONTEXT empty
 Author DNA: approved
 Archive: 3 tickets
@@ -560,7 +574,8 @@ Dùng platform adapter nếu có. Nếu chưa có adapter, chọn `generic` đ�
 
 ### Làm sao tránh rò rỉ dữ liệu nhạy cảm?
 
-Rules R-Data-1/R-Data-2 cấm log PII, credential, token vào context files. `db-explorer` chỉ được đọc schema/sample data giới hạn và không được thay đổi DB.
+Rules R-Data-1/R-Data-2 cấm log PII, credential, token vào context files.
+Grounding records bounded evidence and must not mutate external systems.
 
 ### Team nhiều người dùng chung được không?
 
@@ -568,27 +583,28 @@ Có. Knowledge chung như `knowledge-snapshot.md`, `conventions.yaml`, `author-d
 
 ### Dự án mới tinh, chưa có code thì sao?
 
-Vẫn dùng được. Chọn platform và MCP bạn có. Khi codebase bắt đầu hình thành, chạy `/index-source`, `/convention-scan`, và `/dna-scan` để enrich knowledge layer.
+Vẫn dùng được. Chọn platform và MCP bạn có. Khi codebase bắt đầu hình thành, chạy `maika task start ...`; grounding và convention/DNA skills sẽ lấy bằng chứng khi task yêu cầu.
 
 ### Có thêm platform custom được không?
 
 Có. Thêm platform trong `cli/platforms/`, implement `BasePlatform`, rồi đăng ký trong `cli/platforms/__init__.py`.
 
-### Maika có bắt buộc dùng OpenSpec không?
+### Maika có bắt buộc dùng external spec systems không?
 
-Runtime hiện có tích hợp OpenSpec cho propose/apply/archive. Các workflow Maika vẫn tách rõ requirement, exploration, architecture review và knowledge lifecycle để giữ context trước khi đi vào OpenSpec change.
+Không. vNext dùng workspace canonical (`CHANGE.yaml`, `SPEC.md`,
+`IMPLEMENTATION_PLAN.md`, queue, results, reviews) trong đường chạy mặc định.
 
 ---
 
 ## 🔧 Development
 
-Chạy test CLI:
+Chạy toàn bộ test suite CI:
 
 ```bash
-python3 -m pytest cli/tests
+python3 scripts/run_ci.py
 ```
 
-Chạy skill lint:
+Chạy riêng skill lint:
 
 ```bash
 python3 .maika/tools/skill-lint/validate_skills.py
@@ -611,7 +627,9 @@ Khi thay đổi runtime `.maika/`, ưu tiên giữ instruction ngắn, portable,
 
 ### Repo hygiene
 
-- Specs và plans trong `docs/superpowers/` là nguồn lịch sử dài hạn.
+- Specs và plans đã triển khai trong `docs/superpowers/` là lịch sử, không phải
+  runtime authority; trạng thái và đường dẫn tra cứu nằm tại
+  `docs/archive/implemented/index.yaml`.
 - Handoff/review artifact tạm thời không nên commit vào source; dùng workspace scratch như `.superpowers/` rồi dọn sau khi task xong.
 - Không commit cache hoặc build artifact như `__pycache__/`, `.pytest_cache/`, `.egg-info/`, `.venv/`.
 

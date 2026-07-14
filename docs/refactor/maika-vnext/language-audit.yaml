@@ -1,0 +1,135 @@
+# Language audit — Việt hóa nội dung human-readable do Maika sở hữu.
+# Status: pending | translated | kept_as_technical_identifier | excluded_generated_vendor | verified
+#
+# Runtime surface (skills, rules, workflow, capability profiles) đã Việt hóa và
+# được enforce bởi cli/tests/test_language_audit.py. Technical identifier
+# (capability ID, artifact filename, schema key, CLI command, enum, MCP tool)
+# được GIỮ tiếng Anh vì là contract runtime — xem mục kept_as_technical_identifier.
+version: 1
+
+entries:
+  # ── Reasoning skills (16) — knowledge-native contract, tiếng Việt ──
+  - path: .maika/skills/*/SKILL.md
+    category: skill
+    current_language: vi
+    action: translate
+    status: verified
+    reason: 16 reasoning skill rewrite tiếng Việt (kn-w3); enforce bởi test_language_audit + test_knowledge_native_skills.
+
+  # ── Rules ──
+  - path: .maika/rules/rules-knowledge.md
+    category: rule
+    current_language: vi
+    action: translate
+    status: verified
+    reason: Hiến pháp tri thức, tiếng Việt (kn-w1).
+  - path: .maika/rules/rules-tool.md
+    category: rule
+    current_language: vi
+    action: translate
+    status: verified
+    reason: Provider doctrine, tiếng Việt (kn-w1); token gate/test giữ tiếng Anh vì là artifact identifier.
+  - path: .maika/rules/rules-exec.md
+    category: rule
+    current_language: vi
+    action: translate
+    status: verified
+    reason: Execution rules, tiếng Việt (kn-w7).
+  - path: .maika/rules/rules-flow.md
+    category: rule
+    current_language: vi
+    action: translate
+    status: verified
+    reason: Flow rules đã tiếng Việt từ vnext.
+  - path: .maika/rules/rules-guard.md
+    category: rule
+    current_language: vi
+    action: translate
+    status: verified
+    reason: Guard rules đã tiếng Việt từ vnext.
+  - path: .maika/rules/RULES.md
+    category: rule
+    current_language: vi
+    action: translate
+    status: verified
+    reason: Manifest rules, tiếng Việt.
+
+  # ── Workflow + capability vocabulary ──
+  - path: .maika/workflows/task.md
+    category: workflow
+    current_language: vi
+    action: translate
+    status: verified
+    reason: Canonical workflow knowledge-native, tiếng Việt (kn-w7); CLI command + artifact filename giữ nguyên.
+  - path: .maika/profiles/capabilities.md
+    category: profile
+    current_language: vi
+    action: translate
+    status: verified
+    reason: Capability vocabulary, mô tả tiếng Việt; capability ID giữ tiếng Anh.
+  - path: .maika/profiles/capability-registry.yaml
+    category: profile
+    current_language: vi
+    action: translate
+    status: verified
+    reason: description tiếng Việt; key/tool/health giữ tiếng Anh (schema/contract).
+
+  # ── Technical identifier giữ tiếng Anh (không dịch) ──
+  - path: capability IDs, artifact filenames, enums, states, CLI commands, MCP tool names, schema keys
+    category: technical-identifier
+    current_language: en
+    action: keep
+    status: kept_as_technical_identifier
+    reason: >-
+      Contract runtime — dịch sẽ phá compatibility. Ví dụ giữ nguyên: CHANGE.yaml,
+      GROUNDING.yaml, EVIDENCE_MANIFEST.yaml, QUERY_PLAN.yaml, TASK_QUEUE.json,
+      STATE.yaml, IMPLEMENTATION_PLAN.md, architecture_discovery,
+      exact_source_inspection, historical_context_retrieval,
+      database_schema_inspection, INTAKE, EXECUTING, BLOCKED, COMPLETED,
+      maika task, capsule_hash, exploration-evidence.
+
+  # ── Còn lại (surface lớn hơn runtime) — pending ──
+  - path: README.md
+    category: readme
+    current_language: en
+    action: translate
+    status: pending
+    reason: README gốc ~24K tiếng Anh; localize theo đợt sau runtime core (chưa enforce).
+  - path: .maika/procedures/*.md
+    category: procedure
+    current_language: mixed
+    action: translate
+    status: pending
+    reason: Bootstrap/decision-gate/context-* phần lớn tiếng Việt; reviewer.md/context-loader.md/token-tracking.md còn tiếng Anh — localize đợt sau.
+  - path: .maika/knowledge/templates/*.tpl.md
+    category: template
+    current_language: mixed
+    action: translate
+    status: pending
+    reason: Template feature/fixbug/refactor/changerequest còn tiếng Anh; localize đợt sau (không phải runtime rule).
+  - path: docs/refactor/maika-vnext/*.md
+    category: doc
+    current_language: en
+    action: translate
+    status: pending
+    reason: Design/traceability docs; localize đợt sau, không ảnh hưởng runtime.
+
+  # ── Exclusion (không dịch) ──
+  - path: .venv/**, maika_cli.egg-info/**, .pytest_cache/**, .git/**
+    category: vendor
+    current_language: en
+    action: exclude
+    status: excluded_generated_vendor
+    reason: Virtual environment, build output, generated metadata — không phải Maika-owned.
+  - path: LICENSE
+    category: license
+    current_language: en
+    action: exclude
+    status: excluded_generated_vendor
+    reason: License text bắt buộc giữ nguyên.
+  - path: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md, MAIKA_VNEXT_MASTER_REFACTOR_PLAN.md
+    category: doc
+    current_language: en
+    action: exclude
+    status: excluded_generated_vendor
+    reason: Master plan spec (external requirement doc, giữ nguyên làm nguồn trace).

@@ -2,7 +2,12 @@
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 import plan_compiler as pc
 import vnext_state as vs
@@ -10,6 +15,18 @@ import vnext_state as vs
 PLAN_TPL = """---
 change_id: demo
 plan_version: 1
+knowledge_trace:
+  id: DEC-PLAN-001
+  statement: Decompose the verified change.
+  type: task_decomposition
+  knowledge_questions: ["What tasks are required?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
 base_commit: BASESHA
 spec_hash: sha256:SPECSHA
 evidence_hash: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
@@ -67,11 +84,18 @@ def _mk(tmp_path):
     return PLAN_TPL.replace("BASESHA", sha), sha
 
 def _setup(tmp_path):
-    ws = vs.init_workspace(tmp_path / "changes", "demo", "small", "t")
+    ws = vs.init_workspace(tmp_path / "changes", "demo", "standard", "t")
     (ws / "SPEC.md").write_text("# spec\n", encoding="utf-8")
     plan_text, _ = _mk(tmp_path)
+    evidence_sha = hashlib.sha256(
+        (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_bytes()
+    ).hexdigest()
     plan_text = plan_text.replace(
         "SPECSHA", hashlib.sha256((ws / "SPEC.md").read_bytes()).hexdigest())
+    plan_text = plan_text.replace(
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        evidence_sha,
+    )
     (ws / "IMPLEMENTATION_PLAN.md").write_text(plan_text, encoding="utf-8")
     return ws, tmp_path
 
@@ -82,10 +106,18 @@ def test_compile_writes_queue_and_briefs(tmp_path):
     q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text())
     assert [t["id"] for t in q["tasks"]] == ["TASK-001", "TASK-002"]
     assert all(t["status"] == "pending" for t in q["tasks"])
-    brief = (ws / "briefs" / "TASK-001.md").read_text()
+    # read with the same encoding the brief was written with (utf-8); the default
+    # locale encoding (cp1252 on Windows) would corrupt the non-ASCII body and
+    # break the hash comparison below.
+    brief = (ws / "briefs" / "TASK-001.md").read_text(encoding="utf-8")
     head, _, body = brief.partition("\n---\n")
-    assert hashlib.sha256(body.encode()).hexdigest() == q["tasks"][0]["brief_hash"]
+    assert hashlib.sha256(body.encode("utf-8")).hexdigest() == q["tasks"][0]["brief_hash"]
     assert "Thân task 1." in body                 # verbatim
+    # stored artifact paths must be POSIX so the write-gate (which compares
+    # as_posix() strings) matches on Windows too.
+    for t in q["tasks"]:
+        for key in ("brief_path", "capsule_path", "context_package_path", "result_path"):
+            assert "\\" not in t[key], f"{key} must be POSIX: {t[key]!r}"
 
 
 def test_compile_deterministic(tmp_path):
@@ -114,3 +146,85 @@ def test_plan_edit_invalidates_hash(tmp_path):
     p.write_text(p.read_text() + "\n<!-- edit -->\n", encoding="utf-8")
     m2 = pc.compile_plan(ws, repo_root=root)["plan_sha256"]
     assert m1 != m2
+
+
+# ── W4: task knowledge capsule ──────────────────────────────────────────────
+
+def test_compile_writes_knowledge_capsule(tmp_path):
+    import hashlib as _h
+    import yaml as _yaml
+    ws, root = _setup(tmp_path)
+    pc.compile_plan(ws, repo_root=root)
+    q = json.loads((ws / "generated" / "TASK_QUEUE.json").read_text())
+    cap_path = ws / "briefs" / "TASK-001.knowledge.yaml"
+    assert cap_path.exists()
+    cap = _yaml.safe_load(cap_path.read_text())
+    assert cap["task_id"] == "TASK-001"
+    assert set(cap["knowledge_slice"]) >= {
+        "author_dna", "conventions", "code_evidence", "business_rules",
+        "historical_context", "database_evidence",
+    }
+    assert "forbidden_patterns" in cap and "assumptions" in cap
+    # capsule hash recorded in queue matches the file
+    assert _h.sha256(cap_path.read_text(encoding="utf-8").encode("utf-8")).hexdigest() == q["tasks"][0]["capsule_hash"]
+    assert q["tasks"][0]["capsule_path"] == "briefs/TASK-001.knowledge.yaml"
+
+
+def test_capsule_freshness_matches_evidence(tmp_path):
+    import hashlib as _h
+    import yaml as _yaml
+    ws, root = _setup(tmp_path)
+    pc.compile_plan(ws, repo_root=root)
+    cap = _yaml.safe_load((ws / "briefs" / "TASK-001.knowledge.yaml").read_text())
+    ev_sha = _h.sha256((ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_bytes()).hexdigest()
+    assert cap["freshness"]["evidence_manifest_hash"] == "sha256:" + ev_sha
+    assert cap["freshness"]["repository_commit"]
+
+
+def test_capsule_carries_declared_slice(tmp_path):
+    import yaml as _yaml
+    ws, root = _setup(tmp_path)
+    # inject a knowledge block into TASK-001's header
+    p = ws / "IMPLEMENTATION_PLAN.md"
+    p.write_text(
+        p.read_text().replace(
+            "  implementation_mode: exact\n",
+            "  implementation_mode: exact\n"
+            "  knowledge:\n    code_evidence: [CODE-001]\n    conventions: [CONV-1]\n"
+            "  forbidden_patterns: [duplicate validation]\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    pc.compile_plan(ws, repo_root=root)
+    cap = _yaml.safe_load((ws / "briefs" / "TASK-001.knowledge.yaml").read_text())
+    assert cap["knowledge_slice"]["code_evidence"] == ["CODE-001"]
+    assert cap["knowledge_slice"]["conventions"] == ["CONV-1"]
+    assert cap["forbidden_patterns"] == ["duplicate validation"]
+
+
+def test_task_b_compilation_retrieves_project_knowledge_saved_by_task_a(tmp_path):
+    ws, root = _setup(tmp_path)
+    source_digest = "sha256:" + hashlib.sha256((root / "src" / "a.py").read_bytes()).hexdigest()
+    store = ws.parents[1] / "knowledge" / "long-term" / "project-knowledge"
+    store.mkdir(parents=True)
+    (store / "PK-A.yaml").write_text(
+        "version: 1\nid: PK-A\ntype: convention\nstatus: active\n"
+        "statement: payment requires idempotency\napplies_to: [payment]\n"
+        "source:\n  file: src/a.py\nsource_commit: abc\nsource_digest: " + source_digest + "\n"
+        "authority: standard\naffected_paths: [src/**]\n"
+        "confidence: high\nfreshness: verified\n",
+        encoding="utf-8",
+    )
+    (store.parent / "knowledge-index.yaml").write_text(yaml.safe_dump({
+        "version": 1,
+        "entries": [{"id": "PK-A", "store": "project-knowledge", "path": "project-knowledge/PK-A.yaml",
+                     "title": "payment requires idempotency", "applies_to": ["payment"],
+                     "affected_paths": ["src/**"], "status": "active"}],
+    }), encoding="utf-8")
+    plan = ws / "IMPLEMENTATION_PLAN.md"
+    plan.write_text(plan.read_text(encoding="utf-8").replace("Thân task 1.", "Payment idempotency implementation."), encoding="utf-8")
+
+    assert pc.compile_plan(ws, repo_root=root)["verdict"] == "APPROVED"
+    capsule = yaml.safe_load((ws / "briefs" / "TASK-001.knowledge.yaml").read_text())
+    assert [item["id"] for item in capsule["project_knowledge"]] == ["PK-A"]

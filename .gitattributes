@@ -1,0 +1,11 @@
+# Normalize line endings to LF for all text files on every platform.
+# Prevents Windows autocrlf from checking out CRLF, which would change
+# read_bytes()-based content hashes and break cross-platform test fixtures.
+* text=auto eol=lf
+
+# Explicitly binary (never touch):
+*.png binary
+*.jpg binary
+*.gif binary
+*.zst binary
+*.db binary

@@ -15,7 +15,7 @@ def _norm(rules):
 
 def test_build_ir_matches_expected_rules():
     ir = projector.build_ir(str(DNA), str(CONV))
-    expected = json.loads((HERE / "fixtures" / "expected-ir.json").read_text())
+    expected = json.loads((HERE / "fixtures" / "expected-ir.json").read_text(encoding="utf-8"))
     assert _norm(ir["rules"]) == _norm(expected["rules"])
 
 def test_semantic_principle_excluded():

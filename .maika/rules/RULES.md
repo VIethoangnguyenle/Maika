@@ -1,53 +1,43 @@
 # RULES.md — Agent Rules Manifest
 
 > Entry point cho toàn bộ rule system.
-> Bootstrap đọc file này trước, sau đó load các sub-file theo thứ tự.
+> Bootstrap đọc file này trước, load CORE luôn-luôn; JIT load theo điều kiện.
 
 ---
 
 ## 1. Scope & Priority
 
 - **Scope**: áp dụng cho tất cả agent, tool, skill, workflow trong repo này.
-- **Ưu tiên** (chuỗi canonical — R-Flow-3 tham chiếu về đây):
-  1. Policy tổ chức / luật pháp (nếu có).
-  2. Rules trong `RULES.md`.
-  3. Workflow trong `{{ platform.framework_root }}/workflows/*.md` (đặc biệt `[CRITICAL]` block).
-  4. Hướng dẫn trong `{{ platform.config_entry_point }}`.
-  5. Hướng dẫn trong từng `SKILL.md`.
-  6. Chat trực tiếp với user.
-  (Agent runtime defaults — planning mode, artifact convention của runtime — luôn xếp cuối.)
+- **Ưu tiên**: chuỗi precedence canonical nằm DUY NHẤT ở `agent/KERNEL.md` §2
+  (Canonical Authority) — không lặp lại ở đây. Agent runtime defaults (planning
+  mode, artifact convention của runtime) luôn xếp cuối chuỗi đó.
 
 ## Importance Markers
 
-Để tối ưu hóa sự chú ý (attention) của agent, các rule được đánh dấu:
 - `[CRITICAL]`: Core constraint, **không được vi phạm** trong bất kỳ hoàn cảnh nào.
-- `[REFERENCE]`: Context/Background, chỉ dùng để đọc lướt và tham khảo khi cần, không ép buộc hành vi tức thời.
+- `[REFERENCE]`: Context/Background, chỉ tham khảo khi cần, không ép buộc hành vi tức thời.
 
 ---
 
-## Rule Index — Sub-files
+## CORE — luôn load (bootstrap PHASE 0)
 
-| File | Nội dung | Sections |
-|------|----------|---------|
-| `rules/rules-flow.md` | Flow bắt buộc, Spec/Apply, Bootstrap | §2, §6, §11 |
-| `rules/rules-tool.md` | Quyền MCP & tool | §3 |
-| `rules/rules-exec.md` | Data, Architecture, Cost, Observability | §4, §5, §7, §8 |
-| `rules/rules-knowledge.md` | Knowledge Lifecycle, Path Convention, Conventions, Skill Schema | §10, §12, §13, §15 |
-| `rules/rules-guard.md` | Pre-invoke Guards, R-DNA-7, R-KI-1 | §14 |
+| File | Nội dung |
+|------|----------|
+| `rules/core/flow.md` | Flow bắt buộc, route theo router, orchestrator mỏng, spec/apply |
+| `rules/core/evidence.md` | Nguồn tri thức, thẩm quyền, provenance, freshness, reconcile, assumption |
+| `rules/core/write-boundary.md` | Pre-invoke guards + vNext write gate |
+| `rules/core/verification.md` | Execution + verification honesty |
 
-> §9 (Path Convention Deprecated) đã bị xoá — xem §12 thay thế.
+**Quan trọng**: Phải đọc đủ RULES.md + 4 file core. Thiếu bất kỳ file nào = guardrails không đầy đủ.
 
----
+## JIT — load theo điều kiện (không preload)
 
-## Load Order (bootstrap)
+| File | Load khi |
+|------|----------|
+| `rules/jit/providers.md` | grounding/exploration, planning, review, persistence-sensitive change |
+| `rules/jit/knowledge-lifecycle.md` | planning (capsule/slice), archive/promotion, knowledge stale |
+| `rules/jit/skill-evolution.md` | sau VERIFIED (skill feedback / candidate) |
+| `rules/jit/teaching-moment.md` | user correction detected, external KI detected |
 
-```
-READ: RULES.md                    ← manifest + §1 Scope/Priority
-READ: rules/rules-flow.md         ← critical: flow constraints
-READ: rules/rules-tool.md         ← tool permissions
-READ: rules/rules-exec.md         ← data/arch/cost/obs
-READ: rules/rules-knowledge.md    ← knowledge lifecycle + path
-READ: rules/rules-guard.md        ← pre-invoke guards (đọc SAU cùng để override)
-```
-
-**Quan trọng**: Phải đọc đủ 6 file. Thiếu bất kỳ file nào = guardrails không đầy đủ.
+> Load Order chi tiết + resume: `procedures/bootstrap.md`; path knowledge:
+> `knowledge/README.md` + `config/artifact-authority.yaml`.

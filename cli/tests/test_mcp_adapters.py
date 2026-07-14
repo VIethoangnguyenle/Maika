@@ -13,7 +13,7 @@ def test_antigravity_adapter_lists_workspace_cli_ide_and_shared_paths(tmp_path):
     candidates = adapter.config_candidates(project, home)
     paths = [item.path for item in candidates]
 
-    assert adapter.framework_root == ".agents"
+    assert adapter.framework_root == ".maika"
     assert project / ".agents" / "mcp_config.json" in paths
     assert home / ".gemini" / "antigravity-cli" / "mcp_config.json" in paths
     assert home / ".gemini" / "antigravity" / "mcp_config.json" in paths
@@ -27,7 +27,7 @@ def test_claude_adapter_lists_project_mcp_json_first(tmp_path):
 
     candidates = adapter.config_candidates(project, home)
 
-    assert adapter.framework_root == ".claude"
+    assert adapter.framework_root == ".maika"
     assert candidates[0].path == project / ".mcp.json"
     assert candidates[0].format == "json"
 
@@ -39,7 +39,7 @@ def test_codex_adapter_lists_project_config_toml_first(tmp_path):
 
     candidates = adapter.config_candidates(project, home)
 
-    assert adapter.framework_root == ".agents"
+    assert adapter.framework_root == ".maika"
     assert candidates[0].path == project / ".codex" / "config.toml"
     assert candidates[0].format == "toml"
 

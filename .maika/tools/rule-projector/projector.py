@@ -7,7 +7,7 @@ import yaml
 IR_VERSION = "1.0"
 
 def _load_yaml(path):
-    return yaml.safe_load(Path(path).read_text()) or {}
+    return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
 
 def _approved(doc):
     meta = doc.get("meta", {}) if isinstance(doc, dict) else {}
@@ -113,7 +113,7 @@ def main(argv=None):
     ir = build_ir(args.dna, args.conventions)
     out = Path(args.out) / "rules.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(ir, indent=2, ensure_ascii=False))
+    out.write_text(json.dumps(ir, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"IR written: {out} ({len(ir['rules'])} rules)")
     return 0
 

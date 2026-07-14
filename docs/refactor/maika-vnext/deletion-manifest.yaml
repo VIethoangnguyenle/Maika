@@ -1,0 +1,236 @@
+version: 1
+wave: W2
+deleted:
+  - path: .maika/skills/architecture-reviewer
+    reason: Superseded by architecture-reconciler and reviewing-change.
+    consumers_moved_to: [architecture-reconciler, reviewing-change]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/codebase-explorer
+    reason: Superseded by grounding-explorer.
+    consumers_moved_to: [grounding-explorer]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/db-explorer
+    reason: Folded into grounding-explorer via capability-based evidence.
+    consumers_moved_to: [grounding-explorer]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/document-writer
+    reason: No target W2 consumer; documentation is handled by task-specific plans and docs.
+    consumers_moved_to: []
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/openspec-archive-change
+    reason: Removed workflow family; archive belongs to canonical task lifecycle.
+    consumers_moved_to: [knowledge-curator]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/openspec-explore
+    reason: Superseded by grounded-brainstorming and canonical W2 artifacts.
+    consumers_moved_to: [grounded-brainstorming]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/openspec-propose
+    reason: Superseded by writing-spec, writing-plan, and validating-plan.
+    consumers_moved_to: [writing-spec, writing-plan, validating-plan]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/requirement-analyst
+    reason: Superseded by intent-analysis and writing-spec.
+    consumers_moved_to: [intent-analysis, writing-spec]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/spec-extract
+    reason: Superseded by writing-spec.
+    consumers_moved_to: [writing-spec]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/spec-validator
+    reason: Superseded by validating-plan and gate-check validators.
+    consumers_moved_to: [validating-plan]
+    verification: rg deleted skill names in live paths
+  - path: .maika/skills/author-dna-builder/references
+    reason: Orphaned by compact W2 contract skill.
+    consumers_moved_to: [author-dna-builder]
+    verification: cli/tests/test_skill_standard.py
+  - path: .maika/skills/convention-intelligence-builder/references
+    reason: Orphaned by compact W2 contract skill.
+    consumers_moved_to: [convention-intelligence-builder]
+    verification: cli/tests/test_skill_standard.py
+  - path: .maika/skills/infra-tdd/references
+    reason: Orphaned by compact W2 contract skill.
+    consumers_moved_to: [infra-tdd]
+    verification: cli/tests/test_skill_standard.py
+  - path: .maika/skills/infra-tdd/assets
+    reason: Orphaned by compact W2 contract skill and TDD workflow rewrite.
+    consumers_moved_to: [infra-tdd]
+    verification: cli/tests/test_skill_standard.py
+  - path: .maika/skills/knowledge-curator/references
+    reason: Orphaned by compact W2 contract skill.
+    consumers_moved_to: [knowledge-curator]
+    verification: cli/tests/test_skill_standard.py
+subsequent_waves:
+  - wave: master-v2-remediation
+    deleted:
+      - path: cli/workers.py
+        reason: Shadow worker policy replaced by the canonical runtime resolver.
+        consumers_moved_to: [cli/runtime/worker_resolver.py]
+        verification: cli/tests/test_worker_resolver.py
+      - path: cli/platforms/detection.py
+        reason: Diagnostic-only detection replaced by typed production probe and verification.
+        consumers_moved_to: [cli/platforms/probe.py]
+        verification: cli/tests/test_platform_probe.py
+      - path: .maika/procedures/token-tracking.md
+        reason: Manifest-only procedure had no production loader or workflow consumer.
+        consumers_moved_to: [.maika/knowledge/templates/TOKEN_LOG.tpl.md]
+        verification: cli/tests/test_snapshots.py
+  - wave: W3
+    deleted:
+      - path: .maika/tools/microloop-orchestrator/vnext_dispatch.py::run_dispatch
+        reason: Superseded by W3 run_queue implementation/fix/task-review/final-review dispatcher.
+        consumers_moved_to: [vnext_dispatch.py::run_queue]
+        verification: rg run_dispatch plus microloop-orchestrator tests
+  - wave: W5
+    deleted:
+      - path: .maika/workflows/idea-to-task.md
+        reason: Superseded by canonical `maika task start` workspace creation.
+        consumers_moved_to: [cli/commands/task.py, .maika/workflows/task.md]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/index-source.md
+        reason: Capability freshness and grounding now live in vNext task flow.
+        consumers_moved_to: [.maika/skills/grounding-explorer, cli/capability_runtime.py]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/convention-scan.md
+        reason: Folded into convention-intelligence-builder in canonical task lifecycle.
+        consumers_moved_to: [.maika/skills/convention-intelligence-builder]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/approve-conventions.md
+        reason: Folded into convention-intelligence-builder output contract.
+        consumers_moved_to: [.maika/skills/convention-intelligence-builder]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/dna-scan.md
+        reason: Folded into author-dna-builder in canonical task lifecycle.
+        consumers_moved_to: [.maika/skills/author-dna-builder]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/approve-dna.md
+        reason: Folded into author-dna-builder output contract.
+        consumers_moved_to: [.maika/skills/author-dna-builder]
+        verification: rg removed workflow names in live paths
+      - path: .maika/workflows/README.md
+        reason: Obsolete workflow index replaced by final task workflow and README command docs.
+        consumers_moved_to: [.maika/workflows/task.md, README.md]
+        verification: cli snapshot tests
+      - path: .maika/knowledge/templates/ideation.tpl.md
+        reason: Orphaned by deletion of idea-to-task workflow.
+        consumers_moved_to: []
+        verification: cli snapshot tests
+  - wave: W7
+    deleted:
+      - path: .maika/workflows/tdd.md
+        reason: Removed the second public workflow; design work now starts inside the canonical task lifecycle.
+        consumers_moved_to: [.maika/workflows/task.md, cli/commands/task.py]
+        verification: rg workflow-tdd/workflows/tdd plus cli snapshot tests
+      - path: .maika/procedures/executor.md
+        reason: Legacy markdown execution procedure superseded by vNext task dispatch, result, review, and final-review artifacts.
+        consumers_moved_to: [.maika/workflows/task.md, .maika/tools/microloop-orchestrator/vnext_dispatch.py]
+        verification: rg executor.md in live paths
+      - path: .maika/tools/microloop-orchestrator/contract.py
+        reason: Legacy markdown task contract replaced by generated/TASK_QUEUE.json and gate-check validation.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/plan_compiler.py, .maika/tools/gate-check/gates.py]
+        verification: microloop test suite and stale module scan
+      - path: .maika/tools/microloop-orchestrator/extraction.py
+        reason: Legacy markdown extraction path removed with TASK_HANDOFF flow.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/vnext_dispatch.py]
+        verification: microloop test suite and stale module scan
+      - path: .maika/tools/microloop-orchestrator/outcome.py
+        reason: Legacy TASK_RESULT parsing replaced by result YAML and task-review markdown gates.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/vnext_dispatch.py, .maika/tools/gate-check/gates.py]
+        verification: microloop and gate-check test suites
+      - path: .maika/tools/microloop-orchestrator/stats.py
+        reason: Legacy markdown runtime metrics replaced by vNext status and dashboard readers.
+        consumers_moved_to: [cli/dashboard/reader.py, cli/dashboard/server.py]
+        verification: dashboard tests and stale module scan
+      - path: .maika/tools/microloop-orchestrator/tiers
+        reason: Legacy tiered markdown executor removed; dispatch now uses one vNext JSON workspace path.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/vnext_dispatch.py]
+        verification: microloop test suite and stale module scan
+      - path: .maika/tools/microloop-orchestrator/tests/test_apply_command.py
+        reason: Obsolete apply command coverage removed with markdown executor.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/tests/test_vnext_cli_e2e.py]
+        verification: microloop test suite
+      - path: .maika/tools/microloop-orchestrator/tests/test_contract.py
+        reason: Obsolete contract.py coverage removed with markdown task contract.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/tests/test_plan_compiler.py]
+        verification: microloop test suite
+      - path: .maika/tools/microloop-orchestrator/tests/test_degradation.py
+        reason: Obsolete legacy degradation-path coverage removed with the tiered markdown executor.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/tests/test_vnext_cli_e2e.py]
+        verification: microloop test suite
+      - path: .maika/tools/microloop-orchestrator/tests/test_dispatch_worker.py
+        reason: Obsolete worker shell coverage removed with the legacy handoff dispatcher.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/tests/test_vnext_dispatch.py]
+        verification: microloop test suite
+      - path: .maika/tools/microloop-orchestrator/tests/test_extraction.py
+        reason: Obsolete markdown handoff extraction coverage removed with vNext dispatch briefs.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/tests/test_vnext_dispatch.py]
+        verification: microloop test suite
+      - path: .maika/tools/microloop-orchestrator/tests/test_handoff.py
+        reason: Obsolete TASK_HANDOFF coverage removed with vNext task briefs.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/tests/test_vnext_dispatch.py]
+        verification: microloop test suite
+      - path: .maika/tools/microloop-orchestrator/tests/test_hybrid_contract_dag.py
+        reason: Obsolete hybrid markdown contract DAG coverage removed with generated queue validation.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/tests/test_plan_compiler.py]
+        verification: microloop test suite
+      - path: .maika/tools/microloop-orchestrator/tests/test_outcome.py
+        reason: Obsolete TASK_RESULT coverage replaced by result/review gate tests.
+        consumers_moved_to: [.maika/tools/gate-check/tests/test_vnext_result_gate.py]
+        verification: gate-check and microloop test suites
+      - path: .maika/tools/microloop-orchestrator/tests/test_protocol.py
+        reason: Obsolete markdown protocol coverage removed with the vNext-only orchestrator surface.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/tests/test_vnext_cli_e2e.py]
+        verification: microloop test suite
+      - path: .maika/tools/microloop-orchestrator/tests/test_runtime_contract.py
+        reason: Obsolete runtime contract coverage removed with the legacy markdown executor.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/tests/test_vnext_cli_e2e.py]
+        verification: microloop test suite
+      - path: .maika/tools/microloop-orchestrator/tests/test_slice.py
+        reason: Obsolete slice extraction coverage removed with generated vNext task queues.
+        consumers_moved_to: [.maika/tools/microloop-orchestrator/tests/test_plan_compiler.py]
+        verification: microloop test suite
+      - path: .maika/tools/microloop-orchestrator/tests/test_stats.py
+        reason: Obsolete markdown stats coverage replaced by dashboard vNext artifact readers.
+        consumers_moved_to: [cli/tests/test_dashboard_reader.py, cli/tests/test_dashboard_server.py]
+        verification: dashboard tests
+      - path: .maika/tools/gate-check/tests/test_template_roundtrip.py
+        reason: Obsolete deleted-template roundtrip coverage removed with the retired markdown templates.
+        consumers_moved_to: [cli/tests/test_snapshots.py]
+        verification: cli snapshot tests
+      - path: .maika/knowledge/templates/CONTRACT_DAG.tpl.md
+        reason: Legacy markdown contract template removed with vNext generated task queue.
+        consumers_moved_to: [changes/<id>/generated/TASK_QUEUE.json]
+        verification: cli snapshot tests
+      - path: .maika/knowledge/templates/CONTRACT_CHANGE_REQUEST.tpl.md
+        reason: Legacy contract change request removed with task-review/final-review flow.
+        consumers_moved_to: [changes/<id>/reviews/TASK-*.md, changes/<id>/FINAL_REVIEW.md]
+        verification: cli snapshot tests
+      - path: .maika/knowledge/templates/CONTRACT_SNAPSHOT.tpl.md
+        reason: Legacy contract snapshot removed with vNext state/manifest/queue artifacts.
+        consumers_moved_to: [changes/<id>/STATE.yaml, changes/<id>/PLAN_MANIFEST.json]
+        verification: cli snapshot tests
+      - path: .maika/knowledge/templates/KNOWLEDGE_CHECKPOINT.tpl.md
+        reason: Legacy checkpoint template removed; verification/archive now writes explicit reports and manifests.
+        consumers_moved_to: [changes/<id>/verification/VERIFICATION_REPORT.md, archive/<id>/ARCHIVE_MANIFEST.yaml]
+        verification: stale artifact scan
+      - path: .maika/knowledge/templates/TASK_HANDOFF.tpl.md
+        reason: Legacy handoff template removed; task briefs are generated from vNext queue records.
+        consumers_moved_to: [changes/<id>/briefs/TASK-*.md]
+        verification: stale artifact scan
+      - path: .maika/knowledge/templates/KNOWLEDGE_PACK.tpl.md
+        reason: Legacy markdown knowledge pack removed with explicit verification and archive artifacts.
+        consumers_moved_to: [changes/<id>/verification/VERIFICATION_REPORT.md, archive/<id>/ARCHIVE_MANIFEST.yaml]
+        verification: cli snapshot tests
+      - path: .maika/knowledge/templates/NODE_CHECKPOINT.tpl.md
+        reason: Legacy node checkpoint removed with markdown runtime.
+        consumers_moved_to: [changes/<id>/results/TASK-*.yaml]
+        verification: cli snapshot tests
+      - path: .maika/knowledge/templates/CONTEXT_REQUEST.tpl.md
+        reason: Legacy context request removed; grounding and task scope are explicit vNext artifacts.
+        consumers_moved_to: [changes/<id>/EXPLORE_CONTEXT.yaml, changes/<id>/briefs/TASK-*.md]
+        verification: cli snapshot tests
+      - path: .maika/knowledge/templates/INTEGRATION_REQUEST.tpl.md
+        reason: Legacy integration request removed; final review is the integration gate.
+        consumers_moved_to: [changes/<id>/FINAL_REVIEW.md]
+        verification: cli snapshot tests

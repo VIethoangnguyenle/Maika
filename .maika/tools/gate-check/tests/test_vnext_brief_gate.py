@@ -19,6 +19,18 @@ vs = importlib.util.module_from_spec(spec_vs); spec_vs.loader.exec_module(vs)
 PLAN_TPL = """---
 change_id: demo
 plan_version: 1
+knowledge_trace:
+  id: DEC-PLAN-001
+  statement: Decompose the verified change.
+  type: task_decomposition
+  knowledge_questions: ["What tasks are required?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
 base_commit: BASESHA
 spec_hash: sha256:SPECSHA
 evidence_hash: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
@@ -58,11 +70,18 @@ def _mk(tmp_path):
 
 def _setup(tmp_path):
     import hashlib
-    ws = vs.init_workspace(tmp_path / "changes", "demo", "small", "t")
+    ws = vs.init_workspace(tmp_path / "changes", "demo", "standard", "t")
     (ws / "SPEC.md").write_text("# spec\n", encoding="utf-8")
     plan_text, _ = _mk(tmp_path)
+    evidence_sha = hashlib.sha256(
+        (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").read_bytes()
+    ).hexdigest()
     plan_text = plan_text.replace(
         "SPECSHA", hashlib.sha256((ws / "SPEC.md").read_bytes()).hexdigest())
+    plan_text = plan_text.replace(
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        evidence_sha,
+    )
     (ws / "IMPLEMENTATION_PLAN.md").write_text(plan_text, encoding="utf-8")
     pc.compile_plan(ws, repo_root=tmp_path)
     return ws, tmp_path

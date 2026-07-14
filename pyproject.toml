@@ -31,6 +31,19 @@ dependencies = [
     "questionary>=2.0,<3",
 ]
 
+[project.optional-dependencies]
+# Test-only deps. `jsonschema` is imported by
+# .maika/tools/rule-projector/tests/test_schema.py and must be present for CI
+# collection; it is NOT a runtime dependency.
+test = [
+    "pytest",
+    "jsonschema>=4.0",
+    # Build backend so test_wheel_install's `pip wheel --no-build-isolation`
+    # works in a bare CI env — Windows hosted Python has no wheel preinstalled.
+    "setuptools>=68.0",
+    "wheel",
+]
+
 [project.scripts]
 maika = "cli.maika:main"
 
@@ -40,6 +53,8 @@ Repository = "https://github.com/VIethoangnguyenle/Maika"
 
 [tool.setuptools.packages.find]
 include = ["cli*"]
+# Framework-only tests are not part of the distributed runtime.
+exclude = ["cli.tests*"]
 
 [tool.setuptools.package-data]
 cli = [

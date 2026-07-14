@@ -1,10 +1,12 @@
 """Base platform definition — abstract interface for all agent platforms."""
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Dict, List, Optional, Set
 import platform as _platform
 
 from cli import FRAMEWORK_VERSION
+from cli.capability_runtime import build_capability_routes, load_capability_registry
 
 
 REQUIRED_TOOL_KEYS = frozenset({
@@ -32,7 +34,15 @@ REQUIRED_TOOL_KEYS = frozenset({
     "get_page",
     "list_spaces",
     "get_space_pages",
-    "db_query",
+    "db_list_databases",
+    "db_list_tables",
+    "db_get_columns",
+    "db_get_constraints",
+    "db_sql_read",
+    "db_mongo_read",
+    "db_sql_write",
+    "db_mongo_write",
+    "db_sql_execute_script",
     "search_web",
     "read_url",
     # ── Dynamic (episodic/advisory) memory — provider-mapped, runtime-optional ──
@@ -103,6 +113,10 @@ class BasePlatform(ABC):
             "subagent": False,
             "artifacts": False,
             "browser": False,
+            "fresh_session": False,
+            "task_dispatch": False,
+            "review_dispatch": False,
+            "model_selection": False,
             "write_gate_hook": False,
         }
 
@@ -143,6 +157,48 @@ class BasePlatform(ABC):
         return ".maika"
 
     @property
+    def worker_binary(self) -> Optional[str]:
+        """CLI binary used to launch a fresh-process worker, or None (no CLI)."""
+        return None
+
+    @property
+    def worker_base_args(self) -> List[str]:
+        """Base argv between the binary and the prompt file for a fresh-process worker."""
+        return []
+
+    @property
+    def dangerous_permission_flag(self) -> Optional[str]:
+        """Opt-in-only flag bypassing host permission prompts. Never a default."""
+        return None
+
+    # Capability probes are adapter methods so new hosts can override one fact
+    # without creating a parallel doctor/runtime policy.
+    def detect_binary(self):
+        from cli.platforms.probe import detect_binary
+        return detect_binary(self.worker_binary)
+
+    def detect_version(self):
+        return self.detect_binary().version
+
+    def detect_authentication(self) -> str:
+        return "detected" if self.detect_binary().found else "unavailable"
+
+    def verify_entrypoint(self, project_root) -> bool:
+        return (Path(project_root) / self.config_entry_point).is_file()
+
+    def verify_hook(self, project_root) -> bool:
+        from cli.config.platforms import adapter_descriptor
+        relative = adapter_descriptor(self.name)["hook_config"]
+        return relative is None or (Path(project_root) / relative).is_file()
+
+    def verify_worker(self, profile, prompt_file):
+        from cli.runtime.worker_resolver import run_worker_smoke_test
+        return run_worker_smoke_test(profile, Path(prompt_file))
+
+    def verify_mcp(self, visible_tools=None) -> str:
+        return "verified" if visible_tools else "unavailable"
+
+    @property
     def notes(self) -> List[str]:
         """Platform-specific notes shown during init."""
         return []
@@ -181,7 +237,7 @@ class BasePlatform(ABC):
                 f"{', '.join(sorted(extra_unsupported))}"
             )
 
-    def build_render_context(self, mcps: List[str], language: str, hook_python: Optional[str] = None) -> dict:
+    def build_render_context(self, mcps: List[str], language: str) -> dict:
         """Build the full Jinja2 render context for this platform."""
         self.validate_tool_mapping()
         return {
@@ -193,9 +249,10 @@ class BasePlatform(ABC):
             },
             "tools": self.tool_mapping,
             "capabilities": self.capabilities,
+            "capability_registry": load_capability_registry(),
+            "capability_routes": build_capability_routes(self),
             "mcps": mcps,
             "language": language,
             "framework_version": FRAMEWORK_VERSION,
             "is_windows": _platform.system() == "Windows",
-            "hook_python": hook_python or "python",
         }

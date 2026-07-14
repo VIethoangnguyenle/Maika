@@ -6,7 +6,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 
 def _load(p):
-    return json.loads((Path(p)).read_text())
+    return json.loads((Path(p)).read_text(encoding="utf-8"))
 
 def test_expected_ir_validates_against_schema():
     schema = _load(ROOT / "ir_schema.json")

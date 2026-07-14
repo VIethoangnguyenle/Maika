@@ -1,0 +1,146 @@
+# jit/providers.md — Provider Doctrine (JIT)
+
+> JIT rule — load khi: grounding/exploration, planning, review, hoặc change
+> chạm persistence (DB doctrine nằm ở đây).
+> Định nghĩa **provider doctrine**: capability nào ưu tiên provider nào, khi nào
+> BẮT BUỘC dùng, cách probe/freshness/degradation, và thẩm quyền của current source.
+> Nguyên tắc nền: **provider hỗ trợ suy luận, không ghi đè current source / live DB /
+> business contract hiện hành** (xem `core/evidence.md` §Thứ tự thẩm quyền).
+
+---
+
+## 3. Tool Rules — Provider Doctrine
+
+### [CRITICAL] R-Tool-1: Skill dùng capability, không dùng tên provider
+
+- Canonical skill/role contract CHỈ tham chiếu **capability IDs**
+  (`profiles/capability-registry.yaml`).
+- Concrete provider call cụ thể chỉ nằm ở **platform adapters** (`cli/platforms/*.py`),
+  tool docs và capability matrix — không hard-code trong skill.
+- Skill-lint từ chối capability ID lạ và tên provider trong canonical skill.
+
+### [CRITICAL] R-Tool-2: Preferred provider — mỗi capability có nguồn ưu tiên
+
+| Capability | Provider ưu tiên | Dùng cho |
+|---|---|---|
+| `architecture_discovery` | Understand-Anything MCP (UA-MCP) | boundary, domain overview, quan hệ module, tài liệu nội bộ |
+| `domain_flow_trace` | UA-MCP | domain overview/detail/flow traversal |
+| `call_chain_trace` | UA-MCP | structured call-chain và relationship traversal |
+| `impact_analysis` | UA-MCP | structured impact và blast-radius traversal |
+| `graph_path_trace` | UA-MCP | path giữa graph nodes |
+| `inheritance_trace` | UA-MCP | class hierarchy traversal |
+| `semantic_code_search` | Codebase Memory (CBM) | semantic anchor discovery và graph-gap recovery |
+| `dependency_analysis` | CBM (compatibility aggregate) | semantic dependency/hidden consumer discovery trong lúc consumer migrate |
+| `exact_source_inspection` | **current source** | file, symbol, signature, test, behavior, configuration hiện tại |
+| `historical_context_retrieval` | Agent Memory | incident cũ, quyết định trước, rejected approach, review pattern lặp lại |
+| `business_knowledge_retrieval` | Agent Memory + tài liệu | tri thức nghiệp vụ, domain, tài liệu |
+| `convention_retrieval` | durable knowledge | Author DNA, conventions, rule IDs |
+| `database_schema_inspection` | DB Access qua Database Explorer | database, table, column, constraint, collection/schema |
+| `database_dependency_analysis` | DB Access constraints + current source | FK metadata và consumer SQL; capability DB không có phải degrade tường minh |
+
+- **UA-MCP là nguồn số 1** cho structured architecture/domain/call/impact/path/
+  inheritance trace khi graph áp dụng được. **CBM là nguồn số 1** cho semantic search.
+
+### [CRITICAL] R-Tool-2A: UA-MCP Primary Structured Trace
+
+Khi Understand-Anything graph healthy, đủ fresh và áp dụng được:
+
+- UA-MCP là primary cho architecture traversal, domain-flow traversal, graph
+  relationship, call chain, impact, graph path và inheritance trace.
+- CBM không thay structured traversal bằng generic semantic search khi graph đã có
+  cấu trúc cần thiết. CBM hỗ trợ semantic anchor discovery, graph-gap recovery,
+  hidden dependency search, independent corroboration và reviewer counter-evidence.
+- Current source vẫn authoritative cho exact code fact.
+
+Canonical trace: freshness probe → graph/domain anchor → structured UA-MCP
+traversal → conditional CBM support → exact source verification → evidence manifest.
+Mỗi CBM support call phải ghi reason: unresolved anchor, incomplete relationship,
+ambiguous semantic query, relevant stale graph files, reviewer corroboration, hoặc
+hidden consumer/dependency search.
+
+Freshness handling:
+
+- `FRESH`: UA-MCP primary; source verify material exact facts.
+- `STALE` chỉ ở file không liên quan: UA-MCP vẫn primary; ghi scoped freshness và
+  verify relevant source.
+- `STALE` ở file liên quan: UA-MCP chỉ là navigation evidence; CBM/source tạo current
+  trace, giảm confidence, có thể request refresh.
+- `VERY_STALE`: chỉ dùng initial anchor; không dùng làm primary material evidence.
+
+### [CRITICAL] R-Tool-3: Use-when-healthy — không skip im lặng provider khỏe
+
+- Khi một preferred provider **configured + healthy + fresh + applicable** cho câu
+  hỏi hiện tại → agent **PHẢI** dùng nó, hoặc ghi **justification tường minh** vì sao
+  không dùng.
+- Skip im lặng một provider đang khỏe = **invalid** (gate từ chối).
+- Zero-result từ một provider khỏe (vd Agent Memory recall trả rỗng) là **evidence
+  hợp lệ**, không phải lý do bỏ qua provider.
+
+### [CRITICAL] R-Tool-4: Real probe — registration không phải là data
+
+- Provider health phải đến từ **probe thật**: `mcp-status` ghi provider health trước
+  khi dựa vào dynamic capability; `maika doctor mcp` chẩn đoán config + runtime.
+- Maika dùng MCP config key `db-access` mà user đã cấu hình. Không suy đoán provider
+  chạy local/remote, không yêu cầu local binary, và không đọc DB/tunnel credentials.
+- **Registration ≠ có data.** Một provider đăng ký nhưng graph/index rỗng thì probe
+  rỗng = **invalid** (không được coi là sẵn sàng). Phải verify provider có DATA, không
+  chỉ có REGISTRATION.
+
+### [CRITICAL] R-Tool-5: Current source authority + code-evidence
+
+- **Current source là authority tối cao cho exact code fact** (file, symbol, signature,
+  test, behavior, configuration). UA/CBM/memory chỉ định hướng; material fact lấy từ
+  graph phải được **current source xác minh** khi đó là exact code fact.
+- Evidence `code-facts` ghi `node_id` và blast-radius khi có graph evidence; evidence
+  `architecture-facts` ghi source anchor, relationship và convention ID liên quan — một
+  `UA identifier` là hợp lệ khi graph node ID không phải nguồn của architecture fact.
+- **Grep-honesty:** nếu artifact khai "grep fallback / provider unavailable" cho một
+  code-fact mà file đó thuộc project đã index trong CBM/UA → **REJECT** (không được lấy
+  cớ lười để tụt xuống grep khi provider có data).
+
+### [CRITICAL] R-Tool-6: Historical recall bắt buộc cho standard/architectural change
+
+- Mọi standard và architectural change **PHẢI** recall Agent Memory (incident, quyết
+  định cũ, rejected approach) **trước** khi chốt spec.
+- Recall trả rỗng = evidence hợp lệ; **thiếu** recall (khi provider khỏe) = invalid.
+- Memory phải được phân loại: valid / superseded / conflicting / advisory.
+
+### [CRITICAL] R-Tool-7: Freshness & degradation tường minh
+
+- Provider graph/index phải ghi `indexed_commit` + freshness state.
+- Provider **stale hoặc absent** → ghi một **degradation record có cấu trúc** gồm:
+  provider, probe thật đã chạy, error/observed, freshness state, fallback đã dùng,
+  missing evidence, confidence impact, và affected claims.
+- **Không degrade lặng lẽ.** Degradation không ghi record = như skip im lặng = invalid.
+
+### [CRITICAL] R-Tool-8: Dispatch & handoff evidence
+
+- `handoff-slice` và `node-checkpoint` là gate evidence cho task handoff.
+- Handoff slice PHẢI gồm section `Applicable DNA/Conventions`.
+- Node progress có thể ghi `NODE_CHECKPOINT.<node-id>.md`.
+- Context còn thiếu có thể yêu cầu qua `CONTEXT_REQUEST.<node-id>.md`.
+
+### [CRITICAL] R-Tool-9: Database operation boundary
+
+- DB Access là provider có cả `read`, `write` và `script`; Maika không được mô tả
+  toàn provider là read-only hoặc che các tool ghi hợp lệ.
+- Lane `database-explorer` **chỉ read-only** — không tự động chạy DDL hoặc DML trong
+  exploration và không được thấy write/script tools trong context của lane này.
+- `sql_write`, `mongo_write` và `sql_execute_script` chỉ được route khi user yêu cầu
+  thao tác ghi tường minh, chọn đúng source/database/environment, và vẫn phải qua
+  preview + confirmation token của DB Access. Confirmation token là safety của
+  provider, không thay thế intent tường minh của user.
+- Persistence-sensitive change (entity, repository, native SQL, table/column/index,
+  constraint, package/procedure, migration, transaction, locking, job/outbox, audit)
+  **PHẢI** có DB evidence; chênh lệch giữa source và live DB state phải được reconcile.
+
+### [REFERENCE] R-Tool-10: mcp-bridge fallback
+
+- `mcp-bridge` là đường fallback khi một platform cần wiring MCP tường minh (provider
+  không auto-discover). Bootstrap trỏ MCP failure về `maika doctor mcp` và bridge fallback.
+
+### [CRITICAL] R-Tool-11: Evidence type requirement
+
+- Mỗi capability khai `required_evidence_types` cho câu hỏi nó phục vụ. Retrieval **chưa
+  thu đủ** required evidence type → coi như **chưa pass** (không đủ để dựng decision).
+- Reviewer **không** sửa application code.

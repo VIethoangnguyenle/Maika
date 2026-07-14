@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, master-v2]
   pull_request:
 
 env:
@@ -21,9 +21,11 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install package + test deps
-        run: python -m pip install -e . pytest
+        run: python -m pip install -e ".[test]"
       - name: Run test suite
-        run: python -m pytest cli/tests/ -q
+        run: python scripts/run_ci.py
+      - name: Verify repository was not modified
+        run: git diff --check && git diff --exit-code
 
   install-ps1-e2e:
     runs-on: windows-latest
@@ -44,9 +46,20 @@ jobs:
           $settings = Get-Content "$env:RUNNER_TEMP\demo\.claude\settings.json" -Raw
           if ($settings -match '/usr/bin/python3') { throw "Unix python path leaked into Windows hooks" }
           if ($settings -match '\$\(git rev-parse') { throw "Unix shell substitution leaked into Windows hooks" }
-          if ($settings -notmatch 'write_gate\.py') { throw "write-gate hook command missing" }
-          $resolved = Get-Content "$env:RUNNER_TEMP\demo\.claude\resolved-config.yaml" -Raw
-          if ($resolved -notmatch 'hook_python') { throw "hook_python not persisted in resolved-config" }
+          if ($settings -notmatch 'maika\.write-gate\.v1') { throw "canonical write-gate hook id missing" }
+          if ($settings -notmatch 'maika hook write-gate') { throw "canonical write-gate command missing" }
+          if ($settings -notmatch '--platform claude-code') { throw "write-gate platform arg missing" }
+          if (-not (Test-Path "$env:RUNNER_TEMP\demo\.maika\runtime\platforms\claude-code.yaml")) { throw "canonical runtime profile missing" }
+          @(
+            "config\interaction-router.yaml",
+            "config\external-workflows.yaml",
+            "config\generated-report.schema.yaml",
+            "profiles\provider-capabilities.yaml",
+            "reports\.gitignore",
+            "knowledge\preferences\.gitignore"
+          ) | ForEach-Object {
+            if (-not (Test-Path "$env:RUNNER_TEMP\demo\.maika\$_")) { throw "session interaction asset missing: $_" }
+          }
       - name: Bare update preserves launcher (regression 1A, E2E)
         shell: pwsh
         run: |
@@ -54,3 +67,38 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "maika update failed" }
           $settings = Get-Content "$env:RUNNER_TEMP\demo\.claude\settings.json" -Raw
           if ($settings -match '/usr/bin/python3') { throw "update re-rendered Unix hooks on Windows" }
+
+  install-linux-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Fresh install into temp project (headless)
+        run: |
+          mkdir -p "$RUNNER_TEMP/demo"
+          ./install.sh "$RUNNER_TEMP/demo" --yes --platform claude-code --language python
+      - name: Assert Linux-rendered artifacts
+        run: |
+          settings="$RUNNER_TEMP/demo/.claude/settings.json"
+          test -f "$settings" || { echo "settings.json missing"; exit 1; }
+          grep -q 'maika\.write-gate\.v1' "$settings" || { echo "canonical write-gate hook id missing"; exit 1; }
+          grep -q 'maika hook write-gate' "$settings" || { echo "canonical write-gate command missing"; exit 1; }
+          grep -q -- '--platform claude-code' "$settings" || { echo "write-gate platform arg missing"; exit 1; }
+          grep -q 'py -3' "$settings" && { echo "Windows launcher leaked into Linux hooks"; exit 1; }
+          test -f "$RUNNER_TEMP/demo/.maika/runtime/platforms/claude-code.yaml" || { echo "canonical runtime profile missing"; exit 1; }
+          for path in \
+            config/interaction-router.yaml \
+            config/external-workflows.yaml \
+            config/generated-report.schema.yaml \
+            profiles/provider-capabilities.yaml \
+            reports/.gitignore \
+            knowledge/preferences/.gitignore; do
+            test -f "$RUNNER_TEMP/demo/.maika/$path" || { echo "session interaction asset missing: $path"; exit 1; }
+          done
+      - name: Bare update preserves the canonical hook (E2E)
+        run: |
+          ./install.sh "$RUNNER_TEMP/demo"
+          grep -q 'maika hook write-gate' "$RUNNER_TEMP/demo/.claude/settings.json" \
+            || { echo "update dropped the canonical hook"; exit 1; }

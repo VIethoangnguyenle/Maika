@@ -49,10 +49,9 @@ def test_checks_scaffold_exit_code(ps1_text):
         assert "LASTEXITCODE" in ps1_text[pos:pos + 200], f"No LASTEXITCODE check near {marker}"
 
 
-def test_passes_hook_python_launcher(ps1_text):
-    # The resolved launcher must flow into scaffolding so the Windows hook uses it.
-    assert "--hook-python" in ps1_text
-    assert "$HookPython" in ps1_text
+def test_hook_uses_installed_maika_not_external_python_contract(ps1_text):
+    assert "--hook-python" not in ps1_text
+    assert "$HookPython" not in ps1_text
 
 
 def test_native_calls_are_exit_checked(ps1_text):
@@ -89,16 +88,8 @@ def test_python_floor_matches_pyproject(ps1_text):
     assert floor in sh_text, f"install.sh must enforce Python >= {floor}"
 
 
-def test_pyyaml_hint_uses_resolved_launcher(ps1_text):
-    # `py -3` boxes must not be told to run bare `py -m pip ...`.
-    assert "Run: $HookPython -m pip" in ps1_text
-
-
-def test_pyyaml_auto_remediation(ps1_text):
-    # Clean boxes get pyyaml installed (announced, --user); warn only on failure.
-    assert "pip install --user --quiet pyyaml" in ps1_text
-    # Re-check after the attempted install (two import probes total).
-    assert ps1_text.count('-c "import yaml"') >= 2
+def test_no_out_of_venv_hook_dependency_install(ps1_text):
+    assert "pip install --user" not in ps1_text
 
 
 def test_path_write_is_registry_safe(ps1_text):

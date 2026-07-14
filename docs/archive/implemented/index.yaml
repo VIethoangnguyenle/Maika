@@ -1,0 +1,23 @@
+version: 1
+status: implemented
+runtime_authority: false
+baseline_commit: 2d3a1f887349b20cd6675703f546edf74bde40d6
+implemented_on: 2026-07-11
+superseded_by:
+  - docs/architecture/project-core-and-host-adapters.md
+  - .maika/config/artifact-registry.yaml
+default_retrieval: exclude
+history_query_terms: [history, rationale, migration, regression, implemented-plan]
+documents:
+  - glob: docs/superpowers/plans/*.md
+    status: implemented
+    runtime_authority: false
+  - glob: docs/superpowers/specs/*.md
+    status: implemented
+    runtime_authority: false
+  - glob: docs/refactor/maika-vnext/*.md
+    status: implemented
+    runtime_authority: false
+  - glob: docs/refactor/upgrade-2026-07/*.md
+    status: implemented
+    runtime_authority: false

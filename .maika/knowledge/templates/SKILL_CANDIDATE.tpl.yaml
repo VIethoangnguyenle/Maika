@@ -1,0 +1,45 @@
+version: 1
+candidate_id:
+target_skill:
+status: proposed
+classification:
+problem:
+  statement:
+  recurrence_key:
+  severity:
+  occurrences:
+evidence:
+  changes: []
+  reviews: []
+  incidents: []
+  source_anchors: []
+proposed_change:
+  sections: []
+  summary:
+  before:
+  after:
+expected_effect:
+  improvements: []
+  risks: []
+  token_impact:
+  behavior_change:
+compatibility:
+  capability_ids_changed: false
+  output_contract_changed: false
+  runtime_consumer_changed: false
+  migration_required: false
+validation:
+  required_tests: []
+  dogfood_scenarios: []
+  canary_scenarios: []
+  regression_risks: []
+skill_evaluation:
+  skill:
+  candidate_version:
+  evaluation_tasks: []
+  before_metrics: {}
+  after_metrics: {}
+  verdict: PENDING
+rollback:
+  previous_version:
+  status: ready

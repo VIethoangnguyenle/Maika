@@ -1,15 +1,15 @@
 """Tests for the dashboard reader."""
 
-import textwrap
+import json
 
 from cli.dashboard.reader import RunState, read_run
 
 
-def _make_project(tmp_path, *, transparency=None, queue=None):
+def _make_project(tmp_path, *, state="EXECUTING", queue=None):
     """Build a minimal Maika project under tmp_path with framework_root '.maika'."""
     root = tmp_path / ".maika"
-    active = root / "knowledge" / "active"
-    active.mkdir(parents=True)
+    workspace = root / "changes" / "AUTH-feature"
+    (workspace / "generated").mkdir(parents=True)
     (root / "resolved-config.yaml").write_text(
         "resolved:\n"
         "  platform: antigravity\n"
@@ -19,49 +19,37 @@ def _make_project(tmp_path, *, transparency=None, queue=None):
         encoding="utf-8",
     )
     (tmp_path / "AGENTS.md").write_text("# agents\n", encoding="utf-8")
-    if transparency is not None:
-        (active / "AGENT_TRANSPARENCY.md").write_text(transparency, encoding="utf-8")
+    if state is not None:
+        (workspace / "STATE.yaml").write_text(
+            f"change_id: AUTH-feature\nstate: {state}\n",
+            encoding="utf-8",
+        )
+        (workspace / "CHANGE.yaml").write_text(
+            "change_id: AUTH-feature\ntitle: Auth feature\n",
+            encoding="utf-8",
+        )
     if queue is not None:
-        (active / "microloop").mkdir(parents=True)
-        (active / "microloop" / "TASK_QUEUE.md").write_text(queue, encoding="utf-8")
+        (workspace / "generated" / "TASK_QUEUE.json").write_text(queue, encoding="utf-8")
     return tmp_path
 
 
-TRANSPARENCY = textwrap.dedent(
-    """\
-    ---
-    schema: agent-transparency/v1
-    ticket_id: AUTH-feature
-    phase_state: phase-3-in-progress
-    ---
-    # body
-    """
-)
-
-QUEUE = textwrap.dedent(
-    """\
-    ticket_id: AUTH-feature
-    spec_path: docs/spec.md
-    execution_mode: subagent
-    tasks:
-      - id: T1
-        desc: build login
-        status: done
-      - id: T2
-        desc: wire DI
-        status: in_progress
-      - id: T3
-        desc: tests
-        status: pending
-    """
+QUEUE = json.dumps(
+    {
+        "change_id": "AUTH-feature",
+        "tasks": [
+            {"id": "T1", "title": "build login", "status": "done"},
+            {"id": "T2", "title": "wire DI", "status": "in_progress"},
+            {"id": "T3", "title": "tests", "status": "pending"},
+        ],
+    }
 )
 
 
 def test_full_state(tmp_path):
-    proj = _make_project(tmp_path, transparency=TRANSPARENCY, queue=QUEUE)
+    proj = _make_project(tmp_path, queue=QUEUE)
     state = read_run(str(proj))
     assert state.ticket_id == "AUTH-feature"
-    assert state.phase_state == "phase-3-in-progress"
+    assert state.phase_state == "EXECUTING"
     assert state.tasks_total == 3
     assert state.tasks_done == 1
     assert state.active_task == "wire DI"
@@ -70,24 +58,22 @@ def test_full_state(tmp_path):
 
 
 def test_missing_task_queue(tmp_path):
-    proj = _make_project(tmp_path, transparency=TRANSPARENCY)
+    proj = _make_project(tmp_path)
     state = read_run(str(proj))
-    assert state.phase_state == "phase-3-in-progress"
+    assert state.phase_state == "EXECUTING"
     assert state.tasks_total == 0
     assert state.progress_pct == 0
 
 
-def test_missing_transparency(tmp_path):
-    proj = _make_project(tmp_path, queue=QUEUE)
+def test_missing_state_is_idle(tmp_path):
+    proj = _make_project(tmp_path, state=None, queue=QUEUE)
     state = read_run(str(proj))
     assert state.phase_state is None
-    assert state.tasks_total == 3
-    # ticket falls back to the queue's ticket_id
-    assert state.ticket_id == "AUTH-feature"
+    assert state.tasks_total == 0
 
 
 def test_no_active_run_is_idle(tmp_path):
-    proj = _make_project(tmp_path)
+    proj = _make_project(tmp_path, state=None)
     state = read_run(str(proj))
     assert state.phase_state is None
     assert state.tasks_total == 0
@@ -95,14 +81,14 @@ def test_no_active_run_is_idle(tmp_path):
 
 
 def test_malformed_queue_sets_stale(tmp_path):
-    proj = _make_project(tmp_path, transparency=TRANSPARENCY, queue="tasks: [oops: : :")
+    proj = _make_project(tmp_path, queue='{"tasks": [')
     state = read_run(str(proj))
     assert state.stale is True
     assert state.tasks_total == 0
 
 
 def test_zero_tasks_progress_is_zero(tmp_path):
-    empty_queue = "ticket_id: X\nspec_path: s\nexecution_mode: subagent\ntasks: []\n"
+    empty_queue = json.dumps({"change_id": "AUTH-feature", "tasks": []})
     proj = _make_project(tmp_path, queue=empty_queue)
     state = read_run(str(proj))
     assert state.tasks_total == 0

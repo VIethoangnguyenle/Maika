@@ -215,6 +215,54 @@ entries:
     scope: {change_classes: [standard, architectural]}
     reviewed_at: 2026-07-10
 
+  - id: ENF-016
+    mechanism: capability-router
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      reference: vNext master plan §11.2, §11.3, W4
+      summary: Capability routing must expose ready/degraded/unsupported status from one registry.
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_capability_runtime.py -q
+    implementation:
+      files: [cli/capability_runtime.py, .maika/profiles/capability-registry.yaml]
+      consumers: [cli/platforms/base.py]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-017
+    mechanism: capability-skill-lint
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      reference: vNext master plan §10, §11, W4
+      summary: Canonical skills may cite capability IDs, not concrete provider names.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/skill-lint/tests/test_validate_skills.py -q
+    implementation:
+      files: [.maika/tools/skill-lint/validate_skills.py]
+      consumers: [.maika/skills]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: ENF-018
+    mechanism: public-task-cli
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      reference: vNext master plan §23, W5
+      summary: Public task commands must call the canonical vNext runtime, not legacy workflows.
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_task_command.py -q
+    implementation:
+      files: [cli/commands/task.py, cli/maika.py]
+      consumers: [.maika/workflows/task.md, README.md]
+    scope: {change_classes: [trivial, small, standard, architectural]}
+    reviewed_at: 2026-07-10
+
 
   # ---- proposed: 9 lifecycle gates của v2 §22 ----
   - id: PROP-001
@@ -236,14 +284,48 @@ entries:
   - id: PROP-002
     mechanism: exploration-evidence
     type: gate
-    status: proposed
+    status: active
+    failure:
+      classification: external_requirement
+      reference: vNext master plan §7, §19, W2
+      summary: Standard and architectural changes require three-lens grounding and evidence.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_reasoning_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/orchestrator.py]
     scheduled_wave: W2
     reviewed_at: 2026-07-10
 
   - id: PROP-003
     mechanism: spec
     type: gate
-    status: proposed
+    status: active
+    failure:
+      classification: external_requirement
+      reference: vNext master plan §12, §19, W2
+      summary: SPEC.md must satisfy the class-aware contract before planning.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_reasoning_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/orchestrator.py]
+    scheduled_wave: W2
+    reviewed_at: 2026-07-10
+
+  - id: PROP-010
+    mechanism: intent
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: vNext master plan §3, §5, W2
+      summary: Standard and architectural work needs recorded intent before grounding.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_reasoning_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/orchestrator.py]
     scheduled_wave: W2
     reviewed_at: 2026-07-10
 
@@ -298,22 +380,604 @@ entries:
   - id: PROP-007
     mechanism: task-review
     type: gate
-    status: proposed
-    scheduled_wave: W2
+    status: active
+    activation_wave: W3
+    failure:
+      classification: reproducible_litmus
+      reference: v2 §22, W3
+      summary: Per-task review gate requires task id and approved/changes-required verdict.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_result_gate.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/vnext_dispatch.py]
+    scheduled_wave: W3
     reviewed_at: 2026-07-10
 
   - id: PROP-008
     mechanism: final-review
     type: gate
-    status: proposed
+    status: active
+    activation_wave: W3
+    failure:
+      classification: reproducible_litmus
+      reference: v2 §17, W3
+      summary: Final review requires every task to be done and reviewed.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_result_gate.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/vnext_dispatch.py]
     scheduled_wave: W3
     reviewed_at: 2026-07-10
 
   - id: PROP-009
     mechanism: archive-readiness
     type: gate
-    status: proposed
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: Archive requires COMPLETED state and a verified verification report.
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_task_command.py -q
+    implementation:
+      files: [cli/commands/task.py]
+      consumers: [.maika/workflows/task.md]
     scheduled_wave: W6
+    reviewed_at: 2026-07-10
+
+  - id: ENF-019
+    mechanism: umbrella-ci-runner
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: CI must run CLI plus vNext enforcement tool suites.
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_ci_runner.py -q
+    implementation:
+      files: [scripts/run_ci.py, .github/workflows/ci.yml]
+      consumers: [README.md]
+    scheduled_wave: W6
+    reviewed_at: 2026-07-10
+
+  - id: ENF-020
+    mechanism: vnext-default-engine
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: The repository must default to the vNext workflow engine after W7.
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_vnext_w2_reasoning_layer.py::test_vnext_is_default_workflow_engine -q
+    implementation:
+      files: [.maika/profiles/execution-mode.yaml]
+      consumers: [.maika/workflows/task.md, .maika/hooks/write-gate/write_gate.py]
+    scheduled_wave: W7
+    reviewed_at: 2026-07-10
+
+  - id: ENF-021
+    mechanism: vnext-only-write-gate
+    type: hook
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: Code writes must be scoped by exactly one EXECUTING vNext workspace and its generated task queue.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/hooks/write-gate/tests -q
+    implementation:
+      files: [.maika/hooks/write-gate/write_gate.py]
+      consumers: [.maika/hooks/claude-code/, .maika/hooks/codex/, .maika/hooks/antigravity/]
+    scheduled_wave: W7
+    reviewed_at: 2026-07-10
+
+  - id: ENF-022
+    mechanism: vnext-only-orchestrator
+    type: validator
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: The orchestrator CLI must expose only vNext runtime commands after W7.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/microloop-orchestrator/tests/test_vnext_cli_e2e.py::test_orchestrator_exposes_only_vnext_commands -q
+    implementation:
+      files: [.maika/tools/microloop-orchestrator/orchestrator.py]
+      consumers: [cli/commands/task.py, .maika/workflows/task.md]
+    scheduled_wave: W7
+    reviewed_at: 2026-07-10
+
+  # ---- change-level Loop Engineer (W6): evidence-backed change loops ----
+  - id: ENF-023
+    mechanism: change-loop-scope-escape
+    type: gate
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: >-
+        A worker writing outside the declared lightweight scope opens exactly one
+        evidence-backed change loop (root_cause implementation_gap → implementer);
+        the happy path opens none.
+      litmus:
+        command: /usr/bin/python3 -m pytest ".maika/tools/microloop-orchestrator/tests/test_vnext_cli_e2e.py::test_scope_escape_opens_one_change_loop" -q
+    implementation:
+      files:
+        - .maika/tools/microloop-orchestrator/loop_policy.py
+        - .maika/tools/microloop-orchestrator/loop_state.py
+        - .maika/tools/microloop-orchestrator/loop_router.py
+        - .maika/tools/microloop-orchestrator/loop_engineer.py
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+      consumers: [.maika/tools/microloop-orchestrator/orchestrator.py]
+    scope: {change_classes: [trivial, small]}
+    scheduled_wave: W6
+    reviewed_at: 2026-07-11
+
+  - id: ENF-024
+    mechanism: change-loop-repeated-failure
+    type: gate
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: >-
+        A task still blocked after the retry budget is exhausted opens exactly one
+        change loop (root_cause verification_gap → verification-specialist); a
+        first/within-budget failure stays a micro loop with no LOOP.yaml. The
+        orchestrator call site reuses the scope-escape-proven _observe_friction hook.
+      litmus:
+        command: /usr/bin/python3 -m pytest ".maika/tools/microloop-orchestrator/tests/test_loop_engineer.py" -q
+    implementation:
+      files:
+        - .maika/tools/microloop-orchestrator/loop_policy.py
+        - .maika/tools/microloop-orchestrator/loop_engineer.py
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+      consumers: [.maika/tools/microloop-orchestrator/orchestrator.py]
+    scheduled_wave: W6
+    reviewed_at: 2026-07-11
+
+  - id: ENF-025
+    mechanism: change-loop-approval-gate
+    type: gate
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: >-
+        A human-approval loop decision (e.g. scope expansion) may resume only
+        with a trusted CLI-authored approval bound to the change/loop/decision;
+        a missing, tampered, or agent-authored (source != cli-user-action)
+        approval is rejected. Automatic decisions resume with no approval.
+      litmus:
+        command: /usr/bin/python3 -m pytest "cli/tests/test_loop_command.py" -q
+    implementation:
+      files:
+        - .maika/tools/microloop-orchestrator/loop_governance.py
+        - cli/commands/loop.py
+      consumers: [cli/commands/loop.py, cli/maika.py]
+    scheduled_wave: W7
+    reviewed_at: 2026-07-11
+
+  - id: ENF-026
+    mechanism: macro-learning-candidate-boundary
+    type: gate
+    status: active
+    failure:
+      classification: reproducible_litmus
+      summary: >-
+        A recurring change-loop root cause becomes a skill candidate only across
+        >=2 distinct changes past the recurrence threshold; a single change cannot,
+        poisoned evidence is quarantined from the cluster, and candidate evidence
+        references the loop artifact (loop_ref) rather than copying spec/plan bodies.
+        No automatic global mutation — promotion still requires evaluation + canary.
+      litmus:
+        command: /usr/bin/python3 -m pytest "cli/tests/test_macro_learning.py" -q
+    implementation:
+      files: [cli/knowledge_control.py]
+      consumers: [cli/knowledge_control.py, cli/commands/skill.py]
+    scheduled_wave: W8
+    reviewed_at: 2026-07-11
+
+  - id: ENF-027
+    mechanism: provider-identity
+    type: validator
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/superpowers/plans/2026-07-12-ua-convergence-trimmed.md
+      summary: >-
+        Provider ID drift observed 2026-07-12: manifest/external-workflows used
+        understand-anything while capability-registry (8 refs), provider-capabilities
+        and validator guards used understand-anything-mcp.
+    implementation:
+      files: [cli/agent_content/provider_capabilities.py]
+      consumers: [cli/commands/content.py, cli/tests/test_provider_capabilities.py]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-12
+
+  - id: ENF-028
+    mechanism: typed-conditional-capabilities
+    type: validator
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        C-08/C-09 (inventory 2026-07-13): skill contract schema only supported
+        capabilities.required, so grounding-explorer and reviewing-change
+        mechanically required CBM semantic_code_search despite conditional
+        doctrine (jit/providers.md R-Tool-2A); no trigger vocabulary existed,
+        so conditional support calls could not be validated (B1, harness plan §8).
+    implementation:
+      files: [cli/agent_content/skill_contract.py, .maika/profiles/capability-registry.yaml]
+      consumers:
+        - cli/tests/test_skill_contracts.py
+        - cli/tests/test_structured_trace_skills.py
+        - .maika/skills/grounding-explorer/SKILL.md
+        - .maika/skills/reviewing-task/SKILL.md
+        - .maika/skills/reviewing-change/SKILL.md
+        - .maika/skills/database-explorer/SKILL.md
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-14
+
+  - id: ENF-029
+    mechanism: provider-invocations
+    type: gate
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        B3 + tool-health row (inventory §4, 2026-07-13): TOOL_HEALTH.yaml and
+        provider-health claims are worker-authored free text; a worker can
+        invent provider health/calls with no invocation evidence. Records now
+        require host-delegated payload hashes bound to a registered
+        provider/tool (harness plan §7/§12).
+    implementation:
+      files:
+        - .maika/tools/gate-check/gates.py
+        - cli/mcp/integration/base.py
+        - cli/commands/provider.py
+      consumers:
+        - .maika/tools/gate-check/cli.py
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+        - cli/tests/test_provider_invocations.py
+        - .maika/tools/gate-check/tests/test_provider_invocation_gate.py
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-14
+
+  - id: ENF-030
+    mechanism: trace-request-and-evidence
+    type: gate
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        C-11/C-12 (inventory 2026-07-13): no canonical trace request/evidence
+        artifacts exist; active gates require provider-specific prose
+        (node_id/blast-radius regex, KG-unavailable line, CBM node checks), so
+        a complete UA trace cannot pass neutrally and worker-authored trace
+        claims carry no invocation linkage (B2). Trace request is now
+        orchestrator-compiled; evidence is hash-bound to invocation records.
+    implementation:
+      files:
+        - .maika/tools/gate-check/gates.py
+        - .maika/tools/microloop-orchestrator/trace_compiler.py
+        - cli/mcp/integration/understand_anything.py
+        - cli/mcp/integration/codebase_memory.py
+        - cli/mcp/integration/current_source.py
+        - cli/mcp/integration/trace_store.py
+      consumers:
+        - .maika/tools/gate-check/cli.py
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+        - .maika/config/workflow-router.yaml
+        - cli/commands/provider.py
+        - .maika/skills/grounding-explorer/SKILL.md
+        - .maika/tools/gate-check/tests/test_trace_gates.py
+        - .maika/tools/microloop-orchestrator/tests/test_trace_compiler.py
+        - cli/tests/test_trace_evidence_flow.py
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-14
+
+  - id: ENF-031
+    mechanism: persistence-routing-and-database-context-v2
+    type: gate
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        C-19/C-20 (inventory 2026-07-13): persistence signal did not
+        mechanically dispatch/require DB evidence — needs_db was inferred only
+        from worker-authored query-plan capabilities, so a persistence-
+        sensitive exploration could complete without DATABASE_CONTEXT (B4);
+        v1 context lacked provider identity, environment, probe and drift
+        classification (mutation #8/#9). Persistence is now derived and
+        persisted in CHANGE.risk_signals (one surface, errata E5) and the
+        database-request/database-context v2 gates bind evidence to an
+        explicit environment.
+    implementation:
+      files:
+        - .maika/tools/microloop-orchestrator/adaptive_runtime.py
+        - .maika/tools/microloop-orchestrator/trace_compiler.py
+        - .maika/tools/gate-check/gates.py
+      consumers:
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+        - .maika/tools/microloop-orchestrator/vnext_dispatch.py
+        - .maika/tools/gate-check/cli.py
+        - .maika/skills/database-explorer/SKILL.md
+        - .maika/tools/gate-check/tests/test_grounding_package_gates.py
+        - .maika/tools/gate-check/tests/test_skill_schema_examples.py
+        - .maika/tools/microloop-orchestrator/tests/test_trace_compiler.py
+    scope: {change_classes: [trivial, small, standard, architectural]}
+    reviewed_at: 2026-07-14
+
+  - id: ENF-032
+    mechanism: db-lane-enforcement
+    type: gate
+    status: active
+    failure:
+      classification: safety_boundary
+      reference: .maika/rules/jit/providers.md
+      summary: >-
+        R-Tool-9 database operation boundary (write-gate precedent): the
+        exploration lane was policy-prose only (B5) — workers were not pinned
+        to allowed MCP tools and nothing rejected sql_read/sql_write/
+        sql_execute_script inside database-explorer context. Lane snapshots
+        are now pinned from the provider registry into the worker prompt,
+        record-time CLI, and the database-context gate (mutations #6/#7).
+    implementation:
+      files:
+        - .maika/tools/gate-check/gates.py
+        - .maika/tools/microloop-orchestrator/vnext_dispatch.py
+        - cli/commands/provider.py
+      consumers:
+        - .maika/tools/gate-check/cli.py
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+        - .maika/tools/gate-check/tests/test_grounding_package_gates.py
+        - .maika/tools/microloop-orchestrator/tests/test_vnext_dispatch.py
+        - cli/tests/test_provider_invocations.py
+    scope: {change_classes: [trivial, small, standard, architectural]}
+    reviewed_at: 2026-07-14
+
+  - id: ENF-033
+    mechanism: worker-context-pinning
+    type: validator
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        C-23/B6 (inventory 2026-07-13): workers received a skill NAME and free
+        prose, not content-addressed policy — provider policy could be
+        recalled from model memory and silently drift from the installed
+        contract. Every dispatch prompt now pins skill/provider-registry/
+        capability-registry and present trace/DB artifacts by sha256 at the
+        build_prompt chokepoint (mutation #10). Ack-hash staleness already
+        blocks dispatch via cli.commands.bootstrap.verify_ack_freshness.
+    implementation:
+      files: [.maika/tools/microloop-orchestrator/vnext_dispatch.py]
+      consumers:
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+        - .maika/tools/microloop-orchestrator/tests/test_vnext_dispatch.py
+    scope: {change_classes: [trivial, small, standard, architectural]}
+    reviewed_at: 2026-07-14
+
+  - id: ENF-034
+    mechanism: refresh-reprobe-lifecycle
+    type: validator
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        C-24/B7 (inventory 2026-07-13): an external workflow request did not
+        complete a durable BLOCKED -> re-probe -> resume lifecycle — the
+        dispatch path printed a refusal and dropped the request, refresh could
+        be 'fulfilled' with no new provider evidence, and an explicit empty
+        request_only regained defaults (mutations #12/#13/#14). Blockers are
+        now persisted with a baseline evidence hash; fulfillment demands a
+        fresh success invocation hash and redispatches the original role.
+    implementation:
+      files: [.maika/tools/microloop-orchestrator/vnext_dispatch.py]
+      consumers:
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+        - .maika/tools/microloop-orchestrator/tests/test_refresh_resume.py
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-14
+
+  # ---- deferred change-loop triggers (no discrete runtime signal yet) ----
+  - id: DEF-005
+    mechanism: change-loop-stale-contract
+    type: gate
+    status: deferred
+    activation_condition: >-
+      A stale/invalidated execution contract that is NOT already covered by the
+      scope_escape or escalation paths, observed in a dogfood change.
+    reviewed_at: 2026-07-11
+
+  - id: DEF-006
+    mechanism: change-loop-human-correction
+    type: gate
+    status: deferred
+    activation_condition: >-
+      A discrete human-correction signal in an existing review/result artifact
+      (beyond the human_corrections counter), observed in a dogfood change.
+    reviewed_at: 2026-07-11
+
+
+  # ---- knowledge-native (W2): grounding-package gates ----
+  - id: KN-001
+    mechanism: query-plan
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §6, §11
+      summary: Question phải khai capability thật + evidence type coverable (chặn capability/evidence bịa).
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py, cli/capability_runtime.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/profiles/capability-registry.yaml]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-002
+    mechanism: tool-health
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §4, §6 (P4/P5)
+      summary: Provider `ready` cần probe thật + observed + freshness; degraded cần degradation record (registration != data).
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/rules/rules-tool.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-003
+    mechanism: conflicts
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §6, §8.4
+      summary: Conflict `open` chưa resolve chặn design; resolved cần resolution + resolved_by.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/rules/rules-knowledge.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-004
+    mechanism: coverage
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §6
+      summary: Verdict READY cấm khi còn missing evidence hoặc blocked question; count phải nhất quán.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/gate-check/cli.py]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-005
+    mechanism: database-context
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §4.4, §6
+      summary: DB exploration read-only; cần DB objects thật hoặc degradation record (persistence-sensitive change).
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/rules/rules-tool.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-006
+    mechanism: exploration-evidence-authenticity
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §11 (P10, DoD #9/#27)
+      summary: exploration-evidence với repo_root xác minh file tồn tại + hash khớp + symbol có thật (chặn fake path/symbol/hash).
+      litmus:
+        command: /usr/bin/python3 -m pytest ".maika/tools/gate-check/tests/test_vnext_reasoning_gates.py::test_exploration_evidence_authenticity_rejects_fake_path_symbol_hash" -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py, .maika/tools/microloop-orchestrator/orchestrator.py]
+      consumers: [.maika/tools/gate-check/cli.py]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-007
+    mechanism: capsule-integrity
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §6, §8.9 (P8)
+      summary: Task Knowledge Capsule phải khớp hash queue (immutable sau dispatch) và fresh với EVIDENCE_MANIFEST (stale → block).
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py, .maika/tools/microloop-orchestrator/plan_compiler.py, .maika/tools/microloop-orchestrator/vnext_dispatch.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/skills/executing-task/SKILL.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-008
+    mechanism: evidence-update-request
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §8.9
+      summary: Executor re-grounding request phải khai task_id + status (NEEDS_REGROUNDING/EVIDENCE_CONFLICT/STALE_KNOWLEDGE) + reason + affected_evidence.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_grounding_package_gates.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/skills/executing-task/SKILL.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-009
+    mechanism: task-review-counter-evidence
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §8.10 (P9)
+      summary: Task review APPROVED phải có section Counter-evidence với source anchor độc lập.
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_result_gate.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py]
+      consumers: [.maika/tools/microloop-orchestrator/vnext_dispatch.py, .maika/skills/reviewing-task/SKILL.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-010
+    mechanism: knowledge-impact
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §8.11, §11 (final-review)
+      summary: Final review phải phát KNOWLEDGE_IMPACT.yaml đủ lane (stale/superseded/new/graph_refresh/memory).
+      litmus:
+        command: /usr/bin/python3 -m pytest .maika/tools/gate-check/tests/test_vnext_result_gate.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py, .maika/tools/microloop-orchestrator/vnext_dispatch.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/skills/reviewing-change/SKILL.md]
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-10
+
+  - id: KN-011
+    mechanism: verification-report
+    type: gate
+    status: active
+    failure:
+      classification: external_requirement
+      reference: MAIKA_KNOWLEDGE_NATIVE_REASONING_REFACTOR.md §8.12 (P10, DoD #19)
+      summary: Verification chạy lệnh thật; mỗi record cần observed_output + exit_code(int) + timestamp + interpretation (không complete bằng marker).
+      litmus:
+        command: /usr/bin/python3 -m pytest cli/tests/test_task_command.py -q
+    implementation:
+      files: [.maika/tools/gate-check/gates.py, cli/commands/task.py]
+      consumers: [.maika/tools/gate-check/cli.py, .maika/skills/verification-before-completion/SKILL.md]
+    scope: {change_classes: [small, standard, architectural]}
     reviewed_at: 2026-07-10
 
 

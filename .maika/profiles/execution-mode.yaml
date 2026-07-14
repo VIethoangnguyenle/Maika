@@ -1,24 +1,22 @@
-# Declares the active micro-loop execution tier for THIS platform.
-# The ONLY place platform-specifics live. Change one line to retarget.
-#   subagent      → tier Agent-tool (tùy chọn cho Claude Code; đổi execution_mode nếu muốn)
-#   fresh-session → Cursor / Antigravity (worker context mới per task, tự động qua worker_command)
-#   inline-reload → fallback single-session (LCD; always works)
-{% if platform.name == "antigravity" %}
-execution_mode: fresh-session
-# Lệnh spawn worker dùng-một-lần; {prompt} được thay bằng prompt đã shell-quote.
-worker_command: 'agy --add-dir "$PWD" --dangerously-skip-permissions -p {prompt}'
-{% elif platform.name == "codex" %}
-execution_mode: fresh-session
-worker_command: 'codex exec --sandbox workspace-write {prompt}'
-{% elif platform.name == "claude-code" %}
-execution_mode: fresh-session
-worker_command: 'claude -p --dangerously-skip-permissions {prompt}'
-{% else %}
-execution_mode: inline-reload
-worker_command: ''
-{% endif %}
-max_retries: 2
-worker_timeout_seconds: 900
+version: 2
+workflow_engine: vnext
 
-# vNext W1: engine flag — vnext là opt-in; legacy là mặc định (Master Plan v2 §26 W1)
-workflow_engine: legacy
+# Shared execution policy only. Host commands live in
+# .maika/runtime/platforms/<platform>.yaml.
+runtime_policy:
+  max_retries: 2
+  worker_timeout_seconds: 900
+
+  token_budget:
+    version: 1
+    trivial: {max_context_tokens: 8000, max_worker_calls: 1, max_evidence_items: 5}
+    small: {max_context_tokens: 20000, max_worker_calls: 2, max_evidence_items: 12}
+    standard: {max_context_tokens: 60000, max_worker_calls: 6, max_evidence_items: 30}
+    architectural: {max_context_tokens: 120000, max_worker_calls: 12, max_evidence_items: 60}
+  command_policy:
+    version: 1
+    allowed_profiles: [python-version, pytest-paths, gradle-test, gradle-build, maika-ci]
+    allowed_executables: [./gradlew, gradlew, mvn, pytest, python, python3, npm, pnpm, go, cargo, git]
+    requires_human_confirmation: [docker, kubectl, terraform, flyway, liquibase]
+    timeout_seconds: 600
+    output_cap_bytes: 2000

@@ -8,8 +8,9 @@ class CodexPlatform(BasePlatform):
     name = "codex"
     display_name = "OpenAI Codex CLI"
     config_entry_point = "AGENTS.md"
-    framework_root = ".agents"
     native_skill_export = None
+    worker_binary = "codex"
+    worker_base_args = ["exec"]
 
     tool_mapping = {
         # Codex CLI does not publicly document its internal tool names the
@@ -46,7 +47,15 @@ class CodexPlatform(BasePlatform):
         "list_spaces":       "list_spaces",
         "get_space_pages":   "get_space_pages",
         # ── Database (db_access MCP — server-level reference) ──
-        "db_query":          "db-remote",
+        "db_list_databases": "list_databases",
+        "db_list_tables":    "sql_list_tables",
+        "db_get_columns":    "sql_get_columns",
+        "db_get_constraints":"sql_get_constraints",
+        "db_sql_read":       "sql_read",
+        "db_mongo_read":     "mongo_read",
+        "db_sql_write":      "sql_write",
+        "db_mongo_write":    "mongo_write",
+        "db_sql_execute_script": "sql_execute_script",
 
         "search_web":        "search_web",
         "read_url":          "read_url",
@@ -65,13 +74,17 @@ class CodexPlatform(BasePlatform):
         "subagent": False,
         "artifacts": False,
         "browser": False,
+        "fresh_session": True,
+        "task_dispatch": True,
+        "review_dispatch": True,
+        "model_selection": True,
         "write_gate_hook": True,
     }
 
     notes = [
         "AGENTS.md is the config entry point (developers.openai.com/codex/guides/agents-md)",
-        "Maika runtime scaffolds into .agents/",
+        "Maika canonical runtime lives in .maika/",
         "tool_mapping is abstract passthrough — Codex CLI's internal tool names are not "
         "publicly documented; map manually if your Maika skills need concrete tool calls",
-        "Skills/workflows export directly into the .agents/ framework root",
+        "Skills/workflows are shared from the .maika/ project core",
     ]

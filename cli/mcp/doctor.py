@@ -85,7 +85,9 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
     if resolved is None:
         raise ValueError(f"No Maika resolved-config.yaml found under {target}")
     platform = resolved.get("platform", "generic")
-    framework_root = resolved.get("framework_root", get_mcp_adapter(platform).framework_root)
+    # Diagnostics are project-owned state. Legacy configs remain readable, but
+    # new reports must never be written back into a host-specific legacy root.
+    framework_root = get_mcp_adapter(platform).framework_root
     selected = list(resolved.get("mcps") or [])
     adapter = get_mcp_adapter(platform)
 
@@ -220,8 +222,5 @@ def apply_fix(target: Path, home: Path, assume_yes: bool) -> Path | None:
         if answer != "y":
             return None
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists() and destination.read_text(encoding="utf-8").strip():
-        backup = destination.with_name(destination.name + ".bak")
-        shutil.copy2(destination, backup)
     shutil.copy2(source, destination)
     return destination

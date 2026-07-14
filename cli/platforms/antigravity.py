@@ -8,8 +8,9 @@ class AntigravityPlatform(BasePlatform):
     name = "antigravity"
     display_name = "Google Antigravity (Gemini)"
     config_entry_point = "AGENTS.md"
-    framework_root = ".agents"
     native_skill_export = None
+    worker_binary = "agy"
+    worker_base_args = []
 
     tool_mapping = {
         # ── File Operations ──
@@ -50,7 +51,15 @@ class AntigravityPlatform(BasePlatform):
         "get_space_pages":   "mcp_confluence-servicehub_confluence_get_space_pages",
 
         # ── Database (db_access MCP — server-level reference) ──
-        "db_query":          "db-remote",
+        "db_list_databases": "mcp_db-access_list_databases",
+        "db_list_tables":    "mcp_db-access_sql_list_tables",
+        "db_get_columns":    "mcp_db-access_sql_get_columns",
+        "db_get_constraints":"mcp_db-access_sql_get_constraints",
+        "db_sql_read":       "mcp_db-access_sql_read",
+        "db_mongo_read":     "mcp_db-access_mongo_read",
+        "db_sql_write":      "mcp_db-access_sql_write",
+        "db_mongo_write":    "mcp_db-access_mongo_write",
+        "db_sql_execute_script": "mcp_db-access_sql_execute_script",
 
         # ── Web & Browser ──
         "search_web":        "search_web",
@@ -74,6 +83,10 @@ class AntigravityPlatform(BasePlatform):
         "subagent": True,
         "artifacts": True,
         "browser": True,
+        "fresh_session": True,
+        "task_dispatch": True,
+        "review_dispatch": True,
+        "model_selection": True,
         "write_gate_hook": True,
     }
 
@@ -81,7 +94,7 @@ class AntigravityPlatform(BasePlatform):
 
     notes = [
         "AGENTS.md is loaded via user_rules in Antigravity config",
-        "Maika runtime scaffolds into .agents/",
+        "Maika canonical runtime lives in .maika/",
         "MCP tools use prefix: mcp_<server>_<tool>",
         "Supports browser_subagent for visual tasks",
     ]

@@ -14,6 +14,18 @@ pp = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(pp)
 PLAN_TPL = """---
 change_id: demo
 plan_version: 1
+knowledge_trace:
+  id: DEC-PLAN-001
+  statement: Decompose the verified change.
+  type: task_decomposition
+  knowledge_questions: ["What tasks are required?"]
+  evidence_ids: [CODE-001]
+  authority: current source
+  conflicts: []
+  assumptions: []
+  confidence: high
+  freshness: fresh
+  verdict: accepted
 base_commit: BASESHA
 spec_hash: sha256:SPECSHA
 evidence_hash: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
@@ -118,6 +130,13 @@ def test_modify_file_missing_fails(tmp_path):
     text, _ = _mk(tmp_path)
     res = _check(tmp_path, text.replace("modify: [src/a.py]", "modify: [src/missing.py]"))
     assert not res.ok and "missing" in res.reason
+
+
+def test_delete_file_missing_fails(tmp_path):
+    text, _ = _mk(tmp_path)
+    text = text.replace("modify: [src/a.py]", "delete: [src/missing.py]")
+    res = _check(tmp_path, text)
+    assert not res.ok and "files.delete missing" in res.reason
 
 
 def test_symbol_not_found_fails(tmp_path):

@@ -13,10 +13,7 @@ from cli.platforms.generic import GenericPlatform
 
 
 def test_platform_framework_roots():
-    assert get_platform("antigravity").framework_root == ".agents"
-    assert get_platform("codex").framework_root == ".agents"
-    assert get_platform("claude-code").framework_root == ".claude"
-    assert get_platform("generic").framework_root == ".maika"
+    assert {get_platform(key).framework_root for key in PLATFORMS} == {".maika"}
 
 
 def test_native_root_platforms_do_not_need_skill_mirror():
@@ -27,7 +24,7 @@ def test_native_root_platforms_do_not_need_skill_mirror():
 
 def test_render_context_includes_framework_root():
     ctx = get_platform("antigravity").build_render_context(["codebase-memory-mcp"], "python")
-    assert ctx["platform"]["framework_root"] == ".agents"
+    assert ctx["platform"]["framework_root"] == ".maika"
 
 
 def test_write_gate_hook_capability_matrix():
@@ -35,6 +32,16 @@ def test_write_gate_hook_capability_matrix():
     assert get_platform("codex").capabilities["write_gate_hook"] is True
     assert get_platform("antigravity").capabilities["write_gate_hook"] is True
     assert get_platform("generic").capabilities["write_gate_hook"] is False
+
+
+def test_dispatch_capability_matrix():
+    for key in ("claude-code", "codex", "antigravity"):
+        caps = get_platform(key).capabilities
+        assert caps["fresh_session"] is True
+        assert caps["task_dispatch"] is True
+        assert caps["review_dispatch"] is True
+    assert get_platform("generic").capabilities["task_dispatch"] is False
+    assert get_platform("generic").capabilities["review_dispatch"] is False
 
 
 def test_cursor_is_out_of_scope_for_platform_selection():
@@ -119,14 +126,20 @@ def test_get_tool_fails_for_unknown_required_operation():
     assert "not_a_real_tool" in str(exc.value)
 
 
-def test_all_platforms_map_db_query():
+def test_all_platforms_map_real_db_access_operations():
     for key, cls in PLATFORMS.items():
-        assert "db_query" in cls().tool_mapping, f"{key} missing db_query mapping"
+        for operation in (
+            "db_list_databases", "db_list_tables", "db_get_columns", "db_get_constraints",
+            "db_sql_read", "db_mongo_read", "db_sql_write", "db_mongo_write",
+            "db_sql_execute_script",
+        ):
+            assert operation in cls().tool_mapping, f"{key} missing {operation} mapping"
 
 
-def test_db_query_resolves_in_render_context():
-    ctx = get_platform("claude-code").build_render_context(["db-remote"], "python")
-    assert ctx["tools"]["db_query"] == "db-remote"
+def test_db_access_operations_resolve_in_render_context():
+    ctx = get_platform("claude-code").build_render_context(["db-access"], "python")
+    assert ctx["tools"]["db_list_tables"] == "mcp__db-access__sql_list_tables"
+    assert ctx["tools"]["db_sql_write"] == "mcp__db-access__sql_write"
 
 
 DYNAMIC_MEMORY_OPS = {
@@ -234,9 +247,3 @@ def test_is_windows_flag_present_for_every_platform():
     for key in PLATFORMS:
         ctx = get_platform(key).build_render_context([], "python")
         assert "is_windows" in ctx, f"{key} missing is_windows"
-
-
-def test_build_render_context_hook_python_default_and_override():
-    p = get_platform("claude-code")
-    assert p.build_render_context([], "python")["hook_python"] == "python"
-    assert p.build_render_context([], "python", hook_python="py -3")["hook_python"] == "py -3"

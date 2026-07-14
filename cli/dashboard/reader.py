@@ -1,14 +1,11 @@
-"""Maika dashboard reader: parse a project's contract files into a RunState.
-
-Reads (read-only) from {project}/{framework_root}/knowledge/active/:
-  - AGENT_TRANSPARENCY.md    (YAML frontmatter: phase_state, ticket_id)
-  - microloop/TASK_QUEUE.md  (pure YAML: tasks[].status)
+"""Maika dashboard reader: parse vNext task workspaces into a RunState.
 
 Token parsing (TOKEN_LOG.md markdown tables) is out of slice scope; `tokens`
-stays None. Activity timeline (ACTIVITY_LOG.jsonl) is P5+ and not read here.
+stays None.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,23 +36,6 @@ class RunState:
         return round(100 * self.tasks_done / self.tasks_total)
 
 
-def _read_frontmatter(path: Path) -> Optional[dict]:
-    """Return the YAML frontmatter dict of a `--- ... ---` .md file, else None."""
-    if not path.exists():
-        return None
-    text = path.read_text(encoding="utf-8")
-    if not text.startswith("---"):
-        return None
-    parts = text.split("---", 2)
-    if len(parts) < 3:
-        return None
-    try:
-        data = yaml.safe_load(parts[1])
-    except yaml.YAMLError:
-        return None
-    return data if isinstance(data, dict) else None
-
-
 def active_dir(project_path: str, resolved: Optional[dict] = None) -> Optional[Path]:
     """Resolve {project}/{framework_root}/knowledge/active, or None if not an Maika project.
 
@@ -69,32 +49,51 @@ def active_dir(project_path: str, resolved: Optional[dict] = None) -> Optional[P
     return Path(project_path) / resolved.get("framework_root", CANONICAL_FRAMEWORK_ROOT) / "knowledge" / "active"
 
 
+def _framework_dir(project_path: str) -> Optional[Path]:
+    resolved = load_resolved_config(Path(project_path))
+    if resolved is None:
+        return None
+    return Path(project_path) / resolved.get("framework_root", CANONICAL_FRAMEWORK_ROOT)
+
+
+def _latest_workspace(framework: Path) -> Optional[Path]:
+    candidates = [
+        path.parent
+        for path in (framework / "changes").glob("*/STATE.yaml")
+        if path.is_file()
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: (path / "STATE.yaml").stat().st_mtime)
+
+
 def read_run(project_path: str, active: Optional[Path] = None) -> RunState:
     state = RunState(project_path=str(project_path))
 
-    if active is None:
-        active = active_dir(project_path)
-    if active is None:
+    framework = active.parents[1] if active is not None else _framework_dir(project_path)
+    if framework is None:
         return state  # not an Maika project → idle
 
+    ws = _latest_workspace(framework)
+    if ws is None:
+        return state
+
     mtimes: list[float] = []
+    state_path = ws / "STATE.yaml"
+    try:
+        state_doc = yaml.safe_load(state_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        state.stale = True
+        state_doc = {}
+    state.phase_state = state_doc.get("state")
+    state.ticket_id = state_doc.get("change_id") or ws.name
+    mtimes.append(state_path.stat().st_mtime)
 
-    # AGENT_TRANSPARENCY frontmatter
-    at_path = active / "AGENT_TRANSPARENCY.md"
-    fm = _read_frontmatter(at_path)
-    if fm is not None:
-        state.phase_state = fm.get("phase_state")
-        state.ticket_id = fm.get("ticket_id")
-        mtimes.append(at_path.stat().st_mtime)
-    elif at_path.exists():
-        state.stale = True  # present but unparseable
-
-    # TASK_QUEUE (the file IS yaml)
-    tq_path = active / "microloop" / "TASK_QUEUE.md"
+    tq_path = ws / "generated" / "TASK_QUEUE.json"
     if tq_path.exists():
         try:
-            queue = yaml.safe_load(tq_path.read_text(encoding="utf-8")) or {}
-        except yaml.YAMLError:
+            queue = json.loads(tq_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
             queue = None
             state.stale = True
         if isinstance(queue, dict):
@@ -104,10 +103,10 @@ def read_run(project_path: str, active: Optional[Path] = None) -> RunState:
                 state.tasks_done = sum(1 for t in tasks if isinstance(t, dict) and t.get("status") == "done")
                 for t in tasks:
                     if isinstance(t, dict) and t.get("status") == "in_progress":
-                        state.active_task = t.get("desc") or t.get("id")
+                        state.active_task = t.get("title") or t.get("desc") or t.get("id")
                         break
             if state.ticket_id is None:
-                state.ticket_id = queue.get("ticket_id")
+                state.ticket_id = queue.get("change_id")
             mtimes.append(tq_path.stat().st_mtime)
 
     if mtimes:

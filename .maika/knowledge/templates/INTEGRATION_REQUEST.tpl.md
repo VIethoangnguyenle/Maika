@@ -1,5 +1,0 @@
-node_id: "<node-id>"
-request_type: "integration"
-target_file: "<path>"
-requested_change: ""
-required_after: "<node-id>"

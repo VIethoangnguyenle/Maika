@@ -2,20 +2,18 @@
 
 Runtime hook for platforms that support pre-write/pre-edit tool interception.
 
-The hook blocks application-code writes unless all implementation preflight
-artifacts exist and pass:
+The hook blocks application-code writes unless the vNext workspace gate passes:
 
-- `knowledge/active/KNOWLEDGE_CHECKPOINT.md` passes
-  `tools/gate-check/gates.py::validate_knowledge_checkpoint`.
-- `knowledge/active/AGENT_TRANSPARENCY.md` passes the apply gate (`Pha 2 DONE`
-  and no unresolved `[BLOCKER-ARCH]`).
-- A valid `knowledge/active/TASK_HANDOFF.<node>.md` or
-  `knowledge/active/IMPLEMENTATION_CONTEXT.md` passes
-  `validate_implementation_context` and its `## Allowed Files` section matches
-  the code file being written.
+- `profiles/execution-mode.yaml` has `workflow_engine: vnext`.
+- Exactly one `changes/<id>/STATE.yaml` is `EXECUTING`.
+- `generated/PLAN_VALIDATION.json` is approved.
+- `generated/TASK_QUEUE.json` matches `generated/PLAN_MANIFEST.json`.
+- Exactly one task is `in_progress`.
+- The target path is declared in that task's `files` contract.
 
-Framework artifacts, OpenSpec artifacts, and Maika planning/spec docs are allowed
-so the agent can create the checkpoint/spec before implementation writes.
+Framework artifacts and Maika planning/spec docs are allowed so the agent can
+create the workspace, spec, queue, briefs, results, and reviews before
+implementation writes.
 
 Documentation/understanding artifacts (`.md`, `.markdown`, `.txt`, `.rst`) are
 also exempt anywhere in the tree — they are not application code, so the agent

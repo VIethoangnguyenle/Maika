@@ -1,164 +1,101 @@
 ---
 name: convention-intelligence-builder
-version: '1.0'
-description: >
-  Scan codebase qua UA + Codebase Memory để extract naming conventions, class suffix patterns,
-  và layer-specific design principles. Sinh conventions.draft.yaml để user review trước khi approve.
-  Dùng khi onboard project mới hoặc sau refactor lớn cần cập nhật conventions.
-  KHÔNG dùng cho: viết convention thủ công (→ edit trực tiếp conventions.yaml),
-  review kiến trúc/rủi ro (→ architecture-reviewer), infer coding philosophy (→ author-dna-builder).
+version: '3.0'
+description: 'Dùng khi onboarding, sau refactor lớn, hoặc khi review lộ convention
+  gap: trích convention cụ thể (naming/structure/testing/boundary) từ verified source
+  với evidence threshold, examples/counterexamples, applies-to tags, scope matcher,
+  enforcement type.'
+routing:
+  mode: conditional
+  states: []
+  classes:
+  - trivial
+  - small
+  - standard
+  - architectural
+capabilities:
+  required:
+  - architecture_discovery
+  - dependency_analysis
+  - exact_source_inspection
+outputs:
+  required:
+  - knowledge/long-term/conventions.yaml
 ---
-
 # Convention Intelligence Builder
 
-## 1. Mục tiêu
+## Mục tiêu
+Nắm bắt convention cụ thể (WHAT — structural rule) mà planner/reviewer áp được, với đủ
+metadata để scope-match và enforce.
 
-Extract **implicit conventions** từ codebase thực tế — không phải generic best practice — và đưa chúng vào `{{ platform.framework_root }}/knowledge/long-term/conventions.yaml` để agent dùng khi sinh spec và code.
-
-Hai nguồn được scan đồng thời qua UA Knowledge Graph:
-- **Project codebase** (`PROJECT_ROOTS`) — convention project-native, có thể có exception có lý do.
-- **Upstream shared library** (`UPSTREAM_ROOTS`) — convention từ shared library bắt buộc tuân theo, không override.
-
-Output cuối là `conventions.draft.yaml` → user review + edit trong IDE → chạy `/approve-conventions` để commit chính thức.
-
----
-
-## 2. Khi nào dùng
-
-Trigger skill này khi:
-- Bắt đầu onboard một project mới vào hệ thống Agent Memory.
-- Sau refactor lớn (rename package, đổi layer architecture).
-- User cảm thấy agent đang đề xuất tên class/file không khớp với convention thực tế.
-- `conventions.yaml` chưa tồn tại hoặc `status: stale` trong metadata.
-
----
+## Khi nào sử dụng
+Dùng khi onboarding, sau refactor lớn, hoặc khi review finding lặp lại lộ convention gap.
 
 ## Khi nào KHÔNG sử dụng
+- Bài học là triết lý (đưa sang author-dna-builder).
+- Chỉ một example tình cờ, chưa đủ threshold.
 
-- Khi chỉ muốn tra cứu convention — đọc `conventions.yaml` trực tiếp.
-- Khi task đang ở Pha 2/3 — không nên scan convention giữa chừng spec.
-- Khi cần viết convention thủ công (→ edit trực tiếp conventions.yaml).
-- Khi cần review kiến trúc/rủi ro (→ architecture-reviewer).
-- Khi cần infer coding philosophy (→ author-dna-builder).
+## Đầu vào
+- Current source + tests.
+- `knowledge/long-term/conventions.yaml` hiện có.
 
----
+## Câu hỏi tri thức
+- Pattern naming/structure/testing/boundary nào lặp lại đủ threshold?
+- Có counterexample nào phá pattern không? Convention hiện có đã cover chưa?
 
-## 3. Nguồn dữ liệu
+## Loại evidence bắt buộc
+- `convention_rule` (entry hiện có), `exact_code_fact` (examples + counterexamples).
+- `code_graph_edge`/`dependency_path` (boundary pattern).
 
-| Nguồn | Abstract Operation | Ghi chú |
-|-------|------|---------|
-| Code exploration (structured) | `{{ tools.search_code }}`, `{{ tools.get_symbol }}`, `{{ tools.read_file }}` | Nguồn chính cho naming pattern |
-| Code exploration (upstream) | Cùng operations, filter theo `UPSTREAM_ROOTS` path | Tag `origin: upstream` |
-| Code exploration (semantic) | `{{ tools.search_code }}` (semantic mode) | Làm giàu pattern khi structured fuzzy |
-| Code exploration (domain) | `{{ tools.get_symbol }}` | Hiểu layer boundaries |
+## Chính sách capability
+Capability IDs: `exact_source_inspection`, `architecture_discovery`,
+  `dependency_analysis`.
+Convention dẫn từ verified source, không hard-code provider behavior.
 
----
+## Quy trình truy xuất
+1. Inspect source pattern; nhóm pattern lặp lại.
+2. Tách convention (structural) khỏi Author DNA (philosophy).
 
-## 4. Quy trình chi tiết
+## Thứ tự authority và precedence
+current source > review pattern lặp lại > inference. Convention từ một example đơn lẻ
+không được lưu.
 
-### Bước 1 — Kiểm tra trạng thái công cụ
+## Kết quả bắt buộc
+Entry convention với: evidence threshold (số lần lặp), examples + counterexamples,
+applies-to tags, scope matcher, conflict handling, enforcement type, supersession,
+consumer list.
 
-```
-CALL: {{ tools.code_status }}()
-  IF provider không tồn tại hoặc dữ liệu quá cũ:
-    → WARN: "Code exploration chưa sẵn sàng. Cần setup provider trước."
-    → ABORT
-  IF provider OK:
-    → Ghi nhận: project_root path, upstream_root path (nếu có upstream library)
-    → Dùng path prefix để phân biệt origin sau này
-```
+## Bất biến
+- Không lưu triết lý ở đây.
+- Không thêm convention từ một example tình cờ.
+- Không hard-code provider behavior.
 
----
+## Yêu cầu evidence
+Mỗi convention cite verified source example + counterexample khi có. Threshold ghi rõ.
 
-### Bước 2 — Structural Audit (5 chiều)
+## Freshness và confidence
+Ghi provenance + `applies_to`. Convention cũ bị thay ghi `superseded_by`.
 
-Chạy song song 5 chiều scan qua adapter operations:
+## Quy trình degradation
+Evidence quá thưa (dưới threshold) → giữ ở `candidate`, không enforce; ghi lý do.
 
-| Chiều | Nội dung | Operation chính |
-|-------|----------|------------|
-| **2A** | File & Class Naming Patterns (suffix grouping) | `{{ tools.search_code }}(type="class")` |
-| **2B** | Package / Layer Structure | `{{ tools.get_symbol }}()` |
-| **2C** | Architecture Core Patterns & Dispatch | `{{ tools.get_dependencies }}()` |
-| **2D** | Upstream Conventions từ shared library | `{{ tools.search_code }}(upstream)` |
-| **2E** | Test & Config Conventions | `{{ tools.search_code }}()` |
+## Quy trình
+1. Inspect + nhóm pattern; kiểm threshold.
+2. Tách convention/DNA.
+3. Ghi `conventions.yaml` (đủ metadata).
+4. Regenerate knowledge index.
 
-> **Chi tiết đầy đủ (scan queries per dimension)**: Xem [references/structural-audit-scan.md](references/structural-audit-scan.md)
+## Điều kiện dừng
+- Evidence quá thưa.
+- Pattern là philosophical, không cụ thể.
+- Convention hiện có đã cover.
 
-### Bước 3 — Pattern Consolidation
-
-Sau khi có raw data từ 5 chiều, consolidate thành structured findings:
-
-```
-FOR EACH pattern category:
-  1. Tính confidence score:
-     - HIGH   : count >= 10, consistent across layers
-     - MEDIUM : count 3-9, hoặc có exception nhỏ
-     - LOW    : count < 3, hoặc contradicted by other evidence
-
-  2. Phân biệt origin:
-     - project-native : source_path trong PROJECT_ROOTS
-     - upstream       : source_path trong UPSTREAM_ROOTS
-
-  3. Detect exceptions (nếu có):
-     - Pattern X xuất hiện 15 lần nhưng có 2 file vi phạm
-     → Ghi nhận exception, không bỏ qua
-
-  4. Ghi evidence:
-     - Ít nhất 2-3 ví dụ cụ thể (class name, file path) cho mỗi pattern
-```
-
----
-
-### Bước 4 — Sinh conventions.draft.yaml
-
-Ghi ra `{{ platform.framework_root }}/knowledge/long-term/conventions.draft.yaml` với các sections:
-Naming Conventions, Naming Patterns (machine lane — global regex cho rule-projector),
-Package Structure, Design Patterns, Upstream Constraints, Test Conventions,
-Exceptions & Inconsistencies, Needs Review.
-
-Mỗi entry naming/design_patterns PHẢI có `id` + `applies_to` (vocabulary artifact-type
-do project định nghĩa; `[]` = global) — thiếu key `applies_to` thì knowledge-index bỏ qua entry.
-
-### Bước 5 — Summary Report cho User
-
-Xuất bảng tóm tắt: HIGH/MEDIUM/LOW patterns, upstream constraints, exceptions, needs review.
-
-### Bước 6 — /approve-conventions Workflow
-
-Validate draft → Cross-check với snapshot → Promote to approved → Update context-loader.
-
-> **Chi tiết đầy đủ (YAML template + report format + approve workflow)**: Xem [references/conventions-draft-template.md](references/conventions-draft-template.md)
-
----
-
-## 5. Re-scan Policy & Agent Usage
-
-- **Re-scan modes**: [U] Update, [R] Rebuild, [S] Skip
-- **Agent usage sau approve**: enforce naming ở Pha 2, warn ở architecture review, KHÔNG override upstream constraints
-
-## [L4] Delta Scan Mode
-
-Scan chỉ files changed since last scan. Fallback to full scan nếu >20% files thay đổi.
-
-> **Chi tiết đầy đủ (re-scan, usage, delta algorithm)**: Xem [references/rescan-usage-guide.md](references/rescan-usage-guide.md)
-
----
+## Tác động lên knowledge
+Conventions là structural layer, consumer là grounding-explorer + validating-plan; enforce
+qua rule-projector khi checkable.
 
 ## Đầu ra
+`knowledge/long-term/conventions.yaml` + thay đổi index.
 
-- **File chính**: `{{ platform.framework_root }}/knowledge/long-term/conventions.draft.yaml` — bản nháp chờ user review.
-- **Sau `/approve-conventions`**: `{{ platform.framework_root }}/knowledge/long-term/conventions.yaml` — bản chính thức (approved).
-- **Cập nhật**: `{{ platform.framework_root }}/knowledge/active/AGENT_TRANSPARENCY.md` — ghi lại kết quả scan.
-
----
-
-## 7. Cập nhật AGENT_TRANSPARENCY
-
-```
-- [x] convention-intelligence-builder
-- Scanned: {n} project nodes, {n} upstream nodes
-- Patterns extracted: {n} high, {n} medium, {n} low confidence
-- Upstream constraints: {n} mandatory rules từ {upstream_library}
-- conventions.yaml status: draft | approved
-- Warnings: {list nếu có conflict với snapshot}
-```
+## Handoff tiếp theo
+`grounding-explorer` và `validating-plan` tiêu thụ conventions.

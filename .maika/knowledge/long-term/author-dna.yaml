@@ -1,11 +1,11 @@
 # author-dna.yaml
 # Coding philosophy và style của tác giả — "judgment layer" cho agent.
-# Generated bởi: author-dna-builder (/dna-scan + interview + /approve-dna)
+# Generated bởi: author-dna-builder trong workflow `maika task`.
 #
 # QUAN TRỌNG:
 #   - Khác với conventions.yaml (naming rules), file này là LENS để agent
 #     EVALUATE design và PROPOSE solution.
-#   - Lệnh sau khi init dự án: chạy `/dna-scan` để tự động build file này dựa trên code thực tế.
+#   - Dùng author-dna-builder khi task cần cập nhật author DNA từ bằng chứng thực tế.
 #   - Status: APPROVED — agent SỬ DỤNG file này làm judgment layer.
 
 version: "1.1"

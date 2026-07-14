@@ -1,21 +1,36 @@
 # .maika/tools/microloop-orchestrator/tests/test_vnext_state.py
+import sys
+from pathlib import Path
+
 import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
 import vnext_state as vs
 
 
 def _ws(tmp_path):
-    return vs.init_workspace(tmp_path, "demo-change", "small", "Demo change")
+    return vs.init_workspace(tmp_path, "demo-change", "standard", "Demo change")
 
 
 def test_init_workspace_creates_minimal_layout(tmp_path):
     ws = _ws(tmp_path)
     assert (ws / "CHANGE.yaml").exists()
     assert (ws / "STATE.yaml").exists()
+    assert (ws / "INTENT.md").exists()
+    assert (ws / "RECONCILIATION.md").exists()
+    assert (ws / "exploration" / "GROUNDING.yaml").exists()
+    assert (ws / "exploration" / "EVIDENCE_MANIFEST.yaml").exists()
+    for art in ("QUERY_PLAN.yaml", "TOOL_HEALTH.yaml", "CONFLICTS.yaml", "COVERAGE.yaml"):
+        assert (ws / "exploration" / art).exists(), art
     for sub in ("generated", "briefs", "results", "reviews"):
         assert (ws / sub).is_dir()
     change = vs._load_yaml(ws / "CHANGE.yaml")
     assert change["change_id"] == "demo-change"
-    assert change["class"] == "small"
+    assert change["class"] == "standard"
+    assert change["requested_class"] == "standard"
+    assert change["effective_class"] == "standard"
     assert vs.load_state(ws)["state"] == "INTAKE"
 
 
@@ -25,7 +40,7 @@ def test_init_rejects_bad_class(tmp_path):
 
 
 def test_transition_legal_and_illegal(tmp_path):
-    ws = _ws(tmp_path)
+    ws = vs.init_workspace(tmp_path, "small-change", "small", "Small change")
     vs.transition(ws, "PLANNING")            # small: INTAKE -> PLANNING hợp lệ (skip explore/spec class-aware ở W2)
     assert vs.load_state(ws)["state"] == "PLANNING"
     with pytest.raises(ValueError):
@@ -39,3 +54,27 @@ def test_blocked_requires_reason(tmp_path):
     vs.transition(ws, "BLOCKED", blocked={"reason": "stale_plan", "detail": "x"})
     st = vs.load_state(ws)
     assert st["blocked"]["reason"] == "stale_plan"
+    assert st["blocked"]["previous_state"] == "INTAKE"
+    assert st["blocked"]["resume_state"] == "INTAKE"
+    with pytest.raises(ValueError, match="BLOCKED can only resume to INTAKE"):
+        vs.transition(ws, "PLANNING")
+    vs.transition(ws, "INTAKE")
+    assert vs.load_state(ws)["state"] == "INTAKE"
+
+
+def test_start_exploration_is_idempotent(tmp_path):
+    ws = _ws(tmp_path)
+
+    first = vs.start_exploration(ws)
+    second = vs.start_exploration(ws)
+
+    assert first["state"] == "EXPLORING"
+    assert second["state"] == "EXPLORING"
+
+
+def test_start_exploration_rejects_unrelated_state(tmp_path):
+    ws = _ws(tmp_path)
+    vs.transition(ws, "PLANNING")
+
+    with pytest.raises(ValueError, match="cannot start exploration from PLANNING"):
+        vs.start_exploration(ws)
