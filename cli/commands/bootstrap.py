@@ -31,6 +31,10 @@ _ACK_SURFACES = {
     "kernel_hash": "agent/KERNEL.md",
     "router_hash": "config/workflow-router.yaml",
     "skill_index_hash": "skills/skill-index.yaml",
+    # Mutation #11 (harness plan §21): provider/capability contracts changed
+    # after acknowledgment must block dispatch until re-ack.
+    "provider_registry_hash": "config/provider-registry.yaml",
+    "capability_registry_hash": "profiles/capability-registry.yaml",
 }
 
 

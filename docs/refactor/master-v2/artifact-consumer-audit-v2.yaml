@@ -47,7 +47,8 @@ modules:
 - path: .maika/tools/microloop-orchestrator/trace_compiler.py
   consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py
 - path: .maika/tools/microloop-orchestrator/vnext_dispatch.py
-  consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py
+  consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py;
+    file-dispatch:cli/agent_content/system_model.py
 - path: .maika/tools/microloop-orchestrator/vnext_state.py
   consumed_by: python-import:.maika/tools/microloop-orchestrator/loop_state.py; file-dispatch:cli/agent_content/router.py;
     dynamic-consumer:cli/commands/task.py:orchestrator + vnext_state + runtime_hardening

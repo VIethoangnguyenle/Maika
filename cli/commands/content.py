@@ -203,5 +203,19 @@ def run_content(action: str, target_dir: str = ".", apply: bool = False) -> int:
             return 1
         print(f"provider capabilities valid: {len(mapping.get('providers') or {})} providers")
         return 0
+    if action == "validate-system-model":
+        from cli.agent_content.system_model import validate_system_model
+        framework = _framework_dir(target)
+        try:
+            errors = validate_system_model(framework)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"Refused: {exc}")
+            return 2 if isinstance(exc, FileNotFoundError) else 1
+        if errors:
+            for error in errors:
+                print(f"system-model: {error}")
+            return 1
+        print("system model valid: risk->skill->capability->provider->lane->artifact->gate chain agrees")
+        return 0
     print(f"Unknown content action: {action}")
     return 2
