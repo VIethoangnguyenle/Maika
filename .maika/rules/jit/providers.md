@@ -78,25 +78,28 @@ Freshness handling:
 
 ### [CRITICAL] R-Tool-4: Real probe — registration không phải là data
 
-- Provider health phải đến từ **probe thật**: `mcp-status` ghi provider health trước
-  khi dựa vào dynamic capability; `maika doctor mcp` chẩn đoán config + runtime.
+- Provider health phải đến từ **probe thật**: `TOOL_HEALTH.yaml` (gate `tool-health`)
+  ghi probe operation + observed output + freshness; mọi MCP call phải có invocation
+  record hash-bound (`maika provider record`, gate `provider-invocations`) — health
+  tự khai không có record = **invalid**. `maika doctor mcp` chẩn đoán config + runtime.
 - Maika dùng MCP config key `db-access` mà user đã cấu hình. Không suy đoán provider
   chạy local/remote, không yêu cầu local binary, và không đọc DB/tunnel credentials.
 - **Registration ≠ có data.** Một provider đăng ký nhưng graph/index rỗng thì probe
   rỗng = **invalid** (không được coi là sẵn sàng). Phải verify provider có DATA, không
   chỉ có REGISTRATION.
 
-### [CRITICAL] R-Tool-5: Current source authority + code-evidence
+### [CRITICAL] R-Tool-5: Current source authority + source verification
 
 - **Current source là authority tối cao cho exact code fact** (file, symbol, signature,
   test, behavior, configuration). UA/CBM/memory chỉ định hướng; material fact lấy từ
   graph phải được **current source xác minh** khi đó là exact code fact.
-- Evidence `code-facts` ghi `node_id` và blast-radius khi có graph evidence; evidence
-  `architecture-facts` ghi source anchor, relationship và convention ID liên quan — một
-  `UA identifier` là hợp lệ khi graph node ID không phải nguồn của architecture fact.
+- Structured trace ghi vào `TRACE_EVIDENCE.yaml`: traversal tham chiếu observation
+  response hash; exact fact verify bằng `maika provider verify-source` (Maika tự hash,
+  gate `trace-evidence`/`exploration-evidence` re-verify — không tự viết sha256).
 - **Grep-honesty:** nếu artifact khai "grep fallback / provider unavailable" cho một
   code-fact mà file đó thuộc project đã index trong CBM/UA → **REJECT** (không được lấy
-  cớ lười để tụt xuống grep khi provider có data).
+  cớ lười để tụt xuống grep khi provider có data); degradation phải là limitations
+  entry có cấu trúc, backed bằng invocation record status error.
 
 ### [CRITICAL] R-Tool-6: Historical recall bắt buộc cho standard/architectural change
 

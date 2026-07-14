@@ -30,7 +30,10 @@ def test_rflow_phase_gate():
 
 def test_rtool_mcp_probe_collapse():
     text = (RULES / "jit/providers.md").read_text(encoding="utf-8")
-    assert "mcp-status" in text                          # probe gate validator
+    # M11: probe evidence is typed — tool-health + hash-bound invocation records.
+    assert "tool-health" in text
+    assert "provider-invocations" in text
+    assert "mcp-status" not in text                      # legacy prose gate removed
     assert "Runtime Ready" not in text or "rỗng = invalid" in text
     assert "secondary" not in text                       # removed skippable preference prose
 

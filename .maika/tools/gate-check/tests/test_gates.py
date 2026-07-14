@@ -44,82 +44,6 @@ def test_node_checkpoint_requires_files_evidence_and_verification():
     assert g.validate_node_checkpoint(filled).ok is True
 
 
-def test_knowledge_checkpoint_needs_ruleid_and_evidence():
-    bad = "## Applicable DNA/Conventions\n(nothing)\n"
-    ok_graph = "## DNA\nSP-6 staircase\n## Codebase\nnode_id: svc.UserService#42\nblast-radius: 3 nodes\n"
-    ok_degrade = "## DNA\nSP-6\n## Codebase\nKG unavailable — grep fallback, MEDIUM\n"
-    assert g.validate_knowledge_checkpoint(bad).ok is False
-    assert g.validate_knowledge_checkpoint(ok_graph).ok is True
-    assert g.validate_knowledge_checkpoint(ok_degrade).ok is True
-
-
-def test_knowledge_checkpoint_governance_degrade_passes():
-    # No approved DNA/conventions yet (fresh project) → proceed at LOW confidence, no rule-id required.
-    gov = "## Applicable DNA/Conventions\nno approved DNA/conventions for this artifact-type — generic patterns, LOW confidence\n"
-    assert g.validate_knowledge_checkpoint(gov).ok is True
-
-
-def test_knowledge_checkpoint_rejects_ruleid_not_in_valid_set():
-    text = (
-        "## DNA\nISO-9001 mentioned here\n"
-        "## Codebase\nnode_id: svc.UserService#42\nblast-radius: 3 nodes\n"
-    )
-    result = g.validate_knowledge_checkpoint(text, valid_rule_ids={"SP-6"})
-    assert result.ok is False
-    assert "valid rule-id" in result.reason
-
-
-def test_knowledge_checkpoint_accepts_ruleid_from_valid_set():
-    text = (
-        "## DNA\nSP-6 staircase\n"
-        "## Codebase\nnode_id: svc.UserService#42\nblast-radius: 3 nodes\n"
-    )
-    assert g.validate_knowledge_checkpoint(text, valid_rule_ids={"SP-6"}).ok is True
-
-
-def test_governance_degrade_requires_no_knowledge_allowed():
-    gov = "## Applicable DNA/Conventions\nno approved DNA/conventions for this artifact-type — generic patterns, LOW confidence\n"
-    assert g.validate_knowledge_checkpoint(gov, allow_no_knowledge=False).ok is False
-    assert g.validate_knowledge_checkpoint(gov, allow_no_knowledge=True).ok is True
-
-
-def test_knowledge_checkpoint_still_needs_evidence_when_ruleid_present():
-    # Regression: citing a rule-id but no evidence and no degrade still fails.
-    bad = "## DNA\nSP-6 staircase\n## Codebase\n(no node_id, no blast-radius)\n"
-    assert g.validate_knowledge_checkpoint(bad).ok is False
-
-
-def test_mcp_status_needs_numbers_or_degrade():
-    assert g.validate_mcp_status("MCP: Runtime Ready").ok is False
-    assert g.validate_mcp_status("KG: nodes=1240 edges=5530 freshness=2026-06-18").ok is True
-    assert g.validate_mcp_status("KG unavailable — grep fallback, MEDIUM").ok is True
-
-
-def test_degrade_line_must_be_compact_not_rambling():
-    # P1(a): rambling prose that merely contains both anchors far apart must NOT
-    # satisfy the degrade path; the canonical compact line still does.
-    rambling = ("KG unavailable, but actually the architecture quality is only "
-                "MEDIUM for entirely unrelated documentation reasons")
-    assert g.validate_mcp_status(rambling).ok is False
-    assert g.validate_mcp_status("KG unavailable — grep fallback, MEDIUM").ok is True
-
-
-def test_mcp_status_accepts_agent_memory_probe_and_degrade():
-    assert g.validate_mcp_status("agent-memory: healthy").ok is True
-    assert g.validate_mcp_status(
-        "agent-memory unavailable — skip recall/save"
-    ).ok is True
-    # A bare label with no health word or degrade is still invalid.
-    assert g.validate_mcp_status("agent-memory").ok is False
-    # Hardening: negated/stale prose must NOT count as a healthy probe.
-    assert g.validate_mcp_status("agent-memory is not healthy").ok is False
-    # Hardening: rambling prose must NOT satisfy the degrade line.
-    assert g.validate_mcp_status(
-        "agent-memory unavailable, we decided to skip the recall step but later "
-        "did save anyway after extensive debugging"
-    ).ok is False
-
-
 def test_memory_recall_accepts_canonical_recall_or_degrade():
     recall = ('agent-memory recall — query:"maika refund flow" · results:3 '
               "— ảnh hưởng reasoning")
@@ -168,44 +92,6 @@ def test_handoff_slice_ignores_ruleids_outside_its_section():
     assert g.validate_handoff_slice(leaky).ok is False
 
 
-def test_implementation_context_requires_dna_evidence_and_allowed_files():
-    prefix = "# " + "TASK" + "_HANDOFF.x\n"
-    missing = prefix + "## Applicable DNA/Conventions\n- SP-6\n"
-    result = g.validate_implementation_context(missing)
-    assert result.ok is False
-    assert "Evidence" in result.reason
-
-    no_target = (
-        prefix +
-        "## Applicable DNA/Conventions\n- SP-6: staircase\n"
-        "## Evidence\n- UA evidence: domain_overview=Payment, domain_flow=ApproveTransfer\n"
-    )
-    result = g.validate_implementation_context(no_target)
-    assert result.ok is False
-    assert "Allowed Files" in result.reason
-
-    valid = (
-        prefix +
-        "## Applicable DNA/Conventions\n- SP-6: staircase\n"
-        "## Evidence\n- UA evidence: domain_overview=Payment, domain_flow=ApproveTransfer\n"
-        "## Allowed Files\n- src/App.java\n"
-    )
-    assert g.validate_implementation_context(valid).ok is True
-
-
-def test_implementation_context_accepts_explicit_ua_degrade_override():
-    prefix = "# " + "TASK" + "_HANDOFF.x\n"
-    text = (
-        prefix +
-        "## Applicable DNA/Conventions\n- SP-6: staircase\n"
-        "## Evidence\n"
-        "- UA unavailable — explicit override, MEDIUM\n"
-        "- KG unavailable — grep fallback, MEDIUM\n"
-        "## Allowed Files\n- src/App.java\n"
-    )
-    assert g.validate_implementation_context(text).ok is True
-
-
 def test_cli_returns_nonzero_on_invalid(tmp_path):
     import importlib.util
     cli_mod = Path(__file__).resolve().parents[1] / "cli.py"
@@ -214,37 +100,24 @@ def test_cli_returns_nonzero_on_invalid(tmp_path):
     spec2.loader.exec_module(cli)
     f = tmp_path / "chk.md"
     f.write_text("nothing useful", encoding="utf-8")
-    assert cli.main(["knowledge-checkpoint", str(f)]) == 1
+    assert cli.main(["memory-recall", str(f)]) == 1
 
 
-def test_cli_uses_index_to_reject_unknown_ruleid(tmp_path):
+def test_legacy_provider_prose_gates_removed(tmp_path):
+    """Mutation #15 (harness plan §21): no active gate may demand provider-
+    specific prose. The legacy validators and their regexes must stay gone."""
     import importlib.util
     cli_mod = Path(__file__).resolve().parents[1] / "cli.py"
-    spec2 = importlib.util.spec_from_file_location("cli", cli_mod)
+    spec2 = importlib.util.spec_from_file_location("cli_m15", cli_mod)
     cli = importlib.util.module_from_spec(spec2)
     spec2.loader.exec_module(cli)
-
-    checkpoint = tmp_path / ("KNOWLEDGE" + "_CHECKPOINT.md")
-    checkpoint.write_text(
-        "## DNA\nISO-9001\n"
-        "## Codebase\nnode_id: svc.UserService#42\nblast-radius: 3 nodes\n",
-        encoding="utf-8",
-    )
-    index = tmp_path / "knowledge-index.yaml"
-    index.write_text(
-        "entries:\n"
-        "  - id: SP-6\n"
-        "    store: author-dna\n"
-        "    title: staircase\n"
-        "    applies_to: [Constructor]\n",
-        encoding="utf-8",
-    )
-
-    assert cli.main([
-        "knowledge-checkpoint", str(checkpoint),
-        "--index", str(index),
-        "--artifact-type", "Constructor",
-    ]) == 1
+    for legacy in ("knowledge-checkpoint", "mcp-status", "implementation-context",
+                   "code-evidence"):
+        assert legacy not in cli.VALIDATORS, legacy
+    source = (Path(__file__).resolve().parents[1] / "gates.py").read_text(encoding="utf-8")
+    for marker in ("KG unavailable", "blast-radius", "_parse_node_table",
+                   "validate_code_evidence", "trace via cbm"):
+        assert marker not in source, marker
 
 
 # ─── Regression fixtures: the historical failures these gates exist to catch ───
@@ -299,26 +172,6 @@ def test_cli_apply_gate_exit_codes(tmp_path):
     assert cli.main(["apply-gate", str(f)]) == 0
     f.write_text("Pha 1 DONE\n", encoding="utf-8")
     assert cli.main(["apply-gate", str(f)]) == 1
-
-
-def test_cli_implementation_context_exit_codes(tmp_path):
-    import importlib.util
-    cli_mod = Path(__file__).resolve().parents[1] / "cli.py"
-    spec = importlib.util.spec_from_file_location("cli", cli_mod)
-    cli = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(cli)
-
-    f = tmp_path / ("TASK" + "_HANDOFF.node-1.md")
-    f.write_text(
-        "# " + "TASK" + "_HANDOFF.node-1\n"
-        "## Applicable DNA/Conventions\n- SP-6\n"
-        "## Evidence\n- UA evidence: domain_overview=User\n"
-        "## Allowed Files\n- src/App.java\n",
-        encoding="utf-8",
-    )
-    assert cli.main(["implementation-context", str(f)]) == 0
-    f.write_text("# " + "TASK" + "_HANDOFF.node-1\n", encoding="utf-8")
-    assert cli.main(["implementation-context", str(f)]) == 1
 
 
 def _tm(section_body: str) -> str:

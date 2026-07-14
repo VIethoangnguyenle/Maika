@@ -105,6 +105,9 @@ probe:
   environment: staging
   observed_at: '2026-07-14T08:00:00Z'
   status: success
+  # response_hash của invocation record probe (maika provider record in ra) —
+  # gate từ chối probe success không có record backing.
+  observation: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
 allowed_lane: exploration
 allowed_tools: [list_databases, sql_list_tables, sql_get_columns, sql_get_constraints,
                 mongo_list_collections, mongo_get_schema]

@@ -3,11 +3,8 @@ description: Mechanical consumer detection for .maika/tools/**/*.py modules
 modules:
 - path: .maika/tools/gate-check/__init__.py
   consumed_by: package-marker-exemption
-- path: .maika/tools/gate-check/capability.py
-  consumed_by: file-dispatch:.maika/tools/gate-check/cli.py
 - path: .maika/tools/gate-check/cli.py
-  consumed_by: python-import:cli/commands/status.py; file-dispatch:cli/agent_content/router.py;
-    cli-entrypoint:.maika/procedures/bootstrap.md
+  consumed_by: python-import:cli/commands/status.py; file-dispatch:cli/agent_content/router.py
 - path: .maika/tools/gate-check/gates.py
   consumed_by: file-dispatch:cli/behavior/harness.py
 - path: .maika/tools/knowledge-index/__init__.py

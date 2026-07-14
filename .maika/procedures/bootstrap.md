@@ -205,8 +205,9 @@ Mọi downstream context package và dispatch log phải cite path env report + 
 >   có thể ghi dòng `🔌 MCP: bridge fallback — <server> tools/list ok`; mọi reasoning dùng
 >   bridge phải có degradation record trong bootstrap report. Không có native probe hoặc
 >   bridge evidence thì vẫn phải degrade, không được ghi "Runtime Ready".
->   Dòng này phải pass (R-Tool-5):
->   `python3 {{ platform.framework_root }}/tools/gate-check/cli.py mcp-status <file>`.
+>   Provider health trong exploration phải pass gate `tool-health`, và mọi MCP
+>   call phải có invocation record (`maika provider record`) — gate
+>   `provider-invocations` từ chối health tự khai (R-Tool-4).
 > Nếu KHÔNG ghi các dòng này = R-Guard-1 sẽ block các skill downstream.
 
 Machine-readable report là bản ghi duy nhất của bootstrap — không ghi thêm
