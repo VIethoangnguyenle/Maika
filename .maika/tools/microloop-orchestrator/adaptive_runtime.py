@@ -324,6 +324,39 @@ def derive_risk_signals(task: dict, repo_root: Path, rules: dict | None = None) 
     }
 
 
+# Persistence terms for standard/architectural changes, where no TASK.yaml
+# scope exists yet — the umbrella `persistence` signal (harness plan §10,
+# errata E5: ONE classification surface) is derived from existing scope
+# signals when present, otherwise from INTENT text and QUERY_PLAN capabilities.
+PERSISTENCE_TERMS = (
+    "entity", "repository", "native sql", " sql", "table", "column", "index",
+    "constraint", "migration", "transaction", "locking", "mongo", "collection",
+    "database", "schema drift", "outbox",
+)
+DB_CAPABILITIES = {"database_schema_inspection", "database_dependency_analysis"}
+
+
+def derive_persistence_signal(intent_text: str = "", query_plan: dict | None = None,
+                              risk_signals: dict | None = None) -> dict:
+    """Umbrella persistence classification with its evidence basis."""
+    signals = risk_signals or {}
+    basis = [name for name in ("database_changed", "migration_required",
+                               "transaction_changed")
+             if signals.get(name) is True]
+    text = (intent_text or "").lower()
+    terms = sorted({term.strip() for term in PERSISTENCE_TERMS if term in text})
+    if terms:
+        basis.append(f"intent_terms:{','.join(terms)}")
+    plan_caps = {
+        capability
+        for question in (query_plan or {}).get("questions") or []
+        for capability in question.get("required_capabilities") or []
+    }
+    if plan_caps & DB_CAPABILITIES:
+        basis.append(f"query_plan:{','.join(sorted(plan_caps & DB_CAPABILITIES))}")
+    return {"persistence": bool(basis), "basis": basis}
+
+
 def classify_risk(risk_signals: dict | None, current_class: str | None = None) -> dict:
     """Return a stable classification from explicit signals only."""
     signals = dict(risk_signals or {})

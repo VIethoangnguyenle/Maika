@@ -17,7 +17,8 @@ from runtime_hardening import ReviewInvalid, parse_review
 
 DISPATCH_KERNEL_ID = "KERNEL_ID: maika-knowledge-control-v1"
 DISPATCH_TYPES = {
-    "intent", "grounding", "reconciliation", "brainstorming", "spec", "planning",
+    "intent", "grounding", "database", "reconciliation", "brainstorming", "spec",
+    "planning",
     "plan_review", "implementation", "fix", "task_review", "final_review",
     "verification", "knowledge_curator", "skill_evolution_curator",
     "skill_evolution_implementer", "skill_evolution_reviewer",
@@ -249,6 +250,18 @@ AUTHORING_ROLES = {
         "extra": ("Skill: grounding-explorer. Write the full exploration package under "
                   "exploration/ (QUERY_PLAN.yaml, TOOL_HEALTH.yaml, GROUNDING.yaml, "
                   "EVIDENCE_MANIFEST.yaml, CONFLICTS.yaml, COVERAGE.yaml)."),
+    },
+    "database": {
+        "expected": ("EXPLORING",),
+        "input": "exploration/DATABASE_REQUEST.yaml",
+        "output": "exploration/DATABASE_CONTEXT.yaml",
+        "success_state": None,
+        "extra": ("Skill: database-explorer. Fill environment/database in "
+                  "exploration/DATABASE_REQUEST.yaml explicitly, probe DB Access "
+                  "through the exploration lane only (no data reads, writes or "
+                  "scripts), record every call via maika provider record, and "
+                  "write exploration/DATABASE_CONTEXT.yaml v2 (provider, probe, "
+                  "allowed_tools, observations, code_consumers, classified drift)."),
     },
     "reconciliation": {
         "expected": ("RECONCILING",),

@@ -90,7 +90,7 @@ def compile_trace_request(ws: Path, framework_path: Path) -> dict:
 
     return {
         "version": 1,
-        "change_id": change.get("id"),
+        "change_id": change.get("change_id") or change.get("id"),
         "questions": questions,
         "anchors": anchors,
         "required_capabilities": required,
@@ -99,6 +99,54 @@ def compile_trace_request(ws: Path, framework_path: Path) -> dict:
         "freshness_requirement": FRESHNESS_REQUIREMENT,
         "source_verification_requirement": SOURCE_VERIFICATION_REQUIREMENT,
     }
+
+
+def compile_database_request(ws: Path) -> dict:
+    """Skeleton DATABASE_REQUEST from the QUERY_PLAN's DB questions (plan §7).
+
+    environment/database stay empty on purpose: the worker must declare them
+    explicitly and the database-request gate rejects empty values (mutation #8
+    — DB evidence must be environment-bound, never assumed)."""
+    ws = Path(ws)
+    query_plan = yaml.safe_load(
+        (ws / "exploration" / "QUERY_PLAN.yaml").read_text(encoding="utf-8")
+    ) or {}
+    change = yaml.safe_load((ws / "CHANGE.yaml").read_text(encoding="utf-8")) or {}
+    db_capabilities = {"database_schema_inspection", "database_dependency_analysis"}
+    questions = []
+    required = set()
+    for q in query_plan.get("questions") or []:
+        caps = set(q.get("required_capabilities") or []) & db_capabilities
+        if caps:
+            questions.append({"id": q.get("id"), "question": q.get("question"),
+                              "required_capabilities": sorted(caps)})
+            required |= caps
+    return {
+        "version": 1,
+        "change_id": change.get("change_id") or change.get("id"),
+        "environment": None,
+        "database": None,
+        "questions": questions,
+        "objects": [],
+        "required_capabilities": sorted(required or {"database_schema_inspection"}),
+        "allowed_lane": "exploration",
+        "data_probe_required": False,
+        "source_anchors": [],
+        "migration_refs": [],
+    }
+
+
+def write_database_request(ws: Path) -> Path:
+    path = Path(ws) / "exploration" / "DATABASE_REQUEST.yaml"
+    if path.exists():  # never clobber a worker-completed request
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump(compile_database_request(ws), sort_keys=False,
+                       allow_unicode=True),
+        encoding="utf-8",
+    )
+    return path
 
 
 def write_trace_request(ws: Path, framework_path: Path) -> Path:

@@ -31,6 +31,7 @@ VALIDATORS = {
     "conflicts": "validate_conflicts",
     "coverage": "validate_coverage",
     "database-context": "validate_database_context",
+    "database-request": "validate_database_request",
     "provider-invocations": "validate_provider_invocations",
     "trace-request": "validate_trace_request",
     "trace-evidence": "validate_trace_evidence",

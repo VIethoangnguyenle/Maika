@@ -26,8 +26,10 @@ capabilities:
       - database_code_consumer_gap
 outputs:
   required:
+  - exploration/DATABASE_REQUEST.yaml
   - exploration/DATABASE_CONTEXT.yaml
 gates:
+- database-request
 - database-context
 ---
 # Database Explorer
@@ -47,6 +49,9 @@ transaction/locking, job/outbox, audit, hoặc DB performance.
 - Để chạy DDL/DML thay đổi dữ liệu (exploration chỉ read-only).
 
 ## Đầu vào
+- `exploration/DATABASE_REQUEST.yaml` (skeleton do orchestrator compile khi
+  persistence signal kích hoạt — điền `environment` + `database` tường minh,
+  gate `database-request` từ chối giá trị rỗng).
 - `QUERY_PLAN.yaml` (câu hỏi DB), `INTENT.md`.
 - Current source (entity/repository/migration).
 - Kết nối DB read-only (nếu có).
@@ -82,8 +87,44 @@ migration/spec là authority cho target state; current source là authority cho 
 ứng dụng. Mọi khác biệt phải phân loại drift, không mặc định live DB thắng target.
 
 ## Kết quả bắt buộc
-- `DATABASE_CONTEXT.yaml`: `read_only: true` + objects thật, hoặc degradation record.
-- Drift được ghi và phân loại.
+- `DATABASE_CONTEXT.yaml` v2: provider + probe (environment-bound, `host_mcp`) +
+  observations thật, hoặc structured degradation. Drift phải phân loại
+  (`source_ahead` | `db_ahead` | `mismatch`). Schema gate-true:
+
+```yaml
+# DATABASE_CONTEXT.yaml
+version: 2
+change_id: C-123
+read_only: true
+provider:
+  id: db-access
+  client_key: db-access
+probe:
+  invocation_mode: host_mcp
+  database: orders_db
+  environment: staging
+  observed_at: '2026-07-14T08:00:00Z'
+  status: success
+allowed_lane: exploration
+allowed_tools: [list_databases, sql_list_tables, sql_get_columns, sql_get_constraints,
+                mongo_list_collections, mongo_get_schema]
+used_tools: [sql_list_tables, sql_get_columns]
+observations:
+- object: orders
+  type: table
+  columns: [id, status, created_at]
+code_consumers:
+- object: orders
+  file: src/repo/order_repo.py
+  symbol: OrderRepo
+drift:
+- object: orders
+  classification: source_ahead
+  detail: migration V42 declares column refund_status; staging chưa apply
+degradation: []
+limitations: []
+confidence: high
+```
 
 ## Bất biến
 - Read-only tuyệt đối trong exploration.
@@ -99,9 +140,10 @@ source-declared schema là medium confidence.
 
 ## Quy trình degradation
 MCP `db-access` không được cấu hình, không kết nối được, hoặc thiếu tool cần thiết →
-`DATABASE_CONTEXT.yaml` chứa
-degradation record + fallback = source-declared schema; hạ confidence; không block nếu
-change vẫn an toàn theo source.
+`DATABASE_CONTEXT.yaml` chứa degradation entry có cấu trúc
+(`{kind: provider_unreachable, detail: "..."}`) + fallback = source-declared schema;
+hạ confidence; không block nếu change vẫn an toàn theo source. Probe lỗi vẫn phải
+record qua `maika provider record --status error` (health không được tự khai).
 
 ## Quy trình
 1. Chạy Quy trình truy xuất.

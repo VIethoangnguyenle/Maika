@@ -149,12 +149,23 @@ def _run_reasoning_validation(ws: Path, framework_path: Path, repo_root, gates):
             memory_path.read_text(encoding="utf-8") if memory_path.exists() else ""
         )
     query_doc = yaml.safe_load(query_text) or {}
-    needs_db = any(
-        cap in {"database_schema_inspection", "database_dependency_analysis"}
-        for q in query_doc.get("questions") or [] for cap in q.get("required_capabilities") or []
+    # M6 persistence routing: the recorded risk signal is the primary basis
+    # (errata E5 — one classification surface); worker-authored query-plan DB
+    # capabilities can only ADD the requirement, never remove it (B4).
+    intent_text = (ws / "INTENT.md").read_text(encoding="utf-8") \
+        if (ws / "INTENT.md").exists() else ""
+    persistence = ar.derive_persistence_signal(
+        intent_text, query_doc, (change.get("risk_signals") or {})
     )
+    needs_db = (change.get("risk_signals") or {}).get("persistence") is True \
+        or persistence["persistence"]
+    database_request_res = gates.Result(True)
     database_res = gates.Result(True)
     if needs_db:
+        request_path = ws / "exploration" / "DATABASE_REQUEST.yaml"
+        database_request_res = gates.validate_database_request(
+            request_path.read_text(encoding="utf-8") if request_path.exists() else ""
+        )
         database_path = ws / "exploration" / "DATABASE_CONTEXT.yaml"
         database_res = gates.validate_database_context(
             database_path.read_text(encoding="utf-8") if database_path.exists() else ""
@@ -204,7 +215,8 @@ def _run_reasoning_validation(ws: Path, framework_path: Path, repo_root, gates):
         ("intent", intent_res), ("exploration-evidence", evidence_res),
         ("query-plan", query_res), ("tool-health", health_res),
         ("conflicts", conflict_res), ("coverage", coverage_res),
-        ("memory-recall", memory_res), ("database-context", database_res),
+        ("memory-recall", memory_res), ("database-request", database_request_res),
+        ("database-context", database_res),
         ("provider-invocations", provider_res),
         ("trace-request", trace_request_res), ("trace-evidence", trace_evidence_res),
     ]
@@ -418,7 +430,8 @@ def _add_vnext_commands(sub):
     dispatch_role_parser.add_argument("--platform")
     dispatch_role_parser.add_argument(
         "--role", required=True,
-        choices=["grounding", "reconciliation", "brainstorming", "spec", "planning"],
+        choices=["grounding", "database", "reconciliation", "brainstorming",
+                 "spec", "planning"],
     )
 
     run_parser = sub.add_parser("vnext-run")
@@ -505,6 +518,32 @@ def _main_unlocked(argv=None):
             print(f"Gate trace-request failed: {res.reason}")
             return 1
         print(f"Trace request compiled at {path}")
+        # M6: derive + persist the umbrella persistence signal (errata E5 —
+        # one classification surface) and compile the DATABASE_REQUEST
+        # skeleton so the database-explorer route is mechanical (B4).
+        change_path = ws / "CHANGE.yaml"
+        change = yaml.safe_load(change_path.read_text(encoding="utf-8")) or {}
+        intent_text = (ws / "INTENT.md").read_text(encoding="utf-8") \
+            if (ws / "INTENT.md").exists() else ""
+        query_doc = yaml.safe_load(
+            (ws / "exploration" / "QUERY_PLAN.yaml").read_text(encoding="utf-8")
+        ) or {}
+        persistence = ar.derive_persistence_signal(
+            intent_text, query_doc, change.get("risk_signals") or {}
+        )
+        signals = dict(change.get("risk_signals") or {})
+        signals["persistence"] = persistence["persistence"]
+        if persistence["basis"]:
+            signals["persistence_basis"] = persistence["basis"]
+        change["risk_signals"] = signals
+        change_path.write_text(
+            yaml.safe_dump(change, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
+        if persistence["persistence"]:
+            request_path = tc.write_database_request(ws)
+            print(f"Persistence detected ({', '.join(persistence['basis'])}) — "
+                  f"database-explorer required; request skeleton at {request_path}")
         return 0
 
     if args.command == "vnext-transition":
@@ -583,6 +622,19 @@ def _main_unlocked(argv=None):
                 # đường vnext-validate-reasoning.
                 return _run_reasoning_validation(Path(ws_path), framework_path,
                                                  args.repo_root, gates)
+        elif role == "database":
+            def validator(ws_path):
+                ws_path = Path(ws_path)
+                request_path = ws_path / "exploration" / "DATABASE_REQUEST.yaml"
+                request = gates.validate_database_request(
+                    request_path.read_text(encoding="utf-8")
+                    if request_path.exists() else "")
+                if not request.ok:
+                    return False, f"database-request: {request.reason}"
+                context = gates.validate_database_context(
+                    (ws_path / "exploration" / "DATABASE_CONTEXT.yaml")
+                    .read_text(encoding="utf-8"))
+                return context.ok, context.reason
         elif role == "reconciliation":
             def validator(ws_path):
                 ws_path = Path(ws_path)
