@@ -71,18 +71,6 @@ def _load_gates():
     return _load_module("gates")
 
 
-def _load_index_rule_ids(index_path, artifact_type=None):
-    data = yaml.safe_load(Path(index_path).read_text(encoding="utf-8")) or {}
-    entries = data.get("entries") or []
-    matched = []
-    for entry in entries:
-        applies = entry.get("applies_to") or []
-        if artifact_type is None or artifact_type in applies:
-            if entry.get("id"):
-                matched.append(entry["id"])
-    return set(matched), len(matched) == 0
-
-
 def main(argv=None):
     import importlib.util
     argv = argv or sys.argv[1:]
@@ -90,8 +78,6 @@ def main(argv=None):
     parser.add_argument("gate", choices=VALIDATORS)
     parser.add_argument("file")
     parser.add_argument("--against")
-    parser.add_argument("--index")
-    parser.add_argument("--artifact-type")
     parser.add_argument("--repo-root", help="repo root for source checks (default: cwd)")
     try:
         args = parser.parse_args(argv)
@@ -157,6 +143,10 @@ def main(argv=None):
         request_path = Path(args.file).resolve().parent / "DATABASE_REQUEST.yaml"
         if request_path.exists():
             kwargs["request_text"] = request_path.read_text(encoding="utf-8")
+        invocations_path = (Path(args.file).resolve().parent
+                            / "PROVIDER_INVOCATIONS.jsonl")
+        if invocations_path.exists():
+            kwargs["invocations_text"] = invocations_path.read_text(encoding="utf-8")
     elif args.gate == "trace-request":
         reg = yaml.safe_load(
             (Path(__file__).resolve().parents[2] / "profiles" / "capability-registry.yaml")

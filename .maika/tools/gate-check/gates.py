@@ -881,7 +881,8 @@ def validate_database_request(text) -> Result:
 _DRIFT_CLASSES = {"source_ahead", "db_ahead", "mismatch"}
 
 
-def validate_database_context(text, provider_registry=None, request_text=None) -> Result:
+def validate_database_context(text, provider_registry=None, request_text=None,
+                              invocations_text=None) -> Result:
     """Gate `database-context` — DATABASE_CONTEXT v2 (harness plan §7, C-20).
 
     The context must be provider-identified, environment-bound, probe-backed
@@ -922,6 +923,22 @@ def validate_database_context(text, provider_registry=None, request_text=None) -
             if expected and observed != expected:
                 return Result(False, f"probe {key} {observed!r} disagrees with "
                                      f"DATABASE_REQUEST {key} {expected!r}")
+        # Codex M11 finding: a self-reported success probe is untrusted — it
+        # must carry the response hash of a recorded provider invocation.
+        if invocations_text is not None:
+            backing = _invocation_hash_index(invocations_text).get(
+                probe.get("observation"))
+            if backing is None:
+                return Result(False, "database probe requires observation = "
+                                     "response hash of a recorded provider "
+                                     "invocation (maika provider record)")
+            if backing.get("provider_id") != provider.get("id"):
+                return Result(False, "database probe invocation record belongs "
+                                     f"to {backing.get('provider_id')!r}, not "
+                                     f"{provider.get('id')!r}")
+            if probe.get("status") == "success" and backing.get("status") != "success":
+                return Result(False, "database probe claims success but the "
+                                     "recorded invocation did not succeed")
     elif not degradation:
         return Result(False, "database context requires a probe or a structured "
                              "degradation record")
@@ -1131,15 +1148,28 @@ def validate_trace_evidence(text, request_text=None, invocations_text=None,
 
     limitations = doc.get("limitations") or []
     excused_caps, excused_groups = set(), set()
+    failure_excusal = False
     for i, limitation in enumerate(limitations, 1):
         if not isinstance(limitation, dict) or not limitation.get("kind") \
                 or not str(limitation.get("detail") or "").strip():
             return Result(False, f"limitation {i}: requires kind + detail "
                                  "(structured degradation, no prose)")
+        excuses = bool(limitation.get("capability") or limitation.get("one_of"))
         if limitation.get("capability"):
             excused_caps.add(limitation["capability"])
         if limitation.get("one_of"):
             excused_groups.add(limitation["one_of"])
+        # provider_unconfigured = nothing to call, no record possible;
+        # every failed-provider kind must be backed by a real failed probe.
+        if excuses and limitation["kind"] != "provider_unconfigured":
+            failure_excusal = True
+    if failure_excusal and invocations is not None:
+        failed = any(record.get("status") in {"error", "timeout"}
+                     for record in invocations.values())
+        if not failed:
+            return Result(False, "unavailable-provider excusal requires a recorded "
+                                 "failed probe invocation (status error/timeout) — "
+                                 "grep-fallback without a real probe is invalid")
 
     graph = doc.get("graph") or {}
     if graph:
@@ -1151,6 +1181,12 @@ def validate_trace_evidence(text, request_text=None, invocations_text=None,
         if graph.get("observation") not in obs_hashes:
             return Result(False, "graph block is not backed by a recorded probe "
                                  "observation (fresh-graph claim needs response hash)")
+        if invocations is not None:
+            backing = invocations.get(graph.get("observation"))
+            if backing is not None and backing.get("status") != "success":
+                return Result(False, "graph block backed by a non-success probe "
+                                     "invocation (codex M11 finding: errored probe "
+                                     "cannot claim graph health)")
         if str(graph["freshness"]).upper() not in _TRACE_FRESHNESS:
             return Result(False, f"unknown graph freshness {graph['freshness']!r}")
         health = str(graph["health"]).upper()

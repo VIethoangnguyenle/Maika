@@ -1,6 +1,7 @@
 """W2 grounding-package gate validators (query plan, tool health, conflicts,
 coverage, database context). Deterministic/pure — no I/O."""
 import importlib.util
+import json
 from pathlib import Path
 
 import yaml
@@ -350,6 +351,43 @@ def test_wrong_environment_evidence_rejected():
         request_text=yaml.safe_dump(_database_request(environment="staging")),
     )
     assert not result.ok and "disagrees with DATABASE_REQUEST" in result.reason
+
+
+# ── codex M11 review: probe must be backed by a recorded invocation ─────────
+
+_DB_HASH = "sha256:" + "d" * 64
+_DB_INVOCATION = json.dumps({
+    "trace_id": "t-db", "change_id": "C-1", "role": "database",
+    "provider_id": "db-access", "tool": "sql_list_tables",
+    "invocation_mode": "host_mcp", "request_hash": "sha256:" + "0" * 64,
+    "response_hash": _DB_HASH, "started_at": "2026-07-14T08:00:00Z",
+    "ended_at": "2026-07-14T08:00:01Z", "status": "success",
+}) + "\n"
+
+
+def test_db_probe_without_invocation_backing_fails():
+    result = gates.validate_database_context(
+        yaml.safe_dump(_database_context()), invocations_text=_DB_INVOCATION,
+    )
+    assert not result.ok and "recorded provider invocation" in result.reason
+
+
+def test_db_probe_with_invocation_backing_passes():
+    ctx = _database_context()
+    ctx["probe"]["observation"] = _DB_HASH
+    result = gates.validate_database_context(
+        yaml.safe_dump(ctx), invocations_text=_DB_INVOCATION,
+    )
+    assert result.ok, result.reason
+
+
+def test_db_probe_success_claim_with_failed_record_rejected():
+    ctx = _database_context()
+    ctx["probe"]["observation"] = _DB_HASH
+    failed = _DB_INVOCATION.replace('"status": "success"', '"status": "error"')
+    result = gates.validate_database_context(yaml.safe_dump(ctx),
+                                             invocations_text=failed)
+    assert not result.ok and "did not succeed" in result.reason
 
 
 # ── W4: capsule-integrity + evidence-update-request ─────────────────────────

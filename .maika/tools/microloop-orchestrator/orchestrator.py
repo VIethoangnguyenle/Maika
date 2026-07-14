@@ -168,6 +168,9 @@ def _run_reasoning_validation(ws: Path, framework_path: Path, repo_root, gates):
         yaml.safe_load(registry_file.read_text(encoding="utf-8")) or {}
         if registry_file.exists() else {}
     )
+    invocations_path = ws / "exploration" / "PROVIDER_INVOCATIONS.jsonl"
+    invocations_text = (invocations_path.read_text(encoding="utf-8")
+                        if invocations_path.exists() else "")
     database_request_res = gates.Result(True)
     database_res = gates.Result(True)
     if needs_db:
@@ -180,8 +183,8 @@ def _run_reasoning_validation(ws: Path, framework_path: Path, repo_root, gates):
             database_path.read_text(encoding="utf-8") if database_path.exists() else "",
             provider_registry=provider_registry,
             request_text=request_text,
+            invocations_text=invocations_text,
         )
-    invocations_path = ws / "exploration" / "PROVIDER_INVOCATIONS.jsonl"
     provider_res = gates.Result(True)
     if invocations_path.exists():
         provider_res = gates.validate_provider_invocations(
@@ -641,6 +644,7 @@ def _main_unlocked(argv=None):
                 if not registry_file.exists():
                     registry_file = (Path(__file__).resolve().parents[2]
                                      / "config" / "provider-registry.yaml")
+                invocations_file = ws_path / "exploration" / "PROVIDER_INVOCATIONS.jsonl"
                 context = gates.validate_database_context(
                     (ws_path / "exploration" / "DATABASE_CONTEXT.yaml")
                     .read_text(encoding="utf-8"),
@@ -648,6 +652,8 @@ def _main_unlocked(argv=None):
                         yaml.safe_load(registry_file.read_text(encoding="utf-8")) or {}
                         if registry_file.exists() else {}),
                     request_text=request_text,
+                    invocations_text=(invocations_file.read_text(encoding="utf-8")
+                                      if invocations_file.exists() else ""),
                 )
                 return context.ok, context.reason
         elif role == "reconciliation":

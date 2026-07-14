@@ -261,6 +261,33 @@ def test_excused_trace_cannot_claim_complete(tmp_path):
     assert not result.ok and "not complete" in result.reason
 
 
+def test_unavailable_excusal_requires_failed_probe_record(tmp_path):
+    """Codex M11 review: grep-fallback needs a REAL failed probe on record."""
+    excusal = [{"kind": "ua_unavailable", "one_of": "structured_trace",
+                "detail": "UA down mid-exploration"}]
+    result = _check(tmp_path, graph={}, provider_observations=[], traversals=[],
+                    limitations=excusal, complete=False)
+    assert not result.ok and "recorded failed probe" in result.reason
+    failed_invocations = INVOCATIONS + "\n" + json.dumps({
+        "trace_id": "t3", "change_id": "C-1", "role": "grounding",
+        "provider_id": "understand-anything", "tool": "get_graph_metadata",
+        "invocation_mode": "host_mcp", "request_hash": "sha256:" + "0" * 64,
+        "response_hash": "sha256:" + "3" * 64,
+        "started_at": "2026-07-14T08:01:00Z", "ended_at": "2026-07-14T08:01:05Z",
+        "status": "error"})
+    result = _check(tmp_path, invocations=failed_invocations, graph={},
+                    provider_observations=[], traversals=[],
+                    limitations=excusal, complete=False)
+    assert result.ok, result.reason
+
+
+def test_graph_backed_by_errored_probe_rejected(tmp_path):
+    """Codex M11 review: an errored probe cannot claim graph health."""
+    errored = INVOCATIONS.replace('"status": "success"}', '"status": "error"}', 1)
+    result = _check(tmp_path, invocations=errored, complete=False)
+    assert not result.ok and "non-success probe" in result.reason
+
+
 def test_missing_graph_with_ua_limitation_passes(tmp_path):
     result = _check(
         tmp_path, graph={},
