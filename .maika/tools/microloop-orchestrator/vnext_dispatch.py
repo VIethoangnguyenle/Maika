@@ -65,11 +65,14 @@ def _external_workflow_registry():
 def external_workflow_contract(task=None):
     task = task or {}
     supplied = task.get("external_workflows") or {}
+    # Mutation #14 (harness plan §21): an EXPLICIT empty request_only stays
+    # empty — defaults apply only when the key is absent.
+    request_only = supplied.get("request_only")
+    if request_only is None:
+        request_only = DEFAULT_EXTERNAL_WORKFLOWS["request_only"]
     contract = {
         "allowed": list(supplied.get("allowed") or []),
-        "request_only": list(
-            supplied.get("request_only") or DEFAULT_EXTERNAL_WORKFLOWS["request_only"]
-        ),
+        "request_only": list(request_only),
     }
     known = set(_external_workflow_registry())
     unknown = (set(contract["allowed"]) | set(contract["request_only"])) - known
@@ -105,6 +108,151 @@ def validate_external_workflow_request(text, contract=None):
     if not isinstance(doc.get("affected_claims"), list):
         return False, "external workflow request affected_claims must be a list", doc
     return True, None, doc
+
+
+def validate_db_reprobe_request(text):
+    """DB_REPROBE_REQUEST.yaml — environment-bound re-probe request (plan §16)."""
+    try:
+        doc = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        return False, f"invalid DB re-probe request YAML: {exc}", None
+    if not isinstance(doc, dict):
+        return False, "DB re-probe request must be a mapping", None
+    if doc.get("request_type") != "db_reprobe":
+        return False, "request_type must be db_reprobe", doc
+    for field in ("reason", "environment", "database", "resume_role"):
+        if not isinstance(doc.get(field), str) or not doc[field].strip():
+            return False, f"DB re-probe request requires {field}", doc
+    return True, None, doc
+
+
+_REFRESH_REQUEST_FILES = {
+    "external_workflow": "EXTERNAL_WORKFLOW_REQUEST.yaml",
+    "db_reprobe": "DB_REPROBE_REQUEST.yaml",
+}
+
+
+def _graph_baseline_hash(ws) -> str:
+    path = Path(ws) / "exploration" / "TRACE_EVIDENCE.yaml"
+    if not path.is_file():
+        return ""
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return ((doc.get("graph") or {}).get("observation")) or ""
+
+
+def _fresh_invocation_hash(ws, provider, tool, baseline) -> str:
+    """Latest success invocation hash for provider(/tool) that differs from
+    the recorded baseline — the mechanical 'new provider evidence' check
+    (mutation #13: refresh fulfilled without new evidence must fail)."""
+    path = Path(ws) / "exploration" / "PROVIDER_INVOCATIONS.jsonl"
+    if not path.is_file():
+        return ""
+    latest = ""
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if record.get("provider_id") != provider or record.get("status") != "success":
+            continue
+        if tool and record.get("tool") != tool:
+            continue
+        response_hash = record.get("response_hash") or ""
+        if response_hash and response_hash != baseline:
+            latest = response_hash
+    return latest
+
+
+def block_on_refresh_request(ws, role, request, vs, code):
+    """Persist a durable BLOCKED refresh/re-probe blocker (plan §16/§17, B7).
+
+    The request file records the evidence baseline at block time; fulfillment
+    (fulfill_blocked_request) demands a provider invocation whose response
+    hash differs from it. Never relies on parent conversation memory."""
+    if code not in _REFRESH_REQUEST_FILES:
+        raise ValueError(f"unknown refresh blocker code: {code}")
+    ws = Path(ws)
+    request = dict(request or {})
+    if code == "external_workflow":
+        request["baseline_evidence_hash"] = _graph_baseline_hash(ws)
+        workflow = request.get("workflow")
+        canonical = (((_external_workflow_registry().get(workflow) or {})
+                      .get("commands") or {}).get("canonical") or workflow)
+        remediation = (f"run {canonical}, record the refresh probe via "
+                       "`maika provider record`, then vnext-fulfill-workflow")
+    else:
+        request["baseline_evidence_hash"] = _fresh_invocation_hash(
+            ws, "db-access", None, "")
+        remediation = ("re-probe DB Access for the declared environment, record it "
+                       "via `maika provider record`, then vnext-fulfill-workflow")
+    request["requested_at"] = datetime.now(timezone.utc).isoformat()
+    request_file = _REFRESH_REQUEST_FILES[code]
+    (ws / request_file).write_text(
+        yaml.safe_dump(request, sort_keys=False, allow_unicode=True), encoding="utf-8"
+    )
+    current = vs.load_state(ws).get("state")
+    blocked = {
+        "reason": "capability",
+        "code": code,
+        "role": role,
+        "workflow": request.get("workflow"),
+        "request_file": request_file,
+        "remediation": remediation,
+        "created_at": request["requested_at"],
+        "resume_state": current,
+        "resume_action": (f"vnext-dispatch-role --role "
+                          f"{request.get('resume_role') or role}"),
+    }
+    vs.transition(ws, "BLOCKED", blocked=blocked)
+    return blocked
+
+
+def fulfill_blocked_request(ws, vs):
+    """Fulfill a refresh/re-probe blocker with NEW provider evidence.
+
+    Returns (ok, detail): detail is a failure reason, or on success a dict
+    with the resolution record and the original role's resume action."""
+    ws = Path(ws)
+    state = vs.load_state(ws)
+    blocked = state.get("blocked") or {}
+    if state.get("state") != "BLOCKED" or blocked.get("code") not in _REFRESH_REQUEST_FILES:
+        return False, "workspace is not blocked on an external workflow or DB re-probe"
+    request_path = ws / (blocked.get("request_file") or "")
+    if not request_path.is_file():
+        return False, f"blocker request file missing: {blocked.get('request_file')}"
+    request = yaml.safe_load(request_path.read_text(encoding="utf-8")) or {}
+    baseline = request.get("baseline_evidence_hash") or ""
+    if blocked["code"] == "external_workflow":
+        provider = ((_external_workflow_registry().get(request.get("workflow")) or {})
+                    .get("owner")) or ""
+        tool = "get_graph_metadata" if provider == "understand-anything" else None
+    else:
+        provider, tool = "db-access", None
+    if not provider:
+        return False, f"workflow {request.get('workflow')!r} has no owning provider"
+    evidence_hash = _fresh_invocation_hash(ws, provider, tool, baseline)
+    if not evidence_hash:
+        return False, (f"no NEW {provider} evidence — record a fresh success "
+                       "invocation (response hash must differ from the baseline)")
+    resolution = {
+        "result_file": "exploration/PROVIDER_INVOCATIONS.jsonl",
+        "evidence_hash": evidence_hash,
+        "resolved_at": datetime.now(timezone.utc).isoformat(),
+    }
+    result_path = ws / "generated" / f"{request_path.stem}_RESULT.yaml"
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    result_path.write_text(
+        yaml.safe_dump(dict(request, resolved=resolution), sort_keys=False,
+                       allow_unicode=True),
+        encoding="utf-8",
+    )
+    request_path.unlink()
+    vs.transition(ws, blocked.get("resume_state"))
+    return True, {"resolution": resolution, "role": blocked.get("role"),
+                  "resume_action": blocked.get("resume_action"),
+                  "result_file": str(result_path)}
 
 
 def _write_queue(ws, doc, expected_generation=None):
@@ -435,6 +583,16 @@ def run_authoring_dispatch(ws, role, runner, vs, validator=None):
         return {
             "ok": False,
             "reason": "EXTERNAL_WORKFLOW_REQUEST" if ok else reason,
+            "request": request,
+        }
+    reprobe_request = ws / "DB_REPROBE_REQUEST.yaml"
+    if reprobe_request.exists():
+        ok, reason, request = validate_db_reprobe_request(
+            reprobe_request.read_text(encoding="utf-8")
+        )
+        return {
+            "ok": False,
+            "reason": "DB_REPROBE_REQUEST" if ok else reason,
             "request": request,
         }
     if not out_path.exists():

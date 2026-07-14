@@ -449,6 +449,10 @@ def _add_vnext_commands(sub):
     resume_parser.add_argument("--workspace", required=True)
     resume_parser.add_argument("--repo-root", required=True)
 
+    fulfill_parser = sub.add_parser("vnext-fulfill-workflow")
+    fulfill_parser.add_argument("--workspace", required=True)
+    fulfill_parser.add_argument("--repo-root", required=True)
+
 
 def _main_unlocked(argv=None):
     parser = argparse.ArgumentParser(description="Maika vNext task orchestrator")
@@ -677,7 +681,17 @@ def _main_unlocked(argv=None):
             return 2
         result = vd.run_authoring_dispatch(ws, role, runner, vs, validator)
         if not result.get("ok"):
-            print(f"Refused: {role} dispatch failed: {result.get('reason')}")
+            reason = result.get("reason")
+            if reason in {"EXTERNAL_WORKFLOW_REQUEST", "DB_REPROBE_REQUEST"}:
+                code = ("external_workflow" if reason == "EXTERNAL_WORKFLOW_REQUEST"
+                        else "db_reprobe")
+                blocked = vd.block_on_refresh_request(
+                    ws, role, result.get("request") or {}, vs, code
+                )
+                print(f"Blocked ({code}): {blocked['remediation']}")
+                print(f"After fulfillment, resume with: {blocked['resume_action']}")
+                return EXIT_HUMAN
+            print(f"Refused: {role} dispatch failed: {reason}")
             return 1
         print(f"{role} dispatch complete: state={result.get('state')}")
         return 0
@@ -848,6 +862,17 @@ def _main_unlocked(argv=None):
                 print(f"- {task['id']}: {task['status']}")
         return EXIT_OK
 
+    if args.command == "vnext-fulfill-workflow":
+        ok, detail = vd.fulfill_blocked_request(ws, vs)
+        if not ok:
+            print(f"Refused: {detail}")
+            return EXIT_BLOCKED
+        resolution = detail["resolution"]
+        print(f"Refresh fulfilled with new evidence {resolution['evidence_hash']}; "
+              f"result at {detail['result_file']}")
+        print(f"Resumed; redispatch the original role: {detail['resume_action']}")
+        return EXIT_OK
+
     if args.command == "vnext-resume":
         state = vs.load_state(ws)
         if state.get("state") != "BLOCKED":
@@ -875,7 +900,8 @@ def main(argv=None):
     lifecycle_mutations = {
         "vnext-start-exploration", "vnext-transition", "vnext-compile",
         "vnext-review-plan", "vnext-validate-reasoning", "vnext-validate-spec",
-        "vnext-dispatch-role", "vnext-resume",
+        "vnext-dispatch-role", "vnext-resume", "vnext-fulfill-workflow",
+        "vnext-compile-trace-request",
     }
     if command not in lifecycle_mutations:
         return _main_unlocked(raw)
