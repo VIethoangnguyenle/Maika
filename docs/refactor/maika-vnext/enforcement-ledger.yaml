@@ -676,6 +676,39 @@ entries:
     scope: {change_classes: [standard, architectural]}
     reviewed_at: 2026-07-14
 
+  - id: ENF-031
+    mechanism: persistence-routing-and-database-context-v2
+    type: gate
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        C-19/C-20 (inventory 2026-07-13): persistence signal did not
+        mechanically dispatch/require DB evidence — needs_db was inferred only
+        from worker-authored query-plan capabilities, so a persistence-
+        sensitive exploration could complete without DATABASE_CONTEXT (B4);
+        v1 context lacked provider identity, environment, probe and drift
+        classification (mutation #8/#9). Persistence is now derived and
+        persisted in CHANGE.risk_signals (one surface, errata E5) and the
+        database-request/database-context v2 gates bind evidence to an
+        explicit environment.
+    implementation:
+      files:
+        - .maika/tools/microloop-orchestrator/adaptive_runtime.py
+        - .maika/tools/microloop-orchestrator/trace_compiler.py
+        - .maika/tools/gate-check/gates.py
+      consumers:
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+        - .maika/tools/microloop-orchestrator/vnext_dispatch.py
+        - .maika/tools/gate-check/cli.py
+        - .maika/skills/database-explorer/SKILL.md
+        - .maika/tools/gate-check/tests/test_grounding_package_gates.py
+        - .maika/tools/gate-check/tests/test_skill_schema_examples.py
+        - .maika/tools/microloop-orchestrator/tests/test_trace_compiler.py
+    scope: {change_classes: [trivial, small, standard, architectural]}
+    reviewed_at: 2026-07-14
+
   # ---- deferred change-loop triggers (no discrete runtime signal yet) ----
   - id: DEF-005
     mechanism: change-loop-stale-contract

@@ -100,8 +100,10 @@ skills:
         - database_code_consumer_gap
   outputs:
     required:
+    - exploration/DATABASE_REQUEST.yaml
     - exploration/DATABASE_CONTEXT.yaml
   gates:
+  - database-request
   - database-context
 - name: executing-task
   version: '3.0'

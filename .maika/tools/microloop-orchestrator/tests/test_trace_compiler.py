@@ -61,6 +61,47 @@ def test_compile_is_deterministic(tmp_path):
     assert first == second
 
 
+def test_derive_persistence_signal_from_query_plan_and_intent(tmp_path):
+    import adaptive_runtime as ar
+    neutral = ar.derive_persistence_signal(
+        "Refactor logging format.", {"questions": [
+            {"id": "Q1", "required_capabilities": ["exact_source_inspection"]}]})
+    assert neutral == {"persistence": False, "basis": []}
+    from_plan = ar.derive_persistence_signal(
+        "Refactor logging format.", {"questions": [
+            {"id": "Q1", "required_capabilities": ["database_schema_inspection"]}]})
+    assert from_plan["persistence"] is True
+    assert any(b.startswith("query_plan:") for b in from_plan["basis"])
+    from_intent = ar.derive_persistence_signal("Add refund column to orders table.", {})
+    assert from_intent["persistence"] is True
+    from_signals = ar.derive_persistence_signal("", {}, {"database_changed": True})
+    assert from_signals["basis"] == ["database_changed"]
+
+
+def test_write_database_request_skeleton_and_gate_contract(tmp_path):
+    import importlib.util
+    gate_path = FRAMEWORK / "tools" / "gate-check" / "gates.py"
+    spec = importlib.util.spec_from_file_location("gates_dbr", gate_path)
+    gates = importlib.util.module_from_spec(spec); spec.loader.exec_module(gates)
+
+    ws = _workspace(tmp_path, QUESTIONS)
+    path = tc.write_database_request(ws)
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert doc["change_id"] == "C-7"
+    assert doc["allowed_lane"] == "exploration"
+    assert [q["id"] for q in doc["questions"]] == ["Q3"]
+    # Skeleton deliberately fails the gate until the worker declares
+    # environment + database (mutation #8).
+    res = gates.validate_database_request(path.read_text(encoding="utf-8"))
+    assert not res.ok and "environment" in res.reason
+    doc["environment"], doc["database"] = "staging", "orders_db"
+    assert gates.validate_database_request(yaml.safe_dump(doc)).ok
+    # Existing (worker-filled) request is never clobbered.
+    path.write_text(yaml.safe_dump(doc), encoding="utf-8")
+    tc.write_database_request(ws)
+    assert yaml.safe_load(path.read_text(encoding="utf-8"))["environment"] == "staging"
+
+
 def test_write_trace_request_passes_gate(tmp_path):
     import importlib.util
     gate_path = FRAMEWORK / "tools" / "gate-check" / "gates.py"

@@ -170,33 +170,119 @@ def test_coverage_counts_must_be_consistent():
     assert not res.ok
 
 
-# ── database-context ────────────────────────────────────────────────────────
+# ── database-request + database-context v2 (harness plan §7, M6) ────────────
 
-def test_database_context_with_objects_ok():
-    doc = {"read_only": True,
-           "objects": [{"name": "orders", "type": "table"}],
-           "drift": "none"}
-    assert gates.validate_database_context(yaml.safe_dump(doc)).ok
+def _database_request(**over):
+    doc = {
+        "version": 1, "change_id": "C-1", "environment": "staging",
+        "database": "orders_db",
+        "questions": [{"id": "Q-DB1", "question": "orders schema?",
+                       "required_capabilities": ["database_schema_inspection"]}],
+        "objects": [], "required_capabilities": ["database_schema_inspection"],
+        "allowed_lane": "exploration", "data_probe_required": False,
+        "source_anchors": [], "migration_refs": [],
+    }
+    doc.update(over)
+    return doc
 
 
-def test_database_context_degraded_ok():
-    doc = {"read_only": True, "objects": [],
-           "degradation": {"provider": "database", "probe": "psql",
-                           "observed": "connection refused", "fallback": "source-declared schema",
-                           "confidence_impact": "medium"}}
-    assert gates.validate_database_context(yaml.safe_dump(doc)).ok
+def test_database_request_valid():
+    assert gates.validate_database_request(yaml.safe_dump(_database_request())).ok
+
+
+def test_database_request_missing_environment_fails():
+    """Mutation #8: DB evidence must be environment-bound."""
+    res = gates.validate_database_request(
+        yaml.safe_dump(_database_request(environment=None)))
+    assert not res.ok and "environment" in res.reason
+
+
+def test_database_request_wrong_lane_fails():
+    res = gates.validate_database_request(
+        yaml.safe_dump(_database_request(allowed_lane="data_probe")))
+    assert not res.ok and "exploration" in res.reason
+
+
+def _database_context(**over):
+    doc = {
+        "version": 2, "change_id": "C-1", "read_only": True,
+        "provider": {"id": "db-access", "client_key": "db-access"},
+        "probe": {"invocation_mode": "host_mcp", "database": "orders_db",
+                  "environment": "staging", "observed_at": "2026-07-14T08:00:00Z",
+                  "status": "success"},
+        "allowed_lane": "exploration",
+        "allowed_tools": ["list_databases", "sql_list_tables", "sql_get_columns",
+                          "sql_get_constraints"],
+        "used_tools": ["sql_list_tables", "sql_get_columns"],
+        "observations": [{"object": "orders", "type": "table",
+                          "columns": ["id", "status"]}],
+        "code_consumers": [{"object": "orders", "file": "src/repo.py",
+                            "symbol": "OrderRepo"}],
+        "drift": [], "degradation": [], "limitations": [],
+        "confidence": "high",
+    }
+    doc.update(over)
+    return doc
+
+
+def test_database_context_v2_valid():
+    result = gates.validate_database_context(yaml.safe_dump(_database_context()))
+    assert result.ok, result.reason
+
+
+def test_database_context_v1_rejected():
+    doc = {"read_only": True, "objects": [{"name": "orders", "type": "table"}]}
+    res = gates.validate_database_context(yaml.safe_dump(doc))
+    assert not res.ok and "version 2" in res.reason
 
 
 def test_database_context_requires_read_only():
-    doc = {"read_only": False, "objects": [{"name": "x", "type": "table"}]}
-    res = gates.validate_database_context(yaml.safe_dump(doc))
+    res = gates.validate_database_context(
+        yaml.safe_dump(_database_context(read_only=False)))
     assert not res.ok and "read_only" in res.reason
 
 
-def test_database_context_empty_without_degradation_fails():
-    doc = {"read_only": True, "objects": []}
-    res = gates.validate_database_context(yaml.safe_dump(doc))
-    assert not res.ok
+def test_database_context_probe_missing_environment_fails():
+    """Mutation #8: DB context omits environment."""
+    ctx = _database_context()
+    ctx["probe"].pop("environment")
+    res = gates.validate_database_context(yaml.safe_dump(ctx))
+    assert not res.ok and "environment" in res.reason
+
+
+def test_database_context_unclassified_drift_fails():
+    """Mutation #9: drift must be classified."""
+    res = gates.validate_database_context(yaml.safe_dump(_database_context(
+        drift=[{"object": "orders", "detail": "column added in source"}])))
+    assert not res.ok and "classification" in res.reason
+
+
+def test_database_context_classified_drift_passes():
+    res = gates.validate_database_context(yaml.safe_dump(_database_context(
+        drift=[{"object": "orders", "classification": "source_ahead",
+                "detail": "migration V42 not applied to staging"}])))
+    assert res.ok, res.reason
+
+
+def test_database_context_degraded_ok_without_probe():
+    res = gates.validate_database_context(yaml.safe_dump(_database_context(
+        probe={}, observations=[],
+        degradation=[{"kind": "provider_unreachable",
+                      "detail": "db-access MCP connection refused; fallback "
+                                "source-declared schema"}],
+        confidence="low")))
+    assert res.ok, res.reason
+
+
+def test_database_context_no_probe_no_degradation_fails():
+    res = gates.validate_database_context(yaml.safe_dump(_database_context(probe={})))
+    assert not res.ok and "degradation" in res.reason
+
+
+def test_database_context_requires_pinned_allowed_tools():
+    res = gates.validate_database_context(
+        yaml.safe_dump(_database_context(allowed_tools=[])))
+    assert not res.ok and "allowed_tools" in res.reason
 
 
 # ── W4: capsule-integrity + evidence-update-request ─────────────────────────

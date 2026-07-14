@@ -1023,16 +1023,86 @@ def validate_coverage(text) -> Result:
     return Result(True)
 
 
-def validate_database_context(text) -> Result:
-    """Gate `database-context` — exploration is read-only and must carry either
-    real DB objects or a structured degradation record (DB unreachable)."""
+def validate_database_request(text) -> Result:
+    """Gate `database-request` — a persistence-sensitive change must declare
+    WHERE its DB evidence comes from (harness plan §7; mutation #8: evidence
+    is environment-bound, never assumed). The orchestrator compiles the
+    skeleton; the worker fills environment/database explicitly."""
     doc = yaml.safe_load(text) or {}
+    if doc.get("version") != 1:
+        return Result(False, "DATABASE_REQUEST.yaml requires version 1")
+    if not doc.get("change_id"):
+        return Result(False, "DATABASE_REQUEST.yaml requires change_id")
+    for key in ("environment", "database"):
+        if not str(doc.get(key) or "").strip():
+            return Result(False, f"DATABASE_REQUEST.yaml requires an explicit {key}")
+    questions = doc.get("questions")
+    if not isinstance(questions, list) or not questions:
+        return Result(False, "DATABASE_REQUEST.yaml requires a non-empty questions list")
+    if doc.get("allowed_lane") != "exploration":
+        return Result(False, "database request allowed_lane must be exploration")
+    if not isinstance(doc.get("data_probe_required"), bool):
+        return Result(False, "data_probe_required must be an explicit boolean")
+    return Result(True)
+
+
+_DRIFT_CLASSES = {"source_ahead", "db_ahead", "mismatch"}
+
+
+def validate_database_context(text) -> Result:
+    """Gate `database-context` — DATABASE_CONTEXT v2 (harness plan §7, C-20).
+
+    The context must be provider-identified, environment-bound, probe-backed
+    (host_mcp invocation) and read-only; observed drift must be classified,
+    and an unreachable DB needs a structured degradation record."""
+    doc = yaml.safe_load(text) or {}
+    if doc.get("version") != 2:
+        return Result(False, "DATABASE_CONTEXT.yaml requires version 2")
+    if not doc.get("change_id"):
+        return Result(False, "DATABASE_CONTEXT.yaml requires change_id")
     if doc.get("read_only") is not True:
         return Result(False, "DATABASE_CONTEXT.yaml requires read_only: true")
-    objects = doc.get("objects") or []
-    degradation = doc.get("degradation")
-    if not objects and not (isinstance(degradation, dict) and degradation):
-        return Result(False, "DATABASE_CONTEXT.yaml requires DB objects or a structured degradation record")
+    provider = doc.get("provider") or {}
+    if not provider.get("id") or not provider.get("client_key"):
+        return Result(False, "database context requires provider.id + provider.client_key")
+    probe = doc.get("probe") or {}
+    degradation = doc.get("degradation") or []
+    if probe:
+        if probe.get("invocation_mode") != "host_mcp":
+            return Result(False, "probe.invocation_mode must be host_mcp")
+        for key in ("database", "environment", "observed_at", "status"):
+            if not str(probe.get(key) or "").strip():
+                return Result(False, f"database probe requires {key}")
+        if probe["status"] not in {"success", "error", "timeout"}:
+            return Result(False, f"unknown probe status {probe['status']!r}")
+    elif not degradation:
+        return Result(False, "database context requires a probe or a structured "
+                             "degradation record")
+    if doc.get("allowed_lane") != "exploration":
+        return Result(False, "database context allowed_lane must be exploration")
+    if not doc.get("allowed_tools"):
+        return Result(False, "database context requires allowed_tools (pinned lane)")
+    observations = doc.get("observations") or []
+    if not observations and not degradation:
+        return Result(False, "database context requires observations or a "
+                             "structured degradation record")
+    for i, entry in enumerate(degradation, 1):
+        if not isinstance(entry, dict) or not entry.get("kind") \
+                or not str(entry.get("detail") or "").strip():
+            return Result(False, f"degradation {i}: requires kind + detail")
+    for i, entry in enumerate(doc.get("drift") or [], 1):
+        if not isinstance(entry, dict):
+            return Result(False, f"drift {i}: must be a mapping")
+        if not entry.get("object"):
+            return Result(False, f"drift {i}: object required")
+        if entry.get("classification") not in _DRIFT_CLASSES:
+            return Result(False, f"drift {i}: classification must be one of "
+                                 f"{sorted(_DRIFT_CLASSES)} (unclassified drift "
+                                 "is invalid)")
+        if not str(entry.get("detail") or "").strip():
+            return Result(False, f"drift {i}: detail required")
+    if doc.get("confidence") not in {"high", "medium", "low"}:
+        return Result(False, "database context requires confidence high|medium|low")
     return Result(True)
 
 
