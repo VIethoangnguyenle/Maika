@@ -32,6 +32,20 @@ _SHELL_TOOLS = {"bash", "shell", "local_shell", "run_command", "run_terminal_cmd
 _SESSION_PHASES = ("phase-1-done", "phase-2-done")
 _PHASE_STATE_RE = re.compile(r"phase_state:\s*([A-Za-z0-9-]+)")
 _SHELL_COMMS = {"sh", "bash", "dash", "zsh", "fish", "python", "python3", "py"}
+_READ_ONLY_VERBS = {
+    "awk", "basename", "cat", "cmp", "cut", "diff", "dirname", "du", "echo", "env",
+    "find", "git", "grep", "head", "jq", "ls", "pwd", "readlink", "rg",
+    "printf", "sha256sum", "sort", "stat", "tail", "test", "tr", "tree", "uniq",
+    "wc", "which", "yq",
+}
+_INTERPRETER_VERBS = {
+    "python", "python2", "python3", "py", "node", "nodejs", "ruby", "perl",
+    "php", "deno", "sh", "bash", "dash", "zsh", "fish",
+}
+_MUTATING_TASK_MARKERS = {
+    "spotless:apply", "spotlessapply", "format", "format:write", "lint:fix",
+    "--fix", "fix", "apply",
+}
 _SESSION_GATE_MESSAGE = (
     "[SESSION-GATE] Pha 1/2 đã chạy trong session này — context có nguy cơ đã tràn/compact. "
     "Mở session mới rồi chạy maika task apply --id <ticket>. "
@@ -123,7 +137,28 @@ def _t3_targets(verb: str, args: list) -> list:
     if verb in ("cp", "mv", "install"):
         return [nonflag[-1]] if nonflag else [None]
     if verb == "dd":
-        return [a[3:] for a in args if a.startswith("of=")]
+        return [a[3:] for a in args if a.startswith("of=")] or [None]
+    if verb in {"touch", "rm", "rmdir", "mkdir", "chmod", "chown", "ln"}:
+        return nonflag or [None]
+    if verb == "truncate":
+        # Size values may be positional after flags; the final non-flag token is
+        # the only safe concrete target we can infer.
+        return [nonflag[-1]] if nonflag else [None]
+    if verb in _INTERPRETER_VERBS:
+        # Inline code and scripts are arbitrary filesystem programs.  Version/help
+        # probes are the only interpreter invocations proven read-only here.
+        if any(a in {"--version", "-V", "--help", "-h"} for a in args):
+            return []
+        return [None]
+    if verb in {"unzip", "7z"}:
+        return [None]
+    if verb == "tar":
+        extracts = any(
+            a in {"-x", "--extract", "--get"} or
+            (a.startswith("-") and not a.startswith("--") and "x" in a[1:])
+            for a in args
+        )
+        return [None] if extracts else []
     if verb == "git":
         if args[:1] == ["apply"]:
             return [None]
@@ -131,7 +166,12 @@ def _t3_targets(verb: str, args: list) -> list:
             return args[args.index("--") + 1:] or [None]
         if args[:1] == ["restore"]:
             return [a for a in args[1:] if not a.startswith("-")] or [None]
-        return []
+        if args[:1] and args[0] in {"reset", "clean", "revert", "stash", "merge", "rebase"}:
+            return [None]
+        return [] if args[:1] and args[0] in {
+            "status", "diff", "show", "log", "rev-parse", "branch", "ls-files",
+            "check-ignore", "remote", "tag",
+        } else [None]
     if verb == "prettier":
         return (nonflag or [None]) if "--write" in args else []
     if verb == "gofmt":
@@ -142,7 +182,21 @@ def _t3_targets(verb: str, args: list) -> list:
         if "--fix" in args or "format" in args:
             return [a for a in nonflag if a not in ("format", "check")] or [None]
         return []
-    return []
+    if verb in {"mvn", "mvnw", "gradle", "gradlew", "npm", "pnpm", "yarn", "npx"}:
+        lowered = {a.lower() for a in args}
+        if lowered & _MUTATING_TASK_MARKERS or any(
+            marker in a.lower() for marker in _MUTATING_TASK_MARKERS for a in args
+        ):
+            return [None]
+        # Build/test plugins can execute arbitrary project code.  They must use
+        # Maika's structured verification executor rather than generic shell when
+        # a scoped execution is active.
+        return [None]
+    if verb in _READ_ONLY_VERBS:
+        return []
+    # An unknown executable may mutate the workspace; never infer read-only from
+    # the absence of a parsed target.
+    return [None]
 
 
 def parse_shell_writes(command: str):
@@ -516,6 +570,62 @@ def resolve_active_execution(project_root: Path, framework_root: str):
     if (config or {}).get("workflow_engine") != "vnext":
         return ("deny", "workflow_engine must be vnext")
 
+    active_contracts = []
+    inactive_contracts = []
+    for contract_path in sorted((framework_path / "changes").glob(
+        "*/generated/ACTIVE_EXECUTION.yaml"
+    )):
+        try:
+            contract = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            return ("deny", f"ACTIVE_EXECUTION contract không đọc được: {contract_path}")
+        if contract.get("status") in {"completed", "failed", "expired"}:
+            inactive_contracts.append(contract_path)
+            continue
+        required = {
+            "execution_id", "change_id", "role", "workflow_state", "status",
+            "allowed_outputs", "allowed_source_scope", "owner_token",
+            "started_at", "lease_expires_at", "prompt_hash",
+        }
+        if contract.get("version") != 1 or required - set(contract):
+            return ("deny", f"ACTIVE_EXECUTION contract thiếu field bắt buộc: {contract_path}")
+        ws = contract_path.parent.parent
+        if contract.get("change_id") != ws.name or contract.get("status") != "active":
+            return ("deny", f"ACTIVE_EXECUTION identity/status không hợp lệ: {contract_path}")
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(contract.get("prompt_hash") or "")):
+            return ("deny", f"ACTIVE_EXECUTION prompt_hash không hợp lệ: {contract_path}")
+        if not isinstance(contract.get("allowed_outputs"), list) or not isinstance(
+                contract.get("allowed_source_scope"), list):
+            return ("deny", f"ACTIVE_EXECUTION scope không hợp lệ: {contract_path}")
+        try:
+            expires = datetime.fromisoformat(str(contract.get("lease_expires_at")))
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            return ("deny", f"ACTIVE_EXECUTION lease không hợp lệ: {contract_path}")
+        if expires <= datetime.now(timezone.utc):
+            return ("deny", f"ACTIVE_EXECUTION lease đã hết hạn: {contract_path}")
+        active_contracts.append((ws, contract))
+    if len(active_contracts) > 1:
+        return ("deny", "có nhiều ACTIVE_EXECUTION contract")
+    if active_contracts:
+        ws, contract = active_contracts[0]
+        outputs = [
+            (ws.relative_to(project_root) / Path(path)).as_posix()
+            for path in contract.get("allowed_outputs") or []
+        ]
+        source = list(contract.get("allowed_source_scope") or [])
+        return (ws, {
+            "id": contract.get("task_id") or contract.get("execution_id"),
+            "execution_id": contract.get("execution_id"),
+            "role": contract.get("role"),
+            "files": {"create": source, "modify": source, "delete": source, "test": []},
+            "allowed_outputs": outputs,
+            "contract_type": "unified_execution",
+        })
+    if inactive_contracts:
+        return ("deny", "ACTIVE_EXECUTION hiện tại không còn active")
+
     executing = []
     for state_path in sorted((framework_path / "changes").glob("*/STATE.yaml")):
         try:
@@ -594,9 +704,12 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
     if is_framework:
         ws_rel = ws.relative_to(project_root).as_posix()
         result_rel = task.get("result_path")
-        declared = rel in allowed or (result_rel and rel == f"{ws_rel}/{result_rel}")
+        declared = (rel in allowed or rel in set(task.get("allowed_outputs") or [])
+                    or (result_rel and rel == f"{ws_rel}/{result_rel}"))
         if not declared:
             return Decision(False, f"role {task.get('role') or 'application-implementer'} không khai báo target {rel}")
+        if task.get("contract_type") == "unified_execution":
+            return Decision(True)
         if _framework_role_allows(rel, framework_root, ws, task, project_root):
             return Decision(True)
         return Decision(False, f"role {task.get('role') or 'application-implementer'} không có quyền ghi {rel}")
@@ -651,7 +764,6 @@ def main(argv=None, stdin_text=None):
     if _is_shell_tool(_tool_name(payload)):
         targets, unresolved = parse_shell_writes(_command_text(payload))
         targets = [_runtime_target(cwd, t) for t in targets]
-        targets = [t for t in targets if not _git_ignored(root, _policy_path(root, t))]
         if not targets:
             if unresolved:
                 command = _command_text(payload)
@@ -660,8 +772,10 @@ def main(argv=None, stdin_text=None):
                 if active[0] != "deny" or framework_hint:
                     decision = Decision(False, "write-gate: unresolved dynamic write fails closed")
                 else:
-                    _warn("write-gate: shell write with unresolved path outside implementation — allowed.")
-                    decision = Decision(True)
+                    decision = Decision(
+                        False,
+                        "write-gate: unresolved possible write requires an active scoped execution",
+                    )
             else:
                 decision = Decision(True)
         else:

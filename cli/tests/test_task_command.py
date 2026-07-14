@@ -484,3 +484,31 @@ def test_task_archive_requires_completed_workspace(tmp_path, capsys):
 
     assert code == 1
     assert "COMPLETED" in capsys.readouterr().out
+
+
+def test_small_verify_generates_zero_impact_artifacts_and_archives(tmp_path):
+    root = _target(tmp_path)
+    run_task("start", target_dir=str(root), change_id="demo", title="Demo", klass="small")
+    ws = root / ".maika" / "changes" / "demo"
+    (ws / "STATE.yaml").write_text(
+        "change_id: demo\nstate: VERIFYING\n", encoding="utf-8"
+    )
+    (ws / "TASK.yaml").write_text(yaml.safe_dump({
+        "change_id": "demo",
+        "class": "small",
+        "scope": {"files": {"create": [], "modify": ["README.md"], "delete": [], "test": []}},
+        "verification": {"commands": [{"id": "python-info", "profile": "python-version"}]},
+    }, sort_keys=False), encoding="utf-8")
+
+    assert run_task("verify", target_dir=str(root), change_id="demo") == 0
+    impact = yaml.safe_load(
+        (ws / "reviews" / "KNOWLEDGE_IMPACT.yaml").read_text(encoding="utf-8")
+    )
+    feedback = yaml.safe_load(
+        (ws / "reviews" / "SKILL_FEEDBACK.yaml").read_text(encoding="utf-8")
+    )
+    assert impact["generated_by"] == "lightweight-verification"
+    assert impact["new_candidates"] == []
+    assert feedback["verified"] is True and feedback["observations"] == []
+    assert run_task("archive", target_dir=str(root), change_id="demo") == 0
+    assert (root / ".maika" / "archive" / "demo").is_dir()

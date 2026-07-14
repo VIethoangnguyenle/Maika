@@ -17,6 +17,7 @@ TRACE_EVIDENCE_REL = "exploration/TRACE_EVIDENCE.yaml"
 
 _SKELETON = {
     "version": 1,
+    "authority_policy_version": 1,
     "change_id": None,
     "provider_observations": [],
     "graph": {},
@@ -25,6 +26,8 @@ _SKELETON = {
     "impact": [],
     "support_calls": [],
     "source_verifications": [],
+    "conflicts": [],
+    "refresh_boundaries": [],
     "limitations": [],
     "confidence": None,
     "complete": False,
@@ -51,6 +54,7 @@ def save_trace_evidence(path: Path, doc: dict) -> None:
 
 def add_observation(workspace: Path, change_id: str, observation: dict) -> Path:
     path, doc = load_trace_evidence(workspace, change_id)
+    observation = dict(observation)
     graph = observation.pop("graph", None)
     doc["provider_observations"] = list(doc.get("provider_observations") or []) + [observation]
     if graph:

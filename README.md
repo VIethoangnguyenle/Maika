@@ -343,8 +343,9 @@ Maika resolve tool names tại scaffold time. Khi bạn chạy `maika init`, CLI
 |---|---|---|
 | Codebase Memory | Knowledge graph + semantic search, dependency graph, symbol analysis (single binary, MIT) | Hầu hết dự án có codebase lớn |
 | Understand Anything | Knowledge graph code-exploration — nguồn **chính** cho kiến trúc/domain/flow (UA-first) | Mọi truy vấn kiến trúc/flow; Codebase Memory hỗ trợ sau — extract logic tại node UA đã định vị |
+| AgentMemory | Historical/session recall ở chế độ candidate-only | Tìm incident, quyết định và attempt cũ; không làm current-code/canonical authority |
 | Confluence | Wiki/document search | Dự án có docs trên Confluence |
-| DB Remote | Database schema exploration read-only | Dự án có DB cần khám phá |
+| DB Access | Schema/read exploration qua read-only lane | Dự án có DB cần khám phá; write/script bị tắt trong exploration |
 
 Nếu thêm hoặc bỏ MCP sau này:
 
@@ -362,11 +363,31 @@ Sau khi chọn MCP lúc `maika init` hoặc `maika update --reconfigure`, chạy
 
 Doctor kiểm tra config MCP native của Codex, Claude Code, hoặc Antigravity, ghi
 `mcp-doctor-report.md`, và thử bridge fallback khi native MCP không khả dụng.
+Nếu phát hiện AgentMemory auto-capture/injection trong hook user-global, doctor chỉ
+cảnh báo governance `DEGRADED`; không tự ý sửa hay xóa hook của người dùng.
 Doctor không sửa config trừ khi bạn chạy:
 
 ```bash
 .venv/bin/python -m cli.maika doctor mcp --target /path/to/your-project --fix
 ```
+
+### Ghi provider evidence
+
+Host/IDE thực hiện MCP call; Maika nhận request/response đã lưu để ghi invocation và
+evidence envelope hash-bound:
+
+```bash
+maika provider record --target /path/to/project --id CHANGE_ID \
+  --provider understand-anything --tool get_graph_metadata --role grounding \
+  --request-file /tmp/request.json --response-file /tmp/response.json
+
+maika provider verify-source --target /path/to/project --id CHANGE_ID \
+  --file src/service.py --symbol dispatch
+```
+
+CBM material evidence cần hai call `index_status` bao quanh session. AgentMemory
+recall luôn được ghi là `historical_context`/`candidate`; memory-only evidence không
+thể promote thành canonical project knowledge.
 
 ---
 

@@ -37,6 +37,8 @@ class DoctorStatus:
     setup_reports: dict = field(default_factory=dict)
     memory_daemon: str = "not-selected"   # not-selected | running | down
     memory_daemon_url: str = ""
+    memory_governance: str = "not-selected"  # not-selected | controlled | degraded
+    governance_warnings: list[str] = field(default_factory=list)
 
 
 def _setup_reports(target: Path, home: Path, maika_root, platform: str,
@@ -80,6 +82,34 @@ def _memory_daemon_state(selected: list) -> tuple[str, str]:
     return ("running" if _probe_memory_daemon(url) else "down"), url
 
 
+def _memory_governance_state(selected: list, home: Path) -> tuple[str, list[str]]:
+    """Report user-global auto-capture; never mutate host-owned hook files."""
+    if "agent-memory" not in selected:
+        return "not-selected", []
+    warnings = []
+    for name in ("AGENTMEMORY_AUTO_CAPTURE", "AGENTMEMORY_INJECT_CONTEXT",
+                 "AGENTMEMORY_STOP_SUMMARY"):
+        if str(os.environ.get(name) or "").lower() in {"1", "true", "yes", "on"}:
+            warnings.append(f"{name} enables host-level automatic memory behavior")
+    candidates = (
+        home / ".claude" / "settings.json",
+        home / ".codex" / "settings.json",
+        home / ".gemini" / "settings.json",
+        home / ".config" / "agentmemory" / "config.json",
+    )
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8").lower()
+        except OSError:
+            continue
+        if "agentmemory" in text and any(word in text for word in (
+                "hook", "auto_capture", "inject", "stop_summary")):
+            warnings.append(f"possible AgentMemory auto-capture hook in {path}")
+    return ("degraded" if warnings else "controlled"), warnings
+
+
 def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStatus:
     resolved = load_resolved_config(target)
     if resolved is None:
@@ -92,6 +122,7 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
     adapter = get_mcp_adapter(platform)
 
     memory_daemon, memory_daemon_url = _memory_daemon_state(selected)
+    memory_governance, governance_warnings = _memory_governance_state(selected, home)
 
     best_config = None
     for candidate in adapter.config_candidates(target, home):
@@ -114,6 +145,8 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
             setup_reports=_setup_reports(target, home, maika_root, platform, selected, []),
             memory_daemon=memory_daemon,
             memory_daemon_url=memory_daemon_url,
+            memory_governance=memory_governance,
+            governance_warnings=governance_warnings,
         )
 
     matched, missing = selected_server_matches(best_config, selected)
@@ -140,6 +173,8 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
         setup_reports=_setup_reports(target, home, maika_root, platform, selected, matched),
         memory_daemon=memory_daemon,
         memory_daemon_url=memory_daemon_url,
+        memory_governance=memory_governance,
+        governance_warnings=governance_warnings,
     )
 
 
@@ -159,6 +194,7 @@ def render_report(status: DoctorStatus) -> str:
         f"- matched: {matched}\n"
         f"- missing: {missing}\n"
         + _render_memory_daemon(status)
+        + _render_governance(status)
         + f"- Recommendation: {status.recommendation}\n"
         + _render_setup_reports(status.setup_reports)
         + _render_matched_config(status.redacted_servers)
@@ -171,6 +207,14 @@ def _render_memory_daemon(status: DoctorStatus) -> str:
     if status.memory_daemon == "running":
         return f"- agent-memory daemon: RUNNING ({status.memory_daemon_url})\n"
     return f"- agent-memory daemon: DOWN ({status.memory_daemon_url}) — {MEMORY_DAEMON_HINT}\n"
+
+
+def _render_governance(status: DoctorStatus) -> str:
+    if status.memory_governance == "not-selected":
+        return ""
+    out = [f"- agent-memory governance: {status.memory_governance.upper()}\n"]
+    out.extend(f"  - WARNING: {warning}\n" for warning in status.governance_warnings)
+    return "".join(out)
 
 
 def _render_setup_reports(setup_reports: dict) -> str:

@@ -1,0 +1,7 @@
+provider: db-access
+repository: VIethoangnguyenle/Db-Access
+revision: eb7292e4645f1c81d8b7a32062130d6833b8f12b
+captured_at: 2026-07-15T00:00:00Z
+tool: sql_write-preview
+contract_version: 1
+content_sha256: sha256:cc9082a02b0174002e7862874bc5e25fce3486930ff26dea533d15016b9ad4dd

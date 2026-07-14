@@ -1,0 +1,28 @@
+{
+  "tools": [
+    {"name": "index_repository", "inputSchema": {"type": "object"}},
+    {
+      "name": "search_graph",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {"type": "string"},
+          "semantic_query": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["project"]
+      }
+    },
+    {"name": "query_graph", "inputSchema": {"type": "object"}},
+    {"name": "trace_path", "inputSchema": {"type": "object"}},
+    {"name": "get_code_snippet", "inputSchema": {"type": "object"}},
+    {"name": "get_graph_schema", "inputSchema": {"type": "object"}},
+    {"name": "get_architecture", "inputSchema": {"type": "object"}},
+    {"name": "search_code", "inputSchema": {"type": "object"}},
+    {"name": "list_projects", "inputSchema": {"type": "object"}},
+    {"name": "delete_project", "inputSchema": {"type": "object"}},
+    {"name": "index_status", "inputSchema": {"type": "object"}},
+    {"name": "detect_changes", "inputSchema": {"type": "object"}},
+    {"name": "manage_adr", "inputSchema": {"type": "object"}},
+    {"name": "ingest_traces", "inputSchema": {"type": "object"}}
+  ]
+}

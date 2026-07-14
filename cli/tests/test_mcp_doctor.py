@@ -250,3 +250,21 @@ def test_doctor_omits_memory_daemon_line_when_not_selected(tmp_path):
 
     text = (target / ".maika" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
     assert "agent-memory daemon" not in text
+
+
+def test_doctor_warns_without_mutating_user_global_agentmemory_hooks(tmp_path, monkeypatch):
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    write_resolved(target, mcps=["agent-memory"])
+    settings = home / ".claude" / "settings.json"
+    settings.parent.mkdir(parents=True)
+    original = '{"hooks":{"Stop":[{"command":"agentmemory stop_summary"}]}}'
+    settings.write_text(original, encoding="utf-8")
+    monkeypatch.setattr("cli.mcp.doctor._probe_memory_daemon", lambda url, timeout=2.0: True)
+
+    status = build_doctor_status(target, home)
+    report = render_report(status)
+
+    assert status.memory_governance == "degraded"
+    assert "WARNING" in report and "auto-capture hook" in report
+    assert settings.read_text(encoding="utf-8") == original

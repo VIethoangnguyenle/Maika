@@ -29,6 +29,9 @@ providers:
     capabilities:
       semantic_code_search:
         role: primary
+        tools: [search_graph]
+        argument_contract:
+          semantic_query: {type: array, min_items: 1}
       architecture_discovery:
         role: supporting
       call_chain_trace:
@@ -37,6 +40,7 @@ providers:
         role: supporting
       dependency_analysis:
         role: primary
+        tools: [query_graph]
 
   current-source:
     capabilities:

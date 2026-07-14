@@ -28,7 +28,7 @@ class AntigravityPlatform(BasePlatform):
 
         # ── Code Exploration (codebase-memory-mcp) ──
         "search_code":       "mcp_codebase-memory-mcp_search_code",
-        "semantic_search":   "mcp_codebase-memory-mcp_semantic_query",
+        "semantic_search":   "mcp_codebase-memory-mcp_search_graph",
         "index_code":        "mcp_codebase-memory-mcp_index_repository",
         "code_status":       "mcp_codebase-memory-mcp_index_status",
         "get_dependencies":  "mcp_codebase-memory-mcp_query_graph",

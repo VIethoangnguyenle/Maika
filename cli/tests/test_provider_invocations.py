@@ -160,7 +160,7 @@ def test_cli_db_exploration_tool_accepted(tmp_path):
 def test_cli_db_write_tool_rejected(tmp_path, capsys):
     assert _run(tmp_path, provider_id="db-access", tool="sql_write",
                 role="database") == 1
-    assert "outside the exploration lane" in capsys.readouterr().out
+    assert "outside the read-only evidence lane" in capsys.readouterr().out
 
 
 def test_cli_db_data_probe_requires_declared_need(tmp_path, capsys):

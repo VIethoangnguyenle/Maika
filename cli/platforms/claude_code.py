@@ -29,7 +29,7 @@ class ClaudeCodePlatform(BasePlatform):
 
         # ── Code Exploration (codebase-memory-mcp) ──
         "search_code":       "mcp__codebase-memory-mcp__search_code",
-        "semantic_search":   "mcp__codebase-memory-mcp__semantic_query",
+        "semantic_search":   "mcp__codebase-memory-mcp__search_graph",
         "index_code":        "mcp__codebase-memory-mcp__index_repository",
         "code_status":       "mcp__codebase-memory-mcp__index_status",
         "get_dependencies":  "mcp__codebase-memory-mcp__query_graph",

@@ -1,0 +1,7 @@
+provider: agent-memory
+repository: rohitg00/agentmemory
+revision: 93ae9bc04f3ab5042f982aaadf11f1e3f5137531
+captured_at: 2026-07-15T00:00:00Z
+tool: tools/list-local-fallback
+contract_version: 1
+content_sha256: sha256:a01e86c89e1f8cb7b99d1095db3dfce918ddbb10871e2f42959883ef0ffc6171

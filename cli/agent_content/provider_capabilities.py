@@ -17,6 +17,16 @@ UA_TOOLS = {
     "find_path", "get_class_hierarchy", "search_by_file_path",
     "get_domain_overview", "get_domain_detail", "get_domain_flow_detail",
 }
+CBM_TOOLS = {
+    "index_repository", "search_graph", "query_graph", "trace_path",
+    "get_code_snippet", "get_graph_schema", "get_architecture", "search_code",
+    "list_projects", "delete_project", "index_status", "detect_changes",
+    "manage_adr", "ingest_traces",
+}
+AGENT_MEMORY_PROXY_TOOLS = {
+    "memory_smart_search", "memory_recall", "memory_sessions", "memory_save",
+    "memory_governance_delete",
+}
 
 
 def _load(path: Path, label: str) -> dict:
@@ -46,6 +56,16 @@ def validate_canonical_provider_registry(doc: dict, capabilities: dict) -> list[
     if doc.get("version") != 1 or not isinstance(providers, dict) or not providers:
         return ["provider registry requires version 1 and a non-empty providers map"]
     known_caps = set(capabilities.get("capabilities") or {})
+    authority = doc.get("authority") or {}
+    expected_authority = {
+        "exact_current_source": ("authoritative", "current-source"),
+        "deterministic_structure": ("conflict_action", "verify_current_source"),
+        "historical_context": ("conflict_action", "treat_as_candidate"),
+        "canonical_project_knowledge": ("authoritative", "maika-knowledge-kernel"),
+    }
+    for lane, (key, expected) in expected_authority.items():
+        if (authority.get(lane) or {}).get(key) != expected:
+            errors.append(f"authority.{lane}.{key} must be {expected}")
     for provider_id, spec in providers.items():
         prefix = f"providers.{provider_id}"
         if not spec.get("display_name") or not spec.get("kind"):
@@ -93,6 +113,36 @@ def validate_canonical_provider_registry(doc: dict, capabilities: dict) -> list[
                     errors.append(f"{prefix}.tool_contract.lanes.{lane}: explicit user activation required")
                 if lane_spec.get("provider_confirmation_required") is not True:
                     errors.append(f"{prefix}.tool_contract.lanes.{lane}: provider confirmation required")
+        if provider_id == "codebase-memory-mcp":
+            tool_contract = spec.get("tool_contract") or {}
+            tools = set(tool_contract.get("tools") or [])
+            if tools != CBM_TOOLS:
+                errors.append(f"{prefix}: tool contract differs from tested CBM tool snapshot")
+            lanes = tool_contract.get("lanes") or {}
+            lane_tools = {
+                tool for lane in lanes.values() for tool in ((lane or {}).get("tools") or [])
+            }
+            if lane_tools != tools:
+                errors.append(f"{prefix}: every CBM tool must belong to exactly one declared lane")
+            semantic = (tool_contract.get("capabilities") or {}).get("semantic_code_search") or {}
+            if semantic != {"tool": "search_graph", "argument": "semantic_query", "argument_type": "array"}:
+                errors.append(f"{prefix}: semantic search must use search_graph.semantic_query[array]")
+        if provider_id == "agent-memory":
+            if spec.get("integration_mode") != "mcp_proxy_only":
+                errors.append(f"{prefix}: integration_mode must be mcp_proxy_only")
+            if spec.get("fallback_policy") != "reject_store_change":
+                errors.append(f"{prefix}: fallback must reject store changes")
+            hooks = spec.get("hooks") or {}
+            if hooks.get("auto_capture") is not False or hooks.get("session_injection") is not False:
+                errors.append(f"{prefix}: auto capture and session injection must be disabled")
+            tools = set((spec.get("tool_contract") or {}).get("tools") or [])
+            if tools != AGENT_MEMORY_PROXY_TOOLS:
+                errors.append(f"{prefix}: tool contract differs from tested proxy tool snapshot")
+            if spec.get("agent_id_semantics") != "retrieval_filter_only":
+                errors.append(f"{prefix}: agentId is a retrieval filter, not authorization")
+            forbidden = set(spec.get("not_authoritative_for") or [])
+            if not {"exact_current_code", "canonical_project_knowledge"} <= forbidden:
+                errors.append(f"{prefix}: memory must not be current-code or canonical authority")
     return errors
 
 
@@ -130,8 +180,12 @@ def validate_provider_capabilities(mapping: dict, registry: dict) -> list[str]:
                 unknown = set(tools) - UA_TOOLS
                 if unknown:
                     errors.append(f"{prefix}: unknown UA-MCP tools {sorted(unknown)!r}")
-            elif provider == "codebase-memory-mcp" and tools:
-                errors.append(f"{prefix}: concrete CBM tool names are not verified")
+            elif provider == "codebase-memory-mcp":
+                unknown = set(tools) - CBM_TOOLS
+                if unknown:
+                    errors.append(f"{prefix}: unknown CBM tools {sorted(unknown)!r}")
+                if capability == "semantic_code_search" and tools != ["search_graph"]:
+                    errors.append(f"{prefix}: semantic search must route through search_graph")
             declared_primary = capabilities[capability].get("primary_provider")
             if role == "primary" and declared_primary != provider:
                 errors.append(

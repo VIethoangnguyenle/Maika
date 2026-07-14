@@ -147,3 +147,20 @@ Freshness handling:
 - Mỗi capability khai `required_evidence_types` cho câu hỏi nó phục vụ. Retrieval **chưa
   thu đủ** required evidence type → coi như **chưa pass** (không đủ để dựng decision).
 - Reviewer **không** sửa application code.
+
+### [CRITICAL] R-Tool-12: Evidence authority và envelope
+
+- Mọi external observation trong `TRACE_EVIDENCE.yaml` dùng evidence envelope
+  version 1: provider/runtime/tool-contract, request/response hash, project, source
+  revision, working-tree state, provider snapshot, observed time và degradation.
+- Không tự điền dữ liệu upstream không cung cấp. Giá trị chưa chứng minh phải là
+  `unverified`; readiness không được mang nhãn production khi còn mandatory field
+  `unverified`.
+- Conflict UA/CBM không được merge thành một claim `verified`. Phải ghi `conflicts`
+  và resolve bằng file đã hash qua `maika provider verify-source`.
+- AgentMemory chỉ có authority `historical_context`, classification `candidate`,
+  `canonical: false`. `agentId` chỉ là retrieval filter, không phải authorization.
+  Durable knowledge chỉ được promote qua `cli/knowledge_control.py` sau verification.
+- Khi dùng CBM cho material evidence: ghi `index_status` trước/sau session; HEAD,
+  working tree, node/edge count, index timestamp và tool-contract hash phải ổn định.
+  `index_generation` tiếp tục là `unverified` cho tới khi upstream cung cấp immutable ID.

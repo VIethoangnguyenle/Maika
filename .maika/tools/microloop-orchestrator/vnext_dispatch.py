@@ -4,10 +4,11 @@ import json
 import importlib.util
 import hashlib
 import os
+import secrets
 import socket
 import tempfile
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import yaml
 
@@ -27,6 +28,81 @@ DEFAULT_EXTERNAL_WORKFLOWS = {
     "allowed": [],
     "request_only": ["understand", "understand-domain", "codebase-memory-index"],
 }
+
+EXECUTION_CONTRACT_REL = "generated/ACTIVE_EXECUTION.yaml"
+AUTHORING_OUTPUTS = {
+    "grounding": [
+        "exploration/QUERY_PLAN.yaml", "exploration/TOOL_HEALTH.yaml",
+        "exploration/GROUNDING.yaml", "exploration/EVIDENCE_MANIFEST.yaml",
+        "exploration/CONFLICTS.yaml", "exploration/COVERAGE.yaml",
+        "exploration/TRACE_REQUEST.yaml", "exploration/TRACE_EVIDENCE.yaml",
+        "exploration/PROVIDER_INVOCATIONS.jsonl", "EXTERNAL_WORKFLOW_REQUEST.yaml",
+    ],
+    "database": [
+        "exploration/DATABASE_REQUEST.yaml", "exploration/DATABASE_CONTEXT.yaml",
+        "exploration/PROVIDER_INVOCATIONS.jsonl", "DB_REPROBE_REQUEST.yaml",
+    ],
+    "reconciliation": ["RECONCILIATION.md", "exploration/CONFLICTS.yaml"],
+    "brainstorming": ["RECONCILIATION.md"],
+    "spec": ["SPEC.md"],
+    "planning": ["IMPLEMENTATION_PLAN.md", "CONTEXT_REQUEST.yaml"],
+}
+
+
+def _atomic_yaml(path: Path, doc: dict) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            yaml.safe_dump(doc, handle, sort_keys=False, allow_unicode=True)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, path)
+    except BaseException:
+        try:
+            os.unlink(temp_name)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def activate_execution(ws, role, *, allowed_outputs, allowed_source_scope=None,
+                       task_id=None, prompt="", lease_seconds=7200) -> dict:
+    """Persist the one write authorization consumed by the native write gate."""
+    ws = Path(ws)
+    now = datetime.now(timezone.utc)
+    execution_id = f"EXEC-{ws.name}-{role}-{secrets.token_hex(8)}"
+    contract = {
+        "version": 1,
+        "execution_id": execution_id,
+        "change_id": ws.name,
+        "task_id": task_id,
+        "role": role,
+        "workflow_state": (yaml.safe_load((ws / "STATE.yaml").read_text(encoding="utf-8")) or {}).get("state"),
+        "status": "active",
+        "allowed_outputs": sorted(set(allowed_outputs or [])),
+        "allowed_source_scope": sorted(set(allowed_source_scope or [])),
+        "owner_token": secrets.token_hex(16),
+        "prompt_hash": "sha256:" + hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        "started_at": now.isoformat(),
+        "lease_expires_at": (now + timedelta(seconds=lease_seconds)).isoformat(),
+    }
+    _atomic_yaml(ws / EXECUTION_CONTRACT_REL, contract)
+    return contract
+
+
+def finish_execution(ws, execution_id, outcome) -> None:
+    path = Path(ws) / EXECUTION_CONTRACT_REL
+    if not path.is_file():
+        return
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if doc.get("execution_id") != execution_id:
+        return
+    doc["status"] = "completed" if outcome == "completed" else "failed"
+    doc["outcome"] = outcome
+    doc["ended_at"] = datetime.now(timezone.utc).isoformat()
+    _atomic_yaml(path, doc)
 
 
 def _dispatch_kernel():
@@ -583,7 +659,18 @@ def run_authoring_dispatch(ws, role, runner, vs, validator=None):
     state_before = current
     started_at = datetime.now(timezone.utc).isoformat()
     calls_before = _provider_calls()
-    exit_code, output = runner(prompt)
+    execution = activate_execution(
+        ws, role, allowed_outputs=AUTHORING_OUTPUTS.get(role, [spec["output"]]),
+        prompt=prompt,
+    )
+    try:
+        exit_code, output = runner(prompt)
+    except BaseException:
+        finish_execution(ws, execution["execution_id"], "worker_exception")
+        raise
+    finish_execution(
+        ws, execution["execution_id"], "completed" if exit_code == 0 else "worker_failed",
+    )
 
     def _log(outcome, gate_results=""):
         now = datetime.now(timezone.utc).isoformat()
@@ -643,7 +730,18 @@ def review_plan(ws, runner, output_path=None):
     if out.exists():
         out.unlink()
     
-    exit_code, output = runner(prompt)
+    execution = activate_execution(
+        ws, "plan_review", allowed_outputs=["reviews/plan-review.md"],
+        task_id="PLAN_REVIEW", prompt=prompt,
+    )
+    try:
+        exit_code, output = runner(prompt)
+    except BaseException:
+        finish_execution(ws, execution["execution_id"], "worker_exception")
+        raise
+    finish_execution(
+        ws, execution["execution_id"], "completed" if exit_code == 0 else "worker_failed",
+    )
     if not out.exists():
         out.write_text(f"VERDICT: FINDINGS\nWorker exit {exit_code}: {output}", encoding="utf-8")
         
@@ -701,7 +799,28 @@ def _dispatch_to_runner(ws, dispatch_type, task, artifact_rel, output_rel, runne
         "kernel_id": DISPATCH_KERNEL_ID.split(": ", 1)[1],
         "capsule_path": task.get("capsule_path") if task else None,
     })
-    return runner(prompt)
+    source_scope = []
+    if dispatch_type in {"implementation", "fix"}:
+        source_scope = [
+            path for values in (task.get("files") or {}).values() for path in (values or [])
+        ]
+    execution = activate_execution(
+        ws,
+        dispatch_type,
+        allowed_outputs=[output_rel],
+        allowed_source_scope=source_scope,
+        task_id=task.get("id"),
+        prompt=prompt,
+    )
+    try:
+        exit_code, output = runner(prompt)
+    except BaseException:
+        finish_execution(ws, execution["execution_id"], "worker_exception")
+        raise
+    finish_execution(
+        ws, execution["execution_id"], "completed" if exit_code == 0 else "worker_failed",
+    )
+    return exit_code, output
 
 
 def _validate_brief(ws, gates, task, queue_doc):

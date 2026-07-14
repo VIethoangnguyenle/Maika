@@ -1,0 +1,7 @@
+provider: understand-anything
+repository: VIethoangnguyenle/Understand-Anything-MCP
+revision: 0b4f3e2b18dc038bf28856821f568f05358fab2d
+captured_at: 2026-07-15T00:00:00Z
+tool: get_graph_metadata
+contract_version: 1
+content_sha256: sha256:44a92b275f31ea2a2b4c1cf460de61e9d95f11f9f189ad454f10df5dc5bc21a0

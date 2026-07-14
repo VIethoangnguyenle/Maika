@@ -38,6 +38,43 @@ REQUEST = {
 
 UA_HASH = "sha256:" + "1" * 64
 CBM_HASH = "sha256:" + "2" * 64
+TOOL_HASH = "sha256:" + "f" * 64
+REQUEST_HASH = "sha256:" + "0" * 64
+
+
+def _observation(provider="understand-anything", tool="trace_call_chain",
+                 response_hash=UA_HASH, **over):
+    doc = {
+        "contract_version": 1,
+        "provider_id": provider,
+        "provider_runtime_version": "fixture-1",
+        "tool": tool,
+        "tool_contract_hash": TOOL_HASH,
+        "request_hash": REQUEST_HASH,
+        "response_hash": response_hash,
+        "project": "maika",
+        "source_revision": "abc123",
+        "working_tree_state": "clean",
+        "provider_snapshot": {},
+        "observed_at": "2026-07-14T08:00:01Z",
+        "status": "success",
+        "degradation_reasons": [],
+        "authority": "domain_semantics",
+        "canonical": False,
+        "truncated": False,
+    }
+    doc.update(over)
+    return doc
+
+
+def _invocation(provider, tool, response_hash, trace_id):
+    return json.dumps({
+        "trace_id": trace_id, "change_id": "C-1", "role": "grounding",
+        "provider_id": provider, "tool": tool, "invocation_mode": "host_mcp",
+        "request_hash": REQUEST_HASH, "response_hash": response_hash,
+        "started_at": "2026-07-14T08:04:00Z",
+        "ended_at": "2026-07-14T08:04:01Z", "status": "success",
+    })
 
 INVOCATIONS = "\n".join([
     json.dumps({"trace_id": "t1", "change_id": "C-1", "role": "grounding",
@@ -46,7 +83,7 @@ INVOCATIONS = "\n".join([
                 "response_hash": UA_HASH, "started_at": "2026-07-14T08:00:00Z",
                 "ended_at": "2026-07-14T08:00:01Z", "status": "success"}),
     json.dumps({"trace_id": "t2", "change_id": "C-1", "role": "grounding",
-                "provider_id": "codebase-memory-mcp", "tool": "semantic_search",
+                "provider_id": "codebase-memory-mcp", "tool": "search_graph",
                 "invocation_mode": "host_mcp", "request_hash": "sha256:" + "0" * 64,
                 "response_hash": CBM_HASH, "started_at": "2026-07-14T08:00:02Z",
                 "ended_at": "2026-07-14T08:00:03Z", "status": "success"}),
@@ -61,8 +98,7 @@ def _evidence(tmp_path, **over):
         "version": 1,
         "change_id": "C-1",
         "provider_observations": [
-            {"provider_id": "understand-anything", "tool": "trace_call_chain",
-             "response_hash": UA_HASH, "truncated": False},
+            _observation(),
         ],
         "graph": {"project": "maika", "graph_commit": "abc123",
                   "repository_head": "abc123", "freshness": "FRESH",
@@ -141,10 +177,17 @@ def test_observation_without_invocation_record_fails(tmp_path):
     assert not result.ok and "no provider invocation record" in result.reason
 
 
+def test_observation_without_evidence_envelope_fails(tmp_path):
+    result = _check(tmp_path, provider_observations=[
+        {"provider_id": "understand-anything", "tool": "trace_call_chain",
+         "response_hash": UA_HASH},
+    ])
+    assert not result.ok and "evidence envelope" in result.reason
+
+
 def test_observation_provider_mismatch_fails(tmp_path):
     result = _check(tmp_path, provider_observations=[
-        {"provider_id": "codebase-memory-mcp", "tool": "trace_call_chain",
-         "response_hash": UA_HASH}])
+        _observation(provider="codebase-memory-mcp")])
     assert not result.ok and "disagree" in result.reason
 
 
@@ -208,8 +251,7 @@ def test_required_capability_uncovered_fails(tmp_path):
 def test_truncated_observation_cannot_claim_complete(tmp_path):
     """Mutation #17: truncated response claims complete."""
     result = _check(tmp_path, provider_observations=[
-        {"provider_id": "understand-anything", "tool": "trace_call_chain",
-         "response_hash": UA_HASH, "truncated": True}])
+        _observation(truncated=True)])
     assert not result.ok and "truncated" in result.reason
 
 
@@ -218,6 +260,88 @@ def test_source_verification_hash_mismatch_fails(tmp_path):
     result = _check(tmp_path, source_verifications=[
         {"file": "svc.py", "sha256": "sha256:" + "e" * 64, "symbol": "dispatch"}])
     assert not result.ok and "mismatch" in result.reason
+
+
+def test_graph_conflict_requires_current_source_resolution(tmp_path):
+    result = _check(tmp_path, conflicts=[{
+        "claim": "A calls B", "providers": ["understand-anything", "codebase-memory-mcp"],
+        "resolution": "merged_graph_claim", "source_verifications": [],
+    }])
+    assert not result.ok and "current-source verification" in result.reason
+
+
+def test_graph_conflict_accepts_referenced_current_source_resolution(tmp_path):
+    result = _check(tmp_path, conflicts=[{
+        "claim": "A calls B", "providers": ["understand-anything", "codebase-memory-mcp"],
+        "resolution": "current_source_verified", "source_verifications": ["svc.py"],
+    }])
+    assert result.ok, result.reason
+
+
+def test_different_source_revisions_require_refresh_boundary(tmp_path):
+    second_hash = "sha256:" + "4" * 64
+    second = _observation(response_hash=second_hash, source_revision="def456")
+    invocation = json.dumps({
+        "trace_id": "t4", "change_id": "C-1", "role": "grounding",
+        "provider_id": "understand-anything", "tool": "trace_call_chain",
+        "invocation_mode": "host_mcp", "request_hash": REQUEST_HASH,
+        "response_hash": second_hash, "started_at": "2026-07-14T08:02:00Z",
+        "ended_at": "2026-07-14T08:02:01Z", "status": "success",
+    })
+    result = _check(tmp_path, invocations=INVOCATIONS + "\n" + invocation,
+                    provider_observations=[_observation(), second])
+    assert not result.ok and "source revisions" in result.reason
+
+
+def test_agentmemory_cannot_authorize_exact_traversal(tmp_path):
+    memory_hash = "sha256:" + "5" * 64
+    memory = _observation(
+        provider="agent-memory", tool="memory_recall", response_hash=memory_hash,
+        source_revision="unverified", authority="historical_context",
+        classification="candidate", canonical=False,
+        provider_snapshot={"agent_id": "worker-1", "agent_id_authorizes": False},
+    )
+    invocation = json.dumps({
+        "trace_id": "t5", "change_id": "C-1", "role": "grounding",
+        "provider_id": "agent-memory", "tool": "memory_recall",
+        "invocation_mode": "host_mcp", "request_hash": REQUEST_HASH,
+        "response_hash": memory_hash, "started_at": "2026-07-14T08:03:00Z",
+        "ended_at": "2026-07-14T08:03:01Z", "status": "success",
+    })
+    result = _check(
+        tmp_path, invocations=INVOCATIONS + "\n" + invocation,
+        provider_observations=[_observation(), memory],
+        traversals=[{"capability": "call_chain_trace", "observations": [memory_hash]}],
+    )
+    assert not result.ok and "cannot support authoritative capability" in result.reason
+
+
+def test_cbm_changed_index_boundary_rejects_complete_evidence(tmp_path):
+    hashes = ["sha256:" + char * 64 for char in "678"]
+    before_snapshot = {
+        "index_generation": "unverified", "head": "abc123", "working_tree_state": "clean",
+        "nodes": 10, "edges": 20, "index_timestamp": "2026-07-14T08:00:00Z",
+    }
+    after_snapshot = {**before_snapshot, "nodes": 11}
+    cbm = [
+        _observation(provider="codebase-memory-mcp", tool="index_status",
+                     response_hash=hashes[0], authority="deterministic_structure",
+                     provider_snapshot=before_snapshot),
+        _observation(provider="codebase-memory-mcp", tool="search_graph",
+                     response_hash=hashes[1], authority="deterministic_structure",
+                     provider_snapshot={"index_generation": "unverified"}),
+        _observation(provider="codebase-memory-mcp", tool="index_status",
+                     response_hash=hashes[2], authority="deterministic_structure",
+                     provider_snapshot=after_snapshot),
+    ]
+    calls = [
+        _invocation("codebase-memory-mcp", "index_status", hashes[0], "t6"),
+        _invocation("codebase-memory-mcp", "search_graph", hashes[1], "t7"),
+        _invocation("codebase-memory-mcp", "index_status", hashes[2], "t8"),
+    ]
+    result = _check(tmp_path, invocations=INVOCATIONS + "\n" + "\n".join(calls),
+                    provider_observations=[_observation(), *cbm])
+    assert not result.ok and "boundary changed: nodes" in result.reason
 
 
 def test_unhealthy_graph_requires_limitation(tmp_path):

@@ -7,12 +7,14 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shlex
 import shutil
 import signal
 import socket
 import subprocess
 import sys
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -305,12 +307,36 @@ class WorkspaceLock:
         self.lease_seconds = lease_seconds
         self.acquired = False
         self.recovered_orphan = False
+        self.owner_token = secrets.token_hex(16)
+        self.generation = 1
+        self._heartbeat_stop = threading.Event()
+        self._heartbeat_thread = None
+
+    def _read_lock(self) -> dict:
+        try:
+            data = yaml.safe_load(self.path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError) as exc:
+            raise WorkspaceBusy(f"cannot read workspace lock {self.path}: {exc}") from exc
+        if not isinstance(data, dict) or data.get("version") not in {1, 2}:
+            raise WorkspaceBusy(f"malformed workspace lock: {self.path}")
+        return data
+
+    @staticmethod
+    def _owner_token(data: dict) -> str:
+        return str(data.get("owner_token") or (data.get("lease") or {}).get("owner_token") or "")
 
     def _orphaned(self) -> bool:
-        try:
-            data = yaml.safe_load(self.path.read_text(encoding="utf-8")) or {}
-        except (OSError, yaml.YAMLError):
-            return False
+        data = self._read_lock()
+        # A live process on this host owns the lock even if its heartbeat was
+        # delayed.  Wall-clock expiry alone must not permit concurrent takeover.
+        if data.get("host") == socket.gethostname():
+            try:
+                pid = int(data.get("pid"))
+            except (TypeError, ValueError):
+                raise WorkspaceBusy(f"workspace lock has invalid pid: {self.path}")
+            if _process_alive(pid):
+                return False
+            return True
         lease = data.get("lease") or {}
         try:
             expires = datetime.fromisoformat(str(lease.get("expires_at")))
@@ -320,31 +346,62 @@ class WorkspaceLock:
                 return True
         except (TypeError, ValueError):
             pass
-        if data.get("host") != socket.gethostname():
-            return False
-        try:
-            pid = int(data.get("pid"))
-        except (TypeError, ValueError):
-            return False
-        return not _process_alive(pid)
+        return False
+
+    def _payload(self, now: datetime) -> dict:
+        return {
+            "version": 2,
+            "owner_token": self.owner_token,
+            "generation": self.generation,
+            "pid": os.getpid(),
+            "host": socket.gethostname(),
+            "started_at": now.isoformat(),
+            "task_id": self.task_id,
+            "lease": {
+                "owner": f"{socket.gethostname()}:{os.getpid()}",
+                "owner_token": self.owner_token,
+                "generation": self.generation,
+                "acquired_at": now.isoformat(),
+                "expires_at": (now + timedelta(seconds=self.lease_seconds)).isoformat(),
+                "heartbeat_at": now.isoformat(),
+            },
+        }
+
+    def _start_heartbeat(self) -> None:
+        interval = max(0.1, min(30.0, self.lease_seconds / 3))
+
+        def run() -> None:
+            while not self._heartbeat_stop.wait(interval):
+                try:
+                    self.heartbeat()
+                except (OSError, WorkspaceBusy, yaml.YAMLError):
+                    self._audit("heartbeat_lost_ownership")
+                    return
+
+        self._heartbeat_stop.clear()
+        self._heartbeat_thread = threading.Thread(
+            target=run, name=f"maika-lock-{self.task_id}", daemon=True,
+        )
+        self._heartbeat_thread.start()
 
     def acquire(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         now = datetime.now(timezone.utc)
-        payload = yaml.safe_dump({
-            "version": 1, "pid": os.getpid(), "host": socket.gethostname(),
-            "started_at": now.isoformat(), "task_id": self.task_id,
-            "lease": {"owner": f"{socket.gethostname()}:{os.getpid()}",
-                      "acquired_at": now.isoformat(),
-                      "expires_at": (now + timedelta(seconds=self.lease_seconds)).isoformat(),
-                      "heartbeat_at": now.isoformat()},
-        }, sort_keys=False)
+        if self.path.exists():
+            try:
+                existing = self._read_lock()
+                self.generation = int(existing.get("generation") or
+                                      (existing.get("lease") or {}).get("generation") or 0) + 1
+            except (TypeError, ValueError):
+                raise WorkspaceBusy(f"workspace lock has invalid generation: {self.path}")
+        payload = yaml.safe_dump(self._payload(now), sort_keys=False)
         for attempt in range(2):
             try:
                 fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                 with os.fdopen(fd, "w", encoding="utf-8") as handle:
                     handle.write(payload)
                 self.acquired = True
+                self._start_heartbeat()
                 return self
             except FileExistsError:
                 if attempt == 0 and self.recover_orphans and self._orphaned():
@@ -364,11 +421,21 @@ class WorkspaceLock:
     def heartbeat(self) -> None:
         if not self.acquired:
             raise WorkspaceBusy("cannot heartbeat an unowned lock")
-        data = yaml.safe_load(self.path.read_text(encoding="utf-8")) or {}
+        data = self._read_lock()
+        if self._owner_token(data) != self.owner_token or int(data.get("generation") or 0) != self.generation:
+            self.acquired = False
+            raise WorkspaceBusy("cannot heartbeat lock owned by another execution")
         now = datetime.now(timezone.utc)
         data["lease"] = {**(data.get("lease") or {}), "heartbeat_at": now.isoformat(),
                          "expires_at": (now + timedelta(seconds=self.lease_seconds)).isoformat()}
-        self.path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        temp = self.path.with_name(f".{self.path.name}.{self.owner_token}.tmp")
+        temp.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        current = self._read_lock()
+        if self._owner_token(current) != self.owner_token or int(current.get("generation") or 0) != self.generation:
+            temp.unlink(missing_ok=True)
+            self.acquired = False
+            raise WorkspaceBusy("lost workspace lock before heartbeat commit")
+        os.replace(temp, self.path)
 
     @classmethod
     def force_unlock(cls, path: Path, task_id: str) -> bool:
@@ -380,9 +447,21 @@ class WorkspaceLock:
         return True
 
     def release(self):
-        if self.acquired:
-            self.path.unlink(missing_ok=True)
+        self._heartbeat_stop.set()
+        if self._heartbeat_thread is not None and self._heartbeat_thread is not threading.current_thread():
+            self._heartbeat_thread.join(timeout=1)
+        if not self.acquired:
+            return
+        try:
+            data = self._read_lock()
+        except WorkspaceBusy:
             self.acquired = False
+            return
+        if self._owner_token(data) == self.owner_token and int(data.get("generation") or 0) == self.generation:
+            self.path.unlink(missing_ok=True)
+        else:
+            self._audit("release_skipped_not_owner")
+        self.acquired = False
 
     def __enter__(self):
         return self.acquire()

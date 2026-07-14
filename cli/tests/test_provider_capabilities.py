@@ -68,11 +68,18 @@ def test_unknown_capability_and_ua_tool_fail():
     assert any("invented_tool" in error for error in errors)
 
 
-def test_concrete_cbm_tool_names_are_rejected_until_verified():
+def test_unknown_cbm_tool_name_is_rejected_against_verified_snapshot():
     mapping, registry = _docs()
     mapping = deepcopy(mapping)
     mapping["providers"]["codebase-memory-mcp"]["capabilities"]["semantic_code_search"]["tools"] = ["guess_search"]
-    assert any("not verified" in error for error in validate_provider_capabilities(mapping, registry))
+    assert any("unknown CBM tools" in error for error in validate_provider_capabilities(mapping, registry))
+
+
+def test_cbm_semantic_search_is_search_graph_argument_contract():
+    mapping, _ = _docs()
+    semantic = mapping["providers"]["codebase-memory-mcp"]["capabilities"]["semantic_code_search"]
+    assert semantic["tools"] == ["search_graph"]
+    assert semantic["argument_contract"]["semantic_query"]["type"] == "array"
 
 
 def test_identity_flags_provider_missing_from_manifest():
@@ -153,3 +160,14 @@ def test_db_write_lane_requires_explicit_user_request_and_provider_confirmation(
     errors = validate_canonical_provider_registry(providers, capabilities)
     assert any("explicit user activation required" in error for error in errors)
     assert any("provider confirmation required" in error for error in errors)
+
+
+def test_cbm_and_agent_memory_registry_contracts_are_enforced():
+    _mapping, capabilities = _docs()
+    providers = load_provider_registry(FRAMEWORK)
+    assert validate_canonical_provider_registry(providers, capabilities) == []
+    cbm = providers["providers"]["codebase-memory-mcp"]
+    assert cbm["tool_contract"]["capabilities"]["semantic_code_search"]["tool"] == "search_graph"
+    memory = providers["providers"]["agent-memory"]
+    assert memory["integration_mode"] == "mcp_proxy_only"
+    assert memory["hooks"]["auto_capture"] is False

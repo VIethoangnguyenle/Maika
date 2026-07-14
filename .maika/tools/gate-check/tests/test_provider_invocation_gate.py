@@ -84,7 +84,7 @@ def test_tool_outside_tested_snapshot_fails():
 
 def test_cbm_without_snapshot_accepts_any_tool_name():
     """CBM tool names are deliberately unverified (no snapshot in registry)."""
-    result = _fail({"provider_id": "codebase-memory-mcp", "tool": "semantic_search"})
+    result = _fail({"provider_id": "codebase-memory-mcp", "tool": "search_graph"})
     assert result.ok, result.reason
 
 

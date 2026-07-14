@@ -206,6 +206,50 @@ def test_workspace_lock_remote_lease_policy_and_force_unlock_audit(tmp_path):
     assert "force_unlock" in audit
 
 
+def test_stale_owner_release_cannot_delete_new_owner_lock(tmp_path):
+    lock_path = tmp_path / "WORKSPACE.lock"
+    first = rh.WorkspaceLock(lock_path, "TASK-1", lease_seconds=60)
+    first.acquire()
+    first._heartbeat_stop.set()
+    first._heartbeat_thread.join(timeout=1)
+
+    # Simulate an administratively recovered/replaced lock.  The stale owner
+    # must observe the token mismatch and leave the replacement intact.
+    replacement = rh.WorkspaceLock(lock_path, "TASK-1", lease_seconds=60)
+    now = rh.datetime.now(rh.timezone.utc)
+    replacement.generation = first.generation + 1
+    lock_path.write_text(yaml.safe_dump(replacement._payload(now)), encoding="utf-8")
+    first.release()
+    assert lock_path.exists()
+    assert yaml.safe_load(lock_path.read_text(encoding="utf-8"))["owner_token"] == replacement.owner_token
+
+
+def test_live_same_host_pid_prevents_expired_lease_takeover(tmp_path):
+    lock_path = tmp_path / "WORKSPACE.lock"
+    past = (rh.datetime.now(rh.timezone.utc) - rh.timedelta(seconds=1)).isoformat()
+    lock_path.write_text(yaml.safe_dump({
+        "version": 2,
+        "owner_token": "live-owner",
+        "generation": 4,
+        "pid": os.getpid(),
+        "host": rh.socket.gethostname(),
+        "task_id": "TASK-1",
+        "lease": {"owner_token": "live-owner", "generation": 4, "expires_at": past},
+    }), encoding="utf-8")
+    with pytest.raises(rh.WorkspaceBusy):
+        rh.WorkspaceLock(lock_path, "TASK-1").acquire()
+
+
+def test_workspace_lock_heartbeat_refreshes_lease(tmp_path):
+    lock = rh.WorkspaceLock(tmp_path / "WORKSPACE.lock", "TASK-1", lease_seconds=2)
+    lock.acquire()
+    before = yaml.safe_load(lock.path.read_text(encoding="utf-8"))["lease"]["expires_at"]
+    lock.heartbeat()
+    after = yaml.safe_load(lock.path.read_text(encoding="utf-8"))["lease"]["expires_at"]
+    assert after >= before
+    lock.release()
+
+
 def test_structured_review_rejects_malformed_duplicate_and_hash_mismatch():
     approved = """---
 schema_version: 1

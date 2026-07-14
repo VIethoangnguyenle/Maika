@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "contract_version": 1,
+  "project": "fixture-project",
+  "root_path": "/fixture/project",
+  "graph": {
+    "node_count": 12,
+    "edge_count": 18,
+    "domain_node_count": 3,
+    "layer_count": 2,
+    "graph_commit": "abc123",
+    "analyzed_at": "2026-07-15T00:00:00Z"
+  },
+  "repository": {
+    "head": "def456"
+  },
+  "freshness": {
+    "status": "STALE",
+    "stale_file_count": 1,
+    "stale_files_sample": ["src/App.java"]
+  },
+  "health": {
+    "status": "HEALTHY",
+    "warnings": []
+  }
+}
