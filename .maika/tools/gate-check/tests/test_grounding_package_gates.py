@@ -285,6 +285,61 @@ def test_database_context_requires_pinned_allowed_tools():
     assert not res.ok and "allowed_tools" in res.reason
 
 
+# ── M7: DB lane enforcement against the provider registry ───────────────────
+
+_PROVIDER_REGISTRY = yaml.safe_load(
+    (Path(__file__).resolve().parents[3] / "config" / "provider-registry.yaml")
+    .read_text(encoding="utf-8")
+)
+_EXPLORATION_TOOLS = ["list_databases", "sql_list_tables", "sql_get_columns",
+                      "sql_get_constraints", "mongo_list_collections",
+                      "mongo_get_schema"]
+
+
+def _lane_check(request_over=None, **over):
+    over.setdefault("allowed_tools", list(_EXPLORATION_TOOLS))
+    request = _database_request(**(request_over or {}))
+    return gates.validate_database_context(
+        yaml.safe_dump(_database_context(**over)),
+        provider_registry=_PROVIDER_REGISTRY,
+        request_text=yaml.safe_dump(request),
+    )
+
+
+def test_lane_full_exploration_snapshot_passes():
+    result = _lane_check(used_tools=["sql_list_tables", "mongo_get_schema"])
+    assert result.ok, result.reason
+
+
+def test_lane_data_probe_use_without_declared_need_fails():
+    """Mutation #6 / fixture F10: Database Explorer calls sql_read."""
+    result = _lane_check(used_tools=["sql_list_tables", "sql_read"])
+    assert not result.ok and "out-of-lane" in result.reason
+
+
+def test_lane_write_tool_always_fails():
+    """Mutation #7: write/script is impossible in Database Explorer context."""
+    result = _lane_check(
+        used_tools=["sql_write"],
+        allowed_tools=_EXPLORATION_TOOLS + ["sql_write"],
+    )
+    assert not result.ok and "allowed_tools outside the pinned lane" in result.reason
+
+
+def test_lane_data_probe_allowed_when_declared():
+    result = _lane_check(
+        request_over={"data_probe_required": True},
+        allowed_tools=_EXPLORATION_TOOLS + ["sql_read"],
+        used_tools=["sql_list_tables", "sql_read"],
+    )
+    assert result.ok, result.reason
+
+
+def test_lane_allowed_tools_must_cover_exploration_snapshot():
+    result = _lane_check(allowed_tools=["sql_list_tables"])
+    assert not result.ok and "full exploration lane snapshot" in result.reason
+
+
 # ── W4: capsule-integrity + evidence-update-request ─────────────────────────
 
 def _capsule_and_queue(ev_text="claims: []\n"):

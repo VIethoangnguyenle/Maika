@@ -310,6 +310,31 @@ def markdown_trace_block(text):
     return match.group(1) if match else None
 
 
+def database_lane_context(framework_path) -> str:
+    """Allowed/denied DB tools for the database-explorer worker prompt
+    (harness plan §11, M7 safety boundary). Pinned from the provider
+    registry's lane contract — never author this list by hand."""
+    registry_path = Path(framework_path) / "config" / "provider-registry.yaml"
+    if not registry_path.exists():
+        registry_path = (Path(__file__).resolve().parents[2]
+                         / "config" / "provider-registry.yaml")
+    registry = yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {}
+    lanes = ((((registry.get("providers") or {}).get("db-access") or {})
+              .get("tool_contract") or {}).get("lanes") or {})
+    allowed = sorted((lanes.get("exploration") or {}).get("tools") or [])
+    denied = sorted({
+        tool
+        for lane, lane_spec in lanes.items() if lane != "exploration"
+        for tool in (lane_spec or {}).get("tools") or []
+    })
+    return (
+        f"ALLOWED_DB_TOOLS (exploration lane): {json.dumps(allowed)}\n"
+        f"DENIED_DB_TOOLS (data probe/write/script — out of lane): {json.dumps(denied)}\n"
+        "Any denied tool call fails the database-context gate; data-probe tools "
+        "require data_probe_required: true in DATABASE_REQUEST.yaml."
+    )
+
+
 def run_authoring_dispatch(ws, role, runner, vs, validator=None):
     """Dispatch one authoring role, gate its output, transition on success.
 
@@ -327,7 +352,10 @@ def run_authoring_dispatch(ws, role, runner, vs, validator=None):
                 "reason": f"wrong state {current} (expected {'/'.join(spec['expected'])})"}
     if role == "grounding" and current == "INTAKE":
         vs.start_exploration(ws)
-    prompt = build_prompt(role, ws, spec["input"], spec["output"], extra=spec["extra"])
+    extra = spec["extra"]
+    if role == "database":
+        extra = f"{extra}\n\n{database_lane_context(ws.parents[1])}"
+    prompt = build_prompt(role, ws, spec["input"], spec["output"], extra=extra)
     exit_code, output = runner(prompt)
     _append_dispatch_log(ws, {
         "dispatch_type": role, "output": spec["output"], "worker_exit": exit_code,

@@ -83,6 +83,17 @@ def _target(tmp_path: Path) -> Path:
                 "tool_contract": {"tools": ["get_graph_metadata"]},
             },
             "codebase-memory-mcp": {"display_name": "CBM", "kind": "semantic_code_index"},
+            "db-access": {
+                "display_name": "DB Access", "kind": "database",
+                "tool_contract": {
+                    "tools": ["sql_list_tables", "sql_read", "sql_write"],
+                    "lanes": {
+                        "exploration": {"tools": ["sql_list_tables"]},
+                        "data_probe": {"tools": ["sql_read"]},
+                        "explicit_write": {"tools": ["sql_write"]},
+                    },
+                },
+            },
         },
     }
     config.joinpath("provider-registry.yaml").write_text(
@@ -137,3 +148,35 @@ def test_cli_rejects_missing_workspace(tmp_path):
 
 def test_cli_requires_payload_files(tmp_path):
     assert _run(tmp_path, request_file=str(tmp_path / "absent.json")) == 1
+
+
+# ── M7: DB lane safety boundary at record time ──────────────────────────────
+
+def test_cli_db_exploration_tool_accepted(tmp_path):
+    assert _run(tmp_path, provider_id="db-access", tool="sql_list_tables",
+                role="database") == 0
+
+
+def test_cli_db_write_tool_rejected(tmp_path, capsys):
+    assert _run(tmp_path, provider_id="db-access", tool="sql_write",
+                role="database") == 1
+    assert "outside the exploration lane" in capsys.readouterr().out
+
+
+def test_cli_db_data_probe_requires_declared_need(tmp_path, capsys):
+    target = _target(tmp_path)
+    assert run_provider(
+        "record", target_dir=str(target), change_id="C-9", provider_id="db-access",
+        tool="sql_read", role="database", request_file=str(tmp_path / "req.json"),
+        response_file=str(tmp_path / "res.json"),
+    ) == 1
+    assert "data_probe_required" in capsys.readouterr().out
+    request_path = (target / ".maika" / "changes" / "C-9"
+                    / "exploration" / "DATABASE_REQUEST.yaml")
+    request_path.parent.mkdir(parents=True, exist_ok=True)
+    request_path.write_text("data_probe_required: true\n", encoding="utf-8")
+    assert run_provider(
+        "record", target_dir=str(target), change_id="C-9", provider_id="db-access",
+        tool="sql_read", role="database", request_file=str(tmp_path / "req.json"),
+        response_file=str(tmp_path / "res.json"),
+    ) == 0

@@ -412,3 +412,14 @@ def test_planning_dispatch_fail(tmp_path):
     req = yaml.safe_load((ws / "CONTEXT_REQUEST.yaml").read_text(encoding="utf-8"))
     assert req["request_type"] == "context"
     assert "expected required" in req["missing"][0]
+
+
+# ── M7: DB lane context injected into the database-explorer prompt ───────────
+
+def test_database_lane_context_pins_allowed_and_denied_tools():
+    framework = Path(__file__).resolve().parents[3]  # .maika/
+    context = vd.database_lane_context(framework)
+    assert "sql_list_tables" in context and "mongo_get_schema" in context
+    for denied in ("sql_write", "mongo_write", "sql_execute_script", "sql_read"):
+        assert denied in context.split("DENIED_DB_TOOLS", 1)[1]
+    assert "data_probe_required" in context

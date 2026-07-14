@@ -709,6 +709,34 @@ entries:
     scope: {change_classes: [trivial, small, standard, architectural]}
     reviewed_at: 2026-07-14
 
+  - id: ENF-032
+    mechanism: db-lane-enforcement
+    type: gate
+    status: active
+    failure:
+      classification: safety_boundary
+      reference: .maika/rules/jit/providers.md
+      summary: >-
+        R-Tool-9 database operation boundary (write-gate precedent): the
+        exploration lane was policy-prose only (B5) — workers were not pinned
+        to allowed MCP tools and nothing rejected sql_read/sql_write/
+        sql_execute_script inside database-explorer context. Lane snapshots
+        are now pinned from the provider registry into the worker prompt,
+        record-time CLI, and the database-context gate (mutations #6/#7).
+    implementation:
+      files:
+        - .maika/tools/gate-check/gates.py
+        - .maika/tools/microloop-orchestrator/vnext_dispatch.py
+        - cli/commands/provider.py
+      consumers:
+        - .maika/tools/gate-check/cli.py
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+        - .maika/tools/gate-check/tests/test_grounding_package_gates.py
+        - .maika/tools/microloop-orchestrator/tests/test_vnext_dispatch.py
+        - cli/tests/test_provider_invocations.py
+    scope: {change_classes: [trivial, small, standard, architectural]}
+    reviewed_at: 2026-07-14
+
   # ---- deferred change-loop triggers (no discrete runtime signal yet) ----
   - id: DEF-005
     mechanism: change-loop-stale-contract
