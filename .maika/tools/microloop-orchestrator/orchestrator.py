@@ -159,29 +159,31 @@ def _run_reasoning_validation(ws: Path, framework_path: Path, repo_root, gates):
     )
     needs_db = (change.get("risk_signals") or {}).get("persistence") is True \
         or persistence["persistence"]
+    registry_file = framework_path / "config" / "provider-registry.yaml"
+    if not registry_file.exists():
+        registry_file = (
+            Path(__file__).resolve().parents[2] / "config" / "provider-registry.yaml"
+        )
+    provider_registry = (
+        yaml.safe_load(registry_file.read_text(encoding="utf-8")) or {}
+        if registry_file.exists() else {}
+    )
     database_request_res = gates.Result(True)
     database_res = gates.Result(True)
     if needs_db:
         request_path = ws / "exploration" / "DATABASE_REQUEST.yaml"
-        database_request_res = gates.validate_database_request(
-            request_path.read_text(encoding="utf-8") if request_path.exists() else ""
-        )
+        request_text = (request_path.read_text(encoding="utf-8")
+                        if request_path.exists() else "")
+        database_request_res = gates.validate_database_request(request_text)
         database_path = ws / "exploration" / "DATABASE_CONTEXT.yaml"
         database_res = gates.validate_database_context(
-            database_path.read_text(encoding="utf-8") if database_path.exists() else ""
+            database_path.read_text(encoding="utf-8") if database_path.exists() else "",
+            provider_registry=provider_registry,
+            request_text=request_text,
         )
     invocations_path = ws / "exploration" / "PROVIDER_INVOCATIONS.jsonl"
     provider_res = gates.Result(True)
     if invocations_path.exists():
-        registry_file = framework_path / "config" / "provider-registry.yaml"
-        if not registry_file.exists():
-            registry_file = (
-                Path(__file__).resolve().parents[2] / "config" / "provider-registry.yaml"
-            )
-        provider_registry = (
-            yaml.safe_load(registry_file.read_text(encoding="utf-8")) or {}
-            if registry_file.exists() else {}
-        )
         provider_res = gates.validate_provider_invocations(
             invocations_path.read_text(encoding="utf-8"),
             provider_registry=provider_registry,
@@ -626,14 +628,23 @@ def _main_unlocked(argv=None):
             def validator(ws_path):
                 ws_path = Path(ws_path)
                 request_path = ws_path / "exploration" / "DATABASE_REQUEST.yaml"
-                request = gates.validate_database_request(
-                    request_path.read_text(encoding="utf-8")
-                    if request_path.exists() else "")
+                request_text = (request_path.read_text(encoding="utf-8")
+                                if request_path.exists() else "")
+                request = gates.validate_database_request(request_text)
                 if not request.ok:
                     return False, f"database-request: {request.reason}"
+                registry_file = framework_path / "config" / "provider-registry.yaml"
+                if not registry_file.exists():
+                    registry_file = (Path(__file__).resolve().parents[2]
+                                     / "config" / "provider-registry.yaml")
                 context = gates.validate_database_context(
                     (ws_path / "exploration" / "DATABASE_CONTEXT.yaml")
-                    .read_text(encoding="utf-8"))
+                    .read_text(encoding="utf-8"),
+                    provider_registry=(
+                        yaml.safe_load(registry_file.read_text(encoding="utf-8")) or {}
+                        if registry_file.exists() else {}),
+                    request_text=request_text,
+                )
                 return context.ok, context.reason
         elif role == "reconciliation":
             def validator(ws_path):

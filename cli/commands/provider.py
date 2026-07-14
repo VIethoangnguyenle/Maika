@@ -114,6 +114,29 @@ def run_provider(
         print(f"no such change workspace: {workspace}")
         return 1
 
+    # DB lane safety boundary (plan §11, M7): task-workspace recording only
+    # accepts exploration-lane tools; data-probe tools additionally require an
+    # explicit data_probe_required: true in DATABASE_REQUEST.yaml. Write and
+    # script tools are never task-workspace evidence (R-Tool-9).
+    lanes = (spec.get("tool_contract") or {}).get("lanes") or {}
+    if lanes:
+        exploration = set((lanes.get("exploration") or {}).get("tools") or [])
+        data_probe = set((lanes.get("data_probe") or {}).get("tools") or [])
+        if tool not in exploration:
+            if tool in data_probe:
+                request_path = workspace / "exploration" / "DATABASE_REQUEST.yaml"
+                request = (yaml.safe_load(request_path.read_text(encoding="utf-8"))
+                           if request_path.exists() else None) or {}
+                if request.get("data_probe_required") is not True:
+                    print(f"tool {tool!r} is data-probe lane; DATABASE_REQUEST.yaml "
+                          "must declare data_probe_required: true (explicit runtime "
+                          "data question)")
+                    return 1
+            else:
+                print(f"tool {tool!r} is outside the exploration lane "
+                      f"(write/script tools are never exploration evidence)")
+                return 1
+
     for label, payload_file in (("request", request_file), ("response", response_file)):
         if not Path(payload_file).exists():
             print(f"{label} payload file not found: {payload_file}")

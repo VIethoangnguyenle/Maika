@@ -161,6 +161,17 @@ def main(argv=None):
             (yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {})
             if registry_path.exists() else {}
         )
+    elif args.gate == "database-context":
+        registry_path = (
+            Path(__file__).resolve().parents[2] / "config" / "provider-registry.yaml"
+        )
+        kwargs["provider_registry"] = (
+            (yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {})
+            if registry_path.exists() else {}
+        )
+        request_path = Path(args.file).resolve().parent / "DATABASE_REQUEST.yaml"
+        if request_path.exists():
+            kwargs["request_text"] = request_path.read_text(encoding="utf-8")
     elif args.gate == "trace-request":
         reg = yaml.safe_load(
             (Path(__file__).resolve().parents[2] / "profiles" / "capability-registry.yaml")

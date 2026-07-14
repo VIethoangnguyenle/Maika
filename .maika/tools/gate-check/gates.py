@@ -1049,12 +1049,18 @@ def validate_database_request(text) -> Result:
 _DRIFT_CLASSES = {"source_ahead", "db_ahead", "mismatch"}
 
 
-def validate_database_context(text) -> Result:
+def validate_database_context(text, provider_registry=None, request_text=None) -> Result:
     """Gate `database-context` — DATABASE_CONTEXT v2 (harness plan §7, C-20).
 
     The context must be provider-identified, environment-bound, probe-backed
     (host_mcp invocation) and read-only; observed drift must be classified,
-    and an unreachable DB needs a structured degradation record."""
+    and an unreachable DB needs a structured degradation record.
+
+    With ``provider_registry``, lane enforcement applies (plan §11, M7 —
+    safety boundary): allowed_tools must equal the provider's exploration
+    lane snapshot (plus the data_probe lane ONLY when DATABASE_REQUEST
+    declares data_probe_required), and used_tools must stay inside
+    allowed_tools. Write/script tools can never appear."""
     doc = yaml.safe_load(text) or {}
     if doc.get("version") != 2:
         return Result(False, "DATABASE_CONTEXT.yaml requires version 2")
@@ -1082,6 +1088,29 @@ def validate_database_context(text) -> Result:
         return Result(False, "database context allowed_lane must be exploration")
     if not doc.get("allowed_tools"):
         return Result(False, "database context requires allowed_tools (pinned lane)")
+    if provider_registry is not None:
+        lanes = ((((provider_registry.get("providers") or {})
+                   .get(provider.get("id")) or {})
+                  .get("tool_contract") or {}).get("lanes") or {})
+        if not lanes:
+            return Result(False, f"provider {provider.get('id')!r} has no lane "
+                                 "contract in the provider registry")
+        exploration = set((lanes.get("exploration") or {}).get("tools") or [])
+        permitted = set(exploration)
+        request = (yaml.safe_load(request_text) or {}) if request_text else {}
+        if request.get("data_probe_required") is True:
+            permitted |= set((lanes.get("data_probe") or {}).get("tools") or [])
+        allowed = set(doc.get("allowed_tools") or [])
+        if not allowed <= permitted:
+            return Result(False, f"allowed_tools outside the pinned lane snapshot: "
+                                 f"{sorted(allowed - permitted)}")
+        if not exploration <= allowed:
+            return Result(False, "allowed_tools must include the full exploration "
+                                 f"lane snapshot (missing {sorted(exploration - allowed)})")
+        used = set(doc.get("used_tools") or [])
+        out_of_lane = used - allowed
+        if out_of_lane:
+            return Result(False, f"out-of-lane tool use rejected: {sorted(out_of_lane)}")
     observations = doc.get("observations") or []
     if not observations and not degradation:
         return Result(False, "database context requires observations or a "
