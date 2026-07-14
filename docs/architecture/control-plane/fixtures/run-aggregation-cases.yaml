@@ -1,0 +1,188 @@
+schema_version: 1
+contract: ADR-002
+cases:
+  - id: active-running-required-worker
+    description: A required running worker keeps the run active.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 5}
+      workers:
+        - {id: wx-1, task_id: T-1, required: true, state: RUNNING}
+      tasks:
+        - {id: T-1, required: true, status: in_progress, runnable: false}
+      blockers: []
+      wait_conditions: []
+      policy: {completion_satisfied: false, terminal_failure: false, phase_can_progress: false}
+    expected: {lifecycle: ACTIVE, reason: required_execution_active}
+
+  - id: active-runnable-task-with-no-worker
+    description: Immediate runnable work is active even before dispatch.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 5}
+      workers: []
+      tasks:
+        - {id: T-1, required: true, status: pending, runnable: true}
+      blockers: []
+      wait_conditions: []
+      policy: {completion_satisfied: false, terminal_failure: false, phase_can_progress: false}
+    expected: {lifecycle: ACTIVE, reason: required_path_runnable}
+
+  - id: parallel-blocked-worker-but-other-path-runnable
+    description: One blocked attempt does not block another required path.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 9}
+      workers:
+        - {id: wx-1, task_id: T-1, required: true, state: BLOCKED}
+      tasks:
+        - {id: T-1, required: true, status: blocked, runnable: false}
+        - {id: T-2, required: true, status: pending, runnable: true}
+      blockers:
+        - {id: b-1, required: true, scope: task, task_id: T-1, resolution: intervention}
+      wait_conditions: []
+      policy: {completion_satisfied: false, terminal_failure: false, phase_can_progress: false}
+    expected: {lifecycle: ACTIVE, reason: required_path_runnable}
+
+  - id: blocked-all-required-paths-need-intervention
+    description: No progress path plus required human/evidence remediation is blocked.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: EXPLORING, aggregate_version: 11}
+      workers:
+        - {id: wx-1, required: true, state: BLOCKED}
+      tasks: []
+      blockers:
+        - {id: b-graph, required: true, scope: run, resolution: intervention}
+      wait_conditions: []
+      policy: {completion_satisfied: false, terminal_failure: false, phase_can_progress: false}
+    expected: {lifecycle: BLOCKED, reason: required_intervention}
+
+  - id: waiting-for-scheduled-retry
+    description: Backoff with remaining retry budget is automatic waiting.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 8}
+      workers:
+        - {id: wx-1, task_id: T-1, required: true, state: FAILED, attempt: 1}
+      tasks:
+        - {id: T-1, required: true, status: pending, runnable: false, retry_remaining: 1}
+      blockers: []
+      wait_conditions:
+        - {id: wait-retry, required: true, kind: retry_backoff, automatic: true}
+      policy: {completion_satisfied: false, terminal_failure: false, phase_can_progress: false}
+    expected: {lifecycle: WAITING, reason: automatic_resolution_expected}
+
+  - id: waiting-for-provider-response
+    description: Remote response expected without intervention is waiting.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: EXPLORING, aggregate_version: 4}
+      workers:
+        - {id: wx-1, required: true, state: WAITING}
+      tasks: []
+      blockers: []
+      wait_conditions:
+        - {id: wait-provider, required: true, kind: provider_response, automatic: true}
+      policy: {completion_satisfied: false, terminal_failure: false, phase_can_progress: false}
+    expected: {lifecycle: WAITING, reason: automatic_resolution_expected}
+
+  - id: intervention-outranks-automatic-wait
+    description: With no runnable path, a required blocker outranks another wait.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 12}
+      workers: []
+      tasks:
+        - {id: T-1, required: true, status: blocked, runnable: false}
+      blockers:
+        - {id: b-approval, required: true, scope: task, task_id: T-1, resolution: intervention}
+      wait_conditions:
+        - {id: wait-capacity, required: true, kind: worker_capacity, automatic: true}
+      policy: {completion_satisfied: false, terminal_failure: false, phase_can_progress: false}
+    expected: {lifecycle: BLOCKED, reason: required_intervention}
+
+  - id: mandatory-failure-without-retry-or-fallback
+    description: Policy-proven terminal failure outranks liveness.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 15}
+      workers:
+        - {id: wx-1, task_id: T-1, required: true, state: FAILED, attempt: 3}
+        - {id: wx-cleanup, required: false, state: RUNNING}
+      tasks:
+        - {id: T-1, required: true, status: blocked, runnable: false, retry_remaining: 0}
+      blockers: []
+      wait_conditions: []
+      policy: {completion_satisfied: false, terminal_failure: true, phase_can_progress: false}
+    expected: {lifecycle: FAILED, reason: mandatory_terminal_failure}
+
+  - id: failed-attempt-with-runnable-fallback
+    description: A declared fallback prevents premature run failure.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 15}
+      workers:
+        - {id: wx-1, task_id: T-1, required: true, state: FAILED, attempt: 1}
+      tasks:
+        - {id: T-fallback, required: true, status: pending, runnable: true}
+      blockers: []
+      wait_conditions: []
+      policy: {completion_satisfied: false, terminal_failure: false, phase_can_progress: false}
+    expected: {lifecycle: ACTIVE, reason: required_path_runnable}
+
+  - id: completed-ignores-optional-worker
+    description: Optional work cannot keep a policy-complete run active.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: ARCHIVING, aggregate_version: 21}
+      workers:
+        - {id: wx-optional, required: false, state: RUNNING}
+      tasks:
+        - {id: T-1, required: true, status: done, runnable: false}
+      blockers: []
+      wait_conditions: []
+      gates:
+        - {id: final-verification, required: true, status: passed}
+      policy: {completion_satisfied: true, terminal_failure: false, phase_can_progress: false}
+    expected: {lifecycle: COMPLETED, reason: completion_policy_satisfied}
+
+  - id: blocker-does-not-override-completion-unless-required
+    description: An optional blocker does not prevent completion.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: ARCHIVING, aggregate_version: 21}
+      workers: []
+      tasks:
+        - {id: T-1, required: true, status: done, runnable: false}
+      blockers:
+        - {id: b-optional, required: false, scope: task, resolution: intervention}
+      wait_conditions: []
+      gates:
+        - {id: final-verification, required: true, status: passed}
+      policy: {completion_satisfied: true, terminal_failure: false, phase_can_progress: false}
+    expected: {lifecycle: COMPLETED, reason: completion_policy_satisfied}
+
+  - id: phase-mechanical-action-is-active
+    description: A runnable phase action counts even without a task or worker.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: SPECIFYING, aggregate_version: 6}
+      workers: []
+      tasks: []
+      blockers: []
+      wait_conditions: []
+      policy: {completion_satisfied: false, terminal_failure: false, phase_can_progress: true}
+    expected: {lifecycle: ACTIVE, reason: phase_can_progress}
+
+  - id: no-progress-classification-is-error
+    description: Missing progress evidence must not silently become WAITING.
+    input:
+      run: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 7}
+      workers: []
+      tasks: []
+      blockers: []
+      wait_conditions: []
+      policy: {completion_satisfied: false, terminal_failure: false, phase_can_progress: false}
+    expected: {error: NO_PROGRESS_CLASSIFICATION}
+
+  - id: terminal-run-is-not-reaggregated
+    description: Existing terminal lifecycle is absorbing.
+    input:
+      run: {lifecycle: CANCELLED, current_phase: PLANNING, aggregate_version: 8}
+      workers:
+        - {id: wx-late, required: true, state: RUNNING}
+      tasks:
+        - {id: T-1, required: true, status: in_progress, runnable: false}
+      blockers: []
+      wait_conditions: []
+      policy: {completion_satisfied: false, terminal_failure: false, phase_can_progress: false}
+    expected: {lifecycle: CANCELLED, reason: terminal_lifecycle_preserved}

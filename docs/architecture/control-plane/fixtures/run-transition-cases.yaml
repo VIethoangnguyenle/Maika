@@ -1,0 +1,174 @@
+schema_version: 1
+contract: ADR-001
+cases:
+  - id: create-run
+    description: A new run starts at CREATED/INTAKE version 1.
+    input:
+      operation: create
+    expected:
+      accepted: true
+      state: {lifecycle: CREATED, current_phase: INTAKE, aggregate_version: 1}
+      events: [run.created]
+
+  - id: activate-created-run
+    description: Activation changes lifecycle and preserves phase.
+    input:
+      state: {lifecycle: CREATED, current_phase: INTAKE, aggregate_version: 1}
+      operation: {type: change_lifecycle, target: ACTIVE}
+    expected:
+      accepted: true
+      state: {lifecycle: ACTIVE, current_phase: INTAKE, aggregate_version: 2}
+      events: [run.lifecycle_changed]
+
+  - id: active-waits-for-capacity
+    description: An automatically resolving capacity wait is WAITING.
+    input:
+      state: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 8}
+      operation: {type: change_lifecycle, target: WAITING, reason: worker_capacity}
+    expected:
+      accepted: true
+      state: {lifecycle: WAITING, current_phase: EXECUTING, aggregate_version: 9}
+      events: [run.lifecycle_changed]
+
+  - id: active-blocked-preserves-phase
+    description: Intervention changes lifecycle without replacing phase.
+    input:
+      state: {lifecycle: ACTIVE, current_phase: EXPLORING, aggregate_version: 11}
+      operation: {type: open_blocker, blocker_id: blocker-019, target: BLOCKED}
+    expected:
+      accepted: true
+      state: {lifecycle: BLOCKED, current_phase: EXPLORING, aggregate_version: 12}
+      events: [blocker.opened, run.lifecycle_changed]
+
+  - id: resume-preserves-phase
+    description: Resume does not advance the workflow phase.
+    input:
+      state: {lifecycle: BLOCKED, current_phase: EXPLORING, aggregate_version: 12}
+      operation: {type: resolve_and_resume, blocker_id: blocker-019, target: ACTIVE}
+    expected:
+      accepted: true
+      state: {lifecycle: ACTIVE, current_phase: EXPLORING, aggregate_version: 13}
+      events: [blocker.resolved, run.lifecycle_changed]
+
+  - id: waiting-auto-resolves
+    description: Automatic wait resolution returns the run to ACTIVE.
+    input:
+      state: {lifecycle: WAITING, current_phase: EXECUTING, aggregate_version: 9}
+      operation: {type: change_lifecycle, target: ACTIVE, reason: capacity_available}
+    expected:
+      accepted: true
+      state: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 10}
+      events: [run.lifecycle_changed]
+
+  - id: phase-change-keeps-active
+    description: A normal phase transition leaves lifecycle ACTIVE.
+    input:
+      state: {lifecycle: ACTIVE, current_phase: EXPLORING, aggregate_version: 3}
+      operation: {type: change_phase, target: RECONCILING}
+    expected:
+      accepted: true
+      state: {lifecycle: ACTIVE, current_phase: RECONCILING, aggregate_version: 4}
+      events: [run.phase_changed]
+
+  - id: atomic-phase-and-lifecycle-completion
+    description: One logical completion operation emits two facts but increments once.
+    input:
+      state: {lifecycle: ACTIVE, current_phase: VERIFYING, aggregate_version: 20}
+      operation:
+        type: complete
+        target_lifecycle: COMPLETED
+        target_phase: ARCHIVING
+    expected:
+      accepted: true
+      state: {lifecycle: COMPLETED, current_phase: ARCHIVING, aggregate_version: 21}
+      events: [run.phase_changed, run.lifecycle_changed]
+
+  - id: cancel-preserves-current-phase
+    description: Cancellation is terminal and retains the phase of termination.
+    input:
+      state: {lifecycle: ACTIVE, current_phase: PLANNING, aggregate_version: 6}
+      operation: {type: change_lifecycle, target: CANCELLED}
+    expected:
+      accepted: true
+      state: {lifecycle: CANCELLED, current_phase: PLANNING, aggregate_version: 7}
+      events: [run.lifecycle_changed]
+
+  - id: mandatory-terminal-failure
+    description: Policy-classified terminal failure preserves phase.
+    input:
+      state: {lifecycle: WAITING, current_phase: EXECUTING, aggregate_version: 14}
+      operation: {type: change_lifecycle, target: FAILED, reason: retry_exhausted_no_fallback}
+    expected:
+      accepted: true
+      state: {lifecycle: FAILED, current_phase: EXECUTING, aggregate_version: 15}
+      events: [run.lifecycle_changed]
+
+  - id: noop-same-lifecycle
+    description: Re-observing ACTIVE is an idempotent no-op, not a state event.
+    input:
+      state: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 10}
+      operation: {type: change_lifecycle, target: ACTIVE}
+    expected:
+      accepted: true
+      noop: true
+      state: {lifecycle: ACTIVE, current_phase: EXECUTING, aggregate_version: 10}
+      events: []
+
+  - id: reject-created-to-blocked
+    description: CREATED cannot become BLOCKED without activation.
+    input:
+      state: {lifecycle: CREATED, current_phase: INTAKE, aggregate_version: 1}
+      operation: {type: change_lifecycle, target: BLOCKED}
+    expected:
+      accepted: false
+      error: ILLEGAL_LIFECYCLE_TRANSITION
+      state: {lifecycle: CREATED, current_phase: INTAKE, aggregate_version: 1}
+      events: []
+
+  - id: reject-terminal-resume
+    description: Terminal run lifecycles are absorbing.
+    input:
+      state: {lifecycle: FAILED, current_phase: VERIFYING, aggregate_version: 22}
+      operation: {type: change_lifecycle, target: ACTIVE}
+    expected:
+      accepted: false
+      error: TERMINAL_LIFECYCLE
+      state: {lifecycle: FAILED, current_phase: VERIFYING, aggregate_version: 22}
+      events: []
+
+  - id: reject-phase-change-while-blocked
+    description: Phase cannot advance while intervention-blocked.
+    input:
+      state: {lifecycle: BLOCKED, current_phase: EXPLORING, aggregate_version: 12}
+      operation: {type: change_phase, target: RECONCILING}
+    expected:
+      accepted: false
+      error: PHASE_CHANGE_REQUIRES_ACTIVE
+      state: {lifecycle: BLOCKED, current_phase: EXPLORING, aggregate_version: 12}
+      events: []
+
+  - id: reject-illegal-phase-edge
+    description: Phase graph cannot be bypassed without an allowed edge.
+    input:
+      state: {lifecycle: ACTIVE, current_phase: EXPLORING, aggregate_version: 3}
+      operation: {type: change_phase, target: EXECUTING}
+    expected:
+      accepted: false
+      error: ILLEGAL_PHASE_TRANSITION
+      state: {lifecycle: ACTIVE, current_phase: EXPLORING, aggregate_version: 3}
+      events: []
+
+  - id: reject-stale-aggregate-version
+    description: Optimistic concurrency rejects a stale command before mutation.
+    input:
+      state: {lifecycle: BLOCKED, current_phase: EXPLORING, aggregate_version: 13}
+      operation:
+        type: resolve_and_resume
+        blocker_id: blocker-019
+        target: ACTIVE
+        expected_aggregate_version: 12
+    expected:
+      accepted: false
+      error: STALE_AGGREGATE_VERSION
+      state: {lifecycle: BLOCKED, current_phase: EXPLORING, aggregate_version: 13}
+      events: []

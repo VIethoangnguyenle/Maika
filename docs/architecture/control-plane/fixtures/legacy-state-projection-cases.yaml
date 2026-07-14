@@ -1,0 +1,58 @@
+schema_version: 1
+contract: ADR-001
+cases:
+  - id: legacy-intake
+    input: {state: INTAKE}
+    expected: {lifecycle: ACTIVE, current_phase: INTAKE, quality: complete}
+  - id: legacy-exploring
+    input: {state: EXPLORING}
+    expected: {lifecycle: ACTIVE, current_phase: EXPLORING, quality: complete}
+  - id: legacy-reconciling
+    input: {state: RECONCILING}
+    expected: {lifecycle: ACTIVE, current_phase: RECONCILING, quality: complete}
+  - id: legacy-brainstorming
+    input: {state: BRAINSTORMING}
+    expected: {lifecycle: ACTIVE, current_phase: BRAINSTORMING, quality: complete}
+  - id: legacy-spec-review
+    input: {state: SPEC_REVIEW}
+    expected: {lifecycle: ACTIVE, current_phase: SPECIFYING, quality: complete}
+  - id: legacy-planning
+    input: {state: PLANNING}
+    expected: {lifecycle: ACTIVE, current_phase: PLANNING, quality: complete}
+  - id: legacy-plan-review
+    input: {state: PLAN_REVIEW}
+    expected: {lifecycle: ACTIVE, current_phase: PLANNING, quality: complete}
+  - id: legacy-executing
+    input: {state: EXECUTING}
+    expected: {lifecycle: ACTIVE, current_phase: EXECUTING, quality: complete}
+  - id: legacy-final-review
+    input: {state: FINAL_REVIEW}
+    expected: {lifecycle: ACTIVE, current_phase: REVIEWING, quality: complete}
+  - id: legacy-verifying
+    input: {state: VERIFYING}
+    expected: {lifecycle: ACTIVE, current_phase: VERIFYING, quality: complete}
+  - id: legacy-completed-still-needs-archive
+    input: {state: COMPLETED}
+    expected: {lifecycle: ACTIVE, current_phase: ARCHIVING, quality: complete}
+    source_refs:
+      - cli/commands/task.py::_archive
+  - id: legacy-archived
+    input: {state: ARCHIVED}
+    expected: {lifecycle: COMPLETED, current_phase: ARCHIVING, quality: complete}
+  - id: legacy-blocked-exploration
+    input:
+      state: BLOCKED
+      blocked: {resume_state: EXPLORING}
+    expected: {lifecycle: BLOCKED, current_phase: EXPLORING, quality: complete}
+    source_refs:
+      - .maika/tools/microloop-orchestrator/vnext_state.py::transition
+  - id: legacy-blocked-without-resume-state
+    input:
+      state: BLOCKED
+      blocked: {reason: capability}
+    expected: {error: INCOMPLETE_EVENT_STREAM, quality: incomplete}
+  - id: legacy-cancelled-without-prior-event
+    input: {state: CANCELLED}
+    expected: {error: INCOMPLETE_EVENT_STREAM, quality: incomplete}
+    source_refs:
+      - .maika/tools/microloop-orchestrator/vnext_state.py::transition

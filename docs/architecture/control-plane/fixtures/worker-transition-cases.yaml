@@ -1,0 +1,80 @@
+schema_version: 1
+contract: ADR-002
+cases:
+  - id: dispatch-to-starting
+    description: Accepted assignment begins process/session startup.
+    input: {state: DISPATCHED, target: STARTING, attempt: 1}
+    expected: {accepted: true, state: STARTING, event: worker.starting}
+
+  - id: starting-to-running
+    description: Acknowledgement or valid activity starts execution.
+    input: {state: STARTING, target: RUNNING, attempt: 1}
+    expected: {accepted: true, state: RUNNING, event: worker.started}
+
+  - id: running-to-waiting
+    description: Automatically resolvable pause keeps the attempt live.
+    input: {state: RUNNING, target: WAITING, attempt: 1}
+    expected: {accepted: true, state: WAITING, event: worker.waiting}
+
+  - id: waiting-to-running
+    description: The same execution resumes after automatic resolution.
+    input: {state: WAITING, target: RUNNING, attempt: 1}
+    expected: {accepted: true, state: RUNNING, event: worker.started}
+
+  - id: running-to-succeeded
+    description: Output and execution completion contract pass.
+    input: {state: RUNNING, target: SUCCEEDED, attempt: 1}
+    expected: {accepted: true, state: SUCCEEDED, event: worker.succeeded}
+
+  - id: running-to-blocked
+    description: Evidence remediation terminates this attempt as blocked.
+    input: {state: RUNNING, target: BLOCKED, attempt: 1}
+    expected: {accepted: true, state: BLOCKED, event: worker.blocked}
+
+  - id: running-to-failed
+    description: A non-timeout execution error terminates the attempt.
+    input: {state: RUNNING, target: FAILED, attempt: 1, exit_code: 1}
+    expected: {accepted: true, state: FAILED, event: worker.failed}
+
+  - id: running-to-timed-out
+    description: Current runner exit code 124 maps to TIMED_OUT.
+    input: {state: RUNNING, target: TIMED_OUT, attempt: 1, exit_code: 124}
+    expected: {accepted: true, state: TIMED_OUT, event: worker.timed_out}
+    source_refs:
+      - .maika/tools/microloop-orchestrator/orchestrator.py::make_worker_runner
+
+  - id: starting-cancelled
+    description: Authorized cancellation may stop a starting attempt.
+    input: {state: STARTING, target: CANCELLED, attempt: 1}
+    expected: {accepted: true, state: CANCELLED, event: worker.cancelled}
+
+  - id: same-state-observation-is-noop
+    description: Duplicate RUNNING observation emits no transition event.
+    input: {state: RUNNING, target: RUNNING, attempt: 1}
+    expected: {accepted: true, noop: true, state: RUNNING, event: null}
+
+  - id: reject-terminal-reopen
+    description: Retry cannot reopen a terminal failed execution.
+    input: {state: FAILED, target: DISPATCHED, attempt: 1}
+    expected: {accepted: false, state: FAILED, error: TERMINAL_WORKER_EXECUTION}
+
+  - id: retry-creates-new-execution
+    description: Retry is represented by a second execution identity.
+    input:
+      previous: {worker_execution_id: wx-001, state: FAILED, attempt: 1}
+      new: {worker_execution_id: wx-002, state: DISPATCHED, attempt: 2}
+    expected:
+      accepted: true
+      previous_state: FAILED
+      new_state: DISPATCHED
+      event: worker.dispatched
+
+  - id: reject-starting-to-succeeded
+    description: A worker cannot succeed before it reaches RUNNING.
+    input: {state: STARTING, target: SUCCEEDED, attempt: 1}
+    expected: {accepted: false, state: STARTING, error: ILLEGAL_WORKER_TRANSITION}
+
+  - id: reject-waiting-to-succeeded
+    description: A waiting execution must resume before success.
+    input: {state: WAITING, target: SUCCEEDED, attempt: 1}
+    expected: {accepted: false, state: WAITING, error: ILLEGAL_WORKER_TRANSITION}

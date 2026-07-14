@@ -76,7 +76,9 @@ Muốn đổi platform hoặc MCP sau này:
 .venv/bin/python -m cli.maika update --target /path/to/your-project --reconfigure
 ```
 
-Maika giữ nguyên các file user-owned trong `knowledge/long-term/` và `knowledge/active/`. Quy tắc sở hữu file đầy đủ nằm ở [docs/maika-file-ownership-policy.md](docs/maika-file-ownership-policy.md).
+Maika giữ nguyên các file user-owned trong `knowledge/long-term/` và `knowledge/active/`.
+Ranh giới project/framework/host ownership được chốt tại
+[Project core and host adapters](docs/architecture/project-core-and-host-adapters.md).
 
 ### 2. Tuỳ chỉnh persona
 
@@ -481,6 +483,42 @@ Message đầu tiên phải bắt đầu bằng `data: [` và chứa snapshot hi
 - Task card hiển thị brief, result, và review drawer khi artifact tồn tại.
 - Parent brain panel hiển thị khi có `PARENT_BRAIN.md`.
 - Malformed queue/log không làm sập dashboard; UI hiển thị stale/error.
+
+---
+
+## 🧭 Control Plane architecture contracts
+
+Dashboard hiện tại là read-only artifact viewer. Maika Control Plane tương lai
+được thiết kế như một **event-log-backed operational control plane** với state,
+worker lifecycle, projection và safe-command contract rõ ràng; đây chưa phải là
+một dashboard/API đã được triển khai.
+
+Architecture entrypoint:
+
+- [Control Plane architecture guide](docs/architecture/control-plane/README.md)
+- [ADR-001 — Two-Axis Run State Model](docs/architecture/control-plane/adr-001-two-axis-run-state.md)
+- [ADR-002 — Worker Lifecycle and Run Aggregation](docs/architecture/control-plane/adr-002-worker-lifecycle-and-run-aggregation.md)
+- [Machine-readable fixtures](docs/architecture/control-plane/fixtures/README.md)
+
+Contract hiện chốt ba trường run-state độc lập:
+
+```yaml
+lifecycle: ACTIVE
+current_phase: EXECUTING
+aggregate_version: 12
+```
+
+Runtime hiện tại và `STATE.yaml` vẫn authoritative. Events ban đầu chỉ là shadow
+telemetry; không mặc định chuyển Maika sang full event sourcing.
+
+Validate contract và các fixture dùng chung cho simulator/unit test:
+
+```bash
+python -m pytest cli/tests/test_control_plane_contract_fixtures.py -q
+```
+
+Thay đổi lifecycle, phase, worker state hoặc aggregation rule phải cập nhật ADR,
+`state-contract.yaml` và fixture tương ứng trước khi sửa runtime.
 
 ---
 
