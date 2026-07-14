@@ -104,3 +104,24 @@ def test_markdown_trace_block_extraction():
     block = vd.markdown_trace_block(text)
     assert yaml.safe_load(block)["decision"]["id"] == "D-1"
     assert vd.markdown_trace_block("# no trace\n") is None
+
+
+def test_dispatch_log_carries_observability_fields(tmp_path):
+    """§18: the log must answer who ran, what the gates said, which state moved."""
+    import json
+
+    ws = _ws(tmp_path)
+    result = vd.run_authoring_dispatch(ws, "grounding", lambda p: (0, "done"), vs,
+                                       _ok_validator)
+    assert result["ok"], result
+    record = json.loads(
+        (ws / "generated" / "DISPATCH_LOG.jsonl").read_text(encoding="utf-8")
+        .splitlines()[-1]
+    )
+    assert record["change_id"] == "C-1"
+    assert record["role"] == "grounding"
+    assert record["outcome"] == "ok" and record["gate_results"] == "pass"
+    assert record["state_before"] == "INTAKE"
+    assert record["state_after"] == "RECONCILING"
+    assert record["provider_calls"] == 0
+    assert record["started_at"] <= record["ended_at"]

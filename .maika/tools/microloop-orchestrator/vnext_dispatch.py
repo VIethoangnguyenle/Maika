@@ -569,17 +569,41 @@ def run_authoring_dispatch(ws, role, runner, vs, validator=None):
     if role == "database":
         extra = f"{extra}\n\n{database_lane_context(ws.parents[1])}"
     prompt = build_prompt(role, ws, spec["input"], spec["output"], extra=extra)
+
+    # §18 observability: the dispatch log must answer which providers were
+    # called during this dispatch and what the gates decided.
+    invocations_path = ws / "exploration" / "PROVIDER_INVOCATIONS.jsonl"
+
+    def _provider_calls():
+        if not invocations_path.is_file():
+            return 0
+        return sum(1 for line in invocations_path.read_text(encoding="utf-8")
+                   .splitlines() if line.strip())
+
+    state_before = current
+    started_at = datetime.now(timezone.utc).isoformat()
+    calls_before = _provider_calls()
     exit_code, output = runner(prompt)
-    _append_dispatch_log(ws, {
-        "dispatch_type": role, "output": spec["output"], "worker_exit": exit_code,
-        "ts": datetime.now(timezone.utc).isoformat(),
-    })
+
+    def _log(outcome, gate_results=""):
+        now = datetime.now(timezone.utc).isoformat()
+        _append_dispatch_log(ws, {
+            "dispatch_type": role, "role": role, "change_id": ws.name,
+            "output": spec["output"], "worker_exit": exit_code,
+            "outcome": outcome, "gate_results": gate_results,
+            "provider_calls": _provider_calls() - calls_before,
+            "state_before": state_before,
+            "state_after": vs.load_state(ws).get("state"),
+            "started_at": started_at, "ended_at": now, "ts": now,
+        })
+
     out_path = ws / spec["output"]
     workflow_request = ws / "EXTERNAL_WORKFLOW_REQUEST.yaml"
     if workflow_request.exists():
         ok, reason, request = validate_external_workflow_request(
             workflow_request.read_text(encoding="utf-8")
         )
+        _log("external_workflow_request")
         return {
             "ok": False,
             "reason": "EXTERNAL_WORKFLOW_REQUEST" if ok else reason,
@@ -590,20 +614,24 @@ def run_authoring_dispatch(ws, role, runner, vs, validator=None):
         ok, reason, request = validate_db_reprobe_request(
             reprobe_request.read_text(encoding="utf-8")
         )
+        _log("db_reprobe_request")
         return {
             "ok": False,
             "reason": "DB_REPROBE_REQUEST" if ok else reason,
             "request": request,
         }
     if not out_path.exists():
+        _log("no_output")
         return {"ok": False,
                 "reason": f"worker produced no {spec['output']} (exit {exit_code}: {output})"}
     if validator is not None:
         ok, reason = validator(ws)
         if not ok:
+            _log("gate_failed", reason)
             return {"ok": False, "reason": f"gate failed: {reason}"}
     if spec["success_state"]:
         vs.transition(ws, spec["success_state"])
+    _log("ok", "pass")
     return {"ok": True, "state": vs.load_state(ws).get("state")}
 
 

@@ -783,6 +783,33 @@ entries:
     scope: {change_classes: [standard, architectural]}
     reviewed_at: 2026-07-14
 
+  - id: ENF-035
+    mechanism: system-model-validator
+    type: validator
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        C-25 (inventory 2026-07-13): no cross-surface validator proved the
+        risk-signal -> skill -> capability -> provider -> lane -> artifact ->
+        gate chain agrees — single-surface validators each passed while the
+        chain between them (dispatch roles vs skills, trigger consumption,
+        persistence route, router trace gates, workflow owners) could drift.
+        `maika content validate-system-model` now runs in CI. Ack surfaces
+        extended with provider/capability registries (mutation #11).
+    implementation:
+      files:
+        - cli/agent_content/system_model.py
+        - cli/commands/bootstrap.py
+      consumers:
+        - cli/commands/content.py
+        - scripts/run_ci.py
+        - cli/tests/test_system_model.py
+        - cli/tests/test_bootstrap_requirement.py
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-14
+
   # ---- deferred change-loop triggers (no discrete runtime signal yet) ----
   - id: DEF-005
     mechanism: change-loop-stale-contract

@@ -152,6 +152,7 @@ def main():
                  "validate-interactions", "validate-external-workflows",
                  "validate-generated-reports",
                  "validate-provider-capabilities",
+                 "validate-system-model",
                  "scan-legacy", "migrate-legacy", "behavior-static"],
     )
     content_parser.add_argument("--target", default=".")

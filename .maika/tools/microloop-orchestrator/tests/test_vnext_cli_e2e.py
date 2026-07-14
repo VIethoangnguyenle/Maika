@@ -32,6 +32,8 @@ def _write_bootstrap(framework_root):
 
     def _sha(rel):
         target = fw / rel
+        if not target.exists():
+            return "missing"
         return "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest()
 
     (fw / "runtime" / "AGENT_BOOTSTRAP_ACK.yaml").write_text(yaml.safe_dump({
@@ -39,6 +41,9 @@ def _write_bootstrap(framework_root):
         "kernel_hash": _sha("agent/KERNEL.md"),
         "router_hash": _sha("config/workflow-router.yaml"),
         "skill_index_hash": _sha("skills/skill-index.yaml"),
+        # M10 ack surfaces (mutation #11): provider/capability registries.
+        "provider_registry_hash": _sha("config/provider-registry.yaml"),
+        "capability_registry_hash": _sha("profiles/capability-registry.yaml"),
         "env_report_hash": "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest(),
         "selected_change": None, "current_state": None, "selected_route": [],
         "rules_loaded": ["RULES.md"], "unresolved_contradictions": [],
@@ -753,3 +758,48 @@ def test_vnext_cli_prefers_local_override_over_template(tmp_path):
     res = subprocess.run(cmd + ["vnext-init", "--changes-root", str(ch_root), "--id", "demo", "--class", "small", "--title", "t"], capture_output=True, text=True)
     assert res.returncode == 0
     assert "Workspace initialized" in res.stdout
+
+
+def test_persistence_change_cannot_pass_reasoning_without_database_context(tmp_path):
+    """Mutation #5 (harness plan §21): persistence task lacks DATABASE_CONTEXT."""
+    fw_root = tmp_path / ".maika"
+    fw_root.mkdir()
+    _write_bootstrap(fw_root)
+    prof = fw_root / "profiles"
+    prof.mkdir()
+    (prof / "execution-mode.yaml").write_text("workflow_engine: vnext\n", encoding="utf-8")
+    ch_root = tmp_path / ".maika" / "changes"
+    ch_root.mkdir()
+    orch = Path(__file__).resolve().parents[1] / "orchestrator.py"
+    cmd = [sys.executable, str(orch)]
+
+    res = subprocess.run(
+        cmd + ["vnext-init", "--changes-root", str(ch_root), "--id", "demo",
+               "--class", "standard", "--title", "t"],
+        capture_output=True, text=True,
+    )
+    assert res.returncode == 0
+    ws = ch_root / "demo"
+    res = subprocess.run(cmd + ["vnext-start-exploration", "--workspace", str(ws),
+                                "--repo-root", str(tmp_path)],
+                         capture_output=True, text=True)
+    assert res.returncode == 0
+    _write_valid_reasoning(ws, tmp_path)
+
+    # The recorded persistence signal is authoritative (E5): flipping it on
+    # makes DATABASE_REQUEST/DATABASE_CONTEXT mandatory even though the
+    # query plan declares no DB capability.
+    change_path = ws / "CHANGE.yaml"
+    change = yaml.safe_load(change_path.read_text(encoding="utf-8"))
+    change["risk_signals"] = {"persistence": True, "persistence_basis": ["database_changed"]}
+    change_path.write_text(yaml.safe_dump(change, sort_keys=False), encoding="utf-8")
+
+    res = subprocess.run(cmd + ["vnext-validate-reasoning", "--workspace", str(ws),
+                                "--repo-root", str(tmp_path)],
+                         capture_output=True, text=True)
+    assert res.returncode == 1
+    assert "REVISE" in res.stdout
+    validation = json.loads(
+        (ws / "generated" / "EXPLORATION_VALIDATION.json").read_text(encoding="utf-8"))
+    failed = {check["id"] for check in validation["checks"] if not check["ok"]}
+    assert {"database-request", "database-context"} <= failed

@@ -31,4 +31,5 @@ def test_ci_runner_covers_session_interaction_content_checks():
         "validate-external-workflows",
         "validate-generated-reports",
         "validate-provider-capabilities",
+        "validate-system-model",
     ]

@@ -113,3 +113,19 @@ def test_ack_requires_explicit_change_when_ambiguous(tmp_path, maika_root, capsy
     assert ack["selected_change"] == "C-2"
     assert ack["current_state"] == "INTAKE"
     assert "apply" in ack["selected_route"]
+
+
+def test_stale_ack_rejected_after_provider_registry_change(tmp_path, maika_root):
+    """Mutation #11 (harness plan §21): provider registry changes after ack."""
+    target = tmp_path / "project"
+    run_init(str(target), str(maika_root), "generic", [], "python", assume_yes=True)
+    assert run_bootstrap(str(target), home=tmp_path / "home") == 0
+    assert run_bootstrap_ack(str(target)) == 0
+    registry = target / ".maika" / "config" / "provider-registry.yaml"
+    registry.write_text(
+        registry.read_text(encoding="utf-8") + "\n# edited after ack\n",
+        encoding="utf-8",
+    )
+    ok, reason = verify_ack_freshness(target / ".maika")
+    assert not ok
+    assert "provider_registry_hash" in reason

@@ -26,6 +26,7 @@ CONTENT_CHECKS = [
     "validate-external-workflows",
     "validate-generated-reports",
     "validate-provider-capabilities",
+    "validate-system-model",
 ]
 
 
