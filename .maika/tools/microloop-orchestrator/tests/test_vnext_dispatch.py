@@ -423,3 +423,41 @@ def test_database_lane_context_pins_allowed_and_denied_tools():
     for denied in ("sql_write", "mongo_write", "sql_execute_script", "sql_read"):
         assert denied in context.split("DENIED_DB_TOOLS", 1)[1]
     assert "data_probe_required" in context
+
+
+# ── M8: content-addressed control surfaces in every dispatch prompt ─────────
+
+def test_control_surfaces_pin_skill_and_registry_hashes(tmp_path):
+    """Mutation #10: worker prompt lacks skill hash -> must fail here."""
+    import hashlib as _h
+    framework = tmp_path / ".maika"
+    skill_md = framework / "skills" / "grounding-explorer" / "SKILL.md"
+    skill_md.parent.mkdir(parents=True)
+    skill_md.write_text("---\nname: grounding-explorer\n---\nbody\n", encoding="utf-8")
+    registry = framework / "config" / "provider-registry.yaml"
+    registry.parent.mkdir(parents=True)
+    registry.write_text("version: 1\nproviders: {}\n", encoding="utf-8")
+    ws = framework / "changes" / "C-1"
+    (ws / "exploration").mkdir(parents=True)
+    (ws / "exploration" / "TRACE_REQUEST.yaml").write_text("version: 1\n", encoding="utf-8")
+
+    block = vd.control_surfaces_block(ws, "grounding")
+
+    skill_sha = _h.sha256(skill_md.read_bytes()).hexdigest()
+    registry_sha = _h.sha256(registry.read_bytes()).hexdigest()
+    assert f"SKILL_SHA256: sha256:{skill_sha}" in block
+    assert f"PROVIDER_REGISTRY_SHA256: sha256:{registry_sha}" in block
+    assert "TRACE_REQUEST_SHA256: sha256:" in block
+    assert "DATABASE_CONTEXT_FILE" not in block  # absent artifact is not pinned
+    assert "Do not infer provider policy from memory." in block
+    assert "Do not call tools outside the allowed lane." in block
+
+
+def test_every_dispatch_prompt_carries_control_surfaces(tmp_path):
+    framework = tmp_path / ".maika"
+    ws = framework / "changes" / "C-2"
+    ws.mkdir(parents=True)
+    prompt = vd.build_prompt("implementation", ws, "briefs/TASK-001.md",
+                             "results/TASK-001.yaml")
+    assert "CONTROL_SURFACES (content-addressed" in prompt
+    assert "Do not claim provider health without invocation evidence." in prompt
