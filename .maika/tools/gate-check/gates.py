@@ -20,13 +20,12 @@ class Result:
 
 
 _RULE_ID = re.compile(r"\b[A-Z]{2,3}-\d+\b")              # e.g. SP-6, HP-12, IW-05
-_NODE_ID = re.compile(r"\bnode_id\s*[:=]", re.IGNORECASE)
-_BLAST = re.compile(r"blast-radius", re.IGNORECASE)
-# Degrade line must be COMPACT (the canonical "KG unavailable — grep fallback,
-# MEDIUM" is ~18 chars between the anchors). The {0,40} bound rejects rambling
-# prose that merely happens to contain both "KG unavailable" and "MEDIUM".
-_DEGRADE = re.compile(r"KG unavailable.{0,40}MEDIUM", re.IGNORECASE)
-_NUMBERS = re.compile(r"(nodes?|edges?)\s*[:=]\s*\d+", re.IGNORECASE)
+# M11 (harness plan §14/§21 mutation #15): the provider-specific prose gates
+# (knowledge-checkpoint, mcp-status, code-evidence, implementation-context —
+# graph-node/probe-number regexes and CBM node verification) are REMOVED.
+# Their concerns live in typed, provider-neutral gates: trace-request/
+# trace-evidence (hash-linked structured trace + source verification),
+# provider-invocations (real probe evidence) and tool-health.
 # Agent-memory MCP evidence: either a health probe ("agent-memory: healthy")
 # or the compact degrade line ("agent-memory unavailable — skip recall/save").
 # Health probe: the canonical line is "agent-memory: healthy" — the status word
@@ -46,15 +45,6 @@ _MEMORY_RECALL = re.compile(
     r'agent-memory recall.{0,10}query:"[^"]{1,200}".{0,10}results:\s*\d+',
     re.IGNORECASE,
 )
-_UA_EVIDENCE = re.compile(
-    r"\b(UA evidence|domain_overview|domain_flow|domain_relationships)\b",
-    re.IGNORECASE,
-)
-_UA_DEGRADE = re.compile(
-    r"UA unavailable.{0,60}(explicit override|override|approved|MEDIUM)",
-    re.IGNORECASE,
-)
-_NO_KNOWLEDGE = re.compile(r"no approved (dna|conventions).*low", re.IGNORECASE)
 _SECTION = r"##\s+{name}[ \t]*\n(.*?)(?=\n##\s|\Z)"
 
 
@@ -64,150 +54,11 @@ def _section_text(text: str, name: str) -> str:
     return match.group(1).strip() if match else ""
 
 
-def validate_knowledge_checkpoint(
-    text: str, valid_rule_ids=None, allow_no_knowledge: bool = True
-) -> Result:
-    if _NO_KNOWLEDGE.search(text):
-        if allow_no_knowledge:
-            return Result(True)  # fresh project: no approved DNA/conventions yet → proceed at LOW confidence
-        return Result(False, "governance-degrade is allowed only when knowledge-index has no matching entries")
-    cited_rule_ids = set(_RULE_ID.findall(text))
-    if valid_rule_ids is not None:
-        valid_rule_ids = set(valid_rule_ids)
-        if not cited_rule_ids.intersection(valid_rule_ids):
-            return Result(False, "no valid rule-id from knowledge-index cited")
-    elif not cited_rule_ids:
-        return Result(False, "no rule-id (e.g. SP-6) cited")
-    has_facts = bool(_NODE_ID.search(text) and _BLAST.search(text))
-    if has_facts or _DEGRADE.search(text):
-        return Result(True)
-    return Result(False, "missing codebase evidence (node_id+blast-radius) or degrade line")
-
-
-def validate_mcp_status(text: str) -> Result:
-    if (
-        _NUMBERS.search(text)
-        or _DEGRADE.search(text)
-        or _MEMORY_OK.search(text)
-        or _MEMORY_DEGRADE.search(text)
-    ):
-        return Result(True)
-    return Result(False, "MCP status lacks probe numbers and degrade line ('Runtime Ready' alone is invalid)")
-
-
 # A file path: an optional dir prefix + a filename with an extension. Stops at
 # ':' so "base.py:100" yields "base.py". Matches repo-relative, absolute, and
-# bare (no directory) filenames.
+# bare (no directory) filenames. Consumers: task-review/final-review counter-
+# evidence anchors.
 _FILE_PATH = re.compile(r"/?(?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9]+")
-
-_CODE_EXT = {
-    "py", "js", "jsx", "ts", "tsx", "go", "rs", "java", "kt", "rb",
-    "c", "h", "cc", "cpp", "hpp", "cs", "php", "scala", "swift", "m", "mm",
-}
-
-
-def _is_code(path: str) -> bool:
-    return path.rsplit(".", 1)[-1].lower() in _CODE_EXT if "." in path else False
-
-
-def _under(path: str, root: str) -> bool:
-    p = os.path.normpath(path)
-    r = os.path.normpath(root)
-    return p == r or p.startswith(r + os.sep)
-
-
-_CBM_ERROR = re.compile(
-    r"project is required|no projects indexed|not indexed|connection refused|"
-    r"index_status|ECONNREFUSED|codebase-memory-mcp.*error",
-    re.IGNORECASE,
-)
-
-
-def _section(text: str, needle: str) -> str:
-    """Body under the first heading (## / ### / ####) containing needle, up to the
-    next heading of the SAME OR HIGHER level. Deeper sub-headings do not truncate."""
-    out, collecting, level = [], False, 0
-    for line in text.splitlines():
-        s = line.strip()
-        m = re.match(r"^(#{2,6})\s", s)
-        if m:
-            h = len(m.group(1))
-            if collecting and h <= level:
-                break
-            if not collecting and needle.lower() in s.lower():
-                collecting, level = True, h
-            continue
-        if collecting:
-            out.append(line)
-    return "\n".join(out)
-
-
-def _parse_node_table(text: str):
-    """node_id (2nd column) of each real row in the §2.3 Key Components table."""
-    ids = []
-    for line in _section(text, "Key Components").splitlines():
-        line = line.strip()
-        if not line.startswith("|"):
-            continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
-        if len(cells) < 2:
-            continue
-        nid = cells[1]
-        if not nid or nid == "node_id" or nid == "..." or set(nid) <= set("-"):
-            continue
-        ids.append(nid)
-    return ids
-
-
-def _section_files(text: str, needles):
-    files = set()
-    for needle in needles:
-        files.update(_FILE_PATH.findall(_section(text, needle)))
-    return files
-
-
-def _abs(path: str, repo_root):
-    return path if path.startswith("/") else (os.path.join(repo_root, path) if repo_root else path)
-
-
-def _project_for(path, indexed_projects):
-    for proj in indexed_projects:
-        if _under(path, proj["root_path"]):
-            return proj
-    return None
-
-
-def validate_code_evidence(text, indexed_projects=None, verified_node_files=None,
-                           repo_root=None, probe_ok=True) -> Result:
-    """Positive code-evidence gate (see R-Tool-5). Every section-scoped (§2.2/§2.3/§4)
-    code-fact about a file in an indexed project must be backed by a §2.3 node_id that
-    cbm verifies exists. Catches confessed grep (A), silent grep (B), fabricated node (C)."""
-    verified_node_files = verified_node_files or {}
-    if not indexed_projects:
-        return Result(True)                      # nothing indexed → grep legit
-    if not probe_ok:                             # cbm probe failed → fail-open only with real error
-        if _CBM_ERROR.search(text):
-            return Result(True)
-        return Result(False, "cbm probe failed; embed the real cbm error output to justify degrade")
-    for nid in _parse_node_table(text):          # (C) every §2.3 node must exist
-        if nid not in verified_node_files:
-            return Result(False, f"§2.3 node_id '{nid}' not found in cbm graph (fabricated or wrong project)")
-    verified_abs = {os.path.normpath(_abs(f, repo_root)) for f in verified_node_files.values()}
-    verified_base = {os.path.basename(p) for p in verified_abs}
-    for raw in _section_files(text, ("Entry Points", "Phát hiện")):   # (B) indexed-file facts need a node
-        if not _is_code(raw):
-            continue                              # cbm indexes code symbols, not md/yaml/json/config
-        if "/" in raw:                             # path form: map to a project by root, require exact node file
-            path = os.path.normpath(_abs(raw, repo_root))
-            proj = _project_for(path, indexed_projects)
-            if not proj:
-                continue                           # un-indexed (e.g. upstream not indexed) → grep legit
-            if path not in verified_abs:
-                return Result(False, f"'{raw}' (indexed project '{proj['name']}') has no verified §2.3 node — trace via cbm, don't grep")
-        else:                                      # bare filename: cover by basename against verified nodes
-            if os.path.basename(raw) not in verified_base:
-                return Result(False, f"'{raw}' has no verified §2.3 node (cite full path or add the cbm node) — don't grep")
-    return Result(True)
 
 
 def validate_memory_recall(text: str) -> Result:
@@ -245,25 +96,6 @@ def validate_handoff_slice(text: str) -> Result:
     m = re.search(r"##\s+Applicable DNA/Conventions[ \t]*\n(.*?)(?=\n##\s|\Z)", text, re.DOTALL)
     if not m or not _RULE_ID.search(m.group(1)):
         return Result(False, "handoff missing non-empty 'Applicable DNA/Conventions' with rule-ids")
-    return Result(True)
-
-
-def validate_implementation_context(text: str) -> Result:
-    applicable = _section_text(text, "Applicable DNA/Conventions")
-    if not applicable or not _RULE_ID.search(applicable):
-        return Result(False, "implementation context missing Applicable DNA/Conventions rule-ids")
-    evidence = _section_text(text, "Evidence")
-    if not evidence:
-        return Result(False, "implementation context missing Evidence section")
-    has_ua = bool(_UA_EVIDENCE.search(evidence) or _UA_DEGRADE.search(evidence))
-    has_codebase = bool((_NODE_ID.search(evidence) and _BLAST.search(evidence)) or _DEGRADE.search(evidence))
-    if not has_ua:
-        return Result(False, "implementation context missing UA evidence or explicit UA degrade override")
-    if not has_codebase and _UA_DEGRADE.search(evidence):
-        return Result(False, "implementation context with UA degrade also needs codebase evidence or KG degrade")
-    allowed = _section_text(text, "Allowed Files")
-    if not allowed:
-        return Result(False, "implementation context missing Allowed Files section")
     return Result(True)
 
 
@@ -1073,6 +905,7 @@ def validate_database_context(text, provider_registry=None, request_text=None) -
         return Result(False, "database context requires provider.id + provider.client_key")
     probe = doc.get("probe") or {}
     degradation = doc.get("degradation") or []
+    request = (yaml.safe_load(request_text) or {}) if request_text else {}
     if probe:
         if probe.get("invocation_mode") != "host_mcp":
             return Result(False, "probe.invocation_mode must be host_mcp")
@@ -1081,6 +914,14 @@ def validate_database_context(text, provider_registry=None, request_text=None) -
                 return Result(False, f"database probe requires {key}")
         if probe["status"] not in {"success", "error", "timeout"}:
             return Result(False, f"unknown probe status {probe['status']!r}")
+        # Fixture F12 (plan §22): evidence from the wrong environment/database
+        # can never satisfy the declared request.
+        for key in ("environment", "database"):
+            expected = str(request.get(key) or "").strip()
+            observed = str(probe.get(key) or "").strip()
+            if expected and observed != expected:
+                return Result(False, f"probe {key} {observed!r} disagrees with "
+                                     f"DATABASE_REQUEST {key} {expected!r}")
     elif not degradation:
         return Result(False, "database context requires a probe or a structured "
                              "degradation record")
@@ -1097,7 +938,6 @@ def validate_database_context(text, provider_registry=None, request_text=None) -
                                  "contract in the provider registry")
         exploration = set((lanes.get("exploration") or {}).get("tools") or [])
         permitted = set(exploration)
-        request = (yaml.safe_load(request_text) or {}) if request_text else {}
         if request.get("data_probe_required") is True:
             permitted |= set((lanes.get("data_probe") or {}).get("tools") or [])
         allowed = set(doc.get("allowed_tools") or [])

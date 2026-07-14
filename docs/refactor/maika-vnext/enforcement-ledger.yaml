@@ -5,7 +5,7 @@ entries:
   - id: ENF-001
     mechanism: code-evidence
     type: gate
-    status: active
+    status: removed  # M11 2026-07-14 — superseded by ENF-030 trace-request-and-evidence (hash-linked source verification)
     failure:
       classification: observed_failure
       reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
@@ -64,7 +64,7 @@ entries:
   - id: ENF-005
     mechanism: knowledge-checkpoint
     type: gate
-    status: active
+    status: removed  # M11 2026-07-14 — superseded by ENF-030 trace gates + knowledge-trace (typed evidence, no graph-node prose)
     failure:
       classification: external_requirement
       reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
@@ -92,7 +92,7 @@ entries:
   - id: ENF-007
     mechanism: implementation-context
     type: gate
-    status: active
+    status: removed  # M11 2026-07-14 — superseded by ENF-033 worker-context-pinning + capsule/context-package gates
     failure:
       classification: external_requirement
       reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md
@@ -120,7 +120,7 @@ entries:
   - id: ENF-009
     mechanism: mcp-status
     type: gate
-    status: active
+    status: removed  # M11 2026-07-14 — superseded by ENF-029 provider-invocations + tool-health (probe-backed health)
     failure:
       classification: external_requirement
       reference: docs/superpowers/specs/2026-07-08-code-evidence-gate-design.md

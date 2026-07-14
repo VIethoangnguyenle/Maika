@@ -124,7 +124,6 @@
 .maika/tools/README.md
 .maika/tools/gate-check/
 .maika/tools/gate-check/__init__.py
-.maika/tools/gate-check/capability.py
 .maika/tools/gate-check/cli.py
 .maika/tools/gate-check/gates.py
 .maika/tools/knowledge-index/

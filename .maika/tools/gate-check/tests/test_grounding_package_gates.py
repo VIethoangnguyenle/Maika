@@ -340,6 +340,18 @@ def test_lane_allowed_tools_must_cover_exploration_snapshot():
     assert not result.ok and "full exploration lane snapshot" in result.reason
 
 
+def test_wrong_environment_evidence_rejected():
+    """Fixture F12 (plan §22): probe from the wrong environment fails."""
+    ctx = _database_context()
+    ctx["probe"]["environment"] = "production"
+    result = gates.validate_database_context(
+        yaml.safe_dump(ctx),
+        provider_registry=_PROVIDER_REGISTRY,
+        request_text=yaml.safe_dump(_database_request(environment="staging")),
+    )
+    assert not result.ok and "disagrees with DATABASE_REQUEST" in result.reason
+
+
 # ── W4: capsule-integrity + evidence-update-request ─────────────────────────
 
 def _capsule_and_queue(ev_text="claims: []\n"):

@@ -1,4 +1,9 @@
-"""Guard: R-Tool-5 grants architecture-facts a parallel UA evidence path."""
+"""Guard: R-Tool-5 pins source authority to the typed trace-evidence path (M11).
+
+The pre-harness doctrine (code-facts via graph node prose) was removed with the
+legacy provider-specific gates; this guard keeps the replacement doctrine from
+drifting back to prose evidence.
+"""
 
 from pathlib import Path
 
@@ -10,14 +15,17 @@ def _text():
     return RULES.read_text(encoding="utf-8")
 
 
-def test_rtool5_has_architecture_facts_evidence_path():
+def test_rtool5_pins_typed_trace_evidence_path():
     text = _text()
-    assert "architecture-facts" in text, "R-Tool-5 thiếu đường evidence cho architecture-facts"
-    # UA identifier counts as valid evidence without forcing node_id
-    assert "UA identifier" in text or "identifier kiểu UA" in text
+    assert "TRACE_EVIDENCE.yaml" in text
+    assert "verify-source" in text
+    assert "response hash" in text
+    # Grep-honesty survives the migration: healthy provider -> no grep fallback.
+    assert "Grep-honesty" in text
 
 
-def test_rtool5_keeps_codefacts_kg_path():
+def test_rtool5_does_not_reintroduce_graph_node_prose():
     text = _text()
-    # code-facts still require node_id + blast-radius via KG tools (unchanged)
-    assert "code-facts" in text and "node_id" in text
+    section = text.split("R-Tool-5", 1)[1].split("### ", 1)[0]
+    assert "node_id" not in section
+    assert "blast-radius" not in section

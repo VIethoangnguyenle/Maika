@@ -6,13 +6,14 @@ from pathlib import Path
 
 import yaml
 
+# M11 (harness plan §14/§21 mutation #15): the provider-specific prose gates
+# knowledge-checkpoint / mcp-status / implementation-context / code-evidence
+# were removed — typed replacements: trace-request, trace-evidence,
+# provider-invocations, exploration-evidence source checks, tool-health.
 VALIDATORS = {
-    "knowledge-checkpoint": "validate_knowledge_checkpoint",
-    "mcp-status": "validate_mcp_status",
     "memory-recall": "validate_memory_recall",
     "phase-chain": "validate_phase_chain",
     "handoff-slice": "validate_handoff_slice",
-    "implementation-context": "validate_implementation_context",
     "context-request": "validate_context_request",
     "node-checkpoint": "validate_node_checkpoint",
     "apply-gate": "validate_apply_gate",
@@ -21,7 +22,6 @@ VALIDATORS = {
     "reset-ready": "validate_reset_ready",
     "ac-coverage": "validate_ac_coverage",
     "integration-coverage": "validate_integration_coverage",
-    "code-evidence": "validate_code_evidence",
     "vnext-plan": "validate_vnext_plan",
     "vnext-workspace": "validate_change_workspace",
     "intent": "validate_intent",
@@ -92,7 +92,7 @@ def main(argv=None):
     parser.add_argument("--against")
     parser.add_argument("--index")
     parser.add_argument("--artifact-type")
-    parser.add_argument("--repo-root", help="repo root for code-evidence (default: cwd)")
+    parser.add_argument("--repo-root", help="repo root for source checks (default: cwd)")
     try:
         args = parser.parse_args(argv)
     except SystemExit:
@@ -101,26 +101,11 @@ def main(argv=None):
     g = _load_gates()
     text = Path(args.file).read_text(encoding="utf-8")
     kwargs = {}
-    if args.gate == "knowledge-checkpoint" and args.index:
-        valid_rule_ids, index_empty = _load_index_rule_ids(args.index, args.artifact_type)
-        kwargs["valid_rule_ids"] = valid_rule_ids
-        kwargs["allow_no_knowledge"] = index_empty
-    elif args.gate in {"ac-coverage", "integration-coverage"}:
+    if args.gate in {"ac-coverage", "integration-coverage"}:
         if not args.against:
             print("FAIL — --against is required for coverage checks")
             return 2
         kwargs["spec_text"] = Path(args.against).read_text(encoding="utf-8")
-    elif args.gate == "code-evidence":
-        repo_root = args.repo_root or os.getcwd()
-        cap = _load_module("capability")
-        indexed = cap.indexed_projects(repo_root)
-        gates_mod = _load_module("gates")
-        node_ids = gates_mod._parse_node_table(text)
-        verified, ok = cap.verify_nodes(node_ids)
-        kwargs["indexed_projects"] = indexed
-        kwargs["verified_node_files"] = verified
-        kwargs["repo_root"] = repo_root
-        kwargs["probe_ok"] = ok
     elif args.gate == "vnext-plan":
         pp_path = Path(__file__).resolve().parents[1] / "microloop-orchestrator" / "plan_parser.py"
         spec_pp = importlib.util.spec_from_file_location("plan_parser", pp_path)

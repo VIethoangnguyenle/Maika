@@ -19,7 +19,11 @@
 | task result | `results/TASK-*.yaml` | `vnext-result` |
 | task review | `reviews/TASK-*.md` | `task-review` |
 | final review | `reviews/FINAL_REVIEW.md` | `final-review` |
-| MCP-probe | dòng MCP-status (bootstrap report / transparency) | `mcp-status` |
+| provider health | `exploration/TOOL_HEALTH.yaml` | `tool-health` |
+| provider invocation | `exploration/PROVIDER_INVOCATIONS.jsonl` | `provider-invocations` |
+| trace request | `exploration/TRACE_REQUEST.yaml` | `trace-request` |
+| trace evidence | `exploration/TRACE_EVIDENCE.yaml` | `trace-evidence` |
+| database request | `exploration/DATABASE_REQUEST.yaml` | `database-request` |
 | agent kernel | `agent/KERNEL.md` + platform entry point | `agent-kernel` |
 | bootstrap env | `runtime/BOOTSTRAP_ENV_REPORT.yaml` | `bootstrap-complete` |
 | bootstrap ack | `runtime/AGENT_BOOTSTRAP_ACK.yaml` | `bootstrap-ack` |
@@ -30,7 +34,7 @@
 | skill candidate | `knowledge/skill-evolution/candidates/*.yaml` | `skill-evolution-candidate` |
 | skill review | candidate review artifact | `skill-evolution-review` |
 | skill promotion | promotion record | `skill-evolution-promotion` |
-- **mcp-status:** số probe thật (`nodes=…`/`edges=…`) **hoặc** dòng degrade `KG unavailable — … MEDIUM`. "Runtime Ready" rỗng = FAIL.
+- **tool-health / provider-invocations:** provider `ready` phải có probe thật (operation + observed + freshness) và mọi MCP call phải có invocation record hash-bound (`maika provider record`). "Runtime Ready" rỗng hoặc health tự khai không có record = FAIL.
 
 ## Knowledge Trace blocking law
 
