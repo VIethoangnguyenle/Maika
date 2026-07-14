@@ -87,7 +87,7 @@ def normalize_response(tool: str, raw: bytes | str) -> dict:
         "provider_id": PROVIDER_ID,
         "tool": tool,
         "response_hash": hash_payload(raw),
-        "authority": "deterministic_structure",
+        "authority": "semantic_index_structure",
         "canonical": False,
         "status": "success",
         "provider_snapshot": {"index_generation": "unverified"},

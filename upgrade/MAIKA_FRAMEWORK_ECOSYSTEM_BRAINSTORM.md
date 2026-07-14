@@ -1295,7 +1295,12 @@ authority:
   exact_current_source:
     provider: current-source
 
-  deterministic_structure:
+  structured_graph_trace:
+    preferred: understand-anything
+    corroborating: [codebase-memory-mcp, current-source]
+    conflict_action: verify_current_source
+
+  semantic_index_structure:
     preferred: codebase-memory-mcp
     corroborating: understand-anything
     conflict_action: verify_current_source

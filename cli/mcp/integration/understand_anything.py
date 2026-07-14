@@ -22,6 +22,7 @@ METADATA_TOOL = "get_graph_metadata"
 _TRUNCATION = re.compile(r"\btruncated\b|\.\.\.\s*\(\d+\s+more\b", re.IGNORECASE)
 
 SUPPORTED_CONTRACT_VERSIONS = {1}
+DOMAIN_TOOLS = {"get_domain_overview", "get_domain_detail", "get_domain_flow_detail"}
 
 
 def _decode(raw: bytes | str) -> str:
@@ -37,7 +38,9 @@ def normalize_response(tool: str, raw: bytes | str) -> dict:
         "tool": tool,
         "response_hash": hash_payload(raw),
         "truncated": bool(_TRUNCATION.search(text)),
-        "authority": "domain_semantics",
+        "authority": (
+            "domain_semantics" if tool in DOMAIN_TOOLS else "structured_graph_trace"
+        ),
         "canonical": False,
     }
     if tool == METADATA_TOOL:

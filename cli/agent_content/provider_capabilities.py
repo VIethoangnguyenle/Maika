@@ -58,14 +58,24 @@ def validate_canonical_provider_registry(doc: dict, capabilities: dict) -> list[
     known_caps = set(capabilities.get("capabilities") or {})
     authority = doc.get("authority") or {}
     expected_authority = {
-        "exact_current_source": ("authoritative", "current-source"),
-        "deterministic_structure": ("conflict_action", "verify_current_source"),
-        "historical_context": ("conflict_action", "treat_as_candidate"),
-        "canonical_project_knowledge": ("authoritative", "maika-knowledge-kernel"),
+        "exact_current_source": {"authoritative": "current-source"},
+        "structured_graph_trace": {
+            "preferred": "understand-anything",
+            "conflict_action": "verify_current_source",
+        },
+        "semantic_index_structure": {
+            "preferred": "codebase-memory-mcp",
+            "conflict_action": "verify_current_source",
+        },
+        "historical_context": {"conflict_action": "treat_as_candidate"},
+        "canonical_project_knowledge": {
+            "authoritative": "maika-knowledge-kernel"
+        },
     }
-    for lane, (key, expected) in expected_authority.items():
-        if (authority.get(lane) or {}).get(key) != expected:
-            errors.append(f"authority.{lane}.{key} must be {expected}")
+    for lane, expected_fields in expected_authority.items():
+        for key, expected in expected_fields.items():
+            if (authority.get(lane) or {}).get(key) != expected:
+                errors.append(f"authority.{lane}.{key} must be {expected}")
     for provider_id, spec in providers.items():
         prefix = f"providers.{provider_id}"
         if not spec.get("display_name") or not spec.get("kind"):

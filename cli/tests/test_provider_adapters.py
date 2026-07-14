@@ -16,6 +16,7 @@ def _fixture(provider: str, name: str) -> dict:
 def test_ua_nested_metadata_is_normalized_without_invention():
     raw = (FIXTURES / "understand-anything" / "graph-metadata-v1.json").read_bytes()
     observation = understand_anything.normalize_response("get_graph_metadata", raw)
+    assert observation["authority"] == "structured_graph_trace"
     assert observation["provider_contract_version"] == 1
     assert observation["status"] == "success"
     assert observation["graph"] == {
@@ -66,6 +67,11 @@ def test_cbm_support_call_rejects_fake_semantic_query_tool():
         assert "unknown Codebase Memory tool" in str(exc)
     else:
         raise AssertionError("semantic_query must not be treated as a tool")
+
+
+def test_cbm_observation_is_semantic_index_not_structured_trace_authority():
+    observation = codebase_memory.normalize_response("search_graph", b'{"hits": []}')
+    assert observation["authority"] == "semantic_index_structure"
 
 
 def test_agent_memory_local_fallback_never_satisfies_proxy_only_readiness():

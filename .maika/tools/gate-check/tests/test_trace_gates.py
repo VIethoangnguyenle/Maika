@@ -59,7 +59,7 @@ def _observation(provider="understand-anything", tool="trace_call_chain",
         "observed_at": "2026-07-14T08:00:01Z",
         "status": "success",
         "degradation_reasons": [],
-        "authority": "domain_semantics",
+        "authority": "structured_graph_trace",
         "canonical": False,
         "truncated": False,
     }
@@ -189,6 +189,19 @@ def test_observation_provider_mismatch_fails(tmp_path):
     result = _check(tmp_path, provider_observations=[
         _observation(provider="codebase-memory-mcp")])
     assert not result.ok and "disagree" in result.reason
+
+
+def test_cbm_cannot_claim_structured_graph_trace_authority(tmp_path):
+    result = _check(tmp_path, provider_observations=[
+        _observation(
+            provider="codebase-memory-mcp", tool="search_graph",
+            response_hash=CBM_HASH, authority="structured_graph_trace",
+        )
+    ], graph={}, limitations=[{
+        "kind": "provider_unconfigured", "one_of": "structured_trace",
+        "detail": "UA unavailable",
+    }], traversals=[], complete=False)
+    assert not result.ok and "invalid for codebase-memory-mcp" in result.reason
 
 
 def test_traversal_referencing_unrecorded_observation_fails(tmp_path):
@@ -325,13 +338,13 @@ def test_cbm_changed_index_boundary_rejects_complete_evidence(tmp_path):
     after_snapshot = {**before_snapshot, "nodes": 11}
     cbm = [
         _observation(provider="codebase-memory-mcp", tool="index_status",
-                     response_hash=hashes[0], authority="deterministic_structure",
+                     response_hash=hashes[0], authority="semantic_index_structure",
                      provider_snapshot=before_snapshot),
         _observation(provider="codebase-memory-mcp", tool="search_graph",
-                     response_hash=hashes[1], authority="deterministic_structure",
+                     response_hash=hashes[1], authority="semantic_index_structure",
                      provider_snapshot={"index_generation": "unverified"}),
         _observation(provider="codebase-memory-mcp", tool="index_status",
-                     response_hash=hashes[2], authority="deterministic_structure",
+                     response_hash=hashes[2], authority="semantic_index_structure",
                      provider_snapshot=after_snapshot),
     ]
     calls = [

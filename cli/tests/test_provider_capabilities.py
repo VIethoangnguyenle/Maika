@@ -171,3 +171,16 @@ def test_cbm_and_agent_memory_registry_contracts_are_enforced():
     memory = providers["providers"]["agent-memory"]
     assert memory["integration_mode"] == "mcp_proxy_only"
     assert memory["hooks"]["auto_capture"] is False
+
+
+def test_authority_policy_keeps_ua_primary_for_structured_graph_trace():
+    _mapping, capabilities = _docs()
+    providers = load_provider_registry(FRAMEWORK)
+    authority = providers["authority"]
+    assert authority["structured_graph_trace"]["preferred"] == "understand-anything"
+    assert authority["semantic_index_structure"]["preferred"] == "codebase-memory-mcp"
+
+    changed = deepcopy(providers)
+    changed["authority"]["structured_graph_trace"]["preferred"] = "codebase-memory-mcp"
+    errors = validate_canonical_provider_registry(changed, capabilities)
+    assert any("structured_graph_trace.preferred" in error for error in errors)

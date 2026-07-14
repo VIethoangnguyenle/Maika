@@ -1171,6 +1171,14 @@ def validate_trace_evidence(text, request_text=None, invocations_text=None,
                     or record.get("tool") != obs["tool"]):
                 return Result(False, f"observation {i}: provider/tool disagree "
                                      "with invocation record")
+            expected_authorities = {
+                "understand-anything": {"structured_graph_trace", "domain_semantics"},
+                "codebase-memory-mcp": {"semantic_index_structure"},
+            }
+            allowed_authorities = expected_authorities.get(obs["provider_id"])
+            if allowed_authorities and obs.get("authority") not in allowed_authorities:
+                return Result(False, f"observation {i}: authority {obs.get('authority')!r} "
+                                     f"is invalid for {obs['provider_id']}")
             if record.get("request_hash") != obs.get("request_hash"):
                 return Result(False, f"observation {i}: request_hash disagrees with "
                                      "invocation record")
