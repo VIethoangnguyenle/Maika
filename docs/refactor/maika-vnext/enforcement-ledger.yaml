@@ -760,6 +760,29 @@ entries:
     scope: {change_classes: [trivial, small, standard, architectural]}
     reviewed_at: 2026-07-14
 
+  - id: ENF-034
+    mechanism: refresh-reprobe-lifecycle
+    type: validator
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        C-24/B7 (inventory 2026-07-13): an external workflow request did not
+        complete a durable BLOCKED -> re-probe -> resume lifecycle — the
+        dispatch path printed a refusal and dropped the request, refresh could
+        be 'fulfilled' with no new provider evidence, and an explicit empty
+        request_only regained defaults (mutations #12/#13/#14). Blockers are
+        now persisted with a baseline evidence hash; fulfillment demands a
+        fresh success invocation hash and redispatches the original role.
+    implementation:
+      files: [.maika/tools/microloop-orchestrator/vnext_dispatch.py]
+      consumers:
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+        - .maika/tools/microloop-orchestrator/tests/test_refresh_resume.py
+    scope: {change_classes: [standard, architectural]}
+    reviewed_at: 2026-07-14
+
   # ---- deferred change-loop triggers (no discrete runtime signal yet) ----
   - id: DEF-005
     mechanism: change-loop-stale-contract
