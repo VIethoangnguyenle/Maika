@@ -737,6 +737,29 @@ entries:
     scope: {change_classes: [trivial, small, standard, architectural]}
     reviewed_at: 2026-07-14
 
+  - id: ENF-033
+    mechanism: worker-context-pinning
+    type: validator
+    status: active
+    failure:
+      classification: observed_failure
+      reference: docs/plans/provider-convergence-inventory.md
+      summary: >-
+        C-23/B6 (inventory 2026-07-13): workers received a skill NAME and free
+        prose, not content-addressed policy — provider policy could be
+        recalled from model memory and silently drift from the installed
+        contract. Every dispatch prompt now pins skill/provider-registry/
+        capability-registry and present trace/DB artifacts by sha256 at the
+        build_prompt chokepoint (mutation #10). Ack-hash staleness already
+        blocks dispatch via cli.commands.bootstrap.verify_ack_freshness.
+    implementation:
+      files: [.maika/tools/microloop-orchestrator/vnext_dispatch.py]
+      consumers:
+        - .maika/tools/microloop-orchestrator/orchestrator.py
+        - .maika/tools/microloop-orchestrator/tests/test_vnext_dispatch.py
+    scope: {change_classes: [trivial, small, standard, architectural]}
+    reviewed_at: 2026-07-14
+
   # ---- deferred change-loop triggers (no discrete runtime signal yet) ----
   - id: DEF-005
     mechanism: change-loop-stale-contract

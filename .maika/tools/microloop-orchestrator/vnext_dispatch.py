@@ -199,6 +199,69 @@ def run_planning_dispatch(ws, repo_root):
         return False
     return True
 
+# Dispatch type -> canonical skill file pinned into the worker prompt (M8).
+DISPATCH_SKILLS = {
+    "intent": "intent-analysis",
+    "grounding": "grounding-explorer",
+    "database": "database-explorer",
+    "reconciliation": "architecture-reconciler",
+    "brainstorming": "grounded-brainstorming",
+    "spec": "writing-spec",
+    "planning": "writing-plan",
+    "plan_review": "validating-plan",
+    "implementation": "executing-task",
+    "fix": "executing-task",
+    "task_review": "reviewing-task",
+    "final_review": "reviewing-change",
+    "verification": "verification-before-completion",
+    "knowledge_curator": "knowledge-promoter",
+}
+
+_PINNED_WORKSPACE_ARTIFACTS = (
+    ("TRACE_REQUEST", "exploration/TRACE_REQUEST.yaml"),
+    ("TRACE_EVIDENCE", "exploration/TRACE_EVIDENCE.yaml"),
+    ("DATABASE_REQUEST", "exploration/DATABASE_REQUEST.yaml"),
+    ("DATABASE_CONTEXT", "exploration/DATABASE_CONTEXT.yaml"),
+    ("PROVIDER_INVOCATIONS", "exploration/PROVIDER_INVOCATIONS.jsonl"),
+)
+
+
+def control_surfaces_block(ws, klass) -> str:
+    """Content-addressed control surfaces for a dispatch (harness plan §15, B6).
+
+    The worker receives exact file paths + sha256 of the skill, provider
+    registry, capability registry and any trace/DB artifacts — policy is
+    pinned, never recalled from model memory. Computed at dispatch time from
+    the files themselves, so a worker cannot be handed stale or hand-waved
+    policy without the hash changing."""
+    ws = Path(ws)
+    framework = ws.parents[1]
+    surfaces = []
+    skill = DISPATCH_SKILLS.get(klass)
+    if skill:
+        surfaces.append(("SKILL", framework / "skills" / skill / "SKILL.md"))
+    surfaces.append(("PROVIDER_REGISTRY",
+                     framework / "config" / "provider-registry.yaml"))
+    surfaces.append(("CAPABILITY_REGISTRY",
+                     framework / "profiles" / "capability-registry.yaml"))
+    for label, rel in _PINNED_WORKSPACE_ARTIFACTS:
+        surfaces.append((label, ws / rel))
+    lines = ["CONTROL_SURFACES (content-addressed — read these exact files):"]
+    for label, path in surfaces:
+        if not path.is_file():
+            continue
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        lines.append(f"{label}_FILE: {path}")
+        lines.append(f"{label}_SHA256: sha256:{digest}")
+    lines += [
+        "Do not infer provider policy from memory.",
+        "Use only the pinned provider/tool contracts above.",
+        "Do not claim provider health without invocation evidence.",
+        "Do not call tools outside the allowed lane.",
+    ]
+    return "\n".join(lines)
+
+
 def build_prompt(klass, ws, brief_rel, result_rel, extra=None, task=None):
     if klass not in DISPATCH_TYPES:
         raise ValueError(f"unknown dispatch type: {klass}")
@@ -229,6 +292,8 @@ def build_prompt(klass, ws, brief_rel, result_rel, extra=None, task=None):
         DISPATCH_KERNEL_ID,
         "",
         _dispatch_kernel(),
+        "",
+        control_surfaces_block(ws, klass),
         "",
         "Read exactly the assigned artifacts above and write exactly the output file.",
         "For implementation/review, read KNOWLEDGE_CAPSULE and record consumed IDs.",
