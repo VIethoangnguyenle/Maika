@@ -74,3 +74,15 @@ def test_cbm_setup_engine_check_and_install_hint():
     # install_hint is the turnkey one-line installer (UA-style), binary-only
     assert "install.sh" in setup["install_hint"]["default"]
     assert "--skip-config" in setup["install_hint"]["default"]
+
+
+def test_serena_manifest_is_pinned_and_uses_maika_context():
+    manifest = load_manifest(MAIKA_ROOT)
+    cap = manifest["mcp_capabilities"]["serena"]
+    assert cap["provides"] == "semantic_code_intelligence"
+    assert cap["setup"]["version"] == "1.5.3"
+    assert cap["setup"]["server"]["command"] == "serena"
+    assert (
+        "{project_root}/.maika/config/serena-context.yml"
+        in cap["setup"]["server"]["args"]
+    )
