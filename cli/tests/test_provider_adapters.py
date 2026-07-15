@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from cli.mcp.integration import agent_memory, codebase_memory, understand_anything
+from cli.mcp.integration import agent_memory, codebase_memory, serena, understand_anything
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "provider_contracts"
@@ -97,3 +97,26 @@ def test_agent_memory_recall_is_historical_candidate_not_authorization():
     assert observation["classification"] == "candidate"
     assert observation["canonical"] is False
     assert observation["provider_snapshot"]["agent_id_authorizes"] is False
+
+
+def test_serena_readonly_surface_is_exact_and_write_free():
+    fixture = _fixture("serena", "tools-list-readonly-v1.json")
+    result = serena.validate_tools_list(fixture)
+    assert result["status"] == "ready"
+    assert set(result["tools"]) == serena.SERENA_READ_TOOLS
+    assert set(result["tools"]).isdisjoint(serena.SERENA_FORBIDDEN_TOOLS)
+
+
+def test_serena_write_or_memory_tool_degrades_contract():
+    fixture = _fixture("serena", "tools-list-readonly-v1.json")
+    changed = json.loads(json.dumps(fixture))
+    changed["tools"].append({"name": "rename_symbol", "inputSchema": {"type": "object"}})
+    result = serena.validate_tools_list(changed)
+    assert result["status"] == "degraded"
+    assert result["forbidden"] == ["rename_symbol"]
+
+
+def test_serena_observation_is_semantic_not_architecture_authority():
+    result = serena.normalize_response("find_symbol", b'{"symbols": []}')
+    assert result["authority"] == "semantic_symbol_resolution"
+    assert result["canonical"] is False
