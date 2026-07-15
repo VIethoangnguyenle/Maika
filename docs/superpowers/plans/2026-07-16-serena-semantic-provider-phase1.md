@@ -187,8 +187,10 @@ fixed_tools:
   - get_diagnostics_for_symbol
   - restart_language_server
 single_project: true
-structured_tool_output: false
 ```
+
+Serena `1.5.3` does not accept `structured_tool_output` in a custom context;
+omit that field. This was verified against the pinned runtime during Task 1.
 
 Create a throwaway Serena project and `/tmp/maika-serena-contract/mcp.json` with this content:
 
@@ -301,8 +303,10 @@ fixed_tools:
   - get_diagnostics_for_symbol
   - restart_language_server
 single_project: true
-structured_tool_output: false
 ```
+
+Do not add `structured_tool_output`: the pinned Serena `1.5.3` context schema
+rejects it. The fixed tool list is the Phase 1 surface boundary.
 
 - [ ] **Step 4: Add the exact manifest capability and conditional plugin**
 
