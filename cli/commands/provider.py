@@ -158,6 +158,12 @@ def run_provider(
             print(f"{label} payload file not found: {payload_file}")
             return 1
 
+    if provider_id == serena.PROVIDER_ID and (
+        not (trigger or "").strip() or not (reason or "").strip()
+    ):
+        print("Serena conditional evidence requires nonblank --trigger and --reason")
+        return 1
+
     now = utc_now()
     record = build_invocation_record(
         change_id=change_id,

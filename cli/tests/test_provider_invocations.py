@@ -161,6 +161,32 @@ def test_cli_requires_payload_files(tmp_path):
     assert _run(tmp_path, request_file=str(tmp_path / "absent.json")) == 1
 
 
+def _assert_no_provider_artifacts(tmp_path: Path) -> None:
+    exploration = (tmp_path / "proj" / ".maika" / "changes" / "C-9"
+                   / "exploration")
+    assert not exploration.joinpath("PROVIDER_INVOCATIONS.jsonl").exists()
+    assert not exploration.joinpath("TRACE_EVIDENCE.yaml").exists()
+
+
+def test_cli_rejects_serena_record_without_trigger_before_artifact_mutation(
+    tmp_path, capsys,
+):
+    assert _run(tmp_path, provider_id="serena", tool="find_symbol") == 1
+    assert "--trigger" in capsys.readouterr().out
+    _assert_no_provider_artifacts(tmp_path)
+
+
+def test_cli_rejects_serena_record_without_reason_before_artifact_mutation(
+    tmp_path, capsys,
+):
+    assert _run(
+        tmp_path, provider_id="serena", tool="find_symbol",
+        trigger="unresolved_anchor", reason="",
+    ) == 1
+    assert "--reason" in capsys.readouterr().out
+    _assert_no_provider_artifacts(tmp_path)
+
+
 def test_cli_record_normalizes_serena_observation(tmp_path):
     assert _run(
         tmp_path, provider_id="serena", tool="find_symbol",
