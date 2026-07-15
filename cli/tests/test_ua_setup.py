@@ -40,6 +40,24 @@ def test_resolve_engine_check_file_contains(tmp_path):
     assert ua_setup.resolve_engine_check(setup, "claude-code", tmp_path) is False
 
 
+def test_resolve_engine_check_command_exists_uses_shutil_which(tmp_path, monkeypatch):
+    setup = {
+        "engine_check": {
+            "default": {"kind": "command_exists", "command": "serena"},
+        },
+    }
+    calls = []
+
+    monkeypatch.setattr(
+        "shutil.which", lambda command: calls.append(command) or "/usr/bin/serena"
+    )
+    assert ua_setup.resolve_engine_check(setup, "codex", tmp_path) is True
+    assert calls == ["serena"]
+
+    monkeypatch.setattr("shutil.which", lambda command: None)
+    assert ua_setup.resolve_engine_check(setup, "codex", tmp_path) is False
+
+
 def test_resolve_engine_check_falls_back_to_default(tmp_path):
     (tmp_path / ".understand-anything" / "repo").mkdir(parents=True)
     setup = {"engine_check": {"default": {"kind": "path_exists", "path": "{home}/.understand-anything/repo"}}}

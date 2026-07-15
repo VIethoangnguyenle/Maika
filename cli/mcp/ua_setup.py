@@ -6,6 +6,7 @@ capability can opt in; understand-anything is the first consumer.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -33,11 +34,14 @@ def resolve_engine_check(setup: dict, platform: str, home: Path) -> bool:
     spec = checks.get(platform) or checks.get("default")
     if not spec:
         return False
-    path = Path(expand(spec["path"], home=home))
     kind = spec.get("kind", "path_exists")
+    if kind == "command_exists":
+        return shutil.which(spec.get("command", "")) is not None
     if kind == "path_exists":
+        path = Path(expand(spec["path"], home=home))
         return path.exists() or path.is_symlink()
     if kind == "file_contains":
+        path = Path(expand(spec["path"], home=home))
         try:
             return spec.get("needle", "") in path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):

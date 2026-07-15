@@ -166,6 +166,17 @@ def test_doctor_reports_engine_and_graphs(tmp_path):
     assert "domain: ✗ run /understand-domain" in report
 
 
+def test_doctor_reports_missing_serena_command_without_crashing(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    write_resolved(tmp_path, platform="codex", mcps=["serena"])
+    monkeypatch.setattr("shutil.which", lambda command: None)
+
+    status = build_doctor_status(tmp_path, home, maika_root=MAIKA_ROOT)
+
+    assert status.setup_reports["serena"][0].startswith("engine: ✗ not installed")
+
+
 def test_doctor_regression_no_ua(tmp_path):
     home = tmp_path / "home"
     home.mkdir()
