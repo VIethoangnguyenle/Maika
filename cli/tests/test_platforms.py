@@ -33,6 +33,7 @@ SERENA_EDITING_NAMES = {
     "replace_content",
     "replace_lines",
     "replace_symbol_body",
+    "safe_delete_symbol",
 }
 
 
@@ -101,7 +102,10 @@ def test_serena_mapping_exists_on_all_supported_platforms():
 
 
 def test_serena_operations_are_optional_tool_keys():
-    assert set(SERENA_MAPPING) <= OPTIONAL_TOOL_KEYS
+    serena_optional_keys = {
+        operation for operation in OPTIONAL_TOOL_KEYS if operation.startswith("serena_")
+    }
+    assert serena_optional_keys == set(SERENA_MAPPING)
 
 
 def test_serena_native_names_are_platform_correct():
