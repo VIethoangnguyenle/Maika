@@ -365,8 +365,13 @@ git commit -m "feat: scaffold Maika Serena read-only context"
 - Modify: `.maika/profiles/capability-registry.yaml`
 - Modify: `.maika/profiles/provider-capabilities.yaml`
 - Modify: `.maika/config/provider-registry.yaml`
+- Modify: `.maika/skills/grounding-explorer/SKILL.md`
+- Modify: `.maika/skills/executing-task/SKILL.md`
+- Modify: `.maika/skills/reviewing-task/SKILL.md`
+- Modify: `.maika/skills/reviewing-change/SKILL.md`
 - Modify: `cli/agent_content/provider_capabilities.py`
 - Modify: `cli/tests/test_provider_capabilities.py`
+- Modify: `cli/tests/test_structured_trace_skills.py`
 
 **Interfaces:**
 - Produces: capability IDs `symbolic_code_navigation`, `code_diagnostics`; trigger `language_diagnostics_required`; provider authority lane `semantic_symbol_resolution`.
@@ -457,16 +462,43 @@ Expected: FAIL because `serena`, the two capabilities, and authority lane are no
 
 Add `SERENA_TOOLS` with the same eight names to `provider_capabilities.py`. Validate exact equality, exactly one `discovery` lane, `mutability: read_only`, and equality between lane tools and contract tools. Add `serena` to the manifest-backed provider identity path; do not add it to `SYNTHETIC_PROVIDERS`.
 
-- [ ] **Step 6: Run provider and identity tests**
+- [ ] **Step 6: Add the minimal mechanical skill consumers in the same change**
 
-Run: `python3 -m pytest cli/tests/test_provider_capabilities.py -q`
+To satisfy R1 and keep the branch runnable after this task, add these exact
+front-matter routes now; Task 4 will add their body-level evidence policy and
+provider invocation normalization:
+
+```yaml
+# grounding-explorer
+    symbolic_code_navigation:
+      triggers: [unresolved_anchor, graph_gap, relevant_graph_stale]
+
+# executing-task
+  conditional:
+    code_diagnostics:
+      triggers: [language_diagnostics_required]
+
+# reviewing-task and reviewing-change
+    symbolic_code_navigation:
+      triggers: [hidden_consumer_risk, reviewer_counter_evidence, relevant_graph_stale]
+    code_diagnostics:
+      triggers: [language_diagnostics_required]
+```
+
+Add a test in `test_structured_trace_skills.py` that loads these four real skill
+front matters and asserts the routes above. This keeps the newly declared trigger
+and capabilities mechanically consumed in the same reviewed task.
+
+- [ ] **Step 7: Run provider, identity, and skill-consumer tests**
+
+Run: `python3 -m pytest cli/tests/test_provider_capabilities.py cli/tests/test_structured_trace_skills.py cli/tests/test_skill_contracts.py -q`
 
 Expected: PASS; UA's 18-tool snapshot and primary architecture/trace mappings remain unchanged.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add .maika/profiles/capability-registry.yaml .maika/profiles/provider-capabilities.yaml .maika/config/provider-registry.yaml cli/agent_content/provider_capabilities.py cli/tests/test_provider_capabilities.py
+git add .maika/profiles/capability-registry.yaml .maika/profiles/provider-capabilities.yaml .maika/config/provider-registry.yaml .maika/skills/grounding-explorer/SKILL.md .maika/skills/executing-task/SKILL.md .maika/skills/reviewing-task/SKILL.md .maika/skills/reviewing-change/SKILL.md cli/agent_content/provider_capabilities.py cli/tests/test_provider_capabilities.py cli/tests/test_structured_trace_skills.py
 git commit -m "feat: register Serena semantic capabilities"
 ```
 
@@ -486,10 +518,10 @@ git commit -m "feat: register Serena semantic capabilities"
 - Consumes: Task 1 `serena.normalize_response`; Task 3 capability IDs and trigger.
 - Produces: conditional calls with recorded trigger/reason and normalized Serena observations.
 
-- [ ] **Step 1: Add failing skill-consumer tests**
+- [ ] **Step 1: Add failing doctrine and provider-recording tests plus skill regressions**
 
 ```python
-def test_serena_capabilities_have_real_skill_consumers(skill_docs):
+def test_serena_capabilities_keep_real_skill_consumers(skill_docs):
     assert skill_docs["grounding-explorer"]["capabilities"]["conditional"]["symbolic_code_navigation"]["triggers"] == [
         "unresolved_anchor", "graph_gap", "relevant_graph_stale"
     ]
@@ -503,15 +535,15 @@ def test_ua_remains_trace_owner_in_provider_doctrine():
     assert "không bảo đảm hidden-consumer completeness" in text
 ```
 
-- [ ] **Step 2: Run tests to verify missing consumers**
+- [ ] **Step 2: Run tests to verify doctrine/recording are missing**
 
-Run: `python3 -m pytest cli/tests/test_structured_trace_skills.py -q`
+Run: `python3 -m pytest cli/tests/test_structured_trace_skills.py cli/tests/test_provider_invocations.py -q`
 
-Expected: FAIL because the two new capability IDs and diagnostics trigger have no skill consumers.
+Expected: FAIL because the provider doctrine and Serena normalization branch are not implemented; the skill-consumer assertions from Task 3 remain green.
 
-- [ ] **Step 3: Add conditional skill contracts**
+- [ ] **Step 3: Add body-level conditional evidence policy**
 
-Use these exact front-matter routes:
+Retain the exact front-matter routes added in Task 3:
 
 ```yaml
 # grounding-explorer
