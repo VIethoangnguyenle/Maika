@@ -25,6 +25,11 @@ capabilities:
     - domain_flow_trace
     - call_chain_trace
   conditional:
+    symbolic_code_navigation:
+      triggers:
+      - unresolved_anchor
+      - graph_gap
+      - relevant_graph_stale
     impact_analysis:
       triggers:
       - blast_radius_required

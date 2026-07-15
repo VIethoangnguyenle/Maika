@@ -18,6 +18,10 @@ capabilities:
   - exact_source_inspection
   - runtime_verification
   - version_control
+  conditional:
+    code_diagnostics:
+      triggers:
+      - language_diagnostics_required
 outputs:
   required:
   - results/

@@ -81,6 +81,34 @@ def test_database_explorer_conditional_consumer_mapping():
     ]
 
 
+def test_serena_capabilities_have_exact_mechanical_skill_consumers():
+    grounding, _ = _skill("grounding-explorer")
+    executing, _ = _skill("executing-task")
+    reviewing_task, _ = _skill("reviewing-task")
+    reviewing_change, _ = _skill("reviewing-change")
+
+    assert grounding["capabilities"]["conditional"]["symbolic_code_navigation"][
+        "triggers"
+    ] == ["unresolved_anchor", "graph_gap", "relevant_graph_stale"]
+    assert executing["capabilities"]["conditional"]["code_diagnostics"]["triggers"] == [
+        "language_diagnostics_required"
+    ]
+    reviewer_routes = {
+        "symbolic_code_navigation": {
+            "triggers": [
+                "hidden_consumer_risk",
+                "reviewer_counter_evidence",
+                "relevant_graph_stale",
+            ]
+        },
+        "code_diagnostics": {"triggers": ["language_diagnostics_required"]},
+    }
+    for frontmatter in (reviewing_task, reviewing_change):
+        conditional = frontmatter["capabilities"]["conditional"]
+        for capability, route in reviewer_routes.items():
+            assert conditional[capability] == route
+
+
 def test_every_registry_trigger_has_a_consuming_skill():
     """R1: a trigger nobody consumes is dead vocabulary — remove it or wire it."""
     vocabulary = set(_registry().get("triggers") or {})

@@ -7,6 +7,7 @@ from cli.agent_content.provider_capabilities import (
     load_capability_registry, load_provider_capabilities, validate_provider_capabilities,
     load_provider_registry, validate_canonical_provider_registry,
 )
+from cli.mcp.integration.serena import SERENA_READ_TOOLS
 
 REPO = Path(__file__).resolve().parents[2]
 FRAMEWORK = REPO / ".maika"
@@ -46,6 +47,64 @@ def test_ua_is_primary_for_structured_traces():
         "impact_analysis", "graph_path_trace", "inheritance_trace",
     ):
         assert ua[capability]["role"] == "primary"
+
+
+def test_serena_is_primary_only_for_symbols_and_diagnostics():
+    mapping, capabilities = _docs()
+    providers = load_provider_registry(FRAMEWORK)
+    serena = mapping["providers"]["serena"]["capabilities"]
+    assert serena["symbolic_code_navigation"]["role"] == "primary"
+    assert serena["code_diagnostics"]["role"] == "primary"
+    assert capabilities["capabilities"]["architecture_discovery"]["primary_provider"] == "understand-anything"
+    assert capabilities["capabilities"]["call_chain_trace"]["primary_provider"] == "understand-anything"
+    assert set(providers["providers"]["serena"]["tool_contract"]["tools"]) == SERENA_READ_TOOLS
+
+
+def test_serena_contract_has_only_read_only_discovery_lane():
+    providers = load_provider_registry(FRAMEWORK)
+    lanes = providers["providers"]["serena"]["tool_contract"]["lanes"]
+    assert set(lanes) == {"discovery"}
+    assert lanes["discovery"]["mutability"] == "read_only"
+
+
+def test_serena_registry_rejects_tool_or_lane_drift():
+    _mapping, capabilities = _docs()
+    providers = load_provider_registry(FRAMEWORK)
+
+    wrong_tools = deepcopy(providers)
+    wrong_tools["providers"]["serena"]["tool_contract"]["tools"].append("replace_symbol_body")
+    assert any(
+        "Serena tool snapshot" in error
+        for error in validate_canonical_provider_registry(wrong_tools, capabilities)
+    )
+
+    extra_lane = deepcopy(providers)
+    extra_lane["providers"]["serena"]["tool_contract"]["lanes"]["write"] = {
+        "tools": ["replace_symbol_body"],
+        "mutability": "write",
+    }
+    assert any(
+        "exactly one discovery lane" in error
+        for error in validate_canonical_provider_registry(extra_lane, capabilities)
+    )
+
+    wrong_mutability = deepcopy(providers)
+    wrong_mutability["providers"]["serena"]["tool_contract"]["lanes"]["discovery"][
+        "mutability"
+    ] = "write"
+    assert any(
+        "discovery lane must be read_only" in error
+        for error in validate_canonical_provider_registry(wrong_mutability, capabilities)
+    )
+
+    mismatched_lane = deepcopy(providers)
+    mismatched_lane["providers"]["serena"]["tool_contract"]["lanes"]["discovery"][
+        "tools"
+    ].pop()
+    assert any(
+        "discovery lane tools must equal contract tools" in error
+        for error in validate_canonical_provider_registry(mismatched_lane, capabilities)
+    )
 
 
 def test_cbm_semantic_source_exact_and_compatibility_dependency():

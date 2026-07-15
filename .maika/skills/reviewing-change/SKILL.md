@@ -18,6 +18,14 @@ capabilities:
   - exact_source_inspection
   - runtime_verification
   conditional:
+    symbolic_code_navigation:
+      triggers:
+      - hidden_consumer_risk
+      - reviewer_counter_evidence
+      - relevant_graph_stale
+    code_diagnostics:
+      triggers:
+      - language_diagnostics_required
     call_chain_trace:
       triggers:
       - reviewer_counter_evidence
