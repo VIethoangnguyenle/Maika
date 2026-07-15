@@ -44,6 +44,16 @@ class AntigravityPlatform(BasePlatform):
         "domain_flow":          "mcp_understand-anything_get_domain_flow_detail",
         "domain_relationships": "mcp_understand-anything_get_relationships",
 
+        # ── Serena MCP — semantic code reads/diagnostics ──
+        "serena_symbols_overview":         "mcp_serena_get_symbols_overview",
+        "serena_find_symbol":              "mcp_serena_find_symbol",
+        "serena_find_references":          "mcp_serena_find_referencing_symbols",
+        "serena_find_declaration":         "mcp_serena_find_declaration",
+        "serena_find_implementations":     "mcp_serena_find_implementations",
+        "serena_file_diagnostics":         "mcp_serena_get_diagnostics_for_file",
+        "serena_symbol_diagnostics":       "mcp_serena_get_diagnostics_for_symbol",
+        "serena_restart_language_server":  "mcp_serena_restart_language_server",
+
         # ── Document Search (Confluence) ──
         "search_docs":       "mcp_confluence-servicehub_confluence_search",
         "get_page":          "mcp_confluence-servicehub_confluence_get_page",
