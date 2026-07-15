@@ -1,0 +1,14 @@
+{
+  "mode": "local",
+  "runtime_version": "0.9.x-fixture",
+  "resolved_url": "local-kv",
+  "tools": [
+    {"name": "memory_save"},
+    {"name": "memory_recall"},
+    {"name": "memory_smart_search"},
+    {"name": "memory_sessions"},
+    {"name": "memory_export"},
+    {"name": "memory_audit"},
+    {"name": "memory_governance_delete"}
+  ]
+}

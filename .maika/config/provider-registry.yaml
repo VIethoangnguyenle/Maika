@@ -1,5 +1,26 @@
 version: 1
 
+authority:
+  exact_current_source:
+    authoritative: current-source
+  structured_graph_trace:
+    preferred: understand-anything
+    corroborating: [codebase-memory-mcp, current-source]
+    conflict_action: verify_current_source
+  semantic_index_structure:
+    preferred: codebase-memory-mcp
+    corroborating: understand-anything
+    conflict_action: verify_current_source
+  domain_semantics:
+    preferred: understand-anything
+    corroborating: current-source
+    conflict_action: mark_inferred_or_conflicting
+  historical_context:
+    preferred: agent-memory
+    conflict_action: treat_as_candidate
+  canonical_project_knowledge:
+    authoritative: maika-knowledge-kernel
+
 providers:
   understand-anything:
     display_name: Understand-Anything MCP
@@ -32,6 +53,44 @@ providers:
     display_name: Codebase Memory MCP
     kind: semantic_code_index
     setup_ref: codebase-memory-mcp
+    tool_contract:
+      tools:
+        - index_repository
+        - search_graph
+        - query_graph
+        - trace_path
+        - get_code_snippet
+        - get_graph_schema
+        - get_architecture
+        - search_code
+        - list_projects
+        - delete_project
+        - index_status
+        - detect_changes
+        - manage_adr
+        - ingest_traces
+      capabilities:
+        semantic_code_search:
+          tool: search_graph
+          argument: semantic_query
+          argument_type: array
+      lanes:
+        discovery:
+          tools: [list_projects, index_status, get_graph_schema, search_graph, trace_path, detect_changes, query_graph, get_code_snippet, get_architecture, search_code]
+          mutability: read_only
+        explicit_index:
+          tools: [index_repository]
+          activation: explicit_index_request
+          mutability: local_index_write
+        explicit_graph_mutation:
+          tools: [manage_adr, ingest_traces]
+          activation: explicit_user_request
+          mutability: graph_write
+        destructive_admin:
+          tools: [delete_project]
+          activation: explicit_user_request
+          confirmation_required: true
+          mutability: destructive
     capabilities:
       primary: [semantic_code_search]
       supporting: [architecture_discovery, call_chain_trace, impact_analysis]
@@ -99,6 +158,36 @@ providers:
     display_name: Agent Memory
     kind: episodic_memory
     setup_ref: agent-memory
+    integration_mode: mcp_proxy_only
+    fallback_policy: reject_store_change
+    hooks:
+      auto_capture: false
+      session_injection: false
+      stop_summary: false
+    authoritative_for: [historical_session_fact, previous_decision_reference, prior_user_preference, prior_failure_or_attempt]
+    not_authoritative_for: [exact_current_code, exact_current_business_rule, authorization, canonical_project_knowledge]
+    agent_id_semantics: retrieval_filter_only
+    tool_contract:
+      tools:
+        - memory_smart_search
+        - memory_recall
+        - memory_sessions
+        - memory_save
+        - memory_governance_delete
+      required_tools: [memory_smart_search, memory_recall, memory_sessions]
+      lanes:
+        recall:
+          tools: [memory_smart_search, memory_recall, memory_sessions]
+          mutability: read_only
+        explicit_memory_write:
+          tools: [memory_save]
+          activation: explicit_framework_decision
+          mutability: memory_write
+        destructive:
+          tools: [memory_governance_delete]
+          activation: explicit_user_request
+          confirmation_required: true
+          mutability: destructive
     capabilities:
       primary: [historical_context_retrieval]
       supporting: [business_knowledge_retrieval]

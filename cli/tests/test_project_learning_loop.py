@@ -3,6 +3,7 @@ from pathlib import Path
 import yaml
 
 from cli.knowledge_control import apply_project_learning
+import pytest
 
 
 def test_learning_promotes_supersedes_and_records_runtime_results(tmp_path):
@@ -45,3 +46,23 @@ def test_learning_promotes_supersedes_and_records_runtime_results(tmp_path):
     assert result["memory_saved"][0]["ok"] is True
     assert Path(result["graph_refresh"]["request_path"]).exists()
     assert len(result["knowledge_index_sha256"]) == 64
+
+
+def test_memory_only_candidate_cannot_become_canonical_project_knowledge(tmp_path):
+    ws = tmp_path / ".maika" / "changes" / "M"
+    (ws / "reviews").mkdir(parents=True)
+    (ws / "verification").mkdir()
+    (ws / "verification" / "VERIFICATION_REPORT.md").write_text("VERDICT: VERIFIED\n")
+    (ws / "reviews" / "SKILL_FEEDBACK.yaml").write_text(
+        "version: 1\nchange_id: M\nverified: true\nobservations: []\n"
+    )
+    (ws / "reviews" / "KNOWLEDGE_IMPACT.yaml").write_text(yaml.safe_dump({
+        "new_candidates": [{
+            "statement": "obsolete remembered business rule",
+            "evidence_ids": ["MEM-1"], "confidence": "high",
+            "evidence_authorities": ["historical_context"],
+        }],
+    }))
+
+    with pytest.raises(ValueError, match="cannot rely only on AgentMemory"):
+        apply_project_learning(tmp_path, ".maika", ws)

@@ -1,0 +1,12 @@
+{
+  "mode": "proxy",
+  "runtime_version": "0.9.x-fixture",
+  "resolved_url": "http://agentmemory.fixture:3111",
+  "tools": [
+    {"name": "memory_smart_search"},
+    {"name": "memory_recall"},
+    {"name": "memory_sessions"},
+    {"name": "memory_save"},
+    {"name": "memory_governance_delete"}
+  ]
+}

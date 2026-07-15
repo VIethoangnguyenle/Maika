@@ -5,6 +5,7 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
 import yaml
 
 
@@ -303,7 +304,7 @@ def test_parse_append_redirect():
 def test_parse_ignores_devnull_and_fd_redirect():
     paths, unresolved = wg.parse_shell_writes("run_tests > /dev/null 2>&1")
     assert paths == []
-    assert unresolved is False
+    assert unresolved is True
 
 
 def test_parse_tee():
@@ -397,7 +398,7 @@ def test_parse_stdout_fd_redirect_to_file_is_caught():
 def test_parse_fd_duplication_not_a_target():
     paths, unresolved = wg.parse_shell_writes("cmd 2>&1")
     assert paths == []
-    assert unresolved is False
+    assert unresolved is True
 
 
 def test_parse_subshell_redirect_strips_paren():
@@ -448,13 +449,13 @@ def test_bash_readonly_command_allowed_fail_open(tmp_path, monkeypatch):
     assert code == 0
 
 
-def test_bash_write_to_gitignored_path_allowed(tmp_path, monkeypatch):
+def test_bash_write_to_gitignored_path_is_still_gated(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     subprocess.run(["git", "init", "-q"], cwd=str(tmp_path), check=True)
     (tmp_path / ".gitignore").write_text("coverage/\n", encoding="utf-8")
     payload = {"tool_name": "Bash", "tool_input": {"command": "echo x > coverage/lcov.info"}}
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
-    assert code == 0
+    assert code == 2
 
 
 def test_bash_write_to_framework_artifact_requires_role(tmp_path, monkeypatch):
@@ -464,13 +465,101 @@ def test_bash_write_to_framework_artifact_requires_role(tmp_path, monkeypatch):
     assert code == 2
 
 
-def test_bash_dynamic_write_warns_and_allows(tmp_path, monkeypatch, capsys):
+def test_unified_authoring_execution_allows_declared_output_without_executing_task(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    profiles = tmp_path / ".maika" / "profiles"
+    profiles.mkdir(parents=True)
+    (profiles / "execution-mode.yaml").write_text(
+        "workflow_engine: vnext\n", encoding="utf-8"
+    )
+    ws = tmp_path / ".maika" / "changes" / "C-1"
+    (ws / "generated").mkdir(parents=True)
+    (ws / "STATE.yaml").write_text("state: EXPLORING\n", encoding="utf-8")
+    expires = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+    (ws / "generated" / "ACTIVE_EXECUTION.yaml").write_text(yaml.safe_dump({
+        "version": 1,
+        "execution_id": "EXEC-C-1-grounding",
+        "change_id": "C-1",
+        "role": "grounding",
+        "workflow_state": "EXPLORING",
+        "status": "active",
+        "allowed_outputs": ["exploration/GROUNDING.yaml"],
+        "allowed_source_scope": [],
+        "owner_token": "owner-1",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "lease_expires_at": expires,
+        "prompt_hash": "sha256:" + "a" * 64,
+    }), encoding="utf-8")
+    payload = {
+        "tool_name": "Write",
+        "tool_input": {"file_path": ".maika/changes/C-1/exploration/GROUNDING.yaml"},
+    }
+    assert wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload)) == 0
+
+
+def test_expired_unified_execution_does_not_authorize_write(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    profiles = tmp_path / ".maika" / "profiles"
+    profiles.mkdir(parents=True)
+    (profiles / "execution-mode.yaml").write_text(
+        "workflow_engine: vnext\n", encoding="utf-8"
+    )
+    ws = tmp_path / ".maika" / "changes" / "C-1"
+    (ws / "generated").mkdir(parents=True)
+    (ws / "STATE.yaml").write_text("state: EXPLORING\n", encoding="utf-8")
+    expires = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    (ws / "generated" / "ACTIVE_EXECUTION.yaml").write_text(yaml.safe_dump({
+        "version": 1, "execution_id": "expired", "change_id": "C-1",
+        "role": "grounding", "workflow_state": "EXPLORING", "status": "active",
+        "allowed_outputs": ["exploration/GROUNDING.yaml"],
+        "allowed_source_scope": [], "owner_token": "owner-1",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "lease_expires_at": expires, "prompt_hash": "sha256:" + "a" * 64,
+    }), encoding="utf-8")
+    payload = {
+        "tool_name": "Write",
+        "tool_input": {"file_path": ".maika/changes/C-1/exploration/GROUNDING.yaml"},
+    }
+    assert wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload)) == 2
+
+
+def test_bash_dynamic_write_fails_closed_without_active_scope(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     payload = {"tool_name": "Bash", "tool_input": {"command": 'tee "$TARGET"'}}
     code = wg.main(["--framework-root", ".maika"], stdin_text=json.dumps(payload))
     captured = capsys.readouterr()
-    assert code == 0
+    assert code == 2
     assert "unresolved" in captured.err.lower()
+
+
+@pytest.mark.parametrize("command", [
+    'python -c "open(\'src/Outside.java\', \'w\').write(\'x\')"',
+    'node -e "require(\'fs\').writeFileSync(\'src/Outside.java\', \'x\')"',
+    "unzip payload.zip",
+    "tar -xf payload.tar",
+    "git reset --hard",
+    "mvn spotless:apply",
+])
+def test_unknown_or_indirect_mutators_never_fail_open(command):
+    _, unresolved = wg.parse_shell_writes(command)
+    assert unresolved is True
+
+
+@pytest.mark.parametrize(("command", "target"), [
+    ("touch src/Outside.java", "src/Outside.java"),
+    ("truncate -s 0 src/App.java", "src/App.java"),
+])
+def test_direct_mutators_produce_gated_targets(command, target):
+    paths, unresolved = wg.parse_shell_writes(command)
+    assert paths == [Path(target)]
+    assert unresolved is False
+
+
+def test_unknown_executable_is_unresolved_but_known_readonly_is_not():
+    assert wg.parse_shell_writes("custom-tool --do-something")[1] is True
+    assert wg.parse_shell_writes("rg pattern src && git status")[1] is False
 
 
 def test_bash_stderr_redirect_to_code_blocks_without_checkpoint(tmp_path, monkeypatch, capsys):

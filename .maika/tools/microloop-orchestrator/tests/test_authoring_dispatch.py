@@ -125,3 +125,26 @@ def test_dispatch_log_carries_observability_fields(tmp_path):
     assert record["state_after"] == "RECONCILING"
     assert record["provider_calls"] == 0
     assert record["started_at"] <= record["ended_at"]
+
+
+def test_authoring_worker_runs_with_active_execution_contract(tmp_path):
+    ws = _ws(tmp_path)
+    observed = {}
+
+    def runner(_prompt):
+        contract = yaml.safe_load(
+            (ws / "generated" / "ACTIVE_EXECUTION.yaml").read_text(encoding="utf-8")
+        )
+        observed.update(contract)
+        return 0, "done"
+
+    result = vd.run_authoring_dispatch(ws, "grounding", runner, vs, _ok_validator)
+    assert result["ok"]
+    assert observed["status"] == "active"
+    assert observed["role"] == "grounding"
+    assert observed["prompt_hash"].startswith("sha256:")
+    assert "exploration/GROUNDING.yaml" in observed["allowed_outputs"]
+    finished = yaml.safe_load(
+        (ws / "generated" / "ACTIVE_EXECUTION.yaml").read_text(encoding="utf-8")
+    )
+    assert finished["status"] == "completed"

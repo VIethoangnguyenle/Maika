@@ -1,0 +1,7 @@
+provider: codebase-memory-mcp
+repository: DeusData/codebase-memory-mcp
+revision: 2469ecc3a7a2f80debe296e1f17a1efcfdb9450c
+captured_at: 2026-07-15T00:00:00Z
+tool: tools/list
+contract_version: 1
+content_sha256: sha256:c0600deda1c7af192b251f56a356afdd454bd186e25a462f1e249bc0e1754886

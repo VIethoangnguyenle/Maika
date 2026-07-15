@@ -1,0 +1,7 @@
+provider: agent-memory
+repository: rohitg00/agentmemory
+revision: 93ae9bc04f3ab5042f982aaadf11f1e3f5137531
+captured_at: 2026-07-15T00:00:00Z
+tool: tools/list-proxy
+contract_version: 1
+content_sha256: sha256:539b0f24ed959d7396d8df9385182ffb1da994ffdd844ecf1b234c6abee1e17c

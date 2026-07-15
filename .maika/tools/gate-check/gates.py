@@ -1129,11 +1129,39 @@ def validate_trace_evidence(text, request_text=None, invocations_text=None,
     invocations = (_invocation_hash_index(invocations_text)
                    if invocations_text is not None else None)
     obs_hashes = set()
+    observations_by_hash = {}
     truncated = False
     for i, obs in enumerate(observations, 1):
+        envelope_fields = (
+            "contract_version", "provider_id", "provider_runtime_version", "tool",
+            "tool_contract_hash", "request_hash", "response_hash", "project",
+            "source_revision", "working_tree_state", "provider_snapshot",
+            "observed_at", "status", "degradation_reasons",
+        )
+        for key in envelope_fields:
+            if key not in obs:
+                return Result(False, f"observation {i}: missing evidence envelope field {key}")
+        if obs.get("contract_version") != 1:
+            return Result(False, f"observation {i}: unsupported contract_version")
+        if obs.get("status") not in {"success", "error", "degraded"}:
+            return Result(False, f"observation {i}: invalid status")
+        if not isinstance(obs.get("provider_snapshot"), dict) or not isinstance(
+                obs.get("degradation_reasons"), list):
+            return Result(False, f"observation {i}: invalid envelope mappings/lists")
+        for key in ("tool_contract_hash", "request_hash", "response_hash"):
+            if not _SHA256_FMT.match(str(obs.get(key) or "")):
+                return Result(False, f"observation {i}: invalid {key}")
         for key in ("provider_id", "tool", "response_hash"):
             if not obs.get(key):
                 return Result(False, f"observation {i}: missing {key}")
+        if obs.get("provider_id") == "agent-memory":
+            if (obs.get("authority") != "historical_context"
+                    or obs.get("classification") != "candidate"
+                    or obs.get("canonical") is not False):
+                return Result(False, f"observation {i}: AgentMemory must be historical, "
+                                     "candidate, and non-canonical")
+            if (obs.get("provider_snapshot") or {}).get("agent_id_authorizes") is not False:
+                return Result(False, f"observation {i}: agentId cannot authorize evidence")
         if invocations is not None:
             record = invocations.get(obs["response_hash"])
             if record is None:
@@ -1143,7 +1171,19 @@ def validate_trace_evidence(text, request_text=None, invocations_text=None,
                     or record.get("tool") != obs["tool"]):
                 return Result(False, f"observation {i}: provider/tool disagree "
                                      "with invocation record")
+            expected_authorities = {
+                "understand-anything": {"structured_graph_trace", "domain_semantics"},
+                "codebase-memory-mcp": {"semantic_index_structure"},
+            }
+            allowed_authorities = expected_authorities.get(obs["provider_id"])
+            if allowed_authorities and obs.get("authority") not in allowed_authorities:
+                return Result(False, f"observation {i}: authority {obs.get('authority')!r} "
+                                     f"is invalid for {obs['provider_id']}")
+            if record.get("request_hash") != obs.get("request_hash"):
+                return Result(False, f"observation {i}: request_hash disagrees with "
+                                     "invocation record")
         obs_hashes.add(obs["response_hash"])
+        observations_by_hash[obs["response_hash"]] = obs
         truncated = truncated or bool(obs.get("truncated"))
 
     limitations = doc.get("limitations") or []
@@ -1218,6 +1258,11 @@ def validate_trace_evidence(text, request_text=None, invocations_text=None,
             if ref not in obs_hashes:
                 return Result(False, f"traversal {i}: references unrecorded "
                                      f"observation {ref!r}")
+            observed = observations_by_hash.get(ref) or {}
+            if observed.get("provider_id") == "agent-memory" and capability not in {
+                    "historical_context_retrieval", "business_knowledge_retrieval"}:
+                return Result(False, f"traversal {i}: AgentMemory cannot support "
+                                     f"authoritative capability {capability!r}")
         if request and capability not in known_caps:
             return Result(False, f"traversal {i}: capability {capability!r} not "
                                  "in trace request")
@@ -1262,6 +1307,43 @@ def validate_trace_evidence(text, request_text=None, invocations_text=None,
                 return Result(False, f"source verification {i}: {problem}")
     if verifications:
         covered.add("exact_source_inspection")
+
+    for i, conflict in enumerate(doc.get("conflicts") or [], 1):
+        providers = set(conflict.get("providers") or [])
+        if len(providers) < 2 or not str(conflict.get("claim") or "").strip():
+            return Result(False, f"conflict {i}: claim and at least two providers required")
+        if conflict.get("resolution") != "current_source_verified":
+            return Result(False, f"conflict {i}: graph conflict requires current-source verification")
+        refs = set(conflict.get("source_verifications") or [])
+        verified_files = {entry.get("file") for entry in verifications}
+        if not refs or not refs <= verified_files:
+            return Result(False, f"conflict {i}: resolution must reference source verification files")
+
+    revisions = {
+        obs.get("source_revision") for obs in observations
+        if obs.get("source_revision") not in {None, "", "unverified"}
+    }
+    if doc.get("complete") is True and len(revisions) > 1 and not doc.get("refresh_boundaries"):
+        return Result(False, "complete evidence spans source revisions without an explicit refresh boundary")
+
+    cbm_observations = [obs for obs in observations
+                        if obs.get("provider_id") == "codebase-memory-mcp"]
+    cbm_material = [obs for obs in cbm_observations if obs.get("tool") != "index_status"]
+    if doc.get("complete") is True and cbm_material:
+        boundaries = [obs for obs in cbm_observations if obs.get("tool") == "index_status"]
+        if len(boundaries) < 2:
+            return Result(False, "complete CBM evidence requires index_status before and after the session")
+        before, after = boundaries[0], boundaries[-1]
+        keys = ("head", "working_tree_state", "nodes", "edges", "index_timestamp")
+        for key in keys:
+            left = (before.get("provider_snapshot") or {}).get(key, "unverified")
+            right = (after.get("provider_snapshot") or {}).get(key, "unverified")
+            if left == "unverified" or right == "unverified":
+                return Result(False, f"complete CBM evidence requires verified {key} boundary")
+            if left != right:
+                return Result(False, f"CBM evidence boundary changed: {key}")
+        if before.get("tool_contract_hash") != after.get("tool_contract_hash"):
+            return Result(False, "CBM evidence boundary changed: tool_contract_hash")
 
     if request:
         missing = required - covered - excused_caps

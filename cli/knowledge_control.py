@@ -519,6 +519,11 @@ def apply_project_learning(
         if not isinstance(raw, dict):
             raise ValueError("durable knowledge promotion requires structured candidate")
         entry = dict(raw)
+        authorities = set(entry.get("evidence_authorities") or [])
+        if authorities and authorities <= {"historical_context"}:
+            raise ValueError(
+                "durable knowledge candidate cannot rely only on AgentMemory historical context"
+            )
         if not entry.get("statement") or not entry.get("evidence_ids") or entry.get("confidence") not in {"medium", "high"}:
             raise ValueError("durable knowledge candidate requires statement/evidence_ids/confidence")
         entry.setdefault("id", f"PK-{change_id}-{len(result['promoted']) + 1}")

@@ -173,7 +173,7 @@ def test_codebase_memory_resolves_in_render_context_claude():
     ctx = get_platform("claude-code").build_render_context(["codebase-memory-mcp"], "python")
     t = ctx["tools"]
     assert t["search_code"] == "mcp__codebase-memory-mcp__search_code"
-    assert t["semantic_search"] == "mcp__codebase-memory-mcp__semantic_query"
+    assert t["semantic_search"] == "mcp__codebase-memory-mcp__search_graph"
     assert t["find_blast_radius"] == "mcp__codebase-memory-mcp__detect_changes"
     assert t["trace_flow"] == "mcp__codebase-memory-mcp__trace_path"
     assert t["get_symbol"] == "mcp__codebase-memory-mcp__get_code_snippet"
@@ -184,7 +184,7 @@ def test_codebase_memory_resolves_in_render_context_antigravity():
     ctx = get_platform("antigravity").build_render_context(["codebase-memory-mcp"], "python")
     t = ctx["tools"]
     assert t["search_code"] == "mcp_codebase-memory-mcp_search_code"
-    assert t["semantic_search"] == "mcp_codebase-memory-mcp_semantic_query"
+    assert t["semantic_search"] == "mcp_codebase-memory-mcp_search_graph"
     assert t["find_blast_radius"] == "mcp_codebase-memory-mcp_detect_changes"
 
 

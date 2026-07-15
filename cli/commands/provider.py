@@ -13,12 +13,13 @@ from pathlib import Path
 
 import yaml
 
-from cli.mcp.integration import codebase_memory, current_source, understand_anything
+from cli.mcp.integration import agent_memory, codebase_memory, current_source, understand_anything
 from cli.mcp.integration.base import (
     append_invocation,
     build_invocation_record,
     utc_now,
 )
+from cli.mcp.integration.evidence import build_evidence_envelope
 from cli.mcp.integration.trace_store import (
     add_observation,
     add_source_verification,
@@ -120,22 +121,31 @@ def run_provider(
     # script tools are never task-workspace evidence (R-Tool-9).
     lanes = (spec.get("tool_contract") or {}).get("lanes") or {}
     if lanes:
-        exploration = set((lanes.get("exploration") or {}).get("tools") or [])
-        data_probe = set((lanes.get("data_probe") or {}).get("tools") or [])
-        if tool not in exploration:
-            if tool in data_probe:
-                request_path = workspace / "exploration" / "DATABASE_REQUEST.yaml"
-                request = (yaml.safe_load(request_path.read_text(encoding="utf-8"))
-                           if request_path.exists() else None) or {}
-                if request.get("data_probe_required") is not True:
-                    print(f"tool {tool!r} is data-probe lane; DATABASE_REQUEST.yaml "
-                          "must declare data_probe_required: true (explicit runtime "
-                          "data question)")
-                    return 1
-            else:
-                print(f"tool {tool!r} is outside the exploration lane "
-                      f"(write/script tools are never exploration evidence)")
+        lane_name = next(
+            (name for name, lane in lanes.items() if tool in set((lane or {}).get("tools") or [])),
+            None,
+        )
+        lane = lanes.get(lane_name) or {}
+        if lane_name is None:
+            print(f"tool {tool!r} is outside all declared provider lanes")
+            return 1
+        if lane_name == "data_probe":
+            request_path = workspace / "exploration" / "DATABASE_REQUEST.yaml"
+            request = (yaml.safe_load(request_path.read_text(encoding="utf-8"))
+                       if request_path.exists() else None) or {}
+            if request.get("data_probe_required") is not True:
+                print(f"tool {tool!r} is data-probe lane; DATABASE_REQUEST.yaml "
+                      "must declare data_probe_required: true (explicit runtime "
+                      "data question)")
                 return 1
+        elif not (
+            lane_name in {"exploration", "discovery", "recall"}
+            and lane.get("mutability") in {None, "read_only"}
+            and not lane.get("activation")
+        ):
+            print(f"tool {tool!r} is outside the read-only evidence lane "
+                  f"({lane_name}: {lane.get('mutability') or 'unknown'})")
+            return 1
 
     for label, payload_file in (("request", request_file), ("response", response_file)):
         if not Path(payload_file).exists():
@@ -163,9 +173,28 @@ def run_provider(
     # Adapter normalization (plan §13): machine-produced TRACE_EVIDENCE sections.
     response_bytes = Path(response_file).read_bytes()
     if provider_id == understand_anything.PROVIDER_ID:
-        observation = understand_anything.normalize_response(tool, response_bytes)
-        add_observation(workspace, change_id, observation)
+        normalized = understand_anything.normalize_response(tool, response_bytes)
     elif provider_id == codebase_memory.PROVIDER_ID:
+        normalized = codebase_memory.normalize_response(tool, response_bytes)
+    elif provider_id == agent_memory.PROVIDER_ID:
+        normalized = agent_memory.normalize_response(tool, response_bytes)
+    else:
+        normalized = {
+            "provider_id": provider_id,
+            "tool": tool,
+            "response_hash": record["response_hash"],
+            "authority": "external_observation",
+            "canonical": False,
+            "status": status,
+        }
+    observation = build_evidence_envelope(
+        record=record,
+        tool_contract=spec.get("tool_contract") or {},
+        normalized=normalized,
+    )
+    add_observation(workspace, change_id, observation)
+
+    if provider_id == codebase_memory.PROVIDER_ID and tool != "index_status":
         if trigger:
             try:
                 support = codebase_memory.build_support_call(

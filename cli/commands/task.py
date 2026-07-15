@@ -452,6 +452,34 @@ def _verify_lightweight(target: Path, framework_root: str, ws: Path, change: dic
         _write_verification(ws, change["change_id"], commands, "FAILED_VERIFICATION", declared)
         print(f"Refused: real verification policy failed: {reason}")
         return 1
+    reviews = ws / "reviews"
+    reviews.mkdir(parents=True, exist_ok=True)
+    impact_path = reviews / "KNOWLEDGE_IMPACT.yaml"
+    if not impact_path.exists():
+        _write_yaml(impact_path, {
+            "version": 1,
+            "change_id": change["change_id"],
+            "generated_by": "lightweight-verification",
+            "stale_entries": [],
+            "superseded_decisions": [],
+            "new_candidates": [],
+            "graph_refresh_required": False,
+            "memory_updates": [],
+        })
+    feedback_path = reviews / "SKILL_FEEDBACK.yaml"
+    if not feedback_path.exists():
+        _write_yaml(feedback_path, {
+            "version": 1,
+            "change_id": change["change_id"],
+            "verified": True,
+            "generated_by": "lightweight-verification",
+            "observations": [],
+        })
+    feedback_gate = validate_skill_feedback(feedback_path.read_text(encoding="utf-8"))
+    if not feedback_gate.ok:
+        _write_verification(ws, change["change_id"], commands, "FAILED_VERIFICATION", declared)
+        print(f"Refused: SKILL_FEEDBACK.yaml failed skill-feedback gate: {feedback_gate.reason}")
+        return 1
     _write_verification(ws, change["change_id"], commands, "VERIFIED", declared)
     service = _state_service(target, framework_root)
     state = service.load_state(ws)

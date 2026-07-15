@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "contract_version": 1,
+  "project": "fixture-project",
+  "graph": {
+    "node_count": 12,
+    "edge_count": 18
+  },
+  "repository": {},
+  "freshness": {
+    "status": "UNKNOWN"
+  },
+  "health": {
+    "status": "DEGRADED",
+    "warnings": ["graph commit unavailable"]
+  }
+}

@@ -59,16 +59,27 @@ def _record(target: Path, tmp_path: Path, *, provider, tool, response: str, **ov
 def test_full_mechanical_trace_flow(tmp_path):
     target = _target(tmp_path)
     metadata = json.dumps({
-        "project": "proj", "graph_commit": "abc123",
-        "repository_head": "abc123", "freshness": "FRESH", "health": "HEALTHY",
+        "contract_version": 1, "project": "proj",
+        "graph": {"graph_commit": "abc123"},
+        "repository": {"head": "abc123"},
+        "freshness": {"status": "FRESH"}, "health": {"status": "HEALTHY"},
     })
     assert _record(target, tmp_path, provider="understand-anything",
                    tool="get_graph_metadata", response=metadata) == 0
     assert _record(target, tmp_path, provider="understand-anything",
                    tool="trace_call_chain", response="dispatch -> runner -> gate") == 0
+    boundary = json.dumps({
+        "project": "proj", "nodes": 120, "edges": 360,
+        "git": {"head_sha": "abc123"}, "working_tree_state": "clean",
+        "index_timestamp": "2026-07-15T00:00:00Z",
+    })
     assert _record(target, tmp_path, provider="codebase-memory-mcp",
-                   tool="semantic_search", response="3 anchors found",
+                   tool="index_status", response=boundary) == 0
+    assert _record(target, tmp_path, provider="codebase-memory-mcp",
+                   tool="search_graph", response="3 anchors found",
                    trigger="graph_gap", reason="missing consumer edge") == 0
+    assert _record(target, tmp_path, provider="codebase-memory-mcp",
+                   tool="index_status", response=boundary) == 0
     assert run_provider(
         "verify-source", target_dir=str(target), change_id="C-9",
         file="svc.py", symbol="dispatch",
@@ -78,7 +89,8 @@ def test_full_mechanical_trace_flow(tmp_path):
     evidence_path = workspace / "exploration" / "TRACE_EVIDENCE.yaml"
     doc = yaml.safe_load(evidence_path.read_text(encoding="utf-8"))
     assert doc["graph"]["graph_commit"] == "abc123"
-    assert len(doc["provider_observations"]) == 2
+    assert len(doc["provider_observations"]) == 5
+    assert all(obs["contract_version"] == 1 for obs in doc["provider_observations"])
     assert doc["support_calls"][0]["trigger"] == "graph_gap"
     assert doc["source_verifications"][0]["sha256"].startswith("sha256:")
 
@@ -120,11 +132,13 @@ def test_full_mechanical_trace_flow(tmp_path):
 def test_cbm_record_without_trigger_warns_and_writes_no_support_call(tmp_path, capsys):
     target = _target(tmp_path)
     assert _record(target, tmp_path, provider="codebase-memory-mcp",
-                   tool="semantic_search", response="anchors") == 0
+                   tool="search_graph", response="anchors") == 0
     assert "without --trigger" in capsys.readouterr().out
     evidence_path = (target / ".maika" / "changes" / "C-9"
                      / "exploration" / "TRACE_EVIDENCE.yaml")
-    assert not evidence_path.exists()
+    doc = yaml.safe_load(evidence_path.read_text(encoding="utf-8"))
+    assert doc["support_calls"] == []
+    assert doc["provider_observations"][0]["provider_id"] == "codebase-memory-mcp"
 
 
 def test_verify_source_rejects_wrong_symbol(tmp_path):
