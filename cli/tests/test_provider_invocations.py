@@ -83,6 +83,17 @@ def _target(tmp_path: Path) -> Path:
                 "tool_contract": {"tools": ["get_graph_metadata"]},
             },
             "codebase-memory-mcp": {"display_name": "CBM", "kind": "semantic_code_index"},
+            "serena": {
+                "display_name": "Serena", "kind": "semantic_language_server",
+                "tool_contract": {
+                    "tools": ["find_symbol"],
+                    "lanes": {
+                        "discovery": {
+                            "tools": ["find_symbol"], "mutability": "read_only",
+                        },
+                    },
+                },
+            },
             "db-access": {
                 "display_name": "DB Access", "kind": "database",
                 "tool_contract": {
@@ -148,6 +159,26 @@ def test_cli_rejects_missing_workspace(tmp_path):
 
 def test_cli_requires_payload_files(tmp_path):
     assert _run(tmp_path, request_file=str(tmp_path / "absent.json")) == 1
+
+
+def test_cli_record_normalizes_serena_observation(tmp_path):
+    assert _run(
+        tmp_path, provider_id="serena", tool="find_symbol",
+        trigger="unresolved_anchor", reason="resolve the exact declaration",
+    ) == 0
+    invocations_path = (tmp_path / "proj" / ".maika" / "changes" / "C-9"
+                        / "exploration" / "PROVIDER_INVOCATIONS.jsonl")
+    invocation = json.loads(invocations_path.read_text(encoding="utf-8"))
+    assert invocation["trigger"] == "unresolved_anchor"
+    assert invocation["reason"] == "resolve the exact declaration"
+    evidence_path = (tmp_path / "proj" / ".maika" / "changes" / "C-9"
+                     / "exploration" / "TRACE_EVIDENCE.yaml")
+    evidence = yaml.safe_load(evidence_path.read_text(encoding="utf-8"))
+    observation = evidence["provider_observations"][0]
+    assert observation["provider_id"] == "serena"
+    assert observation["authority"] == "semantic_symbol_resolution"
+    assert observation["canonical"] is False
+    assert observation["provider_snapshot"]["version"] == "1.5.3"
 
 
 # ── M7: DB lane safety boundary at record time ──────────────────────────────

@@ -114,6 +114,7 @@ Required: `exact_source_inspection`, `historical_context_retrieval`,
 One-of `structured_trace` (thoả ≥1 khi graph áp dụng được): `architecture_discovery`,
   `domain_flow_trace`, `call_chain_trace`.
 Conditional — chỉ gọi khi trigger kích hoạt, ghi trigger + reason vào `support_calls`:
+  `symbolic_code_navigation` (unresolved_anchor, graph_gap, relevant_graph_stale);
   `impact_analysis` (blast_radius_required); `semantic_code_search` (unresolved_anchor,
   ambiguous_semantic_query, graph_gap, relevant_graph_stale, hidden_consumer_risk,
   ua_unavailable); `dependency_analysis` (graph_gap, ua_unavailable);
@@ -122,6 +123,8 @@ Conditional — chỉ gọi khi trigger kích hoạt, ghi trigger + reason vào 
 Trigger kích hoạt mà không có provider call/zero-result/degradation record = invalid;
 conditional call không có trigger = invalid (plan §8).
 Provider ưu tiên theo `jit/providers.md`; skill chỉ gọi capability, không gọi provider.
+Symbol references là **scoped LSP evidence**, không phải proof của mọi
+reflective/configured/event consumer; mọi material claim vẫn cần current source.
 
 ## Quy trình truy xuất
 1. Đọc `QUERY_PLAN.yaml`; mỗi câu hỏi → resolve capability từ required_evidence_types.
@@ -136,9 +139,9 @@ Provider ưu tiên theo `jit/providers.md`; skill chỉ gọi capability, không
 5. Traverse domain flow, relationships, call chain hoặc impact bằng precise trace
    capability; lấy node source cho material nodes. Viết traversal vào
    `TRACE_EVIDENCE.yaml` tham chiếu response hash của observation tương ứng.
-6. Chỉ gọi `semantic_code_search` khi một trigger conditional kích hoạt; record call
-   với `--trigger <trigger> --reason "<why>"` (support call thiếu trigger/reason bị
-   gate từ chối).
+6. Chỉ gọi `symbolic_code_navigation` hoặc `semantic_code_search` khi trigger
+   conditional tương ứng kích hoạt; record call với `--trigger <trigger> --reason
+   "<why>"` (support call thiếu trigger/reason bị gate từ chối).
 7. Verify exact material facts bằng
    `maika provider verify-source --file <path> --symbol <symbol>` — Maika tự hash,
    gate re-verify (không tự viết sha256).

@@ -13,7 +13,13 @@ from pathlib import Path
 
 import yaml
 
-from cli.mcp.integration import agent_memory, codebase_memory, current_source, understand_anything
+from cli.mcp.integration import (
+    agent_memory,
+    codebase_memory,
+    current_source,
+    serena,
+    understand_anything,
+)
 from cli.mcp.integration.base import (
     append_invocation,
     build_invocation_record,
@@ -178,6 +184,8 @@ def run_provider(
         normalized = codebase_memory.normalize_response(tool, response_bytes)
     elif provider_id == agent_memory.PROVIDER_ID:
         normalized = agent_memory.normalize_response(tool, response_bytes)
+    elif provider_id == serena.PROVIDER_ID:
+        normalized = serena.normalize_response(tool, response_bytes)
     else:
         normalized = {
             "provider_id": provider_id,

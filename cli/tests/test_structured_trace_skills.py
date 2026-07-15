@@ -11,6 +11,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+PROVIDERS_RULE = ROOT / ".maika/rules/jit/providers.md"
 
 UA_STRUCTURED_TRACE = {"architecture_discovery", "domain_flow_trace", "call_chain_trace"}
 MIGRATED = ("grounding-explorer", "reviewing-task", "reviewing-change", "database-explorer")
@@ -107,6 +108,24 @@ def test_serena_capabilities_have_exact_mechanical_skill_consumers():
         conditional = frontmatter["capabilities"]["conditional"]
         for capability, route in reviewer_routes.items():
             assert conditional[capability] == route
+
+
+def test_serena_skill_bodies_scope_lsp_evidence_and_require_current_source():
+    for name in (
+        "grounding-explorer", "executing-task", "reviewing-task", "reviewing-change"
+    ):
+        _, body = _skill(name)
+        assert "scoped LSP evidence" in body, name
+        assert "reflective/configured/event consumer" in body, name
+        assert "current source" in body, name
+
+
+def test_ua_remains_trace_owner_in_provider_doctrine():
+    text = PROVIDERS_RULE.read_text(encoding="utf-8")
+    assert "UA-MCP" in text and "18 tools" in text
+    assert "Serena không thay thế UA-MCP" in text
+    assert "không bảo đảm hidden-consumer completeness" in text
+    assert "get_node_source" in text and "một trong 18 tools" in text
 
 
 def test_every_registry_trigger_has_a_consuming_skill():

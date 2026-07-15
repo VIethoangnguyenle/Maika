@@ -57,6 +57,10 @@ Dùng cho task `PENDING` trong `TASK_QUEUE.json` sau khi plan approved và brief
 Capability IDs: `exact_source_inspection`, `runtime_verification`, `version_control`.
 Chỉ dùng capsule đã biên dịch; không recall thêm ngoài scope task.
 
+`code_diagnostics` chỉ gọi khi `language_diagnostics_required`, ghi trigger + reason.
+Symbol references là **scoped LSP evidence**, không phải proof của mọi
+reflective/configured/event consumer; mọi material claim vẫn cần current source.
+
 ## Quy trình truy xuất
 1. Đọc `TASK-NNN.md` + `TASK-NNN.knowledge.yaml`.
 2. Re-read exact source anchor được capsule trỏ tới.
