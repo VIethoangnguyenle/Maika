@@ -44,7 +44,7 @@ This design was checked against these sources:
 The resulting facts are:
 
 1. Understand-Anything graph artifacts do not embed source bodies. A graph node carries identity and navigation metadata such as name, type, file path, line range, summary, tags, and complexity.
-2. UA-MCP nevertheless has `get_node_source`. It resolves a graph node's file path against the live project, reads the current file, and extracts a function/class block or a truncated file. CBM is not a required dependency for reading the source of a UA node.
+2. UA-MCP is a broad 18-tool structured graph interface; `get_node_source` is only its source-resolution tool. It also owns project/freshness inspection, node discovery, relationships, call trace, architecture layers, entry points, impact, paths, inheritance, tours, and domain flows. `get_node_source` resolves a graph node's file path against the live project, reads the current file, and extracts a function/class block or a truncated file. CBM is not a required dependency for reading the source of a UA node.
 3. UA-MCP structured impact is reverse traversal over graph edges. At the audited revision, `find_impact` follows incoming `imports`, `calls`, `extends`, and `implements` relationships. It cannot prove the absence of a consumer that the producer did not encode as an edge.
 4. CBM is technically capable of more than semantic search: it owns an independent index and exposes structural search, path tracing, change impact, graph queries, architecture, and source snippets. Maika deliberately narrows CBM's normal role to avoid competing structural authorities.
 5. Serena provides semantic retrieval, diagnostics, reference-aware refactoring, and symbolic editing, but assumes the client, repository, configuration, and local machine are trusted. Maika must retain its own safety and verification boundaries.
@@ -70,6 +70,22 @@ Expose a minimal read surface first, then add write tools only after mechanical 
 **Selected.** This preserves Maika's control plane while eventually adding the full useful portion of Serena's semantic execution layer.
 
 ## 5. Provider responsibility doctrine
+
+### 5.1 UA-MCP full tool surface
+
+Maika treats UA-MCP as its primary structured graph provider, not as a single source-reading tool. At the audited revision, its 18 tools form five coherent groups:
+
+| Group | UA-MCP tools | Role in Maika |
+|---|---|---|
+| Project identity and freshness | `list_projects`, `get_graph_stats`, `get_graph_metadata` | Select the graph, verify its identity, and scope freshness before material use |
+| Node and architecture discovery | `get_tour`, `query_nodes`, `get_node_detail`, `get_layer_info`, `find_entry_points`, `search_by_file_path` | Locate architectural/domain anchors and understand graph structure |
+| Structured relationships and traversal | `get_relationships`, `trace_call_chain`, `find_impact`, `find_path`, `get_class_hierarchy` | Trace graph-backed consumers, calls, blast radius, paths, and inheritance |
+| Domain graph | `get_domain_overview`, `get_domain_detail`, `get_domain_flow_detail` | Retrieve domain boundaries, details, and structured business flows |
+| Source resolution | `get_node_source` | Read current source for an already identified graph node |
+
+Serena does not replace any of these graph/domain responsibilities. It adds precise LSP-backed symbol identity, references, implementations, diagnostics, and gated refactoring over current source. CBM does not replace these responsibilities either; its normal role remains fuzzy semantic anchor discovery plus explicitly triggered graph-gap or counter-evidence work.
+
+### 5.2 Responsibility matrix
 
 | Concern | Primary provider | Conditional/supporting provider | Authority rule |
 |---|---|---|---|
