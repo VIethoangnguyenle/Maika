@@ -145,3 +145,45 @@ def test_enable_rolls_back_adapter_and_metadata_together(tmp_path, monkeypatch):
         _enable(tmp_path, "claude-code")
     assert _tree_hash(tmp_path) == before
     assert not (tmp_path / "CLAUDE.md").exists()
+
+
+def test_enable_refreshes_aggregate_mcp_setup_for_all_hosts(tmp_path):
+    selected = ["understand-anything", "codebase-memory-mcp", "serena"]
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(REPO_ROOT),
+        platform_key="codex", selected_mcps=selected, language="python",
+        assume_yes=True, ua_mcp_dir="/srv/ua-mcp",
+    )
+
+    _enable(tmp_path, "claude-code")
+
+    text = (tmp_path / ".maika" / "MCP_SETUP.md").read_text(encoding="utf-8")
+    for provider in selected:
+        assert text.count(f"## Provider: {provider}") == 1
+    assert "/srv/ua-mcp" in text
+    assert "#### Codex" in text
+    assert "#### Claude Code" in text
+    assert "[mcp_servers.serena]" in text
+    assert '"mcpServers": {' in text
+
+
+def test_enable_rolls_back_when_setup_refresh_fails(tmp_path, monkeypatch):
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(REPO_ROOT),
+        platform_key="codex", selected_mcps=["serena"], language="python",
+        assume_yes=True,
+    )
+    before = _tree_hash(tmp_path)
+    from cli.install.transaction import Transaction
+    real = Transaction._execute
+
+    def fail_at_setup(self, action):
+        if action["path"] == ".maika/MCP_SETUP.md":
+            raise RuntimeError("injected setup refresh failure")
+        return real(self, action)
+
+    monkeypatch.setattr(Transaction, "_execute", fail_at_setup)
+    with pytest.raises(RuntimeError, match="setup refresh failure"):
+        _enable(tmp_path, "claude-code")
+    assert _tree_hash(tmp_path) == before
+    assert not (tmp_path / "CLAUDE.md").exists()

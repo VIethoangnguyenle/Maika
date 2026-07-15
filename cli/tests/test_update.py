@@ -102,6 +102,24 @@ def test_reconfigure_reemits_mcp_setup_for_ua(tmp_path, maika_root, monkeypatch)
     assert "/srv/ua-mcp" in setup_md.read_text(encoding="utf-8")
 
 
+def test_reconfigure_removes_stale_mcp_setup_transactionally(
+    tmp_path, maika_root, monkeypatch,
+):
+    target = tmp_path / "proj"
+    run_init(
+        target_dir=str(target), maika_root=str(maika_root),
+        platform_key="codex", selected_mcps=["serena"],
+        language="python", assume_yes=True,
+    )
+    setup_md = target / ".maika" / "MCP_SETUP.md"
+    assert setup_md.exists()
+
+    _interactive(monkeypatch, "codex", mcps=[], inputs=())
+    run_update(target_dir=str(target), maika_root=str(maika_root), reconfigure=True)
+
+    assert not setup_md.exists()
+
+
 def test_update_refreshes_every_enabled_adapter_in_one_project(tmp_path, maika_root):
     from cli.commands.platform import run_platform
 
@@ -122,3 +140,32 @@ def test_update_refreshes_every_enabled_adapter_in_one_project(tmp_path, maika_r
         text = path.read_text(encoding="utf-8")
         assert "maika.write-gate.v1" in text
         assert "--platform" in text
+
+
+def test_reconfigure_retains_all_setup_providers_for_every_enabled_host(
+    tmp_path, maika_root, monkeypatch,
+):
+    from cli.commands.platform import run_platform
+
+    selected = ["understand-anything", "codebase-memory-mcp", "serena"]
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(maika_root),
+        platform_key="codex", selected_mcps=selected, language="python",
+        assume_yes=True, ua_mcp_dir="/srv/ua-mcp",
+    )
+    for platform_key in ("claude-code", "antigravity"):
+        assert run_platform(
+            "enable", str(tmp_path), platform_key, str(maika_root),
+        ) == 0
+
+    _interactive(
+        monkeypatch, "codex", mcps=selected, language="python",
+        inputs=("/srv/ua-mcp",),
+    )
+    run_update(str(tmp_path), str(maika_root), reconfigure=True)
+
+    text = (tmp_path / ".maika" / "MCP_SETUP.md").read_text(encoding="utf-8")
+    for provider in selected:
+        assert text.count(f"## Provider: {provider}") == 1
+    for platform in ("Codex", "Claude Code", "Antigravity"):
+        assert platform in text

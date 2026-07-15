@@ -100,6 +100,19 @@ def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] =
         from cli.platforms.probe import probe_and_persist
         probe_and_persist(staging, platform_key, verify=False)
         if project_config is not None:
+            from cli.commands.init import (
+                emit_mcp_setup_files,
+                existing_ua_mcp_dir,
+            )
+            emit_mcp_setup_files(
+                staging,
+                project_config["platforms"]["enabled"],
+                resolved.get("mcps", []),
+                manifest,
+                existing_ua_mcp_dir(target),
+                resolved.get("language", "other"),
+                project_root=target,
+            )
             _stage_metadata(staging, target, project_config, platform_key)
         plan = build_plan(staging, target, "init", platform.framework_root)
         Transaction(staging, target, backups).apply(plan)

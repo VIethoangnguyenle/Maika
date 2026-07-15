@@ -75,20 +75,47 @@ def test_engine_status_line(tmp_path):
     assert ua_setup.engine_status_line(setup, "codex", tmp_path) == "engine: ✓ installed"
 
 
-def test_render_server_snippet_fills_placeholders():
+def test_codex_server_snippet_is_toml_and_fills_placeholders():
     setup = {"server": {
         "command": "uv",
         "args": ["--directory", "{ua_mcp_dir}", "run", "server.py"],
         "env": {"PROJECT_ROOTS": "{project_root}"},
     }}
-    snip = ua_setup.render_server_snippet(
+    text = ua_setup.render_server_snippet(
         setup, server_key="understand-anything",
-        ua_mcp_dir="/srv/ua-mcp", project_root="/proj",
+        platform="codex", ua_mcp_dir="/srv/ua-mcp", project_root="/proj",
     )
-    server = snip["mcpServers"]["understand-anything"]
-    assert server["command"] == "uv"
-    assert server["args"] == ["--directory", "/srv/ua-mcp", "run", "server.py"]
-    assert server["env"] == {"PROJECT_ROOTS": "/proj"}
+    assert "[mcp_servers.understand-anything]" in text
+    assert 'command = "uv"' in text
+    assert 'args = ["--directory", "/srv/ua-mcp", "run", "server.py"]' in text
+    assert '[mcp_servers.understand-anything.env]' in text
+    assert 'PROJECT_ROOTS = "/proj"' in text
+
+
+def test_json_hosts_receive_json_snippets_without_empty_env():
+    setup = {"server": {
+        "command": "serena",
+        "args": ["start-mcp-server", "--project", "{project_root}"],
+    }}
+    for platform in ("claude-code", "antigravity"):
+        text = ua_setup.render_server_snippet(
+            setup, server_key="serena", platform=platform,
+            ua_mcp_dir="", project_root="/proj",
+        )
+        server = _json.loads(text)["mcpServers"]["serena"]
+        assert server["command"] == "serena"
+        assert server["args"] == ["start-mcp-server", "--project", "/proj"]
+        assert "env" not in server
+
+
+def test_codex_server_snippet_omits_empty_env():
+    text = ua_setup.render_server_snippet(
+        {"server": {"command": "codebase-memory-mcp", "args": []}},
+        server_key="codebase-memory-mcp", platform="codex",
+        ua_mcp_dir="", project_root="/proj",
+    )
+    assert "[mcp_servers.codebase-memory-mcp]" in text
+    assert "env" not in text
 
 
 def _full_setup():
@@ -109,6 +136,43 @@ def _full_setup():
     }
 
 
+def _serena_setup():
+    return {
+        "install_hint": {"default": "uv tool install serena-agent"},
+        "prepare_hint": (
+            "serena project create {project_root} --language {language}  "
+            "# omit --language for Maika language 'other'"
+        ),
+        "server": {
+            "command": "serena",
+            "args": ["start-mcp-server", "--project", "{project_root}"],
+        },
+    }
+
+
+def test_render_mcp_setup_section_includes_every_enabled_host():
+    text = ua_setup.render_mcp_setup_section(
+        _serena_setup(), server_key="serena",
+        platform_keys=["codex", "claude-code", "antigravity"],
+        ua_mcp_dir="", project_root="/proj", language="python",
+    )
+    assert text.startswith("## Provider: serena")
+    assert "serena project create /proj --language python" in text
+    assert "No separate index build is required" in text
+    assert "#### Codex" in text and "```toml" in text
+    assert "#### Claude Code" in text and "#### Antigravity" in text
+    assert text.count("```json") == 2
+
+
+def test_render_mcp_setup_section_lets_serena_infer_other_language():
+    text = ua_setup.render_mcp_setup_section(
+        _serena_setup(), server_key="serena", platform_keys=["codex"],
+        ua_mcp_dir="", project_root="/proj", language="other",
+    )
+    assert "serena project create /proj\n" in text
+    assert "--language other" not in text
+
+
 def test_render_mcp_setup_md_codex():
     md = ua_setup.render_mcp_setup_md(
         _full_setup(), server_key="understand-anything", platform="codex",
@@ -116,7 +180,7 @@ def test_render_mcp_setup_md_codex():
     )
     assert "bash -s codex" in md
     assert "/understand" in md and "/understand-domain" in md
-    assert '"PROJECT_ROOTS": "/proj"' in md
+    assert 'PROJECT_ROOTS = "/proj"' in md
     assert "/srv/ua-mcp" in md
 
 

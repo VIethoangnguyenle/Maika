@@ -563,23 +563,60 @@ def test_init_no_mcp_setup_when_ua_not_selected(tmp_path):
 
 def test_emit_mcp_setup_files_writes_then_removes_stale(tmp_path):
     from cli.commands.init import emit_mcp_setup_files
-    from cli.platforms import get_platform
     from cli.scaffold import load_manifest
 
-    platform = get_platform("codex")
     manifest = load_manifest(MAIKA_ROOT)
     (tmp_path / ".maika").mkdir()
     setup_md = tmp_path / ".maika" / "MCP_SETUP.md"
 
     wrote = emit_mcp_setup_files(
-        tmp_path, platform, "codex", ["understand-anything"], manifest, "/srv/ua",
+        tmp_path, ["codex"], ["understand-anything"], manifest, "/srv/ua", "python",
     )
     assert wrote is True
     assert setup_md.exists() and "/srv/ua" in setup_md.read_text(encoding="utf-8")
 
-    wrote2 = emit_mcp_setup_files(tmp_path, platform, "codex", [], manifest, "")
+    wrote2 = emit_mcp_setup_files(tmp_path, ["codex"], [], manifest, "", "python")
     assert wrote2 is False
     assert not setup_md.exists()
+
+
+def test_setup_aggregates_multiple_providers_and_enabled_hosts(tmp_path):
+    from cli.commands.init import emit_mcp_setup_files
+
+    manifest = load_manifest(MAIKA_ROOT)
+    wrote = emit_mcp_setup_files(
+        tmp_path,
+        ["codex", "claude-code", "antigravity"],
+        ["understand-anything", "codebase-memory-mcp", "serena"],
+        manifest,
+        "/srv/ua",
+        "python",
+    )
+
+    assert wrote is True
+    text = (tmp_path / ".maika" / "MCP_SETUP.md").read_text(encoding="utf-8")
+    assert text.startswith("# Maika MCP Setup")
+    for provider in ("understand-anything", "codebase-memory-mcp", "serena"):
+        assert text.count(f"## Provider: {provider}") == 1
+    for platform in ("Codex", "Claude Code", "Antigravity"):
+        assert platform in text
+
+
+def test_init_retains_every_selected_setup_provider(tmp_path):
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(MAIKA_ROOT),
+        platform_key="codex",
+        selected_mcps=["understand-anything", "codebase-memory-mcp", "serena"],
+        language="python", assume_yes=True, ua_mcp_dir="/srv/ua-mcp",
+    )
+
+    text = (tmp_path / ".maika" / "MCP_SETUP.md").read_text(encoding="utf-8")
+    assert "/srv/ua-mcp" in text
+    assert "serena project create" in text
+    assert str(tmp_path) in text
+    assert "/tmp/maika-init-" not in text
+    for provider in ("understand-anything", "codebase-memory-mcp", "serena"):
+        assert text.count(f"## Provider: {provider}") == 1
 
 
 def test_init_scaffold_diet_ships_only_consumed_tooling(tmp_path, maika_root):
