@@ -79,6 +79,7 @@ def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] =
 
     staging = Path(tempfile.mkdtemp(prefix="maika-adapter-"))
     backups = Path(tempfile.mkdtemp(prefix="maika-backup-"))
+    mcp_setup_written = None
     try:
         plugins = _adapter_plugins(manifest, platform_key)
         scaffold_plugins(
@@ -104,7 +105,7 @@ def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] =
                 emit_mcp_setup_files,
                 existing_ua_mcp_dir,
             )
-            emit_mcp_setup_files(
+            mcp_setup_written = emit_mcp_setup_files(
                 staging,
                 project_config["platforms"]["enabled"],
                 resolved.get("mcps", []),
@@ -115,6 +116,12 @@ def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] =
             )
             _stage_metadata(staging, target, project_config, platform_key)
         plan = build_plan(staging, target, "init", platform.framework_root)
+        if mcp_setup_written is False and (target / ".maika/MCP_SETUP.md").is_file():
+            plan["actions"].append({
+                "kind": "delete_file",
+                "path": ".maika/MCP_SETUP.md",
+                "ownership": "framework",
+            })
         Transaction(staging, target, backups).apply(plan)
     finally:
         shutil.rmtree(staging, ignore_errors=True)

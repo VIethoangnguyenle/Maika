@@ -1,4 +1,5 @@
 import json as _json
+import tomllib
 from pathlib import Path, PureWindowsPath
 from cli.mcp import ua_setup
 
@@ -116,6 +117,24 @@ def test_codex_server_snippet_omits_empty_env():
     )
     assert "[mcp_servers.codebase-memory-mcp]" in text
     assert "env" not in text
+
+
+def test_codex_server_snippet_quotes_dynamic_toml_keys():
+    server_key = "server.name with spaces"
+    env_key = "ENV.key with spaces!"
+    text = ua_setup.render_server_snippet(
+        {"server": {
+            "command": "tool",
+            "args": [],
+            "env": {env_key: "value"},
+        }},
+        server_key=server_key, platform="codex",
+        ua_mcp_dir="", project_root="/proj",
+    )
+
+    parsed = tomllib.loads(text)
+    assert parsed["mcp_servers"][server_key]["command"] == "tool"
+    assert parsed["mcp_servers"][server_key]["env"] == {env_key: "value"}
 
 
 def _full_setup():

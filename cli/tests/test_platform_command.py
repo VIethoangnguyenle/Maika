@@ -187,3 +187,37 @@ def test_enable_rolls_back_when_setup_refresh_fails(tmp_path, monkeypatch):
         _enable(tmp_path, "claude-code")
     assert _tree_hash(tmp_path) == before
     assert not (tmp_path / "CLAUDE.md").exists()
+
+
+def test_enable_removes_stale_mcp_setup_when_no_selected_provider_has_setup(tmp_path):
+    _init(tmp_path, "codex")
+    setup_path = tmp_path / ".maika" / "MCP_SETUP.md"
+    setup_path.write_text("stale setup\n", encoding="utf-8")
+
+    _enable(tmp_path, "claude-code")
+
+    assert not setup_path.exists()
+
+
+def test_enable_restores_stale_mcp_setup_when_delete_transaction_fails(
+    tmp_path, monkeypatch,
+):
+    _init(tmp_path, "codex")
+    setup_path = tmp_path / ".maika" / "MCP_SETUP.md"
+    setup_path.write_text("stale setup\n", encoding="utf-8")
+    before = _tree_hash(tmp_path)
+    from cli.install.transaction import Transaction
+    real = Transaction._execute
+
+    def fail_after_setup_delete(self, action):
+        result = real(self, action)
+        if action["path"] == ".maika/MCP_SETUP.md":
+            raise RuntimeError("injected stale setup delete failure")
+        return result
+
+    monkeypatch.setattr(Transaction, "_execute", fail_after_setup_delete)
+    with pytest.raises(RuntimeError, match="stale setup delete failure"):
+        _enable(tmp_path, "claude-code")
+
+    assert _tree_hash(tmp_path) == before
+    assert setup_path.read_text(encoding="utf-8") == "stale setup\n"

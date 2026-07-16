@@ -206,7 +206,7 @@ def existing_ua_mcp_dir(target: Path) -> str:
     setup_path = target / ".maika" / "MCP_SETUP.md"
     try:
         text = setup_path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return UA_MCP_PLACEHOLDER
     match = re.search(r'"--directory"\s*,\s*"((?:\\.|[^"\\])*)"', text)
     if not match:

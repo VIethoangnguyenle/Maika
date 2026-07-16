@@ -58,6 +58,13 @@ def engine_status_line(setup: dict, platform: str, home: Path) -> str:
     return f"engine: ✗ not installed — {install}"
 
 
+def _toml_key(key: str) -> str:
+    bare_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+    if key and all(character in bare_chars for character in key):
+        return key
+    return json.dumps(key, ensure_ascii=False)
+
+
 def render_server_snippet(setup: dict, *, server_key: str, platform: str,
                           ua_mcp_dir: str, project_root: str) -> str:
     """Render one server recipe in the enabled host's native config format."""
@@ -68,15 +75,16 @@ def render_server_snippet(setup: dict, *, server_key: str, platform: str,
         for k, v in (server.get("env") or {}).items()
     }
     if platform == "codex":
+        rendered_server_key = _toml_key(server_key)
         lines = [
-            f"[mcp_servers.{server_key}]",
+            f"[mcp_servers.{rendered_server_key}]",
             f"command = {json.dumps(server['command'], ensure_ascii=False)}",
             f"args = {json.dumps(args, ensure_ascii=False)}",
         ]
         if env:
-            lines.append(f"\n[mcp_servers.{server_key}.env]")
+            lines.append(f"\n[mcp_servers.{rendered_server_key}.env]")
             lines.extend(
-                f"{key} = {json.dumps(value, ensure_ascii=False)}"
+                f"{_toml_key(key)} = {json.dumps(value, ensure_ascii=False)}"
                 for key, value in env.items()
             )
         return "\n".join(lines)

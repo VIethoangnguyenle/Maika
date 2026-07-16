@@ -536,6 +536,16 @@ def test_resolve_ua_mcp_dir_blank_when_ua_not_selected():
     assert resolve_ua_mcp_dir(["codebase-memory-mcp"], None, assume_yes=True) == ""
 
 
+def test_existing_ua_mcp_dir_falls_back_for_invalid_utf8(tmp_path):
+    from cli.commands.init import existing_ua_mcp_dir
+
+    setup_path = tmp_path / ".maika" / "MCP_SETUP.md"
+    setup_path.parent.mkdir(parents=True)
+    setup_path.write_bytes(b"\xff\xfe")
+
+    assert existing_ua_mcp_dir(tmp_path) == UA_PLACEHOLDER
+
+
 MAIKA_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
