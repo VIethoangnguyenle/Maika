@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import queue
+import signal
 import subprocess
 import sys
 import threading
@@ -154,34 +155,51 @@ def _close_pipe(pipe) -> None:
         pass
 
 
+def _has_process_group(proc) -> bool:
+    return os.name == "posix" and isinstance(getattr(proc, "pid", None), int)
+
+
+def _signal_stdio_process(proc, *, force: bool) -> None:
+    if _has_process_group(proc):
+        try:
+            os.killpg(proc.pid, signal.SIGKILL if force else signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        return
+    try:
+        (proc.kill if force else proc.terminate)()
+    except ProcessLookupError:
+        pass
+
+
 def _shutdown_stdio_process(proc, reader_threads: list[threading.Thread]) -> None:
     """Close bridge pipes, reap the child, and boundedly join response readers."""
     _close_pipe(proc.stdin)
     reaped = False
-    try:
-        proc.terminate()
-    except ProcessLookupError:
-        pass
+    _signal_stdio_process(proc, force=False)
     try:
         proc.wait(timeout=1)
         reaped = True
     except subprocess.TimeoutExpired:
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            pass
+        _signal_stdio_process(proc, force=True)
         try:
             proc.wait(timeout=1)
             reaped = True
         except subprocess.TimeoutExpired:
             pass
 
-    # With the child reaped, closing stdout cannot leave a live writer and
-    # releases a reader still blocked in readline().
-    if reaped:
-        _close_pipe(proc.stdout)
+    # A direct child can exit while one of its descendants still owns stdout.
+    # Once the direct child is reaped, force-stop any surviving POSIX group
+    # members so the reader can observe EOF without a cross-thread close.
+    if reaped and _has_process_group(proc):
+        _signal_stdio_process(proc, force=True)
     for reader in reader_threads:
         reader.join(timeout=READER_JOIN_TIMEOUT_SECONDS)
+    # BufferedReader.close() can wait on a lock held by readline(). Never call
+    # it until every reader has exited; on non-POSIX a daemon reader may remain
+    # briefly if a descendant inherited stdout, but cleanup itself stays bound.
+    if all(not reader.is_alive() for reader in reader_threads):
+        _close_pipe(proc.stdout)
 
 
 def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: dict):
@@ -198,6 +216,7 @@ def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: d
         stderr=subprocess.DEVNULL,
         text=True,
         env=env,
+        start_new_session=os.name == "posix",
     )
     reader_threads = []
 

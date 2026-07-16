@@ -1,7 +1,13 @@
 import importlib.util
 import json
+import os
+import signal
+import sys
 import threading
+import time
 from pathlib import Path
+
+import pytest
 
 
 BRIDGE = Path(__file__).resolve().parents[2] / ".maika" / "tools" / "mcp-bridge" / "mcp_client.py"
@@ -126,6 +132,7 @@ def test_call_stdio_times_out_and_terminates_unresponsive_server(monkeypatch):
     terminated = []
     reader_exited = threading.Event()
     reader_threads = []
+    lifecycle = []
     real_thread = bridge.threading.Thread
 
     def tracking_thread(*args, **kwargs):
@@ -147,15 +154,19 @@ def test_call_stdio_times_out_and_terminates_unresponsive_server(monkeypatch):
 
     class FakeStdout:
         def __init__(self):
-            self.closed = threading.Event()
+            self.eof = threading.Event()
+            self.close_called = False
 
         def readline(self):
-            self.closed.wait(timeout=1)
+            self.eof.wait(timeout=1)
+            lifecycle.append("reader-exit")
             reader_exited.set()
             return ""
 
         def close(self):
-            self.closed.set()
+            lifecycle.append("stdout-close")
+            self.close_called = True
+            self.eof.set()
 
     class FakeProcess:
         def __init__(self):
@@ -164,6 +175,7 @@ def test_call_stdio_times_out_and_terminates_unresponsive_server(monkeypatch):
 
         def terminate(self):
             terminated.append(True)
+            self.stdout.eof.set()
 
         def wait(self, timeout=None):
             return 0
@@ -182,7 +194,8 @@ def test_call_stdio_times_out_and_terminates_unresponsive_server(monkeypatch):
     assert len(reader_threads) == 1
     assert reader_threads[0].is_alive() is False
     assert process.stdin.closed is True
-    assert process.stdout.closed.is_set()
+    assert process.stdout.close_called is True
+    assert lifecycle.index("reader-exit") < lifecycle.index("stdout-close")
 
 
 def test_call_stdio_reaps_process_after_terminate_timeout_and_kill(monkeypatch):
@@ -228,6 +241,60 @@ def test_call_stdio_reaps_process_after_terminate_timeout_and_kill(monkeypatch):
 
     assert process.wait_calls == 2
     assert events.index("terminate") < events.index("kill") < events.index("wait-2")
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires POSIX process groups")
+def test_call_stdio_timeout_does_not_block_on_descendant_inheriting_stdout(
+    tmp_path, monkeypatch
+):
+    bridge = load_bridge()
+    descendant_pid_path = tmp_path / "descendant.pid"
+    descendant_code = "import time; time.sleep(3)"
+    parent_code = (
+        "import pathlib, subprocess, time\n"
+        f"child = subprocess.Popen([{sys.executable!r}, '-c', {descendant_code!r}])\n"
+        f"pathlib.Path({str(descendant_pid_path)!r}).write_text(str(child.pid))\n"
+        "time.sleep(3)\n"
+    )
+    direct_processes = []
+    real_popen = bridge.subprocess.Popen
+
+    def tracking_popen(*args, **kwargs):
+        process = real_popen(*args, **kwargs)
+        direct_processes.append(process)
+        return process
+
+    monkeypatch.setattr(bridge, "REQUEST_TIMEOUT_SECONDS", 0.2)
+    monkeypatch.setattr(bridge, "READER_JOIN_TIMEOUT_SECONDS", 0.2)
+    monkeypatch.setattr(bridge.subprocess, "Popen", tracking_popen)
+
+    started = time.monotonic()
+    descendant_started = False
+    try:
+        result, error = bridge.call_stdio(
+            {"command": sys.executable, "args": ["-c", parent_code]},
+            "tools-list", None, {},
+        )
+        elapsed = time.monotonic() - started
+    finally:
+        descendant_started = descendant_pid_path.exists()
+        if descendant_started:
+            descendant_pid = int(descendant_pid_path.read_text(encoding="utf-8"))
+            try:
+                os.kill(descendant_pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        for process in direct_processes:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=1)
+
+    assert result is None
+    assert error == "initialize failed: timed out"
+    assert elapsed < 1.0
+    assert descendant_started is True
+    assert len(direct_processes) == 1
+    assert direct_processes[0].returncode is not None
 
 
 def test_runtime_probe_reuses_loaded_bridge_for_tools_list(tmp_path):
