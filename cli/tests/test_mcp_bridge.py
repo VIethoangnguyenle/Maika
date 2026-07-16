@@ -93,6 +93,97 @@ def test_call_stdio_sends_initialized_notification_before_tools_list(monkeypatch
     assert writes[1]["params"] == {}
 
 
+def test_stdio_session_keeps_smoke_restart_and_retry_on_one_process(monkeypatch):
+    bridge = load_bridge()
+    writes = []
+    processes = []
+    responses = iter([
+        '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}\n',
+        '{"jsonrpc":"2.0","id":2,"result":{"isError":true,"content":[]}}\n',
+        '{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"restarted"}]}}\n',
+        '{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"symbols"}]}}\n',
+    ])
+
+    class FakeStdin:
+        def write(self, value):
+            writes.append(json.loads(value))
+
+        def flush(self):
+            return None
+
+    class FakeStdout:
+        def readline(self):
+            return next(responses, "")
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdin = FakeStdin()
+            self.stdout = FakeStdout()
+
+        def terminate(self):
+            return None
+
+        def wait(self, timeout=None):
+            return 0
+
+    def popen(*args, **kwargs):
+        process = FakeProcess()
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(bridge.subprocess, "Popen", popen)
+
+    def recovery(call):
+        first, first_error = call(
+            "tools-call", "get_symbols_overview", {"relative_path": "src/app.py"}
+        )
+        assert first_error == "" and first["result"]["isError"] is True
+        restarted, restart_error = call(
+            "tools-call", "restart_language_server", {}
+        )
+        assert restart_error == "" and restarted["result"]["content"]
+        retry, retry_error = call(
+            "tools-call", "get_symbols_overview", {"relative_path": "src/app.py"}
+        )
+        assert retry_error == "" and retry["result"]["content"]
+        return "recovered"
+
+    result, error = bridge.with_stdio_session({"command": "python"}, recovery)
+
+    assert error == ""
+    assert result == "recovered"
+    assert len(processes) == 1
+    assert [entry["method"] for entry in writes] == [
+        "initialize", "notifications/initialized", "tools/call", "tools/call",
+        "tools/call",
+    ]
+    assert [entry.get("id") for entry in writes if "id" in entry] == [1, 2, 3, 4]
+
+
+def test_runtime_serena_smoke_recovery_uses_bridge_session_callback(tmp_path):
+    from cli.mcp.runtime_probe import probe_serena_symbol_smoke
+
+    bridge = tmp_path / "fake_bridge.py"
+    bridge.write_text(
+        "calls = []\n"
+        "def with_stdio_session(server, callback):\n"
+        "    def call(operation, tool_name, arguments):\n"
+        "        calls.append((operation, tool_name, arguments))\n"
+        "        if len(calls) == 1:\n"
+        "            return ({'result': {'isError': True, 'content': []}}, '')\n"
+        "        return ({'result': {'content': [{'type': 'text', 'text': tool_name}]}}, '')\n"
+        "    return callback(call), ''\n",
+        encoding="utf-8",
+    )
+
+    status, error = probe_serena_symbol_smoke(
+        {"command": "serena"}, bridge, "src/app.py"
+    )
+
+    assert error == ""
+    assert status == "recovered"
+
+
 def test_call_stdio_returns_error_when_tools_list_response_missing(monkeypatch):
     bridge = load_bridge()
     responses = iter(['{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}\n'])

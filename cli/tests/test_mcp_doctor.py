@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
 from cli.commands.doctor import run_doctor_mcp
@@ -12,16 +13,16 @@ MAIKA_ROOT = Path(__file__).resolve().parent.parent.parent
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "provider_contracts"
 
 
-def write_resolved(target, platform="antigravity", mcps=None):
+def write_resolved(target, platform="antigravity", mcps=None, language="python"):
     root = ".agents" if platform in ("antigravity", "codex") else ".claude"
     path = target / root / "resolved-config.yaml"
-    path.parent.mkdir(parents=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         yaml.dump({"resolved": {
             "platform": platform,
             "framework_root": root,
             "mcps": mcps or ["codebase-memory-mcp"],
-            "language": "python",
+            "language": language,
         }}),
         encoding="utf-8",
     )
@@ -47,6 +48,9 @@ def _init_serena(tmp_path):
         "project_name: doctor-fixture\nlanguages:\n  - python\n",
         encoding="utf-8",
     )
+    source = target / "src" / "app.py"
+    source.parent.mkdir()
+    source.write_text("def doctor_fixture():\n    return True\n", encoding="utf-8")
     return target, home
 
 
@@ -58,10 +62,9 @@ def _stub_serena_version(monkeypatch, version="1.5.3"):
 
 def _stub_serena_smoke(monkeypatch):
     monkeypatch.setattr(
-        "cli.mcp.doctor.probe_tool_call",
-        lambda server, bridge_path, tool, arguments: (
-            {"content": [{"type": "text", "text": "symbols"}]}, ""
-        ),
+        "cli.mcp.doctor.probe_serena_symbol_smoke",
+        lambda server, bridge_path, relative_path: ("ready", ""),
+        raising=False,
     )
 
 
@@ -80,7 +83,10 @@ def test_doctor_marks_serena_ready_from_real_tools_list(tmp_path, monkeypatch):
     status = build_doctor_status(target, home, maika_root=MAIKA_ROOT)
 
     assert "version: READY (Serena 1.5.3)" in status.setup_reports["serena"]
-    assert "project: READY (python backend)" in status.setup_reports["serena"]
+    assert (
+        "project: READY (python backend; smoke file: src/app.py)"
+        in status.setup_reports["serena"]
+    )
     assert any(
         line == f"contract: READY (8 Phase 1 tools; {serena.SERENA_READONLY_V1_TOOL_SURFACE_HASH})"
         for line in status.setup_reports["serena"]
@@ -228,6 +234,109 @@ def test_doctor_degrades_missing_or_unusable_serena_project_backend(tmp_path, mo
     assert "project: DEGRADED — no selected language backend" in status.setup_reports["serena"]
 
 
+@pytest.mark.parametrize(
+    ("language", "backend", "relative_path", "body"),
+    [
+        ("python", "python", "src/main.py", "def main():\n    return 0\n"),
+        ("typescript", "typescript", "src/main.ts", "export const main = () => 0;\n"),
+        ("java", "java", "src/Main.java", "class Main {}\n"),
+        ("go", "go", "cmd/main.go", "package main\nfunc main() {}\n"),
+        ("csharp", "csharp", "src/Main.cs", "class Main {}\n"),
+    ],
+)
+def test_doctor_smokes_deterministic_source_for_selected_language_backend(
+    tmp_path, monkeypatch, language, backend, relative_path, body
+):
+    target, home = _init_serena(tmp_path)
+    write_resolved(
+        target, platform="antigravity", mcps=["serena"], language=language,
+    )
+    for source in (target / "src").glob("*"):
+        source.unlink()
+    selected_source = target / relative_path
+    selected_source.parent.mkdir(parents=True, exist_ok=True)
+    selected_source.write_text(body, encoding="utf-8")
+    (target / ".serena" / "project.yml").write_text(
+        f"project_name: doctor-fixture\nlanguages:\n  - {backend}\n",
+        encoding="utf-8",
+    )
+    fixture = json.loads(
+        (FIXTURES / "serena" / "tools-list-readonly-v1.json").read_text()
+    )
+    calls = []
+    monkeypatch.setattr("cli.mcp.ua_setup.shutil.which", lambda command: "/bin/serena")
+    _stub_serena_version(monkeypatch)
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_tools_list", lambda server, bridge_path: (fixture, "")
+    )
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_serena_symbol_smoke",
+        lambda server, bridge_path, path: (calls.append(path) or "ready", ""),
+        raising=False,
+    )
+
+    status = build_doctor_status(target, home, maika_root=MAIKA_ROOT)
+
+    assert calls == [relative_path]
+    assert f"project: READY ({backend} backend; smoke file: {relative_path})" in status.setup_reports["serena"]
+    assert "symbol smoke: READY" in status.setup_reports["serena"]
+
+
+def test_doctor_degrades_selected_language_backend_mismatch_without_smoke(
+    tmp_path, monkeypatch
+):
+    target, home = _init_serena(tmp_path)
+    write_resolved(
+        target, platform="antigravity", mcps=["serena"], language="typescript",
+    )
+    (target / "src" / "app.ts").write_text("export const app = true;\n", encoding="utf-8")
+    calls = []
+    monkeypatch.setattr("cli.mcp.ua_setup.shutil.which", lambda command: "/bin/serena")
+    _stub_serena_version(monkeypatch)
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_tools_list",
+        lambda server, bridge_path: calls.append("tools-list"),
+    )
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_serena_symbol_smoke",
+        lambda server, bridge_path, path: calls.append(path),
+        raising=False,
+    )
+
+    status = build_doctor_status(target, home, maika_root=MAIKA_ROOT)
+
+    assert calls == []
+    assert (
+        "project: DEGRADED — Maika language typescript is not enabled by Serena backends: python"
+        in status.setup_reports["serena"]
+    )
+
+
+def test_doctor_degrades_when_selected_backend_has_no_smokeable_project_file(
+    tmp_path, monkeypatch
+):
+    target, home = _init_serena(tmp_path)
+    write_resolved(target, platform="antigravity", mcps=["serena"], language="java")
+    (target / ".serena" / "project.yml").write_text(
+        "project_name: doctor-fixture\nlanguages:\n  - java\n", encoding="utf-8"
+    )
+    calls = []
+    monkeypatch.setattr("cli.mcp.ua_setup.shutil.which", lambda command: "/bin/serena")
+    _stub_serena_version(monkeypatch)
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_tools_list",
+        lambda server, bridge_path: calls.append("tools-list"),
+    )
+
+    status = build_doctor_status(target, home, maika_root=MAIKA_ROOT)
+
+    assert calls == []
+    assert (
+        "project: DEGRADED — no deterministic java source file available for symbol smoke"
+        in status.setup_reports["serena"]
+    )
+
+
 def test_doctor_restarts_language_server_once_and_recovers_symbol_smoke(
     tmp_path, monkeypatch
 ):
@@ -236,33 +345,24 @@ def test_doctor_restarts_language_server_once_and_recovers_symbol_smoke(
         (FIXTURES / "serena" / "tools-list-readonly-v1.json").read_text()
     )
     calls = []
-    outcomes = iter([
-        (None, "tools/call failed: backend-secret"),
-        ({"content": []}, ""),
-        ({"content": [{"type": "text", "text": "symbols"}]}, ""),
-    ])
     monkeypatch.setattr("cli.mcp.ua_setup.shutil.which", lambda command: "/bin/serena")
     _stub_serena_version(monkeypatch)
     monkeypatch.setattr(
         "cli.mcp.doctor.probe_tools_list", lambda server, bridge_path: (fixture, "")
     )
 
-    def probe(server, bridge_path, tool, arguments):
-        calls.append((tool, arguments))
-        return next(outcomes)
-
-    monkeypatch.setattr("cli.mcp.doctor.probe_tool_call", probe)
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_serena_symbol_smoke",
+        lambda server, bridge_path, relative_path: (
+            calls.append(relative_path) or "recovered", ""
+        ),
+        raising=False,
+    )
 
     status = build_doctor_status(target, home, maika_root=MAIKA_ROOT)
     report = render_report(status)
 
-    assert [tool for tool, _ in calls] == [
-        "get_symbols_overview", "restart_language_server", "get_symbols_overview"
-    ]
-    assert calls[0][1] == {
-        "relative_path": ".maika/tools/mcp-bridge/mcp_client.py",
-        "depth": 0,
-    }
+    assert calls == ["src/app.py"]
     assert "symbol smoke: READY (recovered after one language-server restart)" in report
     assert "backend-secret" not in report
 
@@ -281,19 +381,18 @@ def test_doctor_degrades_after_one_failed_smoke_recovery_without_raw_output(
         "cli.mcp.doctor.probe_tools_list", lambda server, bridge_path: (fixture, "")
     )
 
-    def probe(server, bridge_path, tool, arguments):
-        calls.append(tool)
-        if tool == "restart_language_server":
-            return {"content": []}, ""
-        return None, "tools/call failed: super-secret-provider-output"
-
-    monkeypatch.setattr("cli.mcp.doctor.probe_tool_call", probe)
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_serena_symbol_smoke",
+        lambda server, bridge_path, relative_path: (
+            calls.append(relative_path) or "degraded",
+            "MCP runtime probe failed",
+        ),
+        raising=False,
+    )
 
     report = render_report(build_doctor_status(target, home, maika_root=MAIKA_ROOT))
 
-    assert calls == [
-        "get_symbols_overview", "restart_language_server", "get_symbols_overview"
-    ]
+    assert calls == ["src/app.py"]
     assert "symbol smoke: DEGRADED — symbol backend unavailable after one recovery" in report
     assert "super-secret-provider-output" not in report
     assert "contract: READY" in report

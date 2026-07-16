@@ -208,16 +208,18 @@ maika doctor mcp --target /absolute/project/path
 
 The first command is an upstream inventory and can show tools outside Maika's
 context. The doctor checks every enabled host, verifies Serena `1.5.3`, validates
-the activated `.serena/project.yml` language backend, performs a real `tools/list`,
-checks the pinned schema hash, runs a bounded symbol smoke against Maika's MCP
-bridge source, and writes a redacted report to
+that the activated `.serena/project.yml` backend matches Maika's selected language,
+performs a real `tools/list`, checks the pinned schema hash, and chooses the first
+deterministic project source file with the matching language extension. The symbol
+smoke, optional single `restart_language_server`, and one retry share one bounded
+MCP session; the process is then cleaned up. The doctor writes a redacted report to
 `.maika/knowledge/active/mcp-doctor-report.md`. Healthy Serena includes:
 
 ```text
 engine: ✓ installed
 wired: ✓ configured
 version: READY (Serena 1.5.3)
-project: READY (python backend)
+project: READY (python backend; smoke file: src/example.py)
 contract: READY (8 Phase 1 tools; sha256:<pinned-contract-hash>)
 symbol smoke: READY
 ```

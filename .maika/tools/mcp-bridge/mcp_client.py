@@ -202,7 +202,8 @@ def _shutdown_stdio_process(proc, reader_threads: list[threading.Thread]) -> Non
         _close_pipe(proc.stdout)
 
 
-def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: dict):
+def with_stdio_session(config: dict, callback):
+    """Run bounded callback operations over one initialized stdio process."""
     command = config.get("command")
     if not command:
         return None, "stdio server has no command"
@@ -219,6 +220,7 @@ def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: d
         start_new_session=os.name == "posix",
     )
     reader_threads = []
+    next_request_id = 2
 
     def send(method: str, params: dict, req_id: int):
         proc.stdin.write(request_payload(method, params, req_id))
@@ -261,17 +263,34 @@ def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: d
         if error:
             return None, error
         notify("notifications/initialized", {})
-        if operation == "tools-list":
-            result = send("tools/list", {}, 2)
-            error = validate_response("tools/list", result)
-            return (result if not error else None), error
-        result = send("tools/call", {"name": tool_name, "arguments": arguments}, 2)
-        error = validate_response("tools/call", result)
-        return (result if not error else None), error
+
+        def call(operation: str, tool_name: str | None, arguments: dict):
+            nonlocal next_request_id
+            if operation == "tools-list":
+                method, params = "tools/list", {}
+            else:
+                method = "tools/call"
+                params = {"name": tool_name, "arguments": arguments}
+            request_id = next_request_id
+            next_request_id += 1
+            result = send(method, params, request_id)
+            call_error = validate_response(method, result)
+            return (result if not call_error else None), call_error
+
+        return callback(call), ""
     except TimeoutError as exc:
         return None, str(exc)
     finally:
         _shutdown_stdio_process(proc, reader_threads)
+
+
+def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: dict):
+    outcome, session_error = with_stdio_session(
+        config, lambda call: call(operation, tool_name, arguments),
+    )
+    if session_error:
+        return None, session_error
+    return outcome
 
 
 def call_http(config: dict, operation: str, tool_name: str | None, arguments: dict):

@@ -70,6 +70,46 @@ def probe_tool_call(server: dict, bridge_path: Path, tool_name: str,
     return _call(server, bridge_path, "tools-call", tool_name, arguments)
 
 
+def _tool_result_ready(response: dict | None, error: str) -> bool:
+    if error or not isinstance(response, dict):
+        return False
+    result = response.get("result")
+    if not isinstance(result, dict) or result.get("isError") is True:
+        return False
+    return bool(result.get("content") or result.get("structuredContent"))
+
+
+def probe_serena_symbol_smoke(server: dict, bridge_path: Path,
+                              relative_path: str) -> tuple[str, str]:
+    """Smoke, restart at most once, and retry within one bounded MCP session."""
+    module, error = _load_bridge(bridge_path)
+    if error:
+        return "degraded", error
+    if "command" not in server or not hasattr(module, "with_stdio_session"):
+        return "degraded", "MCP runtime probe failed"
+    arguments = {"relative_path": relative_path, "depth": 0}
+
+    def recovery(call):
+        first, first_error = call(
+            "tools-call", "get_symbols_overview", arguments,
+        )
+        if _tool_result_ready(first, first_error):
+            return "ready"
+        call("tools-call", "restart_language_server", {})
+        retry, retry_error = call(
+            "tools-call", "get_symbols_overview", arguments,
+        )
+        return "recovered" if _tool_result_ready(retry, retry_error) else "degraded"
+
+    try:
+        status, session_error = module.with_stdio_session(server, recovery)
+    except Exception:
+        return "degraded", "MCP runtime probe failed"
+    if session_error:
+        return "degraded", sanitize_probe_error(session_error)
+    return status if status in {"ready", "recovered", "degraded"} else "degraded", ""
+
+
 def probe_serena_version(server: dict) -> tuple[str, str]:
     """Read the configured Serena executable's version without exposing output."""
     command = str(server.get("command") or "serena")

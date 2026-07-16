@@ -14,7 +14,8 @@ from cli.mcp.adapters import get_mcp_adapter
 from cli.mcp.config import load_mcp_config, redact_mapping, selected_server_matches
 from cli.mcp.integration import serena
 from cli.mcp.runtime_probe import (
-    probe_serena_version, probe_tool_call, probe_tools_list, sanitize_probe_error,
+    probe_serena_symbol_smoke, probe_serena_version, probe_tools_list,
+    sanitize_probe_error,
 )
 from cli.mcp import ua_setup
 from cli.scaffold import load_resolved_config, load_manifest
@@ -93,19 +94,74 @@ def _serena_contract_line(snapshot: dict | None, error: str) -> str:
     return f"contract: DEGRADED — {'; '.join(problems) or 'invalid tools/list result'}"
 
 
-def _serena_project_line(target: Path, server: dict) -> tuple[str, bool]:
+_LANGUAGE_ALIASES = {
+    "py": "python", "python": "python",
+    "ts": "typescript", "typescript": "typescript",
+    "js": "javascript", "javascript": "javascript",
+    "java": "java", "go": "go", "golang": "go",
+    "c#": "csharp", "c-sharp": "csharp", "csharp": "csharp", "cs": "csharp",
+    "rust": "rust", "ruby": "ruby", "php": "php", "kotlin": "kotlin",
+    "swift": "swift", "cpp": "cpp", "c++": "cpp", "c": "c",
+    "scala": "scala", "dart": "dart", "elixir": "elixir", "lua": "lua",
+    "bash": "bash", "shell": "bash",
+}
+_LANGUAGE_EXTENSIONS = {
+    "python": (".py",),
+    "typescript": (".ts", ".tsx"),
+    "javascript": (".js", ".jsx", ".mjs", ".cjs"),
+    "java": (".java",),
+    "go": (".go",),
+    "csharp": (".cs",),
+    "rust": (".rs",),
+    "ruby": (".rb",),
+    "php": (".php",),
+    "kotlin": (".kt", ".kts"),
+    "swift": (".swift",),
+    "cpp": (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"),
+    "c": (".c", ".h"),
+    "scala": (".scala",),
+    "dart": (".dart",),
+    "elixir": (".ex", ".exs"),
+    "lua": (".lua",),
+    "bash": (".sh",),
+}
+_SMOKE_EXCLUDED_PARTS = {
+    ".git", ".maika", ".serena", ".venv", "venv", "node_modules",
+    "vendor", "build", "dist", "target", "__pycache__",
+}
+
+
+def _canonical_language(value: str) -> str:
+    return _LANGUAGE_ALIASES.get(str(value or "").strip().lower(), "")
+
+
+def _smoke_source(target: Path, language: str) -> str:
+    extensions = set(_LANGUAGE_EXTENSIONS.get(language) or ())
+    candidates = []
+    for path in target.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in extensions:
+            continue
+        relative = path.relative_to(target)
+        if any(part in _SMOKE_EXCLUDED_PARTS for part in relative.parts):
+            continue
+        candidates.append(relative.as_posix())
+    return min(candidates) if candidates else ""
+
+
+def _serena_project_line(target: Path, server: dict,
+                         maika_language: str) -> tuple[str, bool, str]:
     args = [str(item) for item in (server.get("args") or [])]
     try:
         configured_root = Path(args[args.index("--project") + 1]).resolve()
     except (ValueError, IndexError, OSError):
-        return "project: DEGRADED — native server lacks an activated project", False
+        return "project: DEGRADED — native server lacks an activated project", False, ""
     if configured_root != target.resolve():
-        return "project: DEGRADED — native server activates a different project", False
+        return "project: DEGRADED — native server activates a different project", False, ""
     path = target / ".serena" / "project.yml"
     try:
         config = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except (OSError, UnicodeDecodeError, yaml.YAMLError):
-        return "project: DEGRADED — .serena/project.yml missing or invalid", False
+        return "project: DEGRADED — .serena/project.yml missing or invalid", False, ""
     raw = config.get("languages") or config.get("language") or []
     if isinstance(raw, str):
         languages = [raw]
@@ -116,38 +172,51 @@ def _serena_project_line(target: Path, server: dict) -> tuple[str, bool]:
     else:
         languages = []
     if not languages:
-        return "project: DEGRADED — no selected language backend", False
-    return f"project: READY ({', '.join(languages)} backend)", True
-
-
-def _tool_call_ready(result: dict | None, error: str) -> bool:
-    if error or not isinstance(result, dict) or result.get("isError") is True:
-        return False
-    return bool(result.get("content") or result.get("structuredContent"))
-
-
-def _serena_smoke_line(server: dict, bridge_path: Path) -> str:
-    arguments = {
-        "relative_path": ".maika/tools/mcp-bridge/mcp_client.py",
-        "depth": 0,
-    }
-    result, error = probe_tool_call(
-        server, bridge_path, "get_symbols_overview", arguments,
+        return "project: DEGRADED — no selected language backend", False, ""
+    normalized_backends = [
+        canonical for canonical in (_canonical_language(item) for item in languages)
+        if canonical
+    ]
+    selected = _canonical_language(maika_language)
+    if str(maika_language or "").strip().lower() == "other":
+        selected = next(
+            (backend for backend in normalized_backends if backend in _LANGUAGE_EXTENSIONS),
+            "",
+        )
+    if not selected or selected not in normalized_backends:
+        return (
+            f"project: DEGRADED — Maika language {maika_language} is not enabled "
+            f"by Serena backends: {', '.join(languages)}",
+            False,
+            "",
+        )
+    smoke_path = _smoke_source(target, selected)
+    if not smoke_path:
+        return (
+            f"project: DEGRADED — no deterministic {selected} source file available "
+            "for symbol smoke",
+            False,
+            "",
+        )
+    return (
+        f"project: READY ({selected} backend; smoke file: {smoke_path})",
+        True,
+        smoke_path,
     )
-    if _tool_call_ready(result, error):
+
+
+def _serena_smoke_line(server: dict, bridge_path: Path, relative_path: str) -> str:
+    status, _error = probe_serena_symbol_smoke(server, bridge_path, relative_path)
+    if status == "ready":
         return "symbol smoke: READY"
-    probe_tool_call(server, bridge_path, "restart_language_server", {})
-    result, error = probe_tool_call(
-        server, bridge_path, "get_symbols_overview", arguments,
-    )
-    if _tool_call_ready(result, error):
+    if status == "recovered":
         return "symbol smoke: READY (recovered after one language-server restart)"
     return "symbol smoke: DEGRADED — symbol backend unavailable after one recovery"
 
 
 def _setup_reports(target: Path, home: Path, maika_root, platform: str,
                    selected: list, matched: list,
-                   servers: dict | None = None) -> tuple[dict, bool]:
+                   servers: dict | None = None, language: str = "other") -> tuple[dict, bool]:
     if maika_root is None:
         return {}, False
     manifest = load_manifest(Path(maika_root))
@@ -179,7 +248,9 @@ def _setup_reports(target: Path, home: Path, maika_root, platform: str,
                     lines.append("version: DEGRADED — expected Serena 1.5.3")
                 else:
                     lines.append("version: READY (Serena 1.5.3)")
-                    project_line, project_ready = _serena_project_line(target, server)
+                    project_line, project_ready, smoke_path = _serena_project_line(
+                        target, server, language,
+                    )
                     lines.append(project_line)
                     if project_ready:
                         probed = True
@@ -195,7 +266,9 @@ def _setup_reports(target: Path, home: Path, maika_root, platform: str,
                         lines.append(contract_line)
                         if contract_line.startswith("contract: READY"):
                             try:
-                                lines.append(_serena_smoke_line(server, bridge_path))
+                                lines.append(
+                                    _serena_smoke_line(server, bridge_path, smoke_path)
+                                )
                             except Exception:
                                 lines.append(
                                     "symbol smoke: DEGRADED — symbol backend unavailable"
@@ -253,7 +326,7 @@ def _memory_governance_state(selected: list, home: Path) -> tuple[str, list[str]
 
 
 def _platform_status(target: Path, home: Path, maika_root, platform: str,
-                     selected: list[str]) -> PlatformDoctorStatus:
+                     selected: list[str], language: str) -> PlatformDoctorStatus:
     adapter = get_mcp_adapter(platform)
     best_config = None
     for candidate in adapter.config_candidates(target, home):
@@ -264,7 +337,7 @@ def _platform_status(target: Path, home: Path, maika_root, platform: str,
 
     if best_config is None:
         setup_reports, _ = _setup_reports(
-            target, home, maika_root, platform, selected, [], {},
+            target, home, maika_root, platform, selected, [], {}, language,
         )
         return PlatformDoctorStatus(
             platform=platform,
@@ -287,6 +360,7 @@ def _platform_status(target: Path, home: Path, maika_root, platform: str,
 
     setup_reports, probed = _setup_reports(
         target, home, maika_root, platform, selected, matched, best_config.servers,
+        language,
     )
     bridge_state = "probed" if probed else "not-probed"
     redacted_servers = {name: redact_mapping(best_config.servers[name]) for name in matched}
@@ -327,7 +401,10 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
     if primary not in enabled:
         primary = resolved.get("platform") if resolved.get("platform") in enabled else enabled[0]
     platform_reports = {
-        key: _platform_status(target, home, maika_root, key, selected)
+        key: _platform_status(
+            target, home, maika_root, key, selected,
+            str(resolved.get("language") or "other"),
+        )
         for key in enabled
     }
     primary_report = platform_reports[primary]
