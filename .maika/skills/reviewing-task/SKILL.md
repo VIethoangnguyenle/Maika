@@ -92,6 +92,8 @@ Conditional — chỉ gọi khi trigger kích hoạt, ghi trigger + reason:
 Reviewer tự đọc source, không dựa claim của brief.
 Symbol references là **scoped LSP evidence**, không phải proof của mọi
 reflective/configured/event consumer; mọi material claim vẫn cần current source.
+`restart_language_server` is operational maintenance, not evidence, and may only be
+used by the bounded provider-health recovery path.
 
 ## Quy trình truy xuất
 1. Đọc brief + result + diff.

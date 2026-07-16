@@ -15,6 +15,9 @@ authority:
     preferred: serena
     corroborating: [current-source, understand-anything]
     conflict_action: verify_current_source
+  operational_maintenance:
+    preferred: serena
+    evidence_eligible: false
   domain_semantics:
     preferred: understand-anything
     corroborating: current-source
@@ -107,10 +110,14 @@ providers:
       tools: [get_symbols_overview, find_symbol, find_referencing_symbols, find_implementations, find_declaration, get_diagnostics_for_file, get_diagnostics_for_symbol, restart_language_server]
       lanes:
         discovery:
-          tools: [get_symbols_overview, find_symbol, find_referencing_symbols, find_implementations, find_declaration, get_diagnostics_for_file, get_diagnostics_for_symbol, restart_language_server]
+          tools: [get_symbols_overview, find_symbol, find_referencing_symbols, find_implementations, find_declaration, get_diagnostics_for_file, get_diagnostics_for_symbol]
           mutability: read_only
+        maintenance:
+          tools: [restart_language_server]
+          mutability: operational
+          evidence_eligible: false
     capabilities:
-      primary: [symbolic_code_navigation, code_diagnostics]
+      primary: [symbolic_code_navigation, code_diagnostics, operational_maintenance]
 
   current-source:
     display_name: Current Source

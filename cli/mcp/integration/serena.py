@@ -40,16 +40,22 @@ def validate_tools_list(snapshot: dict, *, expected_tool_surface_hash: str = "")
     tools = snapshot.get("tools") if isinstance(snapshot, dict) else None
     if not isinstance(tools, list):
         return {"status": "degraded", "reason": "tools/list missing tools array"}
-    names = {str(item.get("name")) for item in tools if isinstance(item, dict) and item.get("name")}
+    listed_names = [
+        str(item.get("name"))
+        for item in tools if isinstance(item, dict) and item.get("name")
+    ]
+    names = set(listed_names)
+    duplicates = sorted({name for name in listed_names if listed_names.count(name) > 1})
     missing = sorted(SERENA_READ_TOOLS - names)
     unexpected = sorted(names - SERENA_READ_TOOLS)
     forbidden = sorted(names & SERENA_FORBIDDEN_TOOLS)
     observed_hash = tool_surface_hash(tools)
     hash_changed = bool(expected_tool_surface_hash and observed_hash != expected_tool_surface_hash)
-    ready = not missing and not unexpected and not forbidden and not hash_changed
+    ready = not missing and not unexpected and not forbidden and not duplicates and not hash_changed
     return {
         "status": "ready" if ready else "degraded",
         "missing": missing, "unexpected": unexpected, "forbidden": forbidden,
+        "duplicates": duplicates,
         "tool_surface_hash": observed_hash, "prior_probe_valid": not hash_changed,
         "tools": sorted(names),
     }
@@ -58,11 +64,13 @@ def validate_tools_list(snapshot: dict, *, expected_tool_surface_hash: str = "")
 def normalize_response(tool: str, raw: bytes | str) -> dict:
     if tool not in SERENA_READ_TOOLS:
         raise ValueError(f"unknown Serena Phase 1 tool {tool!r}")
+    maintenance = tool == "restart_language_server"
     return {
         "provider_id": PROVIDER_ID,
         "tool": tool,
         "response_hash": hash_payload(raw),
-        "authority": "semantic_symbol_resolution",
+        "authority": "operational_maintenance" if maintenance else "semantic_symbol_resolution",
+        "evidence_eligible": not maintenance,
         "canonical": False,
         "status": "success",
         "provider_snapshot": {"version": "1.5.3", "language_backend": "unverified"},

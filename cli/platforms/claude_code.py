@@ -53,7 +53,7 @@ class ClaudeCodePlatform(BasePlatform):
         "serena_find_implementations":     "mcp__serena__find_implementations",
         "serena_file_diagnostics":         "mcp__serena__get_diagnostics_for_file",
         "serena_symbol_diagnostics":       "mcp__serena__get_diagnostics_for_symbol",
-        "serena_restart_language_server":  "mcp__serena__restart_language_server",
+        "serena_maintenance_restart_language_server": "mcp__serena__restart_language_server",
 
         # ── Document Search (Confluence — if available) ──
         "search_docs":       "mcp__confluence__search",

@@ -221,3 +221,52 @@ def test_enable_restores_stale_mcp_setup_when_delete_transaction_fails(
 
     assert _tree_hash(tmp_path) == before
     assert setup_path.read_text(encoding="utf-8") == "stale setup\n"
+
+
+def test_disable_refreshes_aggregate_setup_without_disabled_host(tmp_path):
+    selected = ["understand-anything", "codebase-memory-mcp", "serena"]
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(REPO_ROOT),
+        platform_key="codex", selected_mcps=selected, language="python",
+        assume_yes=True, ua_mcp_dir="/srv/ua-mcp",
+    )
+    _enable(tmp_path, "claude-code")
+    _enable(tmp_path, "antigravity")
+
+    run_platform(
+        action="disable", target_dir=str(tmp_path), platform_key="claude-code",
+        maika_root=str(REPO_ROOT),
+    )
+
+    text = (tmp_path / ".maika" / "MCP_SETUP.md").read_text(encoding="utf-8")
+    assert "#### Claude Code" not in text
+    assert "#### Codex" in text
+    assert "#### Antigravity" in text
+    for provider in selected:
+        assert text.count(f"## Provider: {provider}") == 1
+
+
+def test_disable_rolls_back_adapter_metadata_and_setup_together(tmp_path, monkeypatch):
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(REPO_ROOT), platform_key="codex",
+        selected_mcps=["serena"], language="python", assume_yes=True,
+    )
+    _enable(tmp_path, "claude-code")
+    before = _tree_hash(tmp_path)
+    from cli.install.transaction import Transaction
+    real = Transaction._execute
+
+    def fail_after_setup_refresh(self, action):
+        result = real(self, action)
+        if action["path"] == ".maika/MCP_SETUP.md":
+            raise RuntimeError("injected disable setup refresh failure")
+        return result
+
+    monkeypatch.setattr(Transaction, "_execute", fail_after_setup_refresh)
+    with pytest.raises(RuntimeError, match="disable setup refresh failure"):
+        run_platform(
+            action="disable", target_dir=str(tmp_path), platform_key="claude-code",
+            maika_root=str(REPO_ROOT),
+        )
+
+    assert _tree_hash(tmp_path) == before

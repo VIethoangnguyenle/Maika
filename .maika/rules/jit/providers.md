@@ -31,6 +31,7 @@
 | `inheritance_trace` | UA-MCP | class hierarchy traversal |
 | `symbolic_code_navigation` | Serena | exact symbol identity, declaration, implementation và LSP references |
 | `code_diagnostics` | Serena | LSP diagnostics cho file/symbol khi trigger yêu cầu |
+| `operational_maintenance` | Serena | bounded language-server recovery; không tạo semantic/diagnostic evidence |
 | `semantic_code_search` | Codebase Memory (CBM, conditional) | fuzzy semantic anchor discovery, graph-gap recovery và reviewer counter-evidence |
 | `dependency_analysis` | CBM (compatibility aggregate, conditional) | counter-evidence trong lúc consumer migrate; không phải structured trace authority |
 | `exact_source_inspection` | **current source** | file, symbol, signature, test, behavior, configuration hiện tại |
@@ -44,6 +45,8 @@
   inheritance trace khi graph áp dụng được. Serena là nguồn số 1 cho quan sát symbol/
   diagnostics theo LSP. CBM sở hữu fuzzy semantic anchor discovery nhưng chỉ được gọi
   có điều kiện cho graph-gap/counter-evidence, không thay structured trace.
+  `restart_language_server` thuộc operational maintenance, không thuộc diagnostics,
+  không normalize thành semantic evidence và không thỏa evidence coverage.
 
 ### [CRITICAL] R-Tool-2A: UA-MCP Primary Structured Trace
 

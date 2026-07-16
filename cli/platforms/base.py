@@ -70,7 +70,7 @@ OPTIONAL_TOOL_KEYS = frozenset({
     "serena_find_implementations",
     "serena_file_diagnostics",
     "serena_symbol_diagnostics",
-    "serena_restart_language_server",
+    "serena_maintenance_restart_language_server",
 })
 
 

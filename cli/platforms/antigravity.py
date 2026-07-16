@@ -52,7 +52,7 @@ class AntigravityPlatform(BasePlatform):
         "serena_find_implementations":     "mcp_serena_find_implementations",
         "serena_file_diagnostics":         "mcp_serena_get_diagnostics_for_file",
         "serena_symbol_diagnostics":       "mcp_serena_get_diagnostics_for_symbol",
-        "serena_restart_language_server":  "mcp_serena_restart_language_server",
+        "serena_maintenance_restart_language_server": "mcp_serena_restart_language_server",
 
         # ── Document Search (Confluence) ──
         "search_docs":       "mcp_confluence-servicehub_confluence_search",

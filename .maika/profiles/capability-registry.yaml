@@ -15,10 +15,16 @@ capabilities:
     preferred_evidence: [symbol_identity, declaration, implementation, semantic_reference]
   code_diagnostics:
     description: Read current language-server diagnostics without editing source.
-    tools: [serena_file_diagnostics, serena_symbol_diagnostics, serena_restart_language_server]
+    tools: [serena_file_diagnostics, serena_symbol_diagnostics]
     health: [serena]
     primary_provider: serena
     preferred_evidence: [language_diagnostic]
+  operational_maintenance:
+    description: Recover an unhealthy semantic language backend without producing evidence.
+    tools: [serena_maintenance_restart_language_server]
+    health: [serena]
+    primary_provider: serena
+    preferred_evidence: []
   exact_source_inspection:
     description: Đọc source/symbol hiện tại với thẩm quyền tối cao (authoritative).
     tools: [get_symbol, read_file]

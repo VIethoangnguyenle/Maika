@@ -6,6 +6,7 @@ capability can opt in; understand-anything is the first consumer.
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
 from pathlib import Path
 from typing import Optional
@@ -65,6 +66,11 @@ def _toml_key(key: str) -> str:
     return json.dumps(key, ensure_ascii=False)
 
 
+def shell_quote(value: str) -> str:
+    """Quote one displayed shell argument without changing structured argv snippets."""
+    return shlex.quote(str(value))
+
+
 def render_server_snippet(setup: dict, *, server_key: str, platform: str,
                           ua_mcp_dir: str, project_root: str) -> str:
     """Render one server recipe in the enabled host's native config format."""
@@ -110,7 +116,11 @@ def _render_prepare_hint(template: str, *, project_root: str, language: str) -> 
     command = template.split("  #", 1)[0]
     if language == "other":
         command = command.replace(" --language {language}", "")
-    return expand(command, project_root=project_root, language=language)
+    return (
+        command
+        .replace("{project_root}", shell_quote(project_root))
+        .replace("{language}", shell_quote(language))
+    )
 
 
 def render_mcp_setup_section(setup: dict, *, server_key: str,
@@ -164,7 +174,7 @@ def render_mcp_setup_section(setup: dict, *, server_key: str,
         f"{joined_installs}\n\n"
         f"### 2. {prepare_title}\n\n{prepare_body}\n\n"
         f"### 3. Wire MCP server\n\n{joined_snippets}\n\n"
-        f"### 4. Verify\n\nmaika doctor mcp --target {project_root}"
+        f"### 4. Verify\n\nmaika doctor mcp --target {shell_quote(project_root)}"
     )
 
 
@@ -191,7 +201,7 @@ def render_mcp_setup_md(setup: dict, *, server_key: str, platform: str,
         f"{step2}\n\n"
         f"## 3. Wire MCP server (paste into the {platform} MCP config)\n"
         f"```{fence}\n{snippet}\n```\n\n"
-        f"## 4. Verify\nmaika doctor mcp --target {project_root}\n"
+        f"## 4. Verify\nmaika doctor mcp --target {shell_quote(project_root)}\n"
     )
 
 

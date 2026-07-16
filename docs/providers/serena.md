@@ -207,14 +207,19 @@ maika doctor mcp --target /absolute/project/path
 ```
 
 The first command is an upstream inventory and can show tools outside Maika's
-context. The doctor starts the configured server, performs a real `tools/list`,
-checks the pinned schema hash, and writes a redacted report to
+context. The doctor checks every enabled host, verifies Serena `1.5.3`, validates
+the activated `.serena/project.yml` language backend, performs a real `tools/list`,
+checks the pinned schema hash, runs a bounded symbol smoke against Maika's MCP
+bridge source, and writes a redacted report to
 `.maika/knowledge/active/mcp-doctor-report.md`. Healthy Serena includes:
 
 ```text
 engine: ✓ installed
 wired: ✓ configured
-contract: READY (8 read-only tools)
+version: READY (Serena 1.5.3)
+project: READY (python backend)
+contract: READY (8 Phase 1 tools; sha256:<pinned-contract-hash>)
+symbol smoke: READY
 ```
 
 Restart the host after changing its workspace config. In the host's MCP tool
@@ -264,6 +269,9 @@ After dependency, branch, or generated-source changes, invoke
 `restart_language_server` once and repeat the smoke call. If it remains stale,
 restart the host/Serena process and verify current source directly; do not loop
 unbounded restarts.
+
+This call belongs to Maika's operational-maintenance lane. It is not diagnostics,
+does not normalize as semantic-symbol evidence, and cannot satisfy evidence coverage.
 
 ### unexpected/write tools
 

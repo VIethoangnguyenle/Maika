@@ -120,6 +120,19 @@ def test_serena_skill_bodies_scope_lsp_evidence_and_require_current_source():
         assert "current source" in body, name
 
 
+def test_serena_maintenance_is_not_a_skill_evidence_capability():
+    for name in (
+        "grounding-explorer", "executing-task", "reviewing-task", "reviewing-change"
+    ):
+        frontmatter, body = _skill(name)
+        caps = frontmatter["capabilities"]
+        declared = set(caps.get("required") or [])
+        declared.update((caps.get("conditional") or {}).keys())
+        assert "operational_maintenance" not in declared, name
+        assert "restart_language_server" in body, name
+        assert "not evidence" in body, name
+
+
 def test_ua_remains_trace_owner_in_provider_doctrine():
     text = PROVIDERS_RULE.read_text(encoding="utf-8")
     assert "UA-MCP" in text and "18 tools" in text

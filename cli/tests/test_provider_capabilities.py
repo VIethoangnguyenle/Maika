@@ -55,16 +55,29 @@ def test_serena_is_primary_only_for_symbols_and_diagnostics():
     serena = mapping["providers"]["serena"]["capabilities"]
     assert serena["symbolic_code_navigation"]["role"] == "primary"
     assert serena["code_diagnostics"]["role"] == "primary"
+    assert serena["operational_maintenance"] == {
+        "role": "primary",
+        "tools": ["restart_language_server"],
+    }
+    assert serena["code_diagnostics"]["tools"] == [
+        "get_diagnostics_for_file", "get_diagnostics_for_symbol",
+    ]
     assert capabilities["capabilities"]["architecture_discovery"]["primary_provider"] == "understand-anything"
     assert capabilities["capabilities"]["call_chain_trace"]["primary_provider"] == "understand-anything"
     assert set(providers["providers"]["serena"]["tool_contract"]["tools"]) == SERENA_READ_TOOLS
 
 
-def test_serena_contract_has_only_read_only_discovery_lane():
+def test_serena_contract_separates_read_only_discovery_and_maintenance_lanes():
     providers = load_provider_registry(FRAMEWORK)
     lanes = providers["providers"]["serena"]["tool_contract"]["lanes"]
-    assert set(lanes) == {"discovery"}
+    assert set(lanes) == {"discovery", "maintenance"}
     assert lanes["discovery"]["mutability"] == "read_only"
+    assert "restart_language_server" not in lanes["discovery"]["tools"]
+    assert lanes["maintenance"] == {
+        "tools": ["restart_language_server"],
+        "mutability": "operational",
+        "evidence_eligible": False,
+    }
 
 
 def test_serena_registry_rejects_tool_or_lane_drift():
@@ -84,7 +97,7 @@ def test_serena_registry_rejects_tool_or_lane_drift():
         "mutability": "write",
     }
     assert any(
-        "exactly one discovery lane" in error
+        "exactly discovery and maintenance lanes" in error
         for error in validate_canonical_provider_registry(extra_lane, capabilities)
     )
 
@@ -98,12 +111,33 @@ def test_serena_registry_rejects_tool_or_lane_drift():
     )
 
     mismatched_lane = deepcopy(providers)
-    mismatched_lane["providers"]["serena"]["tool_contract"]["lanes"]["discovery"][
-        "tools"
-    ].pop()
+    mismatched_lane["providers"]["serena"]["tool_contract"]["lanes"]["discovery"]["tools"].pop()
     assert any(
-        "discovery lane tools must equal contract tools" in error
+        "every Serena tool must belong to exactly one lane" in error
         for error in validate_canonical_provider_registry(mismatched_lane, capabilities)
+    )
+
+
+def test_serena_registry_rejects_duplicate_contract_and_lane_entries():
+    _mapping, capabilities = _docs()
+    providers = load_provider_registry(FRAMEWORK)
+
+    duplicate_contract = deepcopy(providers)
+    duplicate_contract["providers"]["serena"]["tool_contract"]["tools"].append(
+        "find_symbol"
+    )
+    assert any(
+        "duplicate Serena contract tools" in error
+        for error in validate_canonical_provider_registry(duplicate_contract, capabilities)
+    )
+
+    duplicate_lane = deepcopy(providers)
+    duplicate_lane["providers"]["serena"]["tool_contract"]["lanes"]["discovery"][
+        "tools"
+    ].append("find_symbol")
+    assert any(
+        "duplicate Serena lane tools" in error
+        for error in validate_canonical_provider_registry(duplicate_lane, capabilities)
     )
 
 

@@ -125,6 +125,8 @@ conditional call không có trigger = invalid (plan §8).
 Provider ưu tiên theo `jit/providers.md`; skill chỉ gọi capability, không gọi provider.
 Symbol references là **scoped LSP evidence**, không phải proof của mọi
 reflective/configured/event consumer; mọi material claim vẫn cần current source.
+`restart_language_server` is operational maintenance, not evidence, and may only be
+used by the bounded provider-health recovery path.
 
 ## Quy trình truy xuất
 1. Đọc `QUERY_PLAN.yaml`; mỗi câu hỏi → resolve capability từ required_evidence_types.

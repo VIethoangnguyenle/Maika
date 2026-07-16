@@ -1,4 +1,6 @@
 import json as _json
+import shlex
+import pytest
 import tomllib
 from pathlib import Path, PureWindowsPath
 from cli.mcp import ua_setup
@@ -167,6 +169,24 @@ def _serena_setup():
             "args": ["start-mcp-server", "--project", "{project_root}"],
         },
     }
+
+
+@pytest.mark.parametrize(
+    "project_root",
+    ["/srv/Project With Spaces", r"C:\\Work Trees\\Maika Project"],
+)
+def test_generated_prepare_and_doctor_commands_quote_project_paths(project_root):
+    text = ua_setup.render_mcp_setup_section(
+        _serena_setup(), server_key="serena", platform_keys=["codex"],
+        ua_mcp_dir="", project_root=project_root, language="python",
+    )
+    prepare = next(line for line in text.splitlines() if line.startswith("serena project create"))
+    doctor = next(line for line in text.splitlines() if line.startswith("maika doctor mcp"))
+
+    assert shlex.split(prepare) == [
+        "serena", "project", "create", project_root, "--language", "python",
+    ]
+    assert shlex.split(doctor) == ["maika", "doctor", "mcp", "--target", project_root]
 
 
 def test_render_mcp_setup_section_includes_every_enabled_host():

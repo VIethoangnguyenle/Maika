@@ -52,7 +52,7 @@ class GenericPlatform(BasePlatform):
         "serena_find_implementations":     "find_implementations",
         "serena_file_diagnostics":         "get_diagnostics_for_file",
         "serena_symbol_diagnostics":       "get_diagnostics_for_symbol",
-        "serena_restart_language_server":  "restart_language_server",
+        "serena_maintenance_restart_language_server": "restart_language_server",
 
         "search_docs":       "search_docs",
         "get_page":          "get_page",

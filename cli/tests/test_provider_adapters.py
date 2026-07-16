@@ -116,7 +116,25 @@ def test_serena_write_or_memory_tool_degrades_contract():
     assert result["forbidden"] == ["rename_symbol"]
 
 
+def test_serena_duplicate_tool_degrades_contract_even_when_names_match():
+    fixture = _fixture("serena", "tools-list-readonly-v1.json")
+    changed = json.loads(json.dumps(fixture))
+    changed["tools"].append(changed["tools"][0])
+
+    result = serena.validate_tools_list(changed)
+
+    assert result["status"] == "degraded"
+    assert result["duplicates"] == [changed["tools"][0]["name"]]
+
+
 def test_serena_observation_is_semantic_not_architecture_authority():
     result = serena.normalize_response("find_symbol", b'{"symbols": []}')
     assert result["authority"] == "semantic_symbol_resolution"
     assert result["canonical"] is False
+
+
+def test_serena_restart_observation_is_maintenance_not_semantic_evidence():
+    result = serena.normalize_response("restart_language_server", b'{"ok": true}')
+
+    assert result["authority"] == "operational_maintenance"
+    assert result["evidence_eligible"] is False

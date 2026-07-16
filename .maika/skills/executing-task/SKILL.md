@@ -60,6 +60,8 @@ Chỉ dùng capsule đã biên dịch; không recall thêm ngoài scope task.
 `code_diagnostics` chỉ gọi khi `language_diagnostics_required`, ghi trigger + reason.
 Symbol references là **scoped LSP evidence**, không phải proof của mọi
 reflective/configured/event consumer; mọi material claim vẫn cần current source.
+`restart_language_server` is operational maintenance, not evidence, and may only be
+used by the bounded provider-health recovery path.
 
 ## Quy trình truy xuất
 1. Đọc `TASK-NNN.md` + `TASK-NNN.knowledge.yaml`.
