@@ -126,8 +126,9 @@ _LANGUAGE_EXTENSIONS = {
     "bash": (".sh",),
 }
 _SMOKE_EXCLUDED_PARTS = {
-    ".git", ".maika", ".serena", ".venv", "venv", "node_modules",
-    "vendor", "build", "dist", "target", "__pycache__",
+    ".cache", ".git", ".maika", ".nox", ".pytest_cache", ".serena",
+    ".tox", ".venv", "build", "cache", "dist", "env", "node_modules",
+    "target", "vendor", "venv", "__pycache__",
 }
 
 
@@ -138,13 +139,15 @@ def _canonical_language(value: str) -> str:
 def _smoke_source(target: Path, language: str) -> str:
     extensions = set(_LANGUAGE_EXTENSIONS.get(language) or ())
     candidates = []
-    for path in target.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in extensions:
-            continue
-        relative = path.relative_to(target)
-        if any(part in _SMOKE_EXCLUDED_PARTS for part in relative.parts):
-            continue
-        candidates.append(relative.as_posix())
+    for root, directories, filenames in os.walk(target, topdown=True):
+        directories[:] = sorted(
+            name for name in directories if name not in _SMOKE_EXCLUDED_PARTS
+        )
+        for filename in sorted(filenames):
+            if Path(filename).suffix.lower() not in extensions:
+                continue
+            relative = (Path(root) / filename).relative_to(target)
+            candidates.append(relative.as_posix())
     return min(candidates) if candidates else ""
 
 

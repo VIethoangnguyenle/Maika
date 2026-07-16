@@ -6,7 +6,7 @@ import yaml
 
 from cli.commands.doctor import run_doctor_mcp
 from cli.commands.init import run_init
-from cli.mcp.doctor import build_doctor_status, render_report
+from cli.mcp.doctor import _smoke_source, build_doctor_status, render_report
 from cli.mcp.integration import serena
 
 MAIKA_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -242,6 +242,8 @@ def test_doctor_degrades_missing_or_unusable_serena_project_backend(tmp_path, mo
         ("java", "java", "src/Main.java", "class Main {}\n"),
         ("go", "go", "cmd/main.go", "package main\nfunc main() {}\n"),
         ("csharp", "csharp", "src/Main.cs", "class Main {}\n"),
+        ("javascript", "javascript", "web/main.js", "export const main = () => 0;\n"),
+        ("other", "javascript", "web/inferred.js", "export const inferred = true;\n"),
     ],
 )
 def test_doctor_smokes_deterministic_source_for_selected_language_backend(
@@ -280,6 +282,32 @@ def test_doctor_smokes_deterministic_source_for_selected_language_backend(
     assert calls == [relative_path]
     assert f"project: READY ({backend} backend; smoke file: {relative_path})" in status.setup_reports["serena"]
     assert "symbol smoke: READY" in status.setup_reports["serena"]
+
+
+def test_smoke_source_prunes_excluded_trees_before_inspecting_files(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "proj"
+    source = target / "src" / "app.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("def app():\n    return True\n", encoding="utf-8")
+    excluded = target / "node_modules" / "package" / "ignored.py"
+    excluded.parent.mkdir(parents=True)
+    excluded.write_text("raise RuntimeError('must not be scanned')\n", encoding="utf-8")
+    git_cache = target / ".git" / "cache" / "ignored.py"
+    git_cache.parent.mkdir(parents=True)
+    git_cache.write_text("raise RuntimeError('must not be scanned')\n", encoding="utf-8")
+    real_is_file = Path.is_file
+
+    def guarded_is_file(path):
+        relative_parts = path.relative_to(target).parts
+        if "node_modules" in relative_parts or ".git" in relative_parts:
+            raise AssertionError(f"excluded tree inspected: {path}")
+        return real_is_file(path)
+
+    monkeypatch.setattr(Path, "is_file", guarded_is_file)
+
+    assert _smoke_source(target, "python") == "src/app.py"
 
 
 def test_doctor_degrades_selected_language_backend_mismatch_without_smoke(

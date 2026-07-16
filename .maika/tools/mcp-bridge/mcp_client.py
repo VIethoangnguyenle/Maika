@@ -9,6 +9,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -223,6 +224,7 @@ def with_stdio_session(config: dict, callback):
     next_request_id = 2
 
     def send(method: str, params: dict, req_id: int):
+        deadline = time.monotonic() + REQUEST_TIMEOUT_SECONDS
         proc.stdin.write(request_payload(method, params, req_id))
         proc.stdin.flush()
         responses = queue.Queue(maxsize=1)
@@ -240,16 +242,24 @@ def with_stdio_session(config: dict, callback):
                 if "jsonrpc" not in line:
                     continue
                 try:
-                    responses.put(json.loads(line))
-                    return
+                    message = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                if not isinstance(message, dict):
+                    continue
+                if message.get("jsonrpc") != "2.0":
+                    continue
+                if message.get("id") != req_id:
+                    continue
+                responses.put(message)
+                return
 
         reader = threading.Thread(target=read_response, daemon=True)
         reader_threads.append(reader)
         reader.start()
         try:
-            return responses.get(timeout=REQUEST_TIMEOUT_SECONDS)
+            remaining = max(0.0, deadline - time.monotonic())
+            return responses.get(timeout=remaining)
         except queue.Empty as exc:
             raise TimeoutError(f"{method} failed: timed out") from exc
 

@@ -160,6 +160,117 @@ def test_stdio_session_keeps_smoke_restart_and_retry_on_one_process(monkeypatch)
     assert [entry.get("id") for entry in writes if "id" in entry] == [1, 2, 3, 4]
 
 
+def test_stdio_session_correlates_smoke_recovery_responses_by_request_id(monkeypatch):
+    from cli.mcp.runtime_probe import _tool_result_ready
+
+    bridge = load_bridge()
+    writes = []
+    processes = []
+    responses = iter([
+        '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}\n',
+        '{"jsonrpc":"2.0","id":2,"result":{"isError":true,"content":[]}}\n',
+        '{"jsonrpc":"2.0","method":"notifications/progress","params":{}}\n',
+        '{"jsonrpc":"2.0","id":99,"result":{"content":[{"type":"text","text":"stale success"}]}}\n',
+        '{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"restarted"}]}}\n',
+        '{"jsonrpc":"2.0","id":4,"result":{"isError":true,"content":[]}}\n',
+    ])
+
+    class FakeStdin:
+        def write(self, value):
+            writes.append(json.loads(value))
+
+        def flush(self):
+            return None
+
+    class FakeStdout:
+        def readline(self):
+            return next(responses, "")
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdin = FakeStdin()
+            self.stdout = FakeStdout()
+
+        def terminate(self):
+            return None
+
+        def wait(self, timeout=None):
+            return 0
+
+    def popen(*args, **kwargs):
+        process = FakeProcess()
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(bridge.subprocess, "Popen", popen)
+
+    def recovery(call):
+        first, first_error = call(
+            "tools-call", "get_symbols_overview", {"relative_path": "src/app.py"}
+        )
+        if _tool_result_ready(first, first_error):
+            return "ready"
+        call("tools-call", "restart_language_server", {})
+        retry, retry_error = call(
+            "tools-call", "get_symbols_overview", {"relative_path": "src/app.py"}
+        )
+        return "recovered" if _tool_result_ready(retry, retry_error) else "degraded"
+
+    result, error = bridge.with_stdio_session({"command": "python"}, recovery)
+
+    assert error == ""
+    assert result == "degraded"
+    assert len(processes) == 1
+    assert [entry.get("id") for entry in writes if "id" in entry] == [1, 2, 3, 4]
+
+
+def test_stdio_session_ignored_messages_do_not_reset_request_deadline(monkeypatch):
+    bridge = load_bridge()
+    stopped = threading.Event()
+
+    class FakeStdin:
+        def write(self, text):
+            return None
+
+        def flush(self):
+            return None
+
+        def close(self):
+            return None
+
+    class FakeStdout:
+        def readline(self):
+            if stopped.is_set():
+                return ""
+            return '{"jsonrpc":"2.0","method":"notifications/progress","params":{}}\n'
+
+        def close(self):
+            stopped.set()
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdin = FakeStdin()
+            self.stdout = FakeStdout()
+
+        def terminate(self):
+            stopped.set()
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr(bridge, "REQUEST_TIMEOUT_SECONDS", 0.02)
+    monkeypatch.setattr(bridge, "READER_JOIN_TIMEOUT_SECONDS", 0.02)
+    monkeypatch.setattr(bridge.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+
+    started = time.monotonic()
+    result, error = bridge.call_stdio({"command": "python"}, "tools-list", None, {})
+    elapsed = time.monotonic() - started
+
+    assert result is None
+    assert error == "initialize failed: timed out"
+    assert elapsed < 0.5
+
+
 def test_runtime_serena_smoke_recovery_uses_bridge_session_callback(tmp_path):
     from cli.mcp.runtime_probe import probe_serena_symbol_smoke
 
