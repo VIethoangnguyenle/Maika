@@ -16,6 +16,7 @@ from pathlib import Path
 
 PROTOCOL_VERSION = "2024-11-05"
 REQUEST_TIMEOUT_SECONDS = 15
+READER_JOIN_TIMEOUT_SECONDS = 1
 
 
 def parse_sse(response_text: str):
@@ -144,6 +145,45 @@ def resolve_http_endpoint(config: dict, headers: dict) -> str:
     raise ValueError("http server has no serverUrl")
 
 
+def _close_pipe(pipe) -> None:
+    if pipe is None or not hasattr(pipe, "close"):
+        return
+    try:
+        pipe.close()
+    except (OSError, ValueError):
+        pass
+
+
+def _shutdown_stdio_process(proc, reader_threads: list[threading.Thread]) -> None:
+    """Close bridge pipes, reap the child, and boundedly join response readers."""
+    _close_pipe(proc.stdin)
+    reaped = False
+    try:
+        proc.terminate()
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=1)
+        reaped = True
+    except subprocess.TimeoutExpired:
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+        try:
+            proc.wait(timeout=1)
+            reaped = True
+        except subprocess.TimeoutExpired:
+            pass
+
+    # With the child reaped, closing stdout cannot leave a live writer and
+    # releases a reader still blocked in readline().
+    if reaped:
+        _close_pipe(proc.stdout)
+    for reader in reader_threads:
+        reader.join(timeout=READER_JOIN_TIMEOUT_SECONDS)
+
+
 def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: dict):
     command = config.get("command")
     if not command:
@@ -159,6 +199,7 @@ def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: d
         text=True,
         env=env,
     )
+    reader_threads = []
 
     def send(method: str, params: dict, req_id: int):
         proc.stdin.write(request_payload(method, params, req_id))
@@ -167,7 +208,11 @@ def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: d
 
         def read_response():
             while True:
-                line = proc.stdout.readline()
+                try:
+                    line = proc.stdout.readline()
+                except (OSError, ValueError):
+                    responses.put(None)
+                    return
                 if not line:
                     responses.put(None)
                     return
@@ -179,7 +224,9 @@ def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: d
                 except json.JSONDecodeError:
                     continue
 
-        threading.Thread(target=read_response, daemon=True).start()
+        reader = threading.Thread(target=read_response, daemon=True)
+        reader_threads.append(reader)
+        reader.start()
         try:
             return responses.get(timeout=REQUEST_TIMEOUT_SECONDS)
         except queue.Empty as exc:
@@ -205,11 +252,7 @@ def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: d
     except TimeoutError as exc:
         return None, str(exc)
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _shutdown_stdio_process(proc, reader_threads)
 
 
 def call_http(config: dict, operation: str, tool_name: str | None, arguments: dict):

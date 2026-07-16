@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
+from cli.assets import asset_root
 from cli.mcp.doctor import apply_fix, build_doctor_status, write_report
 
 
@@ -15,7 +16,7 @@ def run_doctor_mcp(
 ) -> None:
     target = Path(target_dir).resolve()
     home_path = home or Path.home()
-    maika_root = Path(__file__).resolve().parent.parent.parent
+    maika_root = asset_root()
     try:
         status = build_doctor_status(target, home_path, maika_root=maika_root)
     except ValueError as exc:

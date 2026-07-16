@@ -102,6 +102,7 @@ def test_doctor_degrades_failed_serena_handshake_without_exposing_secrets(
                 "serena": {
                     "command": "serena",
                     "env": {"SERENA_TOKEN": "runtime-secret"},
+                    "headers": {"X-Custom": "header-runtime-secret"},
                 }
             }
         }),
@@ -119,7 +120,37 @@ def test_doctor_degrades_failed_serena_handshake_without_exposing_secrets(
     assert "contract: DEGRADED" in report
     assert "initialize failed" in report
     assert "runtime-secret" not in report
+    assert "header-runtime-secret" not in report
+    assert '"X-Custom": "<redacted>"' in report
     assert "contract: READY" not in report
+
+
+def test_run_doctor_uses_packaged_asset_root_for_serena_bridge(tmp_path, monkeypatch):
+    target, home = _init_serena(tmp_path)
+    packaged_root = tmp_path / "site-packages" / "cli" / "_assets"
+    packaged_manifest = packaged_root / "cli" / "plugin-manifest.yaml"
+    packaged_manifest.parent.mkdir(parents=True)
+    packaged_manifest.write_text(
+        (MAIKA_ROOT / "cli" / "plugin-manifest.yaml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    expected_bridge = (
+        packaged_root / ".maika" / "tools" / "mcp-bridge" / "mcp_client.py"
+    )
+    fixture = json.loads(
+        (FIXTURES / "serena" / "tools-list-readonly-v1.json").read_text()
+    )
+    calls = []
+    monkeypatch.setattr("cli.mcp.ua_setup.shutil.which", lambda command: "/bin/serena")
+    monkeypatch.setattr("cli.commands.doctor.asset_root", lambda: packaged_root)
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_tools_list",
+        lambda server, bridge_path: (calls.append(bridge_path) or fixture, ""),
+    )
+
+    run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
+
+    assert calls == [expected_bridge]
 
 
 def test_doctor_does_not_probe_serena_until_engine_check_passes(tmp_path, monkeypatch):

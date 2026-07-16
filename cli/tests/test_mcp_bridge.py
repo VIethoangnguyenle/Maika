@@ -1,6 +1,6 @@
 import importlib.util
 import json
-import time
+import threading
 from pathlib import Path
 
 
@@ -124,18 +124,38 @@ def test_call_stdio_returns_error_when_tools_list_response_missing(monkeypatch):
 def test_call_stdio_times_out_and_terminates_unresponsive_server(monkeypatch):
     bridge = load_bridge()
     terminated = []
+    reader_exited = threading.Event()
+    reader_threads = []
+    real_thread = bridge.threading.Thread
+
+    def tracking_thread(*args, **kwargs):
+        reader = real_thread(*args, **kwargs)
+        reader_threads.append(reader)
+        return reader
 
     class FakeStdin:
+        closed = False
+
         def write(self, text):
             return None
 
         def flush(self):
             return None
 
+        def close(self):
+            self.closed = True
+
     class FakeStdout:
+        def __init__(self):
+            self.closed = threading.Event()
+
         def readline(self):
-            time.sleep(1)
+            self.closed.wait(timeout=1)
+            reader_exited.set()
             return ""
+
+        def close(self):
+            self.closed.set()
 
     class FakeProcess:
         def __init__(self):
@@ -149,13 +169,65 @@ def test_call_stdio_times_out_and_terminates_unresponsive_server(monkeypatch):
             return 0
 
     monkeypatch.setattr(bridge, "REQUEST_TIMEOUT_SECONDS", 0.01, raising=False)
-    monkeypatch.setattr(bridge.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+    monkeypatch.setattr(bridge.threading, "Thread", tracking_thread)
+    process = FakeProcess()
+    monkeypatch.setattr(bridge.subprocess, "Popen", lambda *args, **kwargs: process)
 
     result, error = bridge.call_stdio({"command": "python"}, "tools-list", None, {})
 
     assert result is None
     assert error == "initialize failed: timed out"
     assert terminated == [True]
+    assert reader_exited.is_set()
+    assert len(reader_threads) == 1
+    assert reader_threads[0].is_alive() is False
+    assert process.stdin.closed is True
+    assert process.stdout.closed.is_set()
+
+
+def test_call_stdio_reaps_process_after_terminate_timeout_and_kill(monkeypatch):
+    bridge = load_bridge()
+    events = []
+
+    class FakePipe:
+        def write(self, text):
+            return None
+
+        def flush(self):
+            return None
+
+        def readline(self):
+            return ""
+
+        def close(self):
+            events.append("close")
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdin = FakePipe()
+            self.stdout = FakePipe()
+            self.wait_calls = 0
+
+        def terminate(self):
+            events.append("terminate")
+
+        def wait(self, timeout=None):
+            self.wait_calls += 1
+            events.append(f"wait-{self.wait_calls}")
+            if self.wait_calls == 1:
+                raise bridge.subprocess.TimeoutExpired("serena", timeout)
+            return 0
+
+        def kill(self):
+            events.append("kill")
+
+    process = FakeProcess()
+    monkeypatch.setattr(bridge.subprocess, "Popen", lambda *args, **kwargs: process)
+
+    bridge.call_stdio({"command": "python"}, "tools-list", None, {})
+
+    assert process.wait_calls == 2
+    assert events.index("terminate") < events.index("kill") < events.index("wait-2")
 
 
 def test_runtime_probe_reuses_loaded_bridge_for_tools_list(tmp_path):
