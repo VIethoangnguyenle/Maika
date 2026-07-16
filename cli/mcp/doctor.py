@@ -10,6 +10,8 @@ from pathlib import Path
 
 from cli.mcp.adapters import get_mcp_adapter
 from cli.mcp.config import load_mcp_config, redact_mapping, selected_server_matches
+from cli.mcp.integration import serena
+from cli.mcp.runtime_probe import probe_tools_list, sanitize_probe_error
 from cli.mcp import ua_setup
 from cli.scaffold import load_resolved_config, load_manifest
 
@@ -41,25 +43,74 @@ class DoctorStatus:
     governance_warnings: list[str] = field(default_factory=list)
 
 
+def _safe_probe_error(error: str) -> str:
+    """Keep provider-controlled text and config secrets out of doctor reports."""
+    return sanitize_probe_error(error)
+
+
+def _serena_contract_line(snapshot: dict | None, error: str) -> str:
+    if error:
+        return f"contract: DEGRADED — {_safe_probe_error(error)}"
+    result = serena.validate_tools_list(
+        snapshot,
+        expected_tool_surface_hash=serena.SERENA_READONLY_V1_TOOL_SURFACE_HASH,
+    )
+    if result["status"] == "ready":
+        return "contract: READY (8 read-only tools)"
+
+    problems = []
+    if result.get("forbidden"):
+        problems.append(f"forbidden: {', '.join(result['forbidden'])}")
+    if result.get("unexpected"):
+        problems.append(f"unexpected: {', '.join(result['unexpected'])}")
+    if result.get("missing"):
+        problems.append(f"missing: {', '.join(result['missing'])}")
+    if result.get("prior_probe_valid") is False:
+        problems.append("schema drift from pinned Serena 1.5.3 surface")
+    if result.get("reason"):
+        problems.append(result["reason"])
+    return f"contract: DEGRADED — {'; '.join(problems) or 'invalid tools/list result'}"
+
+
 def _setup_reports(target: Path, home: Path, maika_root, platform: str,
-                   selected: list, matched: list) -> dict:
+                   selected: list, matched: list,
+                   servers: dict | None = None) -> tuple[dict, bool]:
     if maika_root is None:
-        return {}
+        return {}, False
     manifest = load_manifest(Path(maika_root))
     caps = manifest.get("mcp_capabilities", {})
     reports = {}
+    probed = False
+    servers = servers or {}
     for key in selected:
         capability = caps.get(key, {})
         if not ua_setup.has_setup(capability):
             continue
         setup = capability["setup"]
+        engine_ready = ua_setup.resolve_engine_check(setup, platform, home)
         wired = "wired: ✓ configured" if key in matched else "wired: ✗ see MCP_SETUP.md"
-        reports[key] = (
+        lines = (
             [ua_setup.engine_status_line(setup, platform, home)]
             + ua_setup.graph_status_lines(setup, target)
             + [wired]
         )
-    return reports
+        if key == serena.PROVIDER_ID:
+            if not engine_ready:
+                lines.append("contract: DEGRADED — engine not installed")
+            elif key not in matched:
+                lines.append("contract: DEGRADED — native server not matched")
+            else:
+                probed = True
+                try:
+                    snapshot, error = probe_tools_list(
+                        servers[key],
+                        Path(maika_root) / ".maika" / "tools" / "mcp-bridge" / "mcp_client.py",
+                    )
+                except Exception:
+                    snapshot, error = None, "MCP runtime probe failed"
+                lines.append(_serena_contract_line(snapshot, error))
+        reports[key] = lines
+    return reports, probed
 
 
 def _probe_memory_daemon(url: str, timeout: float = 2.0) -> bool:
@@ -132,6 +183,9 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
             break
 
     if best_config is None:
+        setup_reports, _ = _setup_reports(
+            target, home, maika_root, platform, selected, [], {},
+        )
         return DoctorStatus(
             platform=platform,
             framework_root=framework_root,
@@ -142,7 +196,7 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
             missing=selected,
             bridge_state="not-probed",
             recommendation="create or link a valid MCP config with maika doctor mcp --fix",
-            setup_reports=_setup_reports(target, home, maika_root, platform, selected, []),
+            setup_reports=setup_reports,
             memory_daemon=memory_daemon,
             memory_daemon_url=memory_daemon_url,
             memory_governance=memory_governance,
@@ -157,7 +211,10 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
     else:
         native_state = "unavailable"
 
-    bridge_state = "not-probed"
+    setup_reports, probed = _setup_reports(
+        target, home, maika_root, platform, selected, matched, best_config.servers,
+    )
+    bridge_state = "probed" if probed else "not-probed"
     redacted_servers = {name: redact_mapping(best_config.servers[name]) for name in matched}
     return DoctorStatus(
         platform=platform,
@@ -170,7 +227,7 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
         bridge_state=bridge_state,
         recommendation="run native MCP in the IDE/CLI and inspect tool availability",
         redacted_servers=redacted_servers,
-        setup_reports=_setup_reports(target, home, maika_root, platform, selected, matched),
+        setup_reports=setup_reports,
         memory_daemon=memory_daemon,
         memory_daemon_url=memory_daemon_url,
         memory_governance=memory_governance,

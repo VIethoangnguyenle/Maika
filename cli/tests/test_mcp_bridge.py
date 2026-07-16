@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import time
 from pathlib import Path
 
 
@@ -118,6 +119,60 @@ def test_call_stdio_returns_error_when_tools_list_response_missing(monkeypatch):
 
     assert result is None
     assert error == "tools/list failed: no valid JSON-RPC response"
+
+
+def test_call_stdio_times_out_and_terminates_unresponsive_server(monkeypatch):
+    bridge = load_bridge()
+    terminated = []
+
+    class FakeStdin:
+        def write(self, text):
+            return None
+
+        def flush(self):
+            return None
+
+    class FakeStdout:
+        def readline(self):
+            time.sleep(1)
+            return ""
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdin = FakeStdin()
+            self.stdout = FakeStdout()
+
+        def terminate(self):
+            terminated.append(True)
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr(bridge, "REQUEST_TIMEOUT_SECONDS", 0.01, raising=False)
+    monkeypatch.setattr(bridge.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+
+    result, error = bridge.call_stdio({"command": "python"}, "tools-list", None, {})
+
+    assert result is None
+    assert error == "initialize failed: timed out"
+    assert terminated == [True]
+
+
+def test_runtime_probe_reuses_loaded_bridge_for_tools_list(tmp_path):
+    from cli.mcp.runtime_probe import probe_tools_list
+
+    bridge = tmp_path / "fake_bridge.py"
+    bridge.write_text(
+        "def call_stdio(server, operation, tool_name, arguments):\n"
+        "    assert operation == 'tools-list'\n"
+        "    return ({'result': {'tools': [{'name': 'find_symbol'}]}}, '')\n",
+        encoding="utf-8",
+    )
+
+    result, error = probe_tools_list({"command": "serena"}, bridge)
+
+    assert error == ""
+    assert result == {"tools": [{"name": "find_symbol"}]}
 
 
 def test_discover_sse_message_endpoint_reads_endpoint_event(monkeypatch):

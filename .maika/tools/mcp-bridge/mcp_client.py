@@ -4,8 +4,10 @@
 import argparse
 import json
 import os
+import queue
 import subprocess
 import sys
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -13,6 +15,7 @@ from pathlib import Path
 
 
 PROTOCOL_VERSION = "2024-11-05"
+REQUEST_TIMEOUT_SECONDS = 15
 
 
 def parse_sse(response_text: str):
@@ -160,16 +163,27 @@ def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: d
     def send(method: str, params: dict, req_id: int):
         proc.stdin.write(request_payload(method, params, req_id))
         proc.stdin.flush()
-        while True:
-            line = proc.stdout.readline()
-            if not line:
-                return None
-            if "jsonrpc" not in line:
-                continue
-            try:
-                return json.loads(line)
-            except json.JSONDecodeError:
-                continue
+        responses = queue.Queue(maxsize=1)
+
+        def read_response():
+            while True:
+                line = proc.stdout.readline()
+                if not line:
+                    responses.put(None)
+                    return
+                if "jsonrpc" not in line:
+                    continue
+                try:
+                    responses.put(json.loads(line))
+                    return
+                except json.JSONDecodeError:
+                    continue
+
+        threading.Thread(target=read_response, daemon=True).start()
+        try:
+            return responses.get(timeout=REQUEST_TIMEOUT_SECONDS)
+        except queue.Empty as exc:
+            raise TimeoutError(f"{method} failed: timed out") from exc
 
     def notify(method: str, params: dict):
         proc.stdin.write(notification_payload(method, params))
@@ -188,6 +202,8 @@ def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: d
         result = send("tools/call", {"name": tool_name, "arguments": arguments}, 2)
         error = validate_response("tools/call", result)
         return (result if not error else None), error
+    except TimeoutError as exc:
+        return None, str(exc)
     finally:
         proc.terminate()
         try:

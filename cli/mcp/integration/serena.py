@@ -7,6 +7,10 @@ import json
 from cli.mcp.integration.base import hash_payload
 
 PROVIDER_ID = "serena"
+# Schema-sensitive hash captured from the pinned Serena 1.5.3 read-only fixture.
+SERENA_READONLY_V1_TOOL_SURFACE_HASH = (
+    "sha256:ee60dc9b3bf1a0453f65aade120dea87e6e419e8829fc5ab6202b9ee85153b03"
+)
 SERENA_READ_TOOLS = frozenset({
     "get_symbols_overview", "find_symbol", "find_referencing_symbols",
     "find_implementations", "find_declaration", "get_diagnostics_for_file",

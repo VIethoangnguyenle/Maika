@@ -8,6 +8,7 @@ from cli.commands.init import run_init
 from cli.mcp.doctor import build_doctor_status, render_report
 
 MAIKA_ROOT = Path(__file__).resolve().parent.parent.parent
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "provider_contracts"
 
 
 def write_resolved(target, platform="antigravity", mcps=None):
@@ -24,6 +25,117 @@ def write_resolved(target, platform="antigravity", mcps=None):
         encoding="utf-8",
     )
     return path
+
+
+def _init_serena(tmp_path):
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    home.mkdir()
+    write_resolved(target, platform="antigravity", mcps=["serena"])
+    config = target / ".agents" / "mcp_config.json"
+    config.write_text(
+        json.dumps({"mcpServers": {"serena": {"command": "serena"}}}),
+        encoding="utf-8",
+    )
+    return target, home
+
+
+def test_doctor_marks_serena_ready_from_real_tools_list(tmp_path, monkeypatch):
+    target, home = _init_serena(tmp_path)
+    fixture = json.loads(
+        (FIXTURES / "serena" / "tools-list-readonly-v1.json").read_text()
+    )
+    monkeypatch.setattr("cli.mcp.ua_setup.shutil.which", lambda command: "/bin/serena")
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_tools_list", lambda server, bridge_path: (fixture, "")
+    )
+
+    status = build_doctor_status(target, home, maika_root=MAIKA_ROOT)
+
+    assert "contract: READY (8 read-only tools)" in status.setup_reports["serena"]
+    assert status.bridge_state == "probed"
+
+
+def test_doctor_degrades_serena_when_write_tool_is_exposed(tmp_path, monkeypatch):
+    target, home = _init_serena(tmp_path)
+    snapshot = {"tools": [{"name": "rename_symbol", "inputSchema": {"type": "object"}}]}
+    monkeypatch.setattr("cli.mcp.ua_setup.shutil.which", lambda command: "/bin/serena")
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_tools_list", lambda server, bridge_path: (snapshot, "")
+    )
+
+    status = build_doctor_status(target, home, maika_root=MAIKA_ROOT)
+
+    assert any(
+        "DEGRADED" in line and "rename_symbol" in line
+        for line in status.setup_reports["serena"]
+    )
+
+
+def test_doctor_degrades_serena_when_pinned_tool_schema_drifts(tmp_path, monkeypatch):
+    target, home = _init_serena(tmp_path)
+    snapshot = json.loads(
+        (FIXTURES / "serena" / "tools-list-readonly-v1.json").read_text()
+    )
+    snapshot["tools"][0]["description"] = "changed runtime schema"
+    monkeypatch.setattr("cli.mcp.ua_setup.shutil.which", lambda command: "/bin/serena")
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_tools_list", lambda server, bridge_path: (snapshot, "")
+    )
+
+    status = build_doctor_status(target, home, maika_root=MAIKA_ROOT)
+
+    assert any(
+        "DEGRADED" in line and "schema drift" in line
+        for line in status.setup_reports["serena"]
+    )
+
+
+def test_doctor_degrades_failed_serena_handshake_without_exposing_secrets(
+    tmp_path, monkeypatch
+):
+    target, home = _init_serena(tmp_path)
+    config = target / ".agents" / "mcp_config.json"
+    config.write_text(
+        json.dumps({
+            "mcpServers": {
+                "serena": {
+                    "command": "serena",
+                    "env": {"SERENA_TOKEN": "runtime-secret"},
+                }
+            }
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("cli.mcp.ua_setup.shutil.which", lambda command: "/bin/serena")
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_tools_list",
+        lambda server, bridge_path: (None, "initialize failed: runtime-secret"),
+    )
+
+    status = build_doctor_status(target, home, maika_root=MAIKA_ROOT)
+    report = render_report(status)
+
+    assert "contract: DEGRADED" in report
+    assert "initialize failed" in report
+    assert "runtime-secret" not in report
+    assert "contract: READY" not in report
+
+
+def test_doctor_does_not_probe_serena_until_engine_check_passes(tmp_path, monkeypatch):
+    target, home = _init_serena(tmp_path)
+    calls = []
+    monkeypatch.setattr("cli.mcp.ua_setup.shutil.which", lambda command: None)
+    monkeypatch.setattr(
+        "cli.mcp.doctor.probe_tools_list",
+        lambda server, bridge_path: calls.append((server, bridge_path)),
+    )
+
+    status = build_doctor_status(target, home, maika_root=MAIKA_ROOT)
+
+    assert calls == []
+    assert "contract: DEGRADED — engine not installed" in status.setup_reports["serena"]
+    assert status.bridge_state == "not-probed"
 
 
 def test_doctor_writes_report_for_missing_native_config(tmp_path):
