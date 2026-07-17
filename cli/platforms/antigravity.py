@@ -20,24 +20,12 @@ class AntigravityPlatform(BasePlatform):
         "multi_edit_file":   "multi_replace_file_content",
         "search_text":       "grep_search",
         "list_directory":    "list_dir",
+        "get_symbol":        "view_file",  # exact_source_inspection tool (current-source authority)
 
         # ── Terminal ──
         "run_command":       "run_command",
         "command_status":    "command_status",
         "send_input":        "send_command_input",
-
-        # ── Code Exploration (codebase-memory-mcp) ──
-        "search_code":       "mcp_codebase-memory-mcp_search_code",
-        "semantic_search":   "mcp_codebase-memory-mcp_search_graph",
-        "index_code":        "mcp_codebase-memory-mcp_index_repository",
-        "code_status":       "mcp_codebase-memory-mcp_index_status",
-        "get_dependencies":  "mcp_codebase-memory-mcp_query_graph",
-        "trace_flow":        "mcp_codebase-memory-mcp_trace_path",
-        "find_blast_radius": "mcp_codebase-memory-mcp_detect_changes",
-        "get_symbol":        "mcp_codebase-memory-mcp_get_code_snippet",
-        "list_symbols":      "mcp_codebase-memory-mcp_search_graph",
-        "graph_stats":       "mcp_codebase-memory-mcp_get_graph_schema",
-        "graph_build":       "mcp_codebase-memory-mcp_index_repository",
 
         # ── Domain / top-down (understand-anything MCP) ──
         "domain_overview":      "mcp_understand-anything_get_domain_overview",

@@ -21,24 +21,12 @@ class ClaudeCodePlatform(BasePlatform):
         "multi_edit_file":   "MultiEdit",
         "search_text":       "Grep",
         "list_directory":    "LS",
+        "get_symbol":        "Read",  # exact_source_inspection tool (current-source authority)
 
         # ── Terminal ──
         "run_command":       "Bash",
         "command_status":    "Bash",
         "send_input":        "Bash",
-
-        # ── Code Exploration (codebase-memory-mcp) ──
-        "search_code":       "mcp__codebase-memory-mcp__search_code",
-        "semantic_search":   "mcp__codebase-memory-mcp__search_graph",
-        "index_code":        "mcp__codebase-memory-mcp__index_repository",
-        "code_status":       "mcp__codebase-memory-mcp__index_status",
-        "get_dependencies":  "mcp__codebase-memory-mcp__query_graph",
-        "trace_flow":        "mcp__codebase-memory-mcp__trace_path",
-        "find_blast_radius": "mcp__codebase-memory-mcp__detect_changes",
-        "get_symbol":        "mcp__codebase-memory-mcp__get_code_snippet",
-        "list_symbols":      "mcp__codebase-memory-mcp__search_graph",
-        "graph_stats":       "mcp__codebase-memory-mcp__get_graph_schema",
-        "graph_build":       "mcp__codebase-memory-mcp__index_repository",
 
         # ── Domain / top-down (understand-anything MCP) ──
         "domain_overview":      "mcp__understand-anything__get_domain_overview",

@@ -33,19 +33,6 @@ ABSTRACT_TO_JINJA = {
     "code_exploration.find_blast_radius": "{{ tools.find_blast_radius }}",
 }
 
-HARDCODED_CODEBASE_MEMORY = {
-    # codebase-memory-mcp raw tool names → Jinja2 abstract ops
-    "semantic_query": "{{ tools.semantic_search }}",
-    "query_graph": "{{ tools.get_dependencies }}",
-    "detect_changes": "{{ tools.find_blast_radius }}",
-    "get_code_snippet": "{{ tools.get_symbol }}",
-    "trace_path": "{{ tools.trace_flow }}",
-    "search_graph": "{{ tools.list_symbols }}",
-    "get_graph_schema": "{{ tools.graph_stats }}",
-    "index_repository": "{{ tools.index_code }}",
-    "index_status": "{{ tools.code_status }}",
-}
-
 HARDCODED_UA = {
     # UA Knowledge Graph hardcoded refs → Jinja2
     "query_nodes": "{{ tools.search_code }}",
@@ -105,7 +92,6 @@ def scan_file(filepath: Path) -> List[Tuple[int, str, str, str]]:
 
     all_mappings = [
         (ABSTRACT_TO_JINJA, "SP3 abstract"),
-        (HARDCODED_CODEBASE_MEMORY, "codebase-memory-mcp hardcoded"),
         (HARDCODED_UA, "UA hardcoded"),
         (HARDCODED_CONFLUENCE, "Confluence hardcoded"),
     ]
@@ -135,7 +121,6 @@ def apply_replacements(filepath: Path) -> Tuple[str, int]:
 
     all_mappings = [
         ABSTRACT_TO_JINJA,
-        HARDCODED_CODEBASE_MEMORY,
         HARDCODED_UA,
         HARDCODED_CONFLUENCE,
     ]

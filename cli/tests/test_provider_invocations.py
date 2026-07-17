@@ -82,7 +82,7 @@ def _target(tmp_path: Path) -> Path:
                 "display_name": "UA", "kind": "structured_code_graph",
                 "tool_contract": {"tools": ["get_graph_metadata"]},
             },
-            "codebase-memory-mcp": {"display_name": "CBM", "kind": "semantic_code_index"},
+            "acme-index": {"display_name": "Acme Index", "kind": "semantic_code_index"},
             "serena": {
                 "display_name": "Serena", "kind": "semantic_language_server",
                 "tool_contract": {

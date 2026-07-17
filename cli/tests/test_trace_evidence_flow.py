@@ -1,9 +1,9 @@
 """End-to-end mechanical TRACE_EVIDENCE production via `maika provider` (M4).
 
-record (UA metadata) -> graph block + observation; record (CBM + trigger) ->
-support call; verify-source -> re-hashable verification. The produced file plus
-worker-authored traversals must pass the trace-evidence gate against the
-recorded invocations.
+record (UA metadata) -> graph block + observation; record (a semantic-index
+provider + trigger) -> hash-bound observation; verify-source -> re-hashable
+verification. The produced file plus worker-authored traversals must pass the
+trace-evidence gate against the recorded invocations.
 """
 
 import importlib.util
@@ -31,7 +31,7 @@ def _target(tmp_path: Path) -> Path:
                 "display_name": "UA", "kind": "structured_code_graph",
                 "tool_contract": {"tools": ["get_graph_metadata", "trace_call_chain"]},
             },
-            "codebase-memory-mcp": {"display_name": "CBM", "kind": "semantic_code_index"},
+            "acme-index": {"display_name": "Acme Index", "kind": "semantic_code_index"},
         },
     }
     config.joinpath("provider-registry.yaml").write_text(
@@ -73,12 +73,12 @@ def test_full_mechanical_trace_flow(tmp_path):
         "git": {"head_sha": "abc123"}, "working_tree_state": "clean",
         "index_timestamp": "2026-07-15T00:00:00Z",
     })
-    assert _record(target, tmp_path, provider="codebase-memory-mcp",
+    assert _record(target, tmp_path, provider="acme-index",
                    tool="index_status", response=boundary) == 0
-    assert _record(target, tmp_path, provider="codebase-memory-mcp",
+    assert _record(target, tmp_path, provider="acme-index",
                    tool="search_graph", response="3 anchors found",
                    trigger="graph_gap", reason="missing consumer edge") == 0
-    assert _record(target, tmp_path, provider="codebase-memory-mcp",
+    assert _record(target, tmp_path, provider="acme-index",
                    tool="index_status", response=boundary) == 0
     assert run_provider(
         "verify-source", target_dir=str(target), change_id="C-9",
@@ -91,7 +91,6 @@ def test_full_mechanical_trace_flow(tmp_path):
     assert doc["graph"]["graph_commit"] == "abc123"
     assert len(doc["provider_observations"]) == 5
     assert all(obs["contract_version"] == 1 for obs in doc["provider_observations"])
-    assert doc["support_calls"][0]["trigger"] == "graph_gap"
     assert doc["source_verifications"][0]["sha256"].startswith("sha256:")
 
     # Worker authors traversal bound to the recorded observation hash.
@@ -127,18 +126,6 @@ def test_full_mechanical_trace_flow(tmp_path):
         repo_root=str(target),
     )
     assert result.ok, result.reason
-
-
-def test_cbm_record_without_trigger_warns_and_writes_no_support_call(tmp_path, capsys):
-    target = _target(tmp_path)
-    assert _record(target, tmp_path, provider="codebase-memory-mcp",
-                   tool="search_graph", response="anchors") == 0
-    assert "without --trigger" in capsys.readouterr().out
-    evidence_path = (target / ".maika" / "changes" / "C-9"
-                     / "exploration" / "TRACE_EVIDENCE.yaml")
-    doc = yaml.safe_load(evidence_path.read_text(encoding="utf-8"))
-    assert doc["support_calls"] == []
-    assert doc["provider_observations"][0]["provider_id"] == "codebase-memory-mcp"
 
 
 def test_verify_source_rejects_wrong_symbol(tmp_path):

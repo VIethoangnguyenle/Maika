@@ -7,6 +7,7 @@ from pathlib import Path
 
 from cli.mcp.doctor import build_doctor_status
 from cli.platforms import get_platform
+from cli.platforms.base import PlatformToolMappingError
 
 
 def _load_bridge(target: Path, framework_root: str):
@@ -52,7 +53,11 @@ def build_learning_executors(target: Path, framework_root: str):
         listed, error = _call(bridge, config, "tools-list")
         if error:
             return {"ok": False, "verified": False, "status": "tools-list-failed", "error": error}
-        tool_name = _resolve_tool(_tools(listed), platform.get_tool(abstract_tool))
+        try:
+            concrete_mapping = platform.get_tool(abstract_tool)
+        except PlatformToolMappingError:
+            return {"ok": False, "verified": False, "status": "capability-tool-not-found"}
+        tool_name = _resolve_tool(_tools(listed), concrete_mapping)
         if not tool_name:
             return {"ok": False, "verified": False, "status": "capability-tool-not-found"}
         result, error = _call(bridge, config, "tools-call", tool_name, arguments)
@@ -68,7 +73,7 @@ def build_learning_executors(target: Path, framework_root: str):
             {"content": item.get("lesson") or item.get("statement"), "metadata": item},
         )
     graph_servers = [item for item in status.selected_mcps
-                     if item in {"codebase-memory-mcp", "understand-anything"}]
+                     if item == "understand-anything"]
     graph_refresher = None
     if graph_servers:
         def graph_refresher(request):

@@ -15,7 +15,6 @@ import yaml
 
 from cli.mcp.integration import (
     agent_memory,
-    codebase_memory,
     current_source,
     serena,
     understand_anything,
@@ -29,7 +28,6 @@ from cli.mcp.integration.evidence import build_evidence_envelope
 from cli.mcp.integration.trace_store import (
     add_observation,
     add_source_verification,
-    add_support_call,
 )
 from cli.scaffold import load_resolved_config
 
@@ -186,8 +184,6 @@ def run_provider(
     response_bytes = Path(response_file).read_bytes()
     if provider_id == understand_anything.PROVIDER_ID:
         normalized = understand_anything.normalize_response(tool, response_bytes)
-    elif provider_id == codebase_memory.PROVIDER_ID:
-        normalized = codebase_memory.normalize_response(tool, response_bytes)
     elif provider_id == agent_memory.PROVIDER_ID:
         normalized = agent_memory.normalize_response(tool, response_bytes)
     elif provider_id == serena.PROVIDER_ID:
@@ -207,20 +203,6 @@ def run_provider(
         normalized=normalized,
     )
     add_observation(workspace, change_id, observation)
-
-    if provider_id == codebase_memory.PROVIDER_ID and tool != "index_status":
-        if trigger:
-            try:
-                support = codebase_memory.build_support_call(
-                    tool=tool, trigger=trigger, reason=reason, raw=response_bytes,
-                )
-            except ValueError as exc:
-                print(f"support call rejected: {exc}")
-                return 1
-            add_support_call(workspace, change_id, support)
-        else:
-            print("warning: CBM call recorded without --trigger; the trace-evidence "
-                  "gate rejects conditional support without trigger + reason")
 
     print(f"recorded {provider_id}/{tool} -> {path}")
     print(f"request_hash={record['request_hash']}")
