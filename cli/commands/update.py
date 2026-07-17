@@ -71,6 +71,7 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
 
     platform = get_platform(platform_key)
 
+    pruned_stale_mcps = False
     if not reconfigure:
         known_mcps = manifest.get("mcp_capabilities", {})
         unknown_mcps = [mcp for mcp in selected_mcps if mcp not in known_mcps]
@@ -78,7 +79,7 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
             selected_mcps = [mcp for mcp in selected_mcps if mcp in known_mcps]
             for name in unknown_mcps:
                 print(f"  warning: unknown mcp selection dropped: {name}")
-            generate_resolved_config(target, platform, selected_mcps, language)
+            pruned_stale_mcps = True
 
     framework_root = resolved.get("framework_root", platform.framework_root)
     context = platform.build_render_context(selected_mcps, language)
@@ -130,7 +131,7 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
             # Merge framework-owned fields over the target's existing profile so a
             # re-render never resets detection/verification state (F3).
             stage_platform_runtime_profile(target, staging, enabled_platform)
-        if reconfigure:
+        if reconfigure or pruned_stale_mcps:
             generate_resolved_config(staging, platform, selected_mcps, language)
         if reconfigure:
             from cli.commands.init import resolve_ua_mcp_dir, emit_mcp_setup_files

@@ -77,9 +77,9 @@ def build_learning_executors(target: Path, framework_root: str):
     graph_refresher = None
     if graph_servers:
         def graph_refresher(request):
-            results = [executor(server, "index_code", {"root_path": str(target)})
-                       for server in graph_servers]
-            return {"verified": all(item.get("verified") for item in results),
-                    "status": "refreshed" if all(item.get("verified") for item in results) else "partial-or-failed",
-                    "results": results}
+            # UA graphs are produced by the external Understand-Anything
+            # producer; there is no MCP re-index tool to invoke.
+            return {"verified": False, "status": "refresh-external",
+                    "detail": "understand-anything graphs are re-indexed by the "
+                              "external UA producer; re-run it and re-probe freshness"}
     return memory_saver, graph_refresher

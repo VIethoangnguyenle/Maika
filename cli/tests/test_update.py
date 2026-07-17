@@ -194,3 +194,30 @@ def test_update_prunes_unknown_mcp_selection(tmp_path, maika_root, capsys):
     assert "codebase-memory-mcp" not in resolved["mcps"]
     assert "db-access" in resolved["mcps"]
     assert "unknown mcp" in capsys.readouterr().out.lower()
+
+
+def test_update_abort_leaves_stale_selection_untouched(tmp_path, maika_root, monkeypatch):
+    # If the update aborts after the stale-selection prune (e.g. unresolved
+    # template markers), the live resolved-config.yaml must stay untouched —
+    # the prune persists only through the staged transaction.
+    from cli.commands import update as update_module
+    from cli.platforms import get_platform
+    from cli.scaffold import generate_resolved_config, load_resolved_config
+
+    target = tmp_path / "proj"
+    run_init(
+        target_dir=str(target), maika_root=str(maika_root), platform_key="generic",
+        selected_mcps=["db-access"], language="python", assume_yes=True,
+    )
+    generate_resolved_config(
+        target, get_platform("generic"), ["db-access", "codebase-memory-mcp"], "python",
+    )
+    monkeypatch.setattr(
+        update_module, "verify_no_unresolved", lambda staging: [staging / "fake.md"],
+    )
+
+    result = run_update(target_dir=str(target), maika_root=str(maika_root))
+
+    assert result.status == "blocked"
+    resolved = load_resolved_config(target)
+    assert "codebase-memory-mcp" in resolved["mcps"]
