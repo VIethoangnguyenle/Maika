@@ -21,7 +21,7 @@ def write_resolved(target, platform="antigravity", mcps=None, language="python")
         yaml.dump({"resolved": {
             "platform": platform,
             "framework_root": root,
-            "mcps": mcps or ["codebase-memory-mcp"],
+            "mcps": mcps or ["db-access"],
             "language": language,
         }}),
         encoding="utf-8",
@@ -492,7 +492,7 @@ def test_doctor_writes_report_for_missing_native_config(tmp_path):
     report = target / ".maika" / "knowledge" / "active" / "mcp-doctor-report.md"
     text = report.read_text(encoding="utf-8")
     assert "Platform: antigravity" in text
-    assert "codebase-memory-mcp" in text
+    assert "db-access" in text
     assert "native: unavailable" in text
     assert "bridge: not-probed" in text
 
@@ -500,15 +500,15 @@ def test_doctor_writes_report_for_missing_native_config(tmp_path):
 def test_doctor_matches_selected_server_in_existing_config(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
-    write_resolved(target, mcps=["codebase-memory-mcp", "db-access"])
+    write_resolved(target, mcps=["confluence", "db-access"])
     cfg = target / ".agents" / "mcp_config.json"
-    cfg.write_text(json.dumps({"mcpServers": {"codebase-memory-mcp": {"command": "npx"}}}), encoding="utf-8")
+    cfg.write_text(json.dumps({"mcpServers": {"db-access": {"command": "npx"}}}), encoding="utf-8")
 
     run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
 
     text = (target / ".maika" / "knowledge" / "active" / "mcp-doctor-report.md").read_text(encoding="utf-8")
-    assert "matched: codebase-memory-mcp" in text
-    assert "missing: db-access" in text
+    assert "matched: db-access" in text
+    assert "missing: confluence" in text
     assert "native: partial" in text
     assert "bridge: not-probed" in text
 
@@ -516,9 +516,9 @@ def test_doctor_matches_selected_server_in_existing_config(tmp_path):
 def test_build_doctor_status_marks_partial_native_state_for_partial_match(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
-    write_resolved(target, mcps=["codebase-memory-mcp", "db-access"])
+    write_resolved(target, mcps=["confluence", "db-access"])
     cfg = target / ".agents" / "mcp_config.json"
-    cfg.write_text(json.dumps({"mcpServers": {"codebase-memory-mcp": {"command": "npx"}}}), encoding="utf-8")
+    cfg.write_text(json.dumps({"mcpServers": {"db-access": {"command": "npx"}}}), encoding="utf-8")
 
     status = build_doctor_status(target, home)
 
@@ -540,10 +540,10 @@ def test_build_doctor_status_marks_missing_config_as_unavailable_and_not_probed(
 def test_doctor_report_redacts_secrets_in_matched_server_config(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
-    write_resolved(target, mcps=["codebase-memory-mcp"])
+    write_resolved(target, mcps=["db-access"])
     cfg = target / ".agents" / "mcp_config.json"
     cfg.write_text(
-        json.dumps({"mcpServers": {"codebase-memory-mcp": {"command": "npx", "env": {"TOKEN": "supersecret"}}}}),
+        json.dumps({"mcpServers": {"db-access": {"command": "npx", "env": {"TOKEN": "supersecret"}}}}),
         encoding="utf-8",
     )
 
@@ -568,25 +568,25 @@ def test_doctor_reports_friendly_error_when_not_maika_project(tmp_path, capsys):
 def test_doctor_fix_copies_known_good_antigravity_ide_config(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
-    write_resolved(target, platform="antigravity", mcps=["codebase-memory-mcp"])
+    write_resolved(target, platform="antigravity", mcps=["db-access"])
     source = home / ".gemini" / "antigravity" / "mcp_config.json"
     source.parent.mkdir(parents=True)
-    source.write_text(json.dumps({"mcpServers": {"codebase-memory-mcp": {"command": "npx"}}}), encoding="utf-8")
+    source.write_text(json.dumps({"mcpServers": {"db-access": {"command": "npx"}}}), encoding="utf-8")
 
     run_doctor_mcp(str(target), fix=True, assume_yes=True, home=home)
 
     dest = home / ".gemini" / "antigravity-cli" / "mcp_config.json"
     assert dest.exists()
-    assert json.loads(dest.read_text(encoding="utf-8"))["mcpServers"]["codebase-memory-mcp"]["command"] == "npx"
+    assert json.loads(dest.read_text(encoding="utf-8"))["mcpServers"]["db-access"]["command"] == "npx"
 
 
 def test_doctor_fix_cleanly_replaces_existing_destination_without_backup(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
-    write_resolved(target, platform="antigravity", mcps=["codebase-memory-mcp"])
+    write_resolved(target, platform="antigravity", mcps=["db-access"])
     source = home / ".gemini" / "antigravity" / "mcp_config.json"
     source.parent.mkdir(parents=True)
-    source.write_text(json.dumps({"mcpServers": {"codebase-memory-mcp": {"command": "npx"}}}), encoding="utf-8")
+    source.write_text(json.dumps({"mcpServers": {"db-access": {"command": "npx"}}}), encoding="utf-8")
     dest = home / ".gemini" / "antigravity-cli" / "mcp_config.json"
     dest.parent.mkdir(parents=True)
     dest.write_text(json.dumps({"mcpServers": {"old": {"command": "old"}}}), encoding="utf-8")
@@ -711,7 +711,7 @@ def test_doctor_memory_daemon_respects_agentmemory_url_env(tmp_path, monkeypatch
 def test_doctor_omits_memory_daemon_line_when_not_selected(tmp_path):
     target = tmp_path / "proj"
     home = tmp_path / "home"
-    write_resolved(target)  # mcps mặc định: codebase-memory-mcp
+    write_resolved(target)  # mcps mặc định: db-access
 
     run_doctor_mcp(str(target), fix=False, assume_yes=False, home=home)
 

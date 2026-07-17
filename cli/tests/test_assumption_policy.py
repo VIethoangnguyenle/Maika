@@ -66,7 +66,7 @@ def test_operational_environment_requires_degradation_fields():
     assert not missing.ok
     assert "failed_probe" in missing.reason
     ok = GATES.validate_knowledge_trace(_trace([_record(
-        "operational_environment", failed_probe="cbm probe timeout",
+        "operational_environment", failed_probe="serena probe timeout",
         fallback="current-source grep", affected_claims=["dependency blast radius"],
     )]))
     assert ok.ok

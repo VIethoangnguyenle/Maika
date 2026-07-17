@@ -113,11 +113,11 @@ def test_json_hosts_receive_json_snippets_without_empty_env():
 
 def test_codex_server_snippet_omits_empty_env():
     text = ua_setup.render_server_snippet(
-        {"server": {"command": "codebase-memory-mcp", "args": []}},
-        server_key="codebase-memory-mcp", platform="codex",
+        {"server": {"command": "example-mcp", "args": []}},
+        server_key="example-mcp", platform="codex",
         ua_mcp_dir="", project_root="/proj",
     )
-    assert "[mcp_servers.codebase-memory-mcp]" in text
+    assert "[mcp_servers.example-mcp]" in text
     assert "env" not in text
 
 
@@ -259,10 +259,10 @@ def test_render_mcp_setup_md_index_step_when_no_graph_artifacts():
     setup = {
         "install_hint": {"default": "install uv"},
         "index_hint": "Ask the agent: 'Index this project'.",
-        "server": {"command": "uvx", "args": ["codebase-memory-mcp"]},
+        "server": {"command": "uvx", "args": ["example-mcp"]},
     }
     md = ua_setup.render_mcp_setup_md(
-        setup, server_key="codebase-memory-mcp", platform="claude-code",
+        setup, server_key="example-mcp", platform="claude-code",
         ua_mcp_dir="", project_root="/proj",
     )
     assert "## 2. Index the codebase" in md
