@@ -82,9 +82,12 @@ def test_tool_outside_tested_snapshot_fails():
     assert not result.ok and "tested tool snapshot" in result.reason
 
 
-def test_cbm_without_snapshot_accepts_any_tool_name():
-    """CBM tool names are deliberately unverified (no snapshot in registry)."""
-    result = _fail({"provider_id": "codebase-memory-mcp", "tool": "search_graph"})
+def test_provider_without_snapshot_accepts_any_tool_name():
+    """A registered provider with no declared tool_contract snapshot is
+    deliberately unverified — any tool name is accepted."""
+    fake_registry = {"providers": {"acme-index": {"display_name": "Acme Index"}}}
+    record = {**GOOD, "provider_id": "acme-index", "tool": "search_graph"}
+    result = gates.validate_provider_invocations(_text(record), provider_registry=fake_registry)
     assert result.ok, result.reason
 
 

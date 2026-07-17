@@ -116,7 +116,7 @@ def test_legacy_provider_prose_gates_removed(tmp_path):
         assert legacy not in cli.VALIDATORS, legacy
     source = (Path(__file__).resolve().parents[1] / "gates.py").read_text(encoding="utf-8")
     for marker in ("KG unavailable", "blast-radius", "_parse_node_table",
-                   "validate_code_evidence", "trace via cbm"):
+                   "validate_code_evidence", "trace via provider"):
         assert marker not in source, marker
 
 
