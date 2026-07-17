@@ -4,9 +4,15 @@
 
 **Goal:** Integrate `serena-agent==1.5.3` into Maika as an optional, read-only semantic symbol and diagnostics provider for Codex, Claude Code, and Antigravity, with pinned contracts, real MCP health evidence, and complete installation documentation.
 
-**Architecture:** Maika remains the workflow, authority, write-gate, verification, and knowledge control plane. Serena runs behind one Maika-owned custom context whose `fixed_tools` exposes only eight verified read/maintenance tools; UA-MCP remains primary for architecture/domain/structured traversal, Codebase Memory remains conditional fuzzy anchor discovery, and current source plus tests remain authoritative. Phase 2 symbolic writes are a separate release and cannot start until native write-hook events are captured on all three supported hosts.
+**Architecture:** Maika remains the workflow, authority, write-gate, verification, and knowledge control plane. Serena runs behind one Maika-owned custom context whose `fixed_tools` exposes only eight verified read/maintenance tools; UA-MCP remains primary for architecture/domain/structured traversal and fuzzy anchor discovery via `query_nodes` (host search corroborating), and current source plus tests remain authoritative, including for conditional graph-gap/counter-evidence work. Phase 2 symbolic writes are a separate release and cannot start until native write-hook events are captured on all three supported hosts.
 
 **Tech Stack:** Python 3.11+, pytest, YAML, JSON/TOML MCP configuration, MCP JSON-RPC, Serena `1.5.3`, Jinja2 scaffold templates.
+
+> **Amended 2026-07-17:** Codebase Memory MCP has been removed from the provider
+> ecosystem (see `2026-07-17-cbm-removal-design.md`). CBM rows in the
+> responsibility matrix and routing doctrine below are superseded: fuzzy semantic
+> anchor discovery routes to UA `query_nodes` (host search corroborating), and
+> conditional graph-gap/counter-evidence work routes to current source.
 
 ## Global Constraints
 
@@ -15,7 +21,7 @@
 - Phase 1 exposed tools are exactly: `get_symbols_overview`, `find_symbol`, `find_referencing_symbols`, `find_implementations`, `find_declaration`, `get_diagnostics_for_file`, `get_diagnostics_for_symbol`, `restart_language_server`.
 - Do not expose Serena editing, memory, onboarding, basic file/search/shell, project-switching, workflow-prompt, or dashboard tools.
 - UA-MCP owns architecture, domain, structured relationships, call trace, impact, path, hierarchy, entry-point, and graph-backed consumer analysis; its full 18-tool contract remains intact.
-- Codebase Memory is primary only for fuzzy semantic anchor discovery and is conditional for graph gaps, staleness, or counter-evidence.
+- UA-MCP `query_nodes` is primary for fuzzy semantic anchor discovery (host search corroborating); current source is authoritative for graph gaps, staleness, or counter-evidence.
 - Serena is primary only for exact symbol identity/navigation/reference/implementation and LSP diagnostics.
 - AgentMemory observations are historical candidates; only verified candidates may be promoted to Maika durable knowledge.
 - Current source and observed test/runtime output override every provider.
@@ -571,7 +577,7 @@ The rule must state:
 1. UA-MCP's 18 tools own graph/project freshness, architecture/domain discovery, relationships, trace, impact, path, hierarchy, entry points, and node source access.
 2. `get_node_source` reads source for a UA node; it does not reduce UA to a source-only provider.
 3. Serena owns exact symbol identity, declaration, implementation, LSP reference, and diagnostics observations.
-4. Codebase Memory owns fuzzy semantic anchor discovery and is conditional counter-evidence only.
+4. UA-MCP `query_nodes` owns fuzzy semantic anchor discovery (host search corroborating); current source is authoritative for conditional counter-evidence.
 5. AgentMemory is historical candidate context; current source/tests are authoritative.
 6. No static provider guarantees hidden consumers outside the semantics it models.
 

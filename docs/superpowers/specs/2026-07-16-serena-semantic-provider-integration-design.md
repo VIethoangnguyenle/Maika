@@ -4,6 +4,12 @@
 **Status:** Approved
 **Scope:** Maika framework integration for Codex, Claude Code, and Antigravity
 
+> **Amended 2026-07-17:** Codebase Memory MCP has been removed from the provider
+> ecosystem (see `2026-07-17-cbm-removal-design.md`). CBM rows in the
+> responsibility matrix and routing doctrine below are superseded: fuzzy semantic
+> anchor discovery routes to UA `query_nodes` (host search corroborating), and
+> conditional graph-gap/counter-evidence work routes to current source.
+
 ## 1. Decision summary
 
 Maika will integrate Serena as an optional semantic code-intelligence provider. Serena will supply symbol-aware navigation, diagnostics, and, in a later gated phase, semantic editing and refactoring. Maika remains the control plane for capability routing, workflow state, write authorization, evidence, verification, review, and durable knowledge governance.
@@ -95,9 +101,9 @@ Serena does not replace any of these graph/domain responsibilities. It adds prec
 | Exact symbol identity and body | Serena | current-source host tools | Verify against the current file |
 | References, declarations, implementations | Serena | UA structured edges | Serena is preferred when the language backend supports the operation |
 | Diagnostics | Serena | runtime build/lint/test | Serena diagnostics do not replace verification commands |
-| Fuzzy semantic anchor discovery | CBM | UA node query | CBM is primary for vocabulary-mismatch discovery |
-| UA graph gap, stale graph, reviewer counter-evidence | CBM | current source | Conditional use only; record the activation reason |
-| Hidden consumer risk | UA first, then conditional counter-evidence | CBM semantic search and current source | No provider may claim completeness for missing dynamic/config/reflection edges |
+| Fuzzy semantic anchor discovery | UA-MCP `query_nodes` | host search | UA `query_nodes` is primary for vocabulary-mismatch discovery; host search corroborates |
+| UA graph gap, stale graph, reviewer counter-evidence | current source | — | Conditional use only; record the activation reason |
+| Hidden consumer risk | UA first, then conditional counter-evidence | current source | No provider may claim completeness for missing dynamic/config/reflection edges |
 | Historical/session recall | AgentMemory | durable Maika knowledge | Candidate-only; never current-code authority |
 | Canonical project knowledge | Maika knowledge kernel | verified memories/evidence | Promotion requires verification |
 | Exact current behavior | current source plus tests | all providers for navigation | Current source and observed runtime evidence win conflicts |
@@ -192,7 +198,7 @@ Serena will start with `no-memories`, a Maika-managed context, a fixed project r
 1. Classify the question by capability rather than provider name.
 2. For architecture/domain/trace/impact, probe UA freshness and use UA structured traversal.
 3. For a known UA node, UA may read its source directly. If exact symbol identity, overload resolution, references, implementations, or diagnostics matter, route to Serena.
-4. Use CBM semantic search only for fuzzy anchor discovery or a recorded conditional trigger.
+4. Use UA `query_nodes` semantic search for fuzzy anchor discovery, with host search corroborating; route graph-gap or reviewer counter-evidence triggers to current source.
 5. Verify material exact claims against current source.
 6. Record provider identity, request/response hashes, source revision, tool surface, freshness, and degradation in the existing evidence envelope.
 
@@ -379,9 +385,8 @@ Phase 2 is complete only when all three platforms additionally prove write-call 
 After this integration is implemented and qualified, a separate design/spec will configure the Maika repository itself to use the complete provider stack:
 
 ```text
-Understand-Anything -> architecture/domain/structured trace and impact
+Understand-Anything -> architecture/domain/structured trace and impact, fuzzy semantic discovery (query_nodes)
 Serena              -> exact symbols/references/diagnostics/refactoring
-Codebase Memory     -> fuzzy semantic discovery and conditional graph gaps
 AgentMemory         -> episodic/session recall as candidate-only memory
 Maika knowledge     -> verified, version-controlled durable knowledge
 ```
