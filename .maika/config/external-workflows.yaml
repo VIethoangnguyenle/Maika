@@ -53,17 +53,3 @@ workflows:
     promotion:
       automatic: false
 
-  codebase-memory-index:
-    owner: codebase-memory-mcp
-    invocation_type: provider_operation
-    kind: knowledge_maintenance
-    task_workspace: forbidden
-    mutability: provider_index_only
-    produces: [provider-managed-index]
-
-  codebase-memory-query:
-    owner: codebase-memory-mcp
-    invocation_type: provider_query
-    kind: knowledge_query
-    task_workspace: not_required
-    mutability: read_only

@@ -2,9 +2,9 @@ version: 1
 capabilities:
   architecture_discovery:
     description: Khám phá module, boundary và flow kiến trúc.
-    tools: [search_code, graph_stats, index_code]
+    tools: [get_tour, get_layer_info, find_entry_points, query_nodes]
     primary_provider: understand-anything
-    supporting_providers: [codebase-memory-mcp]
+    supporting_providers: [current-source]
     freshness: [code_index]
     preferred_evidence: [architecture_node, domain_node, domain_flow, relationship_edge, document_node]
   symbolic_code_navigation:
@@ -34,12 +34,11 @@ capabilities:
     preferred_evidence: [file_symbol, source_range, test_symbol, configuration_entry, exact_code_fact]
   dependency_analysis:
     description: Truy vết dependency path và phạm vi ảnh hưởng (blast radius).
-    tools: [trace_flow, get_dependencies]
-    freshness: [code_index]
+    tools: [find_impact, find_path]
+    freshness: [code_graph]
     preferred_evidence: [symbol_node, dependency_path, call_path, blast_radius, code_graph_edge]
-    primary_provider: codebase-memory-mcp
-    supporting_providers: [understand-anything, current-source]
-    compatibility_aggregate: true
+    primary_provider: understand-anything
+    supporting_providers: [current-source]
   domain_flow_trace:
     description: Truy vết domain flow có cấu trúc từ graph.
     tools: [get_domain_overview, get_domain_detail, get_domain_flow_detail]
@@ -52,14 +51,14 @@ capabilities:
     tools: [query_nodes, trace_call_chain, get_relationships, get_node_source]
     freshness: [code_graph]
     primary_provider: understand-anything
-    supporting_providers: [codebase-memory-mcp, current-source]
+    supporting_providers: [current-source]
     preferred_evidence: [symbol_node, call_path, relationship_edge, exact_code_fact]
   impact_analysis:
     description: Tìm blast radius và consumer của node thay đổi.
     tools: [find_impact, get_relationships, get_node_source]
     freshness: [code_graph]
     primary_provider: understand-anything
-    supporting_providers: [codebase-memory-mcp, current-source]
+    supporting_providers: [current-source]
     preferred_evidence: [blast_radius, relationship_edge, exact_code_fact]
   graph_path_trace:
     description: Tìm path có cấu trúc giữa hai graph node.
@@ -74,13 +73,6 @@ capabilities:
     primary_provider: understand-anything
     supporting_providers: [current-source]
     preferred_evidence: [symbol_node, relationship_edge, exact_code_fact]
-  semantic_code_search:
-    description: Tìm semantic anchor khi tên hoặc graph anchor chưa rõ.
-    tools: [semantic_search]
-    freshness: [code_index]
-    primary_provider: codebase-memory-mcp
-    supporting_providers: [understand-anything]
-    preferred_evidence: [file_symbol, symbol_node, code_graph_edge]
   historical_context_retrieval:
     description: Truy hồi incident cũ, quyết định trước, rejected approach và review pattern lặp lại.
     tools: [dynamic_memory_recall, dynamic_memory_search]
@@ -128,22 +120,16 @@ capabilities:
 triggers:
   unresolved_anchor:
     description: Anchor/symbol không resolve được từ tên hoặc graph node hiện có.
-  ambiguous_semantic_query:
-    description: Câu hỏi ngôn ngữ tự nhiên mơ hồ, chưa map được vào anchor cụ thể.
   graph_gap:
     description: Structured traversal thiếu relationship/node kỳ vọng.
   relevant_graph_stale:
     description: File liên quan trực tiếp đã đổi sau graph commit (freshness scoped).
   hidden_consumer_risk:
     description: Nghi ngờ consumer ẩn (reflection, config, event wiring) ngoài structured trace.
-  dynamic_wiring_risk:
-    description: Wiring động (DI/reflection/event) khiến static trace không đủ.
   reviewer_counter_evidence:
     description: Reviewer cần bằng chứng đối chứng độc lập cho một claim material.
   ua_unavailable:
     description: UA provider unavailable/invalid/degraded theo probe thật.
-  database_code_consumer_gap:
-    description: Cần map code consumer cho DB object ngoài phạm vi constraint metadata.
   persistence_change:
     description: Change chạm persistence (entity/repository/SQL/migration/transaction/locking).
   database_dependency_risk:

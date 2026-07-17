@@ -27,8 +27,8 @@ Input thiếu `role`, `state`, `knowledge questions` hoặc `required evidence` 
    chỉ load durable knowledge slice có status `active`.
 4. Recall Agent Memory theo decision/incident/rejected approach/repeated finding;
    zero-result được ghi như negative evidence.
-5. Load UA architecture/domain/flow và CBM dependency/blast-radius evidence theo
-   required evidence; provider healthy thì phải dùng capability tương ứng.
+5. Load UA architecture/domain/flow/dependency/blast-radius evidence theo required
+   evidence; provider healthy thì phải dùng capability tương ứng.
 6. Verify exact facts bằng source anchors hiện tại.
 7. Load database slice khi change class hoặc question persistence-sensitive.
 
@@ -40,7 +40,7 @@ store. Chỉ mở body sau khi index metadata match route hiện tại.
 | role | active artifacts | knowledge slice |
 |---|---|---|
 | intent | `CHANGE.yaml`, `INTENT.md` | history, business, convention |
-| grounding | `INTENT.md`, query plan | UA/CBM/source/memory/DB evidence |
+| grounding | `INTENT.md`, query plan | UA/source/memory/DB evidence |
 | reconciliation | grounding + evidence manifest | conflicts, authority, freshness |
 | brainstorming/spec | reconciliation + evidence | accepted options and contracts |
 | planning/plan review | spec + evidence manifest | targeted blast radius, task capsule |

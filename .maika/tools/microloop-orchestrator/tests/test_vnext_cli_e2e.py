@@ -158,7 +158,7 @@ def _write_valid_reasoning(ws, repo_root):
         "required_capabilities": ["exact_source_inspection"],
         "one_of": {"structured_trace": [
             "architecture_discovery", "domain_flow_trace", "call_chain_trace"]},
-        "conditional": {"semantic_code_search": {"triggers": ["ua_unavailable"]}},
+        "conditional": {"historical_context_retrieval": {"triggers": ["ua_unavailable"]}},
         "freshness_requirement": "graph_commit_current_or_scoped_stale",
         "source_verification_requirement": "material_exact_facts_source_verified",
     }, sort_keys=False), encoding="utf-8")

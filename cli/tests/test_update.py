@@ -7,14 +7,13 @@ from cli.commands.update import run_update
 def _interactive(
     monkeypatch,
     platform_key,
-    mcps=("codebase-memory-mcp", "confluence", "db-access"),
+    mcps=("db-access", "confluence"),
     language="python",
     inputs=("y",),
 ):
     """Drive the interactive init/update prompts: the questionary wrappers return
     canned selections, and the remaining input() calls (UA dir, scaffold confirm)
-    come from `inputs` (reconfigure has no confirm, so pass inputs=()). Default
-    mcps include codebase-memory-mcp so the grounding-explorer skill is scaffolded."""
+    come from `inputs` (reconfigure has no confirm, so pass inputs=())."""
     from cli.platforms import get_platform
 
     singles = iter([get_platform(platform_key).display_name, language])
@@ -147,7 +146,7 @@ def test_reconfigure_retains_all_setup_providers_for_every_enabled_host(
 ):
     from cli.commands.platform import run_platform
 
-    selected = ["understand-anything", "codebase-memory-mcp", "serena"]
+    selected = ["understand-anything", "serena"]
     run_init(
         target_dir=str(tmp_path), maika_root=str(maika_root),
         platform_key="codex", selected_mcps=selected, language="python",
@@ -169,3 +168,56 @@ def test_reconfigure_retains_all_setup_providers_for_every_enabled_host(
         assert text.count(f"## Provider: {provider}") == 1
     for platform in ("Codex", "Claude Code", "Antigravity"):
         assert platform in text
+
+
+def test_update_prunes_unknown_mcp_selection(tmp_path, maika_root, capsys):
+    # A project scaffolded before CBM removal still lists it in resolved-config.
+    # update must drop unknown selections with a warning instead of crashing
+    # or re-rendering setup docs for a provider the manifest no longer knows.
+    from cli.platforms import get_platform
+    from cli.scaffold import generate_resolved_config, load_resolved_config
+
+    target = tmp_path / "proj"
+    run_init(
+        target_dir=str(target), maika_root=str(maika_root), platform_key="generic",
+        selected_mcps=["db-access"], language="python", assume_yes=True,
+    )
+    # Simulate the stale pre-removal state directly in resolved-config.yaml,
+    # bypassing init's selection validation.
+    generate_resolved_config(
+        target, get_platform("generic"), ["db-access", "codebase-memory-mcp"], "python",
+    )
+
+    run_update(target_dir=str(target), maika_root=str(maika_root))
+
+    resolved = load_resolved_config(target)
+    assert "codebase-memory-mcp" not in resolved["mcps"]
+    assert "db-access" in resolved["mcps"]
+    assert "unknown mcp" in capsys.readouterr().out.lower()
+
+
+def test_update_abort_leaves_stale_selection_untouched(tmp_path, maika_root, monkeypatch):
+    # If the update aborts after the stale-selection prune (e.g. unresolved
+    # template markers), the live resolved-config.yaml must stay untouched —
+    # the prune persists only through the staged transaction.
+    from cli.commands import update as update_module
+    from cli.platforms import get_platform
+    from cli.scaffold import generate_resolved_config, load_resolved_config
+
+    target = tmp_path / "proj"
+    run_init(
+        target_dir=str(target), maika_root=str(maika_root), platform_key="generic",
+        selected_mcps=["db-access"], language="python", assume_yes=True,
+    )
+    generate_resolved_config(
+        target, get_platform("generic"), ["db-access", "codebase-memory-mcp"], "python",
+    )
+    monkeypatch.setattr(
+        update_module, "verify_no_unresolved", lambda staging: [staging / "fake.md"],
+    )
+
+    result = run_update(target_dir=str(target), maika_root=str(maika_root))
+
+    assert result.status == "blocked"
+    resolved = load_resolved_config(target)
+    assert "codebase-memory-mcp" in resolved["mcps"]

@@ -1173,7 +1173,6 @@ def validate_trace_evidence(text, request_text=None, invocations_text=None,
                                      "with invocation record")
             expected_authorities = {
                 "understand-anything": {"structured_graph_trace", "domain_semantics"},
-                "codebase-memory-mcp": {"semantic_index_structure"},
             }
             allowed_authorities = expected_authorities.get(obs["provider_id"])
             if allowed_authorities and obs.get("authority") not in allowed_authorities:
@@ -1325,25 +1324,6 @@ def validate_trace_evidence(text, request_text=None, invocations_text=None,
     }
     if doc.get("complete") is True and len(revisions) > 1 and not doc.get("refresh_boundaries"):
         return Result(False, "complete evidence spans source revisions without an explicit refresh boundary")
-
-    cbm_observations = [obs for obs in observations
-                        if obs.get("provider_id") == "codebase-memory-mcp"]
-    cbm_material = [obs for obs in cbm_observations if obs.get("tool") != "index_status"]
-    if doc.get("complete") is True and cbm_material:
-        boundaries = [obs for obs in cbm_observations if obs.get("tool") == "index_status"]
-        if len(boundaries) < 2:
-            return Result(False, "complete CBM evidence requires index_status before and after the session")
-        before, after = boundaries[0], boundaries[-1]
-        keys = ("head", "working_tree_state", "nodes", "edges", "index_timestamp")
-        for key in keys:
-            left = (before.get("provider_snapshot") or {}).get(key, "unverified")
-            right = (after.get("provider_snapshot") or {}).get(key, "unverified")
-            if left == "unverified" or right == "unverified":
-                return Result(False, f"complete CBM evidence requires verified {key} boundary")
-            if left != right:
-                return Result(False, f"CBM evidence boundary changed: {key}")
-        if before.get("tool_contract_hash") != after.get("tool_contract_hash"):
-            return Result(False, "CBM evidence boundary changed: tool_contract_hash")
 
     if request:
         missing = required - covered - excused_caps

@@ -48,7 +48,7 @@ def test_native_root_platforms_do_not_need_skill_mirror():
 
 
 def test_render_context_includes_framework_root():
-    ctx = get_platform("antigravity").build_render_context(["codebase-memory-mcp"], "python")
+    ctx = get_platform("antigravity").build_render_context(["understand-anything"], "python")
     assert ctx["platform"]["framework_root"] == ".maika"
 
 
@@ -226,30 +226,6 @@ def test_all_platforms_map_dynamic_memory_ops():
 
 def test_dynamic_memory_ops_are_required_keys():
     assert DYNAMIC_MEMORY_OPS <= REQUIRED_TOOL_KEYS
-
-
-def test_semantic_search_is_required_key():
-    from cli.platforms.base import REQUIRED_TOOL_KEYS
-    assert "semantic_search" in REQUIRED_TOOL_KEYS
-
-
-def test_codebase_memory_resolves_in_render_context_claude():
-    ctx = get_platform("claude-code").build_render_context(["codebase-memory-mcp"], "python")
-    t = ctx["tools"]
-    assert t["search_code"] == "mcp__codebase-memory-mcp__search_code"
-    assert t["semantic_search"] == "mcp__codebase-memory-mcp__search_graph"
-    assert t["find_blast_radius"] == "mcp__codebase-memory-mcp__detect_changes"
-    assert t["trace_flow"] == "mcp__codebase-memory-mcp__trace_path"
-    assert t["get_symbol"] == "mcp__codebase-memory-mcp__get_code_snippet"
-    assert t["graph_stats"] == "mcp__codebase-memory-mcp__get_graph_schema"
-
-
-def test_codebase_memory_resolves_in_render_context_antigravity():
-    ctx = get_platform("antigravity").build_render_context(["codebase-memory-mcp"], "python")
-    t = ctx["tools"]
-    assert t["search_code"] == "mcp_codebase-memory-mcp_search_code"
-    assert t["semantic_search"] == "mcp_codebase-memory-mcp_search_graph"
-    assert t["find_blast_radius"] == "mcp_codebase-memory-mcp_detect_changes"
 
 
 def test_dynamic_memory_resolves_in_render_context_claude():

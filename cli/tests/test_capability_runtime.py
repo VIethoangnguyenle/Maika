@@ -41,7 +41,7 @@ def test_registry_covers_profile_and_skill_capability_ids():
 
 
 def test_render_context_exposes_registry_and_routes():
-    ctx = get_platform("claude-code").build_render_context(["codebase-memory-mcp"], "python")
+    ctx = get_platform("claude-code").build_render_context(["understand-anything"], "python")
 
     assert ctx["capability_registry"] == CANONICAL_CAPABILITIES
     assert set(ctx["capability_routes"]) == capability_ids()

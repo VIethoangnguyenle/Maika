@@ -208,12 +208,12 @@ entries:
     failure:
       classification: observed_failure
       reference: .maika/rules/rules-guard.md
-      summary: cbm cài rule đè UA-first doctrine.
+      summary: cbm cài rule đè UA-first doctrine; installer ghi hook/skill global (~/.claude) đè mọi project.
     implementation:
-      files: [.maika/rules/rules-guard.md]
-      consumers: [.maika/rules/rules-guard.md]
+      files: [.maika/rules/rules-guard.md, cli/mcp/doctor.py]
+      consumers: [.maika/rules/rules-guard.md, cli/commands/doctor.py]
     scope: {change_classes: [standard, architectural]}
-    reviewed_at: 2026-07-10
+    reviewed_at: 2026-07-17
 
   - id: ENF-016
     mechanism: capability-router

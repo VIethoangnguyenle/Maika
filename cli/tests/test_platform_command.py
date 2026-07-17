@@ -148,7 +148,7 @@ def test_enable_rolls_back_adapter_and_metadata_together(tmp_path, monkeypatch):
 
 
 def test_enable_refreshes_aggregate_mcp_setup_for_all_hosts(tmp_path):
-    selected = ["understand-anything", "codebase-memory-mcp", "serena"]
+    selected = ["understand-anything", "serena"]
     run_init(
         target_dir=str(tmp_path), maika_root=str(REPO_ROOT),
         platform_key="codex", selected_mcps=selected, language="python",
@@ -224,7 +224,7 @@ def test_enable_restores_stale_mcp_setup_when_delete_transaction_fails(
 
 
 def test_disable_refreshes_aggregate_setup_without_disabled_host(tmp_path):
-    selected = ["understand-anything", "codebase-memory-mcp", "serena"]
+    selected = ["understand-anything", "serena"]
     run_init(
         target_dir=str(tmp_path), maika_root=str(REPO_ROOT),
         platform_key="codex", selected_mcps=selected, language="python",

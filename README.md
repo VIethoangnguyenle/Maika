@@ -60,7 +60,7 @@ Installer sẽ:
 
 1. Tạo virtualenv riêng tại `.venv/`.
 2. Hỏi platform: Antigravity, Claude Code, Codex CLI hoặc Generic.
-3. Hỏi MCP servers: Codebase Memory, Confluence, DB Remote nếu bạn có.
+3. Hỏi MCP servers: Understand Anything, Serena, Confluence, DB Remote nếu bạn có.
 4. Hỏi ngôn ngữ chính: Java, TypeScript, Python, Go, C# hoặc other.
 5. Render Maika runtime vào framework root phù hợp với platform.
 
@@ -350,8 +350,7 @@ Maika resolve tool names tại scaffold time. Khi bạn chạy `maika init`, CLI
 
 | MCP server | Capability | Khi nào cần |
 |---|---|---|
-| Codebase Memory | Knowledge graph + semantic search, dependency graph, symbol analysis (single binary, MIT) | Hầu hết dự án có codebase lớn |
-| Understand Anything | Knowledge graph code-exploration — nguồn **chính** cho kiến trúc/domain/flow (UA-first) | Mọi truy vấn kiến trúc/flow; Codebase Memory hỗ trợ sau — extract logic tại node UA đã định vị |
+| Understand Anything | Knowledge graph code-exploration — nguồn **chính** cho kiến trúc/domain/flow (UA-first) | Mọi truy vấn kiến trúc/flow |
 | AgentMemory | Historical/session recall ở chế độ candidate-only | Tìm incident, quyết định và attempt cũ; không làm current-code/canonical authority |
 | Confluence | Wiki/document search | Dự án có docs trên Confluence |
 | DB Access | Schema/read exploration qua read-only lane | Dự án có DB cần khám phá; write/script bị tắt trong exploration |
@@ -380,6 +379,15 @@ Doctor không sửa config trừ khi bạn chạy:
 .venv/bin/python -m cli.maika doctor mcp --target /path/to/your-project --fix
 ```
 
+### Gỡ codebase-memory-mcp (provider đã bị loại bỏ)
+
+Installer của codebase-memory-mcp ghi hook/skill vào cấu hình global (`~/.claude/`),
+ghi đè provider doctrine của mọi project. Maika không còn hỗ trợ provider này.
+
+1. `codebase-memory-mcp uninstall`
+2. `rm ~/.local/bin/codebase-memory-mcp`
+3. `maika doctor mcp` — mục `cbm contamination` phải báo CLEAN.
+
 ### Ghi provider evidence
 
 Host/IDE thực hiện MCP call; Maika nhận request/response đã lưu để ghi invocation và
@@ -394,8 +402,7 @@ maika provider verify-source --target /path/to/project --id CHANGE_ID \
   --file src/service.py --symbol dispatch
 ```
 
-CBM material evidence cần hai call `index_status` bao quanh session. AgentMemory
-recall luôn được ghi là `historical_context`/`candidate`; memory-only evidence không
+AgentMemory recall luôn được ghi là `historical_context`/`candidate`; memory-only evidence không
 thể promote thành canonical project knowledge.
 
 ---
@@ -597,7 +604,7 @@ Khi agent bắt đầu một session trong repo có Maika, nó bootstrap context
 Core: AGENTS.md v3.0 + RULES (manifest + flow/tool/exec/knowledge/guard)
 Skills: intent-analysis | grounding-explorer | architecture-reconciler | writing-spec | ...
 Workflows: maika task
-Platform: codex | MCPs: codebase-memory-mcp, db-access
+Platform: codex | MCPs: understand-anything, serena, db-access
 Active context: REQUIREMENT empty | EXPLORE_CONTEXT empty
 Author DNA: approved
 Archive: 3 tickets

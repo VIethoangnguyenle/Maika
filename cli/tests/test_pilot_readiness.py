@@ -14,15 +14,14 @@ def _registry():
 
 def test_safe_but_unverified_providers_are_conditional_not_production_ready():
     statuses = {
-        "understand-anything": {"status": "ready"},
-        "codebase-memory-mcp": {"status": "ready", "unverified": ["index_generation"]},
+        "understand-anything": {"status": "ready", "unverified": ["index_generation"]},
         "agent-memory": {"status": "degraded", "unverified": ["store_identity"]},
         "db-access": {"status": "ready"},
     }
     report = assess_pilot_readiness(_registry(), statuses)
     assert report["decision"] == "conditional-pilot"
     assert report["production_ready"] is False
-    assert "codebase-memory-mcp.index_generation: unverified" in report["degraded_or_unverified"]
+    assert "understand-anything.index_generation: unverified" in report["degraded_or_unverified"]
     assert "Production ready: no" in render_pilot_readiness(report)
 
 

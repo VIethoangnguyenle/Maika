@@ -22,25 +22,9 @@ providers:
       inheritance_trace:
         role: primary
         tools: [get_class_hierarchy, get_node_source]
-      semantic_code_search:
-        role: supporting
-
-  codebase-memory-mcp:
-    capabilities:
-      semantic_code_search:
-        role: primary
-        tools: [search_graph]
-        argument_contract:
-          semantic_query: {type: array, min_items: 1}
-      architecture_discovery:
-        role: supporting
-      call_chain_trace:
-        role: supporting
-      impact_analysis:
-        role: supporting
       dependency_analysis:
         role: primary
-        tools: [query_graph]
+        tools: [find_impact, find_path]
 
   serena:
     capabilities:

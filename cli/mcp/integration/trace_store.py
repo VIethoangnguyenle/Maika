@@ -70,13 +70,6 @@ def add_observation(workspace: Path, change_id: str, observation: dict) -> Path:
     return path
 
 
-def add_support_call(workspace: Path, change_id: str, support_call: dict) -> Path:
-    path, doc = load_trace_evidence(workspace, change_id)
-    doc["support_calls"] = list(doc.get("support_calls") or []) + [support_call]
-    save_trace_evidence(path, doc)
-    return path
-
-
 def add_source_verification(workspace: Path, change_id: str, entry: dict) -> Path:
     path, doc = load_trace_evidence(workspace, change_id)
     doc["source_verifications"] = list(doc.get("source_verifications") or []) + [entry]

@@ -144,10 +144,12 @@ def test_serena_registry_rejects_duplicate_contract_and_lane_entries():
 def test_cbm_semantic_source_exact_and_compatibility_dependency():
     mapping, registry = _docs()
     providers = mapping["providers"]
-    assert providers["codebase-memory-mcp"]["capabilities"]["semantic_code_search"]["role"] == "primary"
     exact = providers["current-source"]["capabilities"]["exact_source_inspection"]
     assert "exact_code_fact" in exact["authoritative_for"]
-    assert registry["capabilities"]["dependency_analysis"]["compatibility_aggregate"] is True
+    registry = load_capability_registry(FRAMEWORK)
+    dependency = registry["capabilities"]["dependency_analysis"]
+    assert dependency["primary_provider"] == "understand-anything"
+    assert "codebase-memory-mcp" not in str(registry)
 
 
 def test_unknown_capability_and_ua_tool_fail():
@@ -159,20 +161,6 @@ def test_unknown_capability_and_ua_tool_fail():
     errors = validate_provider_capabilities(mapping, registry)
     assert any("unknown capability" in error for error in errors)
     assert any("invented_tool" in error for error in errors)
-
-
-def test_unknown_cbm_tool_name_is_rejected_against_verified_snapshot():
-    mapping, registry = _docs()
-    mapping = deepcopy(mapping)
-    mapping["providers"]["codebase-memory-mcp"]["capabilities"]["semantic_code_search"]["tools"] = ["guess_search"]
-    assert any("unknown CBM tools" in error for error in validate_provider_capabilities(mapping, registry))
-
-
-def test_cbm_semantic_search_is_search_graph_argument_contract():
-    mapping, _ = _docs()
-    semantic = mapping["providers"]["codebase-memory-mcp"]["capabilities"]["semantic_code_search"]
-    assert semantic["tools"] == ["search_graph"]
-    assert semantic["argument_contract"]["semantic_query"]["type"] == "array"
 
 
 def test_identity_flags_provider_missing_from_manifest():
@@ -259,8 +247,6 @@ def test_cbm_and_agent_memory_registry_contracts_are_enforced():
     _mapping, capabilities = _docs()
     providers = load_provider_registry(FRAMEWORK)
     assert validate_canonical_provider_registry(providers, capabilities) == []
-    cbm = providers["providers"]["codebase-memory-mcp"]
-    assert cbm["tool_contract"]["capabilities"]["semantic_code_search"]["tool"] == "search_graph"
     memory = providers["providers"]["agent-memory"]
     assert memory["integration_mode"] == "mcp_proxy_only"
     assert memory["hooks"]["auto_capture"] is False
@@ -271,9 +257,20 @@ def test_authority_policy_keeps_ua_primary_for_structured_graph_trace():
     providers = load_provider_registry(FRAMEWORK)
     authority = providers["authority"]
     assert authority["structured_graph_trace"]["preferred"] == "understand-anything"
-    assert authority["semantic_index_structure"]["preferred"] == "codebase-memory-mcp"
 
     changed = deepcopy(providers)
-    changed["authority"]["structured_graph_trace"]["preferred"] = "codebase-memory-mcp"
+    changed["authority"]["structured_graph_trace"]["preferred"] = "serena"
     errors = validate_canonical_provider_registry(changed, capabilities)
     assert any("structured_graph_trace.preferred" in error for error in errors)
+
+
+def test_registry_rejects_codebase_memory_provider():
+    doc = deepcopy(load_provider_registry(FRAMEWORK))
+    doc["providers"]["codebase-memory-mcp"] = {
+        "display_name": "Codebase Memory MCP", "kind": "semantic_code_index",
+        "setup_ref": "codebase-memory-mcp",
+        "capabilities": {"primary": ["semantic_code_search"]},
+    }
+    registry = load_capability_registry(FRAMEWORK)
+    errors = validate_canonical_provider_registry(doc, registry)
+    assert any("unknown capability" in error for error in errors)

@@ -54,7 +54,7 @@ def test_router_losing_trace_gate_detected():
 def test_workflow_owner_must_be_registered_provider():
     errors = _with_mutation(
         "config/external-workflows.yaml",
-        "owner: codebase-memory-mcp",
+        "owner: understand-anything",
         "owner: graph-oracle",
     )
     assert any("graph-oracle" in e and "not a registered provider" in e for e in errors)

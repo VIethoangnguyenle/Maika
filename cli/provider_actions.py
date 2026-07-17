@@ -7,6 +7,7 @@ from pathlib import Path
 
 from cli.mcp.doctor import build_doctor_status
 from cli.platforms import get_platform
+from cli.platforms.base import PlatformToolMappingError
 
 
 def _load_bridge(target: Path, framework_root: str):
@@ -52,7 +53,11 @@ def build_learning_executors(target: Path, framework_root: str):
         listed, error = _call(bridge, config, "tools-list")
         if error:
             return {"ok": False, "verified": False, "status": "tools-list-failed", "error": error}
-        tool_name = _resolve_tool(_tools(listed), platform.get_tool(abstract_tool))
+        try:
+            concrete_mapping = platform.get_tool(abstract_tool)
+        except PlatformToolMappingError:
+            return {"ok": False, "verified": False, "status": "capability-tool-not-found"}
+        tool_name = _resolve_tool(_tools(listed), concrete_mapping)
         if not tool_name:
             return {"ok": False, "verified": False, "status": "capability-tool-not-found"}
         result, error = _call(bridge, config, "tools-call", tool_name, arguments)
@@ -68,13 +73,13 @@ def build_learning_executors(target: Path, framework_root: str):
             {"content": item.get("lesson") or item.get("statement"), "metadata": item},
         )
     graph_servers = [item for item in status.selected_mcps
-                     if item in {"codebase-memory-mcp", "understand-anything"}]
+                     if item == "understand-anything"]
     graph_refresher = None
     if graph_servers:
         def graph_refresher(request):
-            results = [executor(server, "index_code", {"root_path": str(target)})
-                       for server in graph_servers]
-            return {"verified": all(item.get("verified") for item in results),
-                    "status": "refreshed" if all(item.get("verified") for item in results) else "partial-or-failed",
-                    "results": results}
+            # UA graphs are produced by the external Understand-Anything
+            # producer; there is no MCP re-index tool to invoke.
+            return {"verified": False, "status": "refresh-external",
+                    "detail": "understand-anything graphs are re-indexed by the "
+                              "external UA producer; re-run it and re-probe freshness"}
     return memory_saver, graph_refresher

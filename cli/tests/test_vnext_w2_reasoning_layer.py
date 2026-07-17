@@ -59,7 +59,7 @@ REMOVED = [
 ]
 REMOVED_SKILLS = re.compile(r"\b(" + "|".join(REMOVED) + r")\b")
 RAW_PROVIDER_TOOLS = re.compile(
-    r"\bmcp__(?:understand-anything|codebase_memory|agent_memory)|"
+    r"\bmcp__(?:understand-anything|agent_memory)|"
     r"\bmcp_understand-anything_|\bmemory_(?:smart_search|recall|save|sessions|audit)\b"
 )
 

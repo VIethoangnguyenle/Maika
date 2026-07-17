@@ -5,11 +5,7 @@ authority:
     authoritative: current-source
   structured_graph_trace:
     preferred: understand-anything
-    corroborating: [codebase-memory-mcp, current-source]
-    conflict_action: verify_current_source
-  semantic_index_structure:
-    preferred: codebase-memory-mcp
-    corroborating: understand-anything
+    corroborating: [current-source]
     conflict_action: verify_current_source
   semantic_symbol_resolution:
     preferred: serena
@@ -54,53 +50,7 @@ providers:
         - get_domain_detail
         - get_domain_flow_detail
     capabilities:
-      primary: [architecture_discovery, domain_flow_trace, call_chain_trace, impact_analysis, graph_path_trace, inheritance_trace]
-
-  codebase-memory-mcp:
-    display_name: Codebase Memory MCP
-    kind: semantic_code_index
-    setup_ref: codebase-memory-mcp
-    tool_contract:
-      tools:
-        - index_repository
-        - search_graph
-        - query_graph
-        - trace_path
-        - get_code_snippet
-        - get_graph_schema
-        - get_architecture
-        - search_code
-        - list_projects
-        - delete_project
-        - index_status
-        - detect_changes
-        - manage_adr
-        - ingest_traces
-      capabilities:
-        semantic_code_search:
-          tool: search_graph
-          argument: semantic_query
-          argument_type: array
-      lanes:
-        discovery:
-          tools: [list_projects, index_status, get_graph_schema, search_graph, trace_path, detect_changes, query_graph, get_code_snippet, get_architecture, search_code]
-          mutability: read_only
-        explicit_index:
-          tools: [index_repository]
-          activation: explicit_index_request
-          mutability: local_index_write
-        explicit_graph_mutation:
-          tools: [manage_adr, ingest_traces]
-          activation: explicit_user_request
-          mutability: graph_write
-        destructive_admin:
-          tools: [delete_project]
-          activation: explicit_user_request
-          confirmation_required: true
-          mutability: destructive
-    capabilities:
-      primary: [semantic_code_search]
-      supporting: [architecture_discovery, call_chain_trace, impact_analysis]
+      primary: [architecture_discovery, domain_flow_trace, call_chain_trace, impact_analysis, graph_path_trace, inheritance_trace, dependency_analysis]
 
   serena:
     display_name: Serena

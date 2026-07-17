@@ -12,12 +12,6 @@ def assess_pilot_readiness(registry: dict, provider_statuses: dict) -> dict:
     if (authority.get("exact_current_source") or {}).get("authoritative") != "current-source":
         blockers.append("current-source is not authoritative for exact current facts")
 
-    cbm = ((providers.get("codebase-memory-mcp") or {}).get("tool_contract") or {})
-    exploration = set((((cbm.get("lanes") or {}).get("discovery") or {}).get("tools") or []))
-    forbidden_cbm = {"index_repository", "manage_adr", "ingest_traces", "delete_project"}
-    if exploration & forbidden_cbm:
-        blockers.append("CBM discovery lane exposes mutation/destruction")
-
     memory = providers.get("agent-memory") or {}
     hooks = memory.get("hooks") or {}
     if any(hooks.get(key) is not False for key in ("auto_capture", "session_injection", "stop_summary")):
@@ -30,7 +24,7 @@ def assess_pilot_readiness(registry: dict, provider_statuses: dict) -> dict:
     if exploration_db & {"sql_write", "mongo_write", "sql_execute_script"}:
         blockers.append("DB exploration lane exposes write/script tools")
 
-    for provider_id in ("understand-anything", "codebase-memory-mcp", "agent-memory", "db-access"):
+    for provider_id in ("understand-anything", "agent-memory", "db-access"):
         status = provider_statuses.get(provider_id) or {}
         if not status:
             degraded.append(f"{provider_id}: readiness probe missing")
@@ -48,11 +42,11 @@ def assess_pilot_readiness(registry: dict, provider_statuses: dict) -> dict:
         "blockers": blockers,
         "degraded_or_unverified": degraded,
         "enabled_scope": [
-            "current-source inspection", "UA/CBM read-only discovery",
+            "current-source inspection", "UA read-only discovery",
             "AgentMemory candidate-only recall", "DB schema/read via read-only principal",
         ],
         "disabled_scope": [
-            "unscoped source writes", "CBM mutation/deletion",
+            "unscoped source writes",
             "AgentMemory automatic capture/canonical persistence", "DB write/script",
         ],
     }

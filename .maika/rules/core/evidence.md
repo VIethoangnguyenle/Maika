@@ -13,7 +13,7 @@
 Maika công nhận đúng các nguồn sau — không nguồn nào khác là source of truth:
 
 1. **Understand-Anything (UA)** — graph kiến trúc/domain, quan hệ module, tài liệu.
-2. **Codebase Memory (CBM)** — graph symbol/dependency, call path, phạm vi ảnh hưởng.
+2. **Serena** — symbol identity, references, implementations, diagnostics (LSP).
 3. **Agent Memory** — episodic: incident, quyết định cũ, rejected approach, review pattern.
 4. **Current source** — authority cho exact code fact (file, symbol, test, config hiện tại).
 5. **Durable project knowledge** — Author DNA, conventions, `knowledge-snapshot.md`,
@@ -30,7 +30,7 @@ Khi các nguồn mâu thuẫn, giải quyết theo precedence:
 live runtime / database state
   > current source
   > current explicit business contract
-  > fresh graph (UA/CBM)
+  > fresh graph (UA)
   > approved durable knowledge
   > historical memory
   > inference của model

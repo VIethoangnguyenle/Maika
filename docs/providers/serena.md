@@ -17,7 +17,7 @@ run `serena setup <host>` for a Maika-managed project.
 |---|---|---|
 | Project identity, graph freshness, architecture, domain, relationships, call trace, impact, paths, inheritance, entry points, node source | UA-MCP | Current source verifies exact facts; Serena does not replace structured graph/domain traversal. |
 | Exact symbol identity, declaration, implementation, LSP references, diagnostics | Serena | Scoped semantic evidence only; verify material claims against current source and current tests. |
-| Fuzzy semantic anchor search | CBM | Conditional support for vocabulary mismatch, graph gaps/staleness, reviewer counter-evidence, or hidden-consumer risk; record the activation reason. |
+| Fuzzy semantic anchor search | UA-MCP `query_nodes` | Host search corroborates; Serena `find_symbol` once a name is known; graph gaps/staleness and reviewer counter-evidence route to current source. |
 | Historical/session recall | AgentMemory | Historical candidate evidence only, never current-code authority. |
 | Exact current behavior | current source and current tests | Provider output is navigation/evidence; observed source/runtime/test evidence wins conflicts. |
 

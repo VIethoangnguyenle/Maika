@@ -75,9 +75,9 @@ def _tool_health(**over):
     doc = {
         "version": 1,
         "providers": {
-            "codebase_memory": {"configured": True, "status": "ready",
-                                "indexed_commit": "abc123", "freshness": "fresh",
-                                "probe": {"operation": "list_projects", "observed": "1 project"}},
+            "serena": {"configured": True, "status": "ready",
+                      "indexed_commit": "abc123", "freshness": "fresh",
+                      "probe": {"operation": "list_projects", "observed": "1 project"}},
             "understand_anything": {"configured": True, "status": "unavailable",
                                     "degradation": {"probe": "list_projects",
                                                     "observed": "No projects loaded",
@@ -94,7 +94,7 @@ def test_tool_health_valid():
 
 
 def test_tool_health_ready_requires_real_probe():
-    bad = _tool_health(codebase_memory={"configured": True, "status": "ready"})
+    bad = _tool_health(serena={"configured": True, "status": "ready"})
     res = gates.validate_tool_health(bad)
     assert not res.ok and "probe" in res.reason
 
@@ -106,8 +106,8 @@ def test_tool_health_degraded_requires_degradation_record():
 
 
 def test_tool_health_rejects_bare_ready_without_observed():
-    bad = _tool_health(codebase_memory={"configured": True, "status": "ready",
-                                        "freshness": "fresh", "probe": {"operation": "x"}})
+    bad = _tool_health(serena={"configured": True, "status": "ready",
+                               "freshness": "fresh", "probe": {"operation": "x"}})
     res = gates.validate_tool_health(bad)
     assert not res.ok and "observed" in res.reason
 

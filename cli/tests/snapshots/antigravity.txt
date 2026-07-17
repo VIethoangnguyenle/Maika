@@ -1,7 +1,6 @@
 .agents/
 .agents/hooks.json
 .maika/
-.maika/MCP_SETUP.md
 .maika/agent/
 .maika/agent/KERNEL.md
 .maika/config/

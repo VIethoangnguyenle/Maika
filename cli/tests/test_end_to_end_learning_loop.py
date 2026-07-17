@@ -42,7 +42,7 @@ def test_reproducible_control_plane_dogfood(tmp_path):
         "stale_entries": [], "superseded_decisions": [],
         "new_candidates": [{
             "id": "PK-IDEMPOTENCY", "statement": "payment uses idempotency key",
-            "applies_to": ["payment"], "evidence_ids": ["UA-1", "CBM-1", "SRC-1", "MEM-1", "DB-1"],
+            "applies_to": ["payment"], "evidence_ids": ["UA-1", "SER-1", "SRC-1", "MEM-1", "DB-1"],
             "confidence": "high",
         }],
         "graph_refresh_required": True,
@@ -60,7 +60,7 @@ decision:
   statement: Keep payment creation idempotent.
   type: business_behavior
   knowledge_questions: ["How are duplicate payments prevented?"]
-  evidence_ids: [UA-1, CBM-1, SRC-1, MEM-1, DB-1]
+  evidence_ids: [UA-1, SER-1, SRC-1, MEM-1, DB-1]
   authority: current source
   conflicts: []
   assumptions: []

@@ -2,7 +2,7 @@
 name: architecture-reconciler
 version: '3.0'
 description: 'Dùng khi gói grounding đã có evidence đa nguồn cần đối chiếu: dựng claim
-  matrix giữa UA/CBM/source/memory/DB/durable knowledge, phân loại và giải quyết conflict
+  matrix giữa UA/source/memory/DB/durable knowledge, phân loại và giải quyết conflict
   theo thứ tự authority trước khi brainstorming/spec.'
 routing:
   mode: workflow
@@ -61,7 +61,7 @@ Capability IDs: `exact_source_inspection`, `dependency_analysis`,
 Dùng để re-probe khi cần xác nhận claim mâu thuẫn.
 
 ## Quy trình truy xuất
-1. Dựng claim matrix: hàng = claim, cột = UA/CBM/source/memory/DB/durable.
+1. Dựng claim matrix: hàng = claim, cột = UA/source/memory/DB/durable.
 2. Với claim lệch, re-fetch node detail + verify bằng current source.
 
 ## Thứ tự authority và precedence

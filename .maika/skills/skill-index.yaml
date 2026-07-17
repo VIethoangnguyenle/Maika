@@ -3,8 +3,8 @@ skills:
 - name: architecture-reconciler
   version: '3.0'
   description: 'Dùng khi gói grounding đã có evidence đa nguồn cần đối chiếu: dựng
-    claim matrix giữa UA/CBM/source/memory/DB/durable knowledge, phân loại và giải
-    quyết conflict theo thứ tự authority trước khi brainstorming/spec.'
+    claim matrix giữa UA/source/memory/DB/durable knowledge, phân loại và giải quyết
+    conflict theo thứ tự authority trước khi brainstorming/spec.'
   routing:
     mode: workflow
     actions:
@@ -95,9 +95,6 @@ skills:
       database_dependency_analysis:
         triggers:
         - database_dependency_risk
-      semantic_code_search:
-        triggers:
-        - database_code_consumer_gap
   outputs:
     required:
     - exploration/DATABASE_REQUEST.yaml
@@ -194,14 +191,6 @@ skills:
       impact_analysis:
         triggers:
         - blast_radius_required
-      semantic_code_search:
-        triggers:
-        - unresolved_anchor
-        - ambiguous_semantic_query
-        - graph_gap
-        - relevant_graph_stale
-        - hidden_consumer_risk
-        - ua_unavailable
       dependency_analysis:
         triggers:
         - graph_gap
@@ -421,12 +410,6 @@ skills:
       impact_analysis:
         triggers:
         - blast_radius_required
-      semantic_code_search:
-        triggers:
-        - hidden_consumer_risk
-        - dynamic_wiring_risk
-        - reviewer_counter_evidence
-        - ua_unavailable
       dependency_analysis:
         triggers:
         - graph_gap
@@ -480,12 +463,6 @@ skills:
       impact_analysis:
         triggers:
         - blast_radius_required
-      semantic_code_search:
-        triggers:
-        - hidden_consumer_risk
-        - dynamic_wiring_risk
-        - reviewer_counter_evidence
-        - ua_unavailable
       dependency_analysis:
         triggers:
         - graph_gap

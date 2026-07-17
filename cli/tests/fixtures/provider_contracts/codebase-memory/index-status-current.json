@@ -1,9 +1,0 @@
-{
-  "project": "fixture-project",
-  "nodes": 120,
-  "edges": 360,
-  "status": "ready",
-  "root_path": "/fixture/project",
-  "git": {"head_sha": "def456", "branch": "master-v2"},
-  "coverage": {"parse_partial": [], "skipped": [], "not_indexed": []}
-}

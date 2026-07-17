@@ -23,7 +23,7 @@ def test_serena_guide_covers_provider_authority_and_phase_boundary():
         "UA-MCP",
         "18 tools",
         "Serena",
-        "CBM",
+        "query_nodes",
         "AgentMemory",
         "current source",
         "current tests",

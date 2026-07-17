@@ -1,9 +1,8 @@
 """trace-request + trace-evidence gates (harness plan §7/§14, M4).
 
 Covers the M4 half of the mutation suite: UA trace without invocation record
-(#3), CBM support call without trigger (#2), truncated response claiming
-complete (#17), missing source verification hash (#18), one_of unsatisfied,
-conditional use without trigger.
+(#3), truncated response claiming complete (#17), missing source verification
+hash (#18), one_of unsatisfied, conditional use without trigger.
 """
 import hashlib
 import importlib.util
@@ -18,7 +17,7 @@ gates = importlib.util.module_from_spec(spec); spec.loader.exec_module(gates)
 
 CAPS = {
     "architecture_discovery", "domain_flow_trace", "call_chain_trace",
-    "impact_analysis", "semantic_code_search", "exact_source_inspection",
+    "impact_analysis", "historical_context_retrieval", "exact_source_inspection",
 }
 TRIGGERS = {"graph_gap", "ua_unavailable", "blast_radius_required"}
 
@@ -30,14 +29,14 @@ REQUEST = {
     "anchors": [],
     "required_capabilities": ["exact_source_inspection"],
     "one_of": {"structured_trace": ["call_chain_trace", "domain_flow_trace"]},
-    "conditional": {"semantic_code_search": {"triggers": ["graph_gap", "ua_unavailable"]},
+    "conditional": {"historical_context_retrieval": {"triggers": ["graph_gap", "ua_unavailable"]},
                     "impact_analysis": {"triggers": ["blast_radius_required"]}},
     "freshness_requirement": "graph_commit_current_or_scoped_stale",
     "source_verification_requirement": "material_exact_facts_source_verified",
 }
 
 UA_HASH = "sha256:" + "1" * 64
-CBM_HASH = "sha256:" + "2" * 64
+ACME_HASH = "sha256:" + "2" * 64
 TOOL_HASH = "sha256:" + "f" * 64
 REQUEST_HASH = "sha256:" + "0" * 64
 
@@ -83,9 +82,9 @@ INVOCATIONS = "\n".join([
                 "response_hash": UA_HASH, "started_at": "2026-07-14T08:00:00Z",
                 "ended_at": "2026-07-14T08:00:01Z", "status": "success"}),
     json.dumps({"trace_id": "t2", "change_id": "C-1", "role": "grounding",
-                "provider_id": "codebase-memory-mcp", "tool": "search_graph",
+                "provider_id": "acme-index", "tool": "search_graph",
                 "invocation_mode": "host_mcp", "request_hash": "sha256:" + "0" * 64,
-                "response_hash": CBM_HASH, "started_at": "2026-07-14T08:00:02Z",
+                "response_hash": ACME_HASH, "started_at": "2026-07-14T08:00:02Z",
                 "ended_at": "2026-07-14T08:00:03Z", "status": "success"}),
 ])
 
@@ -148,7 +147,7 @@ def test_trace_request_rejects_unknown_capability():
 
 
 def test_trace_request_rejects_unknown_trigger():
-    bad = {**REQUEST, "conditional": {"semantic_code_search": {"triggers": ["vibes"]}}}
+    bad = {**REQUEST, "conditional": {"historical_context_retrieval": {"triggers": ["vibes"]}}}
     result = gates.validate_trace_request(
         yaml.safe_dump(bad), valid_capabilities=CAPS, trigger_vocabulary=TRIGGERS
     )
@@ -157,7 +156,7 @@ def test_trace_request_rejects_unknown_trigger():
 
 def test_trace_request_rejects_required_conditional_overlap():
     bad = {**REQUEST,
-           "required_capabilities": ["semantic_code_search", "exact_source_inspection"]}
+           "required_capabilities": ["historical_context_retrieval", "exact_source_inspection"]}
     result = gates.validate_trace_request(
         yaml.safe_dump(bad), valid_capabilities=CAPS, trigger_vocabulary=TRIGGERS
     )
@@ -187,21 +186,8 @@ def test_observation_without_evidence_envelope_fails(tmp_path):
 
 def test_observation_provider_mismatch_fails(tmp_path):
     result = _check(tmp_path, provider_observations=[
-        _observation(provider="codebase-memory-mcp")])
+        _observation(provider="acme-index")])
     assert not result.ok and "disagree" in result.reason
-
-
-def test_cbm_cannot_claim_structured_graph_trace_authority(tmp_path):
-    result = _check(tmp_path, provider_observations=[
-        _observation(
-            provider="codebase-memory-mcp", tool="search_graph",
-            response_hash=CBM_HASH, authority="structured_graph_trace",
-        )
-    ], graph={}, limitations=[{
-        "kind": "provider_unconfigured", "one_of": "structured_trace",
-        "detail": "UA unavailable",
-    }], traversals=[], complete=False)
-    assert not result.ok and "invalid for codebase-memory-mcp" in result.reason
 
 
 def test_traversal_referencing_unrecorded_observation_fails(tmp_path):
@@ -216,39 +202,6 @@ def test_conditional_capability_without_trigger_fails(tmp_path):
         {"capability": "call_chain_trace", "observations": [UA_HASH], "summary": "x"},
         {"capability": "impact_analysis", "observations": [UA_HASH], "summary": "y"}])
     assert not result.ok and "requires trigger + reason" in result.reason
-
-
-def test_support_call_without_trigger_fails(tmp_path):
-    """Mutation #2: reviewer/worker calls CBM without trigger."""
-    result = _check(tmp_path, support_calls=[
-        {"provider_id": "codebase-memory-mcp", "capability": "semantic_code_search",
-         "trigger": "", "reason": "", "response_hash": CBM_HASH}])
-    assert not result.ok and "trigger" in result.reason
-
-
-def test_support_call_with_declared_trigger_passes(tmp_path):
-    result = _check(tmp_path, support_calls=[
-        {"provider_id": "codebase-memory-mcp", "capability": "semantic_code_search",
-         "trigger": "graph_gap", "reason": "missing edge for dispatch consumer",
-         "response_hash": CBM_HASH}])
-    assert result.ok, result.reason
-
-
-def test_support_call_undeclared_trigger_fails(tmp_path):
-    """blast_radius_required belongs to impact_analysis, not semantic_code_search."""
-    result = _check(tmp_path, support_calls=[
-        {"provider_id": "codebase-memory-mcp", "capability": "semantic_code_search",
-         "trigger": "blast_radius_required", "reason": "wrong vocabulary for CBM",
-         "response_hash": CBM_HASH}])
-    assert not result.ok and "not declared for semantic_code_search" in result.reason
-
-
-def test_support_call_non_conditional_capability_fails(tmp_path):
-    result = _check(tmp_path, support_calls=[
-        {"provider_id": "codebase-memory-mcp", "capability": "call_chain_trace",
-         "trigger": "graph_gap", "reason": "cbm cannot replace structured trace",
-         "response_hash": CBM_HASH}])
-    assert not result.ok and "not conditional" in result.reason
 
 
 def test_one_of_group_unsatisfied_fails(tmp_path):
@@ -277,7 +230,7 @@ def test_source_verification_hash_mismatch_fails(tmp_path):
 
 def test_graph_conflict_requires_current_source_resolution(tmp_path):
     result = _check(tmp_path, conflicts=[{
-        "claim": "A calls B", "providers": ["understand-anything", "codebase-memory-mcp"],
+        "claim": "A calls B", "providers": ["understand-anything", "current-source"],
         "resolution": "merged_graph_claim", "source_verifications": [],
     }])
     assert not result.ok and "current-source verification" in result.reason
@@ -285,7 +238,7 @@ def test_graph_conflict_requires_current_source_resolution(tmp_path):
 
 def test_graph_conflict_accepts_referenced_current_source_resolution(tmp_path):
     result = _check(tmp_path, conflicts=[{
-        "claim": "A calls B", "providers": ["understand-anything", "codebase-memory-mcp"],
+        "claim": "A calls B", "providers": ["understand-anything", "current-source"],
         "resolution": "current_source_verified", "source_verifications": ["svc.py"],
     }])
     assert result.ok, result.reason
@@ -327,34 +280,6 @@ def test_agentmemory_cannot_authorize_exact_traversal(tmp_path):
         traversals=[{"capability": "call_chain_trace", "observations": [memory_hash]}],
     )
     assert not result.ok and "cannot support authoritative capability" in result.reason
-
-
-def test_cbm_changed_index_boundary_rejects_complete_evidence(tmp_path):
-    hashes = ["sha256:" + char * 64 for char in "678"]
-    before_snapshot = {
-        "index_generation": "unverified", "head": "abc123", "working_tree_state": "clean",
-        "nodes": 10, "edges": 20, "index_timestamp": "2026-07-14T08:00:00Z",
-    }
-    after_snapshot = {**before_snapshot, "nodes": 11}
-    cbm = [
-        _observation(provider="codebase-memory-mcp", tool="index_status",
-                     response_hash=hashes[0], authority="semantic_index_structure",
-                     provider_snapshot=before_snapshot),
-        _observation(provider="codebase-memory-mcp", tool="search_graph",
-                     response_hash=hashes[1], authority="semantic_index_structure",
-                     provider_snapshot={"index_generation": "unverified"}),
-        _observation(provider="codebase-memory-mcp", tool="index_status",
-                     response_hash=hashes[2], authority="semantic_index_structure",
-                     provider_snapshot=after_snapshot),
-    ]
-    calls = [
-        _invocation("codebase-memory-mcp", "index_status", hashes[0], "t6"),
-        _invocation("codebase-memory-mcp", "search_graph", hashes[1], "t7"),
-        _invocation("codebase-memory-mcp", "index_status", hashes[2], "t8"),
-    ]
-    result = _check(tmp_path, invocations=INVOCATIONS + "\n" + "\n".join(calls),
-                    provider_observations=[_observation(), *cbm])
-    assert not result.ok and "boundary changed: nodes" in result.reason
 
 
 def test_unhealthy_graph_requires_limitation(tmp_path):

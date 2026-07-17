@@ -60,6 +60,8 @@ class DoctorStatus:
     memory_daemon_url: str = ""
     memory_governance: str = "not-selected"  # not-selected | controlled | degraded
     governance_warnings: list[str] = field(default_factory=list)
+    cbm_contamination: str = "clean"   # clean | contaminated
+    contamination_findings: list[str] = field(default_factory=list)
     platform_reports: dict[str, PlatformDoctorStatus] = field(default_factory=dict)
 
 
@@ -328,6 +330,46 @@ def _memory_governance_state(selected: list, home: Path) -> tuple[str, list[str]
     return ("degraded" if warnings else "controlled"), warnings
 
 
+CBM_MARKER = "codebase-memory"
+CBM_REMEDIATION = (
+    "run `codebase-memory-mcp uninstall`, remove ~/.local/bin/codebase-memory-mcp, "
+    "then re-run `maika doctor mcp`"
+)
+_CBM_SCAN_MAX_BYTES = 262144
+
+
+def _file_mentions_cbm(path: Path) -> bool:
+    try:
+        if path.stat().st_size > _CBM_SCAN_MAX_BYTES:
+            return False
+        return CBM_MARKER in path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+
+
+def _cbm_contamination_state(home: Path, target: Path) -> tuple[str, list[str]]:
+    """Detect codebase-memory-mcp installer artifacts in host configuration.
+
+    The upstream installer writes global PreToolUse/SessionStart hooks and
+    skills that override Maika provider doctrine in every project."""
+    findings: list[str] = []
+    global_settings = home / ".claude" / "settings.json"
+    if global_settings.is_file() and _file_mentions_cbm(global_settings):
+        findings.append(f"global agent settings reference codebase-memory: {global_settings}")
+    for directory in (home / ".claude" / "hooks", home / ".claude" / "skills"):
+        if not directory.is_dir():
+            continue
+        findings.extend(
+            f"installer artifact references codebase-memory: {path}"
+            for path in sorted(directory.rglob("*"))
+            if path.is_file() and _file_mentions_cbm(path)
+        )
+    for path in (target / ".claude" / "settings.json", target / ".mcp.json"):
+        if path.is_file() and _file_mentions_cbm(path):
+            findings.append(f"project config references codebase-memory: {path}")
+    return ("contaminated" if findings else "clean"), findings
+
+
 def _platform_status(target: Path, home: Path, maika_root, platform: str,
                      selected: list[str], language: str) -> PlatformDoctorStatus:
     adapter = get_mcp_adapter(platform)
@@ -436,6 +478,9 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
     )
     memory_daemon, memory_daemon_url = _memory_daemon_state(selected)
     memory_governance, governance_warnings = _memory_governance_state(selected, home)
+    cbm_contamination, contamination_findings = _cbm_contamination_state(home, target)
+    if cbm_contamination == "contaminated":
+        health_state = "degraded"
     return DoctorStatus(
         platform=primary,
         framework_root=get_mcp_adapter(primary).framework_root,
@@ -453,6 +498,8 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
         memory_daemon_url=memory_daemon_url,
         memory_governance=memory_governance,
         governance_warnings=governance_warnings,
+        cbm_contamination=cbm_contamination,
+        contamination_findings=contamination_findings,
         platform_reports=platform_reports,
     )
 
@@ -475,6 +522,7 @@ def render_report(status: DoctorStatus) -> str:
         f"- missing: {missing}\n"
         + _render_memory_daemon(status)
         + _render_governance(status)
+        + _render_cbm_contamination(status)
         + f"- Recommendation: {status.recommendation}\n"
         + (_render_setup_reports(status.setup_reports)
            if len(status.platform_reports) <= 1 else _render_platform_reports(status))
@@ -496,6 +544,15 @@ def _render_governance(status: DoctorStatus) -> str:
         return ""
     out = [f"- agent-memory governance: {status.memory_governance.upper()}\n"]
     out.extend(f"  - WARNING: {warning}\n" for warning in status.governance_warnings)
+    return "".join(out)
+
+
+def _render_cbm_contamination(status: DoctorStatus) -> str:
+    if status.cbm_contamination == "clean":
+        return "- cbm contamination: CLEAN\n"
+    out = ["- cbm contamination: CONTAMINATED\n"]
+    out.extend(f"  - WARNING: {finding}\n" for finding in status.contamination_findings)
+    out.append(f"  - remediation: {CBM_REMEDIATION}\n")
     return "".join(out)
 
 

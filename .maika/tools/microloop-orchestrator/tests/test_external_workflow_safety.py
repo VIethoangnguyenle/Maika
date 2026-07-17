@@ -22,7 +22,7 @@ def test_isolated_worker_default_contract_allows_no_execution():
     contract = vd.external_workflow_contract()
     assert contract["allowed"] == []
     assert set(contract["request_only"]) == {
-        "understand", "understand-domain", "codebase-memory-index",
+        "understand", "understand-domain",
     }
 
 

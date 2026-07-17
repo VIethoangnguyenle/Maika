@@ -25,17 +25,7 @@ class CodexPlatform(BasePlatform):
         "run_command":       "run_command",
         "command_status":    "command_status",
         "send_input":        "send_input",
-        "search_code":       "search_code",
-        "semantic_search":   "semantic_search",
-        "index_code":        "index_code",
-        "code_status":       "code_status",
-        "get_dependencies":  "get_dependencies",
-        "trace_flow":        "trace_flow",
-        "find_blast_radius": "find_blast_radius",
         "get_symbol":        "get_symbol",
-        "list_symbols":      "list_symbols",
-        "graph_stats":       "graph_stats",
-        "graph_build":       "graph_build",
 
         # ── Domain / top-down (understand-anything MCP) ──
         "domain_overview":      "get_domain_overview",
