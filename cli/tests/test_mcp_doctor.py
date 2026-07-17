@@ -735,3 +735,68 @@ def test_doctor_warns_without_mutating_user_global_agentmemory_hooks(tmp_path, m
     assert status.memory_governance == "degraded"
     assert "WARNING" in report and "auto-capture hook" in report
     assert settings.read_text(encoding="utf-8") == original
+
+
+def test_doctor_flags_cbm_contamination(tmp_path):
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    write_resolved(target, mcps=["db-access"])
+    hooks = home / ".claude" / "hooks"
+    hooks.mkdir(parents=True)
+    (hooks / "cbm-gate.sh").write_text(
+        "# Installed by codebase-memory-mcp\n", encoding="utf-8")
+    status = build_doctor_status(target, home)
+    assert status.cbm_contamination == "contaminated"
+    assert status.health_state == "degraded"
+    text = render_report(status)
+    assert "cbm contamination: CONTAMINATED" in text
+    assert "codebase-memory-mcp uninstall" in text
+
+
+def test_doctor_flags_cbm_in_global_settings(tmp_path):
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    write_resolved(target, mcps=["db-access"])
+    settings = home / ".claude" / "settings.json"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(json.dumps({"hooks": {"PreToolUse": [
+        {"matcher": "Grep|Glob",
+         "hooks": [{"command": "codebase-memory-mcp hook run"}]}]}}),
+        encoding="utf-8")
+    status = build_doctor_status(target, home)
+    assert status.cbm_contamination == "contaminated"
+    assert any("settings.json" in item for item in status.contamination_findings)
+
+
+def test_doctor_flags_cbm_in_project_config(tmp_path):
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    write_resolved(target, mcps=["db-access"])
+    mcp_json = target / ".mcp.json"
+    mcp_json.write_text(json.dumps(
+        {"mcpServers": {"codebase-memory-mcp": {"command": "codebase-memory-mcp"}}}),
+        encoding="utf-8")
+    status = build_doctor_status(target, home)
+    assert status.cbm_contamination == "contaminated"
+
+
+def test_doctor_contamination_clean(tmp_path):
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    write_resolved(target, mcps=["db-access"])
+    status = build_doctor_status(target, home)
+    assert status.cbm_contamination == "clean"
+    assert status.contamination_findings == []
+    assert "cbm contamination: CLEAN" in render_report(status)
+
+
+def test_doctor_contamination_never_mutates(tmp_path):
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    write_resolved(target, mcps=["db-access"])
+    hook = home / ".claude" / "hooks" / "cbm-gate.sh"
+    hook.parent.mkdir(parents=True)
+    payload = "# Installed by codebase-memory-mcp\n"
+    hook.write_text(payload, encoding="utf-8")
+    build_doctor_status(target, home)
+    assert hook.read_text(encoding="utf-8") == payload
