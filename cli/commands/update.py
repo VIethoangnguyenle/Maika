@@ -70,6 +70,16 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
         language = resolved.get("language", "other")
 
     platform = get_platform(platform_key)
+
+    if not reconfigure:
+        known_mcps = manifest.get("mcp_capabilities", {})
+        unknown_mcps = [mcp for mcp in selected_mcps if mcp not in known_mcps]
+        if unknown_mcps:
+            selected_mcps = [mcp for mcp in selected_mcps if mcp in known_mcps]
+            for name in unknown_mcps:
+                print(f"  warning: unknown mcp selection dropped: {name}")
+            generate_resolved_config(target, platform, selected_mcps, language)
+
     framework_root = resolved.get("framework_root", platform.framework_root)
     context = platform.build_render_context(selected_mcps, language)
     jinja_env = create_renderer(str(maika))

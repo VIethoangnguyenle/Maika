@@ -191,7 +191,7 @@ def test_serena_context_scaffolds_only_when_selected(tmp_path):
 def test_has_capability(maika_root):
     manifest = load_manifest(maika_root)
     caps = manifest["mcp_capabilities"]
-    assert has_capability(["codebase-memory-mcp"], caps, "code_exploration") is True
+    assert has_capability(["understand-anything"], caps, "code_exploration") is True
     assert has_capability([], caps, "code_exploration") is False
 
 
@@ -405,7 +405,7 @@ def test_generate_resolved_config_uses_platform_framework_root(tmp_path):
     from cli.platforms import get_platform
 
     platform = get_platform("antigravity")
-    generate_resolved_config(tmp_path, platform, ["codebase-memory-mcp"], "python")
+    generate_resolved_config(tmp_path, platform, ["db-access"], "python")
 
     config = tmp_path / ".maika" / "resolved-config.yaml"
     assert config.exists()
@@ -421,7 +421,7 @@ def test_load_resolved_config_reads_agents_config(tmp_path):
         "resolved:\n"
         "  platform: antigravity\n"
         "  framework_root: .agents\n"
-        "  mcps: [codebase-memory-mcp]\n"
+        "  mcps: [db-access]\n"
         "  language: python\n",
         encoding="utf-8",
     )
@@ -677,7 +677,7 @@ def test_generate_resolved_config_replaces_canonical_config(tmp_path):
     bystander.parent.mkdir(parents=True)
     bystander.write_text("other: value\n", encoding="utf-8")
 
-    generate_resolved_config(tmp_path, get_platform("antigravity"), ["codebase-memory-mcp"], "python")
+    generate_resolved_config(tmp_path, get_platform("antigravity"), ["db-access"], "python")
 
     assert stale.exists()                                             # active replaced
     assert "platform: antigravity" in stale.read_text(encoding="utf-8")
@@ -693,7 +693,7 @@ def test_generate_resolved_config_rejects_directory_at_canonical_path(tmp_path):
     bogus.mkdir(parents=True)
 
     with pytest.raises(IsADirectoryError):
-        generate_resolved_config(tmp_path, get_platform("antigravity"), ["codebase-memory-mcp"], "python")
+        generate_resolved_config(tmp_path, get_platform("antigravity"), ["db-access"], "python")
 
     assert bogus.is_dir()
 

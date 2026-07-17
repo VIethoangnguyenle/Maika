@@ -36,44 +36,14 @@ def test_setup_server_and_install_hint():
     assert "default" in setup["install_hint"]
 
 
-def _cbm_setup():
-    manifest = load_manifest(MAIKA_ROOT)
-    return manifest["mcp_capabilities"]["codebase-memory-mcp"]["setup"]
-
-
 def test_socraticode_removed_from_manifest():
     manifest = load_manifest(MAIKA_ROOT)
     assert "socraticode" not in manifest["mcp_capabilities"]
 
 
-def test_cbm_capability_present():
+def test_manifest_has_no_codebase_memory_capability():
     manifest = load_manifest(MAIKA_ROOT)
-    cap = manifest["mcp_capabilities"]["codebase-memory-mcp"]
-    assert cap["provides"] == "code_exploration"
-
-
-def test_cbm_setup_server_is_binary_no_clone_dir():
-    setup = _cbm_setup()
-    assert setup["server"]["command"] == "codebase-memory-mcp"
-    assert setup["server"]["args"] == []
-    assert "{ua_mcp_dir}" not in str(setup["server"])
-
-
-def test_cbm_setup_has_no_graph_artifacts_but_has_index_hint():
-    setup = _cbm_setup()
-    assert "graph_artifacts" not in setup
-    assert setup["index_hint"]
-
-
-def test_cbm_setup_engine_check_and_install_hint():
-    setup = _cbm_setup()
-    # engine_check points at the installed cb-mem binary
-    assert setup["engine_check"]["default"]["kind"] == "path_exists"
-    assert setup["engine_check"]["default"]["path"].endswith("/codebase-memory-mcp")
-    assert "{home}" in setup["engine_check"]["default"]["path"]
-    # install_hint is the turnkey one-line installer (UA-style), binary-only
-    assert "install.sh" in setup["install_hint"]["default"]
-    assert "--skip-config" in setup["install_hint"]["default"]
+    assert "codebase-memory-mcp" not in manifest["mcp_capabilities"]
 
 
 def test_serena_manifest_is_pinned_and_uses_maika_context():

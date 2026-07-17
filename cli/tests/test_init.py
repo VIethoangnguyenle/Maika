@@ -20,14 +20,13 @@ from cli.scaffold import load_manifest
 def _interactive(
     monkeypatch,
     platform_key,
-    mcps=("codebase-memory-mcp", "confluence", "db-access"),
+    mcps=("db-access", "confluence"),
     language="python",
     inputs=("y",),
 ):
     """Drive the interactive init/update prompts: the questionary wrappers return
     canned selections, and the remaining input() calls (UA dir, scaffold confirm)
-    come from `inputs`. Default mcps include codebase-memory-mcp so the
-    code_exploration capability (and the grounding-explorer skill) is scaffolded."""
+    come from `inputs`."""
     from cli.platforms import get_platform
 
     singles = iter([get_platform(platform_key).display_name, language])
@@ -115,8 +114,8 @@ def test_questionary_call_shapes_match_init_usage():
 
 
 def test_parse_multi_values_accepts_repeated_and_comma_values():
-    assert parse_multi_values(["codebase-memory-mcp,confluence", "db-access"]) == [
-        "codebase-memory-mcp",
+    assert parse_multi_values(["understand-anything,confluence", "db-access"]) == [
+        "understand-anything",
         "confluence",
         "db-access",
     ]
@@ -128,13 +127,13 @@ def test_resolve_init_choices_accepts_complete_non_interactive_options(maika_roo
     platform_key, selected_mcps, language = resolve_init_choices(
         manifest,
         platform_key="generic",
-        selected_mcps=["codebase-memory-mcp", "confluence"],
+        selected_mcps=["db-access", "confluence"],
         language="python",
         assume_yes=True,
     )
 
     assert platform_key == "generic"
-    assert selected_mcps == ["codebase-memory-mcp", "confluence"]
+    assert selected_mcps == ["db-access", "confluence"]
     assert language == "python"
 
 
@@ -430,7 +429,7 @@ def test_init_scaffolds_mcp_bridge_when_platform_supports_tools(tmp_path, maika_
         target_dir=str(target),
         maika_root=str(maika_root),
         platform_key="antigravity",
-        selected_mcps=["codebase-memory-mcp"],
+        selected_mcps=["db-access"],
         language="python",
         assume_yes=True,
     )
@@ -444,7 +443,7 @@ def test_init_prints_mcp_doctor_hint_when_mcps_selected(tmp_path, maika_root, ca
         target_dir=str(target),
         maika_root=str(maika_root),
         platform_key="codex",
-        selected_mcps=["codebase-memory-mcp"],
+        selected_mcps=["db-access"],
         language="python",
         assume_yes=True,
     )
@@ -472,7 +471,7 @@ def test_cli_init_forwards_non_interactive_options(monkeypatch, tmp_path):
             "--platform",
             "generic",
             "--mcp",
-            "codebase-memory-mcp,confluence",
+            "db-access,confluence",
             "--language",
             "python",
             "--yes",
@@ -485,7 +484,7 @@ def test_cli_init_forwards_non_interactive_options(monkeypatch, tmp_path):
 
     assert captured["target_dir"] == str(tmp_path)
     assert captured["platform_key"] == "generic"
-    assert captured["selected_mcps"] == ["codebase-memory-mcp", "confluence"]
+    assert captured["selected_mcps"] == ["db-access", "confluence"]
     assert captured["language"] == "python"
     assert captured["assume_yes"] is True
 
@@ -533,7 +532,7 @@ def test_resolve_ua_mcp_dir_placeholder_when_yes_and_missing():
 
 
 def test_resolve_ua_mcp_dir_blank_when_ua_not_selected():
-    assert resolve_ua_mcp_dir(["codebase-memory-mcp"], None, assume_yes=True) == ""
+    assert resolve_ua_mcp_dir(["db-access"], None, assume_yes=True) == ""
 
 
 def test_existing_ua_mcp_dir_falls_back_for_invalid_utf8(tmp_path):
@@ -597,7 +596,7 @@ def test_setup_aggregates_multiple_providers_and_enabled_hosts(tmp_path):
     wrote = emit_mcp_setup_files(
         tmp_path,
         ["codex", "claude-code", "antigravity"],
-        ["understand-anything", "codebase-memory-mcp", "serena"],
+        ["understand-anything", "serena"],
         manifest,
         "/srv/ua",
         "python",
@@ -606,7 +605,7 @@ def test_setup_aggregates_multiple_providers_and_enabled_hosts(tmp_path):
     assert wrote is True
     text = (tmp_path / ".maika" / "MCP_SETUP.md").read_text(encoding="utf-8")
     assert text.startswith("# Maika MCP Setup")
-    for provider in ("understand-anything", "codebase-memory-mcp", "serena"):
+    for provider in ("understand-anything", "serena"):
         assert text.count(f"## Provider: {provider}") == 1
     for platform in ("Codex", "Claude Code", "Antigravity"):
         assert platform in text
@@ -616,7 +615,7 @@ def test_init_retains_every_selected_setup_provider(tmp_path):
     run_init(
         target_dir=str(tmp_path), maika_root=str(MAIKA_ROOT),
         platform_key="codex",
-        selected_mcps=["understand-anything", "codebase-memory-mcp", "serena"],
+        selected_mcps=["understand-anything", "serena"],
         language="python", assume_yes=True, ua_mcp_dir="/srv/ua-mcp",
     )
 
@@ -625,7 +624,7 @@ def test_init_retains_every_selected_setup_provider(tmp_path):
     assert "serena project create" in text
     assert str(tmp_path) in text
     assert "/tmp/maika-init-" not in text
-    for provider in ("understand-anything", "codebase-memory-mcp", "serena"):
+    for provider in ("understand-anything", "serena"):
         assert text.count(f"## Provider: {provider}") == 1
 
 
