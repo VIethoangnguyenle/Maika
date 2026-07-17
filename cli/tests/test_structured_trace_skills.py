@@ -1,9 +1,9 @@
 """Typed capability doctrine pins (harness plan §8/§9 + mutation test #1).
 
-These tests are the CI half of the M2 mutation suite: moving CBM semantic
-search (or the dependency aggregate) back to `required`, dropping the
-structured-trace one_of group, or declaring a conditional capability without
-triggers must fail here even if the generic contract validator still passes.
+These tests are the CI half of the M2 mutation suite: moving the dependency
+aggregate back to `required`, dropping the structured-trace one_of group, or
+declaring a conditional capability without triggers must fail here even if
+the generic contract validator still passes.
 """
 
 from pathlib import Path
@@ -29,15 +29,12 @@ def _registry():
     )
 
 
-def test_grounding_uses_one_of_structured_trace_and_conditional_cbm():
+def test_grounding_uses_one_of_structured_trace():
     frontmatter, body = _skill("grounding-explorer")
     caps = frontmatter["capabilities"]
     assert set(caps["one_of"]["structured_trace"]) == UA_STRUCTURED_TRACE
     assert {"exact_source_inspection", "historical_context_retrieval"} <= set(caps["required"])
     conditional = caps["conditional"]
-    assert {"unresolved_anchor", "graph_gap", "ua_unavailable"} <= set(
-        conditional["semantic_code_search"]["triggers"]
-    )
     assert conditional["database_schema_inspection"]["triggers"] == ["persistence_change"]
     for field in (
         "graph_commit", "repository_head", "relevant_stale_files", "anchor_nodes",
@@ -46,15 +43,14 @@ def test_grounding_uses_one_of_structured_trace_and_conditional_cbm():
         assert field in body
 
 
-def test_cbm_capabilities_never_return_to_required():
-    """Mutation #1 (plan §21): CBM semantic search moved back to required must fail CI."""
+def test_dependency_analysis_never_returns_to_required():
+    """Mutation #1 (plan §21): dependency_analysis moved back to required must fail CI."""
     for name in MIGRATED:
         frontmatter, _ = _skill(name)
         caps = frontmatter["capabilities"]
         pinned = set(caps.get("required") or [])
         for group in (caps.get("one_of") or {}).values():
             pinned |= set(group)
-        assert "semantic_code_search" not in pinned, name
         assert "dependency_analysis" not in pinned, name
 
 
@@ -65,7 +61,7 @@ def test_reviewers_hold_only_neutral_required_capabilities():
         assert {"exact_source_inspection", "runtime_verification"} <= set(caps["required"])
         conditional = caps["conditional"]
         for capability in (
-            "call_chain_trace", "impact_analysis", "semantic_code_search",
+            "call_chain_trace", "impact_analysis",
             "dependency_analysis", "historical_context_retrieval",
             "database_schema_inspection",
         ):
@@ -77,8 +73,8 @@ def test_database_explorer_conditional_consumer_mapping():
     frontmatter, _ = _skill("database-explorer")
     caps = frontmatter["capabilities"]
     assert "database_schema_inspection" in caps["required"]
-    assert caps["conditional"]["semantic_code_search"]["triggers"] == [
-        "database_code_consumer_gap"
+    assert caps["conditional"]["database_dependency_analysis"]["triggers"] == [
+        "database_dependency_risk"
     ]
 
 

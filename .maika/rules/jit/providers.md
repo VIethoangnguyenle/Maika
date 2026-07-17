@@ -32,8 +32,8 @@
 | `symbolic_code_navigation` | Serena | exact symbol identity, declaration, implementation và LSP references |
 | `code_diagnostics` | Serena | LSP diagnostics cho file/symbol khi trigger yêu cầu |
 | `operational_maintenance` | Serena | bounded language-server recovery; không tạo semantic/diagnostic evidence |
-| `semantic_code_search` | Codebase Memory (CBM, conditional) | fuzzy semantic anchor discovery, graph-gap recovery và reviewer counter-evidence |
-| `dependency_analysis` | CBM (compatibility aggregate, conditional) | counter-evidence trong lúc consumer migrate; không phải structured trace authority |
+| fuzzy anchor discovery | Understand-Anything `query_nodes` (primary), host search (corroborating) | dùng khi tên/anchor chưa rõ; Serena `find_symbol` khi đã biết tên; graph gap/stale → current source |
+| `dependency_analysis` | UA-MCP | structured dependency path và blast-radius traversal |
 | `exact_source_inspection` | **current source** | file, symbol, signature, test, behavior, configuration hiện tại |
 | `historical_context_retrieval` | Agent Memory | incident cũ, quyết định trước, rejected approach, review pattern lặp lại |
 | `business_knowledge_retrieval` | Agent Memory + tài liệu | tri thức nghiệp vụ, domain, tài liệu |
@@ -42,9 +42,10 @@
 | `database_dependency_analysis` | DB Access constraints + current source | FK metadata và consumer SQL; capability DB không có phải degrade tường minh |
 
 - **UA-MCP là nguồn số 1** cho structured architecture/domain/call/impact/path/
-  inheritance trace khi graph áp dụng được. Serena là nguồn số 1 cho quan sát symbol/
-  diagnostics theo LSP. CBM sở hữu fuzzy semantic anchor discovery nhưng chỉ được gọi
-  có điều kiện cho graph-gap/counter-evidence, không thay structured trace.
+  inheritance/dependency trace khi graph áp dụng được. Serena là nguồn số 1 cho quan
+  sát symbol/diagnostics theo LSP. Fuzzy anchor discovery (tên/anchor chưa rõ) route
+  qua UA `query_nodes` (primary) với host search corroborating; Serena `find_symbol`
+  khi đã biết tên; graph gap/stale route về current source.
   `restart_language_server` thuộc operational maintenance, không thuộc diagnostics,
   không normalize thành semantic evidence và không thỏa evidence coverage.
 
@@ -65,9 +66,10 @@ Khi Understand-Anything graph healthy, đủ fresh và áp dụng được:
 - **Serena không thay thế UA-MCP**. Serena sở hữu quan sát exact symbol identity,
   declaration, implementation, LSP reference và diagnostics; các quan sát này là
   scoped semantic evidence, không phải architecture/trace ownership.
-- CBM không thay structured traversal bằng generic semantic search khi graph đã có
-  cấu trúc cần thiết. CBM chỉ hỗ trợ có điều kiện cho fuzzy semantic anchor discovery,
-  graph-gap recovery, independent corroboration và reviewer counter-evidence.
+- Không provider nào thay thế structured traversal bằng generic semantic search khi
+  graph đã có cấu trúc cần thiết. Fuzzy anchor discovery route qua UA `query_nodes`
+  (primary) với host search corroborating, dùng có điều kiện cho graph-gap recovery,
+  independent corroboration và reviewer counter-evidence.
 - Current source vẫn authoritative cho exact code fact.
 - AgentMemory chỉ cung cấp historical candidate context; current source và tests hiện
   tại mới authoritative cho claim hiện hành.
@@ -76,18 +78,19 @@ Khi Understand-Anything graph healthy, đủ fresh và áp dụng được:
   hoặc event-driven consumer.
 
 Canonical trace: freshness probe → graph/domain anchor → structured UA-MCP
-traversal → conditional CBM support → exact source verification → evidence manifest.
-Mỗi CBM support call phải ghi reason: unresolved anchor, incomplete relationship,
-ambiguous semantic query, relevant stale graph files, reviewer corroboration, hoặc
-hidden consumer/dependency search.
+traversal → conditional symbolic/dependency support (Serena `find_symbol`, UA
+`query_nodes` corroborating) → exact source verification → evidence manifest.
+Mỗi support call phải ghi reason: unresolved anchor, incomplete relationship,
+relevant stale graph files, reviewer corroboration, hoặc hidden consumer/dependency
+search.
 
 Freshness handling:
 
 - `FRESH`: UA-MCP primary; source verify material exact facts.
 - `STALE` chỉ ở file không liên quan: UA-MCP vẫn primary; ghi scoped freshness và
   verify relevant source.
-- `STALE` ở file liên quan: UA-MCP chỉ là navigation evidence; CBM/source tạo current
-  trace, giảm confidence, có thể request refresh.
+- `STALE` ở file liên quan: UA-MCP chỉ là navigation evidence; current source tạo
+  current trace, giảm confidence, có thể request refresh.
 - `VERY_STALE`: chỉ dùng initial anchor; không dùng làm primary material evidence.
 
 ### [CRITICAL] R-Tool-3: Use-when-healthy — không skip im lặng provider khỏe
@@ -114,13 +117,13 @@ Freshness handling:
 ### [CRITICAL] R-Tool-5: Current source authority + source verification
 
 - **Current source là authority tối cao cho exact code fact** (file, symbol, signature,
-  test, behavior, configuration). UA/CBM/memory chỉ định hướng; material fact lấy từ
+  test, behavior, configuration). UA/memory chỉ định hướng; material fact lấy từ
   graph phải được **current source xác minh** khi đó là exact code fact.
 - Structured trace ghi vào `TRACE_EVIDENCE.yaml`: traversal tham chiếu observation
   response hash; exact fact verify bằng `maika provider verify-source` (Maika tự hash,
   gate `trace-evidence`/`exploration-evidence` re-verify — không tự viết sha256).
 - **Grep-honesty:** nếu artifact khai "grep fallback / provider unavailable" cho một
-  code-fact mà file đó thuộc project đã index trong CBM/UA → **REJECT** (không được lấy
+  code-fact mà file đó thuộc project đã index trong UA → **REJECT** (không được lấy
   cớ lười để tụt xuống grep khi provider có data); degradation phải là limitations
   entry có cấu trúc, backed bằng invocation record status error.
 
@@ -179,11 +182,9 @@ Freshness handling:
 - Không tự điền dữ liệu upstream không cung cấp. Giá trị chưa chứng minh phải là
   `unverified`; readiness không được mang nhãn production khi còn mandatory field
   `unverified`.
-- Conflict UA/CBM không được merge thành một claim `verified`. Phải ghi `conflicts`
-  và resolve bằng file đã hash qua `maika provider verify-source`.
+- Conflict giữa các provider (UA, Serena, current source) không được merge thành một
+  claim `verified`. Phải ghi `conflicts` và resolve bằng file đã hash qua
+  `maika provider verify-source`.
 - AgentMemory chỉ có authority `historical_context`, classification `candidate`,
   `canonical: false`. `agentId` chỉ là retrieval filter, không phải authorization.
   Durable knowledge chỉ được promote qua `cli/knowledge_control.py` sau verification.
-- Khi dùng CBM cho material evidence: ghi `index_status` trước/sau session; HEAD,
-  working tree, node/edge count, index timestamp và tool-contract hash phải ổn định.
-  `index_generation` tiếp tục là `unverified` cho tới khi upstream cung cấp immutable ID.

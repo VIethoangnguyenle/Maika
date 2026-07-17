@@ -77,22 +77,29 @@ def test_unknown_trigger_rejected():
 
 
 def test_capability_in_required_and_conditional_rejected():
+    # historical_context_retrieval is already required for grounding-explorer;
+    # redeclaring it as conditional creates the required+conditional conflict.
     errors = _with_mutation(
         "grounding-explorer",
-        "  required:\n  - exact_source_inspection",
-        "  required:\n  - exact_source_inspection\n  - semantic_code_search",
+        "  conditional:\n    symbolic_code_navigation:",
+        "  conditional:\n    historical_context_retrieval:\n      triggers:\n"
+        "      - reviewer_counter_evidence\n    symbolic_code_navigation:",
     )
     assert any(
-        "semantic_code_search cannot be both required and conditional" in err
+        "historical_context_retrieval cannot be both required and conditional" in err
         for err in errors
     )
 
 
 def test_capability_in_one_of_and_conditional_rejected():
+    # historical_context_retrieval is added to both one_of and conditional so the
+    # same capability is declared in two mutually exclusive groups.
     errors = _with_mutation(
         "grounding-explorer",
-        "    structured_trace:\n    - architecture_discovery",
-        "    structured_trace:\n    - architecture_discovery\n    - semantic_code_search",
+        "    - call_chain_trace\n  conditional:\n    symbolic_code_navigation:",
+        "    - call_chain_trace\n    - historical_context_retrieval\n  conditional:\n"
+        "    historical_context_retrieval:\n      triggers:\n"
+        "      - reviewer_counter_evidence\n    symbolic_code_navigation:",
     )
     assert any("cannot be both one_of and conditional" in err for err in errors)
 

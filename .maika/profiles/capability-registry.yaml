@@ -120,22 +120,16 @@ capabilities:
 triggers:
   unresolved_anchor:
     description: Anchor/symbol không resolve được từ tên hoặc graph node hiện có.
-  ambiguous_semantic_query:
-    description: Câu hỏi ngôn ngữ tự nhiên mơ hồ, chưa map được vào anchor cụ thể.
   graph_gap:
     description: Structured traversal thiếu relationship/node kỳ vọng.
   relevant_graph_stale:
     description: File liên quan trực tiếp đã đổi sau graph commit (freshness scoped).
   hidden_consumer_risk:
     description: Nghi ngờ consumer ẩn (reflection, config, event wiring) ngoài structured trace.
-  dynamic_wiring_risk:
-    description: Wiring động (DI/reflection/event) khiến static trace không đủ.
   reviewer_counter_evidence:
     description: Reviewer cần bằng chứng đối chứng độc lập cho một claim material.
   ua_unavailable:
     description: UA provider unavailable/invalid/degraded theo probe thật.
-  database_code_consumer_gap:
-    description: Cần map code consumer cho DB object ngoài phạm vi constraint metadata.
   persistence_change:
     description: Change chạm persistence (entity/repository/SQL/migration/transaction/locking).
   database_dependency_risk:

@@ -21,9 +21,6 @@ capabilities:
     database_dependency_analysis:
       triggers:
       - database_dependency_risk
-    semantic_code_search:
-      triggers:
-      - database_code_consumer_gap
 outputs:
   required:
   - exploration/DATABASE_REQUEST.yaml
@@ -70,8 +67,10 @@ transaction/locking, job/outbox, audit, hoặc DB performance.
 ## Chính sách capability
 Required: `database_schema_inspection`, `exact_source_inspection`.
 Conditional — chỉ gọi khi trigger kích hoạt, ghi trigger + reason:
-  `database_dependency_analysis` (database_dependency_risk);
-  `semantic_code_search` (database_code_consumer_gap).
+  `database_dependency_analysis` (database_dependency_risk).
+Code consumer gap ngoài constraint metadata route qua `exact_source_inspection`
+  (current source) hoặc UA `query_nodes` corroborating, không phải một capability
+  riêng.
 Chỉ read-only; không tự chạy DDL/DML trong exploration (`jit/providers.md` R-Tool-9).
 
 ## Quy trình truy xuất

@@ -33,14 +33,6 @@ capabilities:
     impact_analysis:
       triggers:
       - blast_radius_required
-    semantic_code_search:
-      triggers:
-      - unresolved_anchor
-      - ambiguous_semantic_query
-      - graph_gap
-      - relevant_graph_stale
-      - hidden_consumer_risk
-      - ua_unavailable
     dependency_analysis:
       triggers:
       - graph_gap
@@ -115,11 +107,13 @@ One-of `structured_trace` (thoả ≥1 khi graph áp dụng được): `architec
   `domain_flow_trace`, `call_chain_trace`.
 Conditional — chỉ gọi khi trigger kích hoạt, ghi trigger + reason vào `support_calls`:
   `symbolic_code_navigation` (unresolved_anchor, graph_gap, relevant_graph_stale);
-  `impact_analysis` (blast_radius_required); `semantic_code_search` (unresolved_anchor,
-  ambiguous_semantic_query, graph_gap, relevant_graph_stale, hidden_consumer_risk,
-  ua_unavailable); `dependency_analysis` (graph_gap, ua_unavailable);
-  `database_schema_inspection` (persistence_change); `database_dependency_analysis`
-  (database_dependency_risk).
+  `impact_analysis` (blast_radius_required); `dependency_analysis` (graph_gap,
+  ua_unavailable); `database_schema_inspection` (persistence_change);
+  `database_dependency_analysis` (database_dependency_risk).
+Fuzzy anchor discovery (tên/anchor chưa rõ) route qua UA `query_nodes` (primary) với
+  host search corroborating — không phải một capability riêng, nằm trong
+  `structured_trace`/`symbolic_code_navigation` đã khai ở trên; Serena `find_symbol`
+  khi đã biết tên; graph gap/stale route về current source.
 Trigger kích hoạt mà không có provider call/zero-result/degradation record = invalid;
 conditional call không có trigger = invalid (plan §8).
 Provider ưu tiên theo `jit/providers.md`; skill chỉ gọi capability, không gọi provider.
@@ -141,9 +135,9 @@ used by the bounded provider-health recovery path.
 5. Traverse domain flow, relationships, call chain hoặc impact bằng precise trace
    capability; lấy node source cho material nodes. Viết traversal vào
    `TRACE_EVIDENCE.yaml` tham chiếu response hash của observation tương ứng.
-6. Chỉ gọi `symbolic_code_navigation` hoặc `semantic_code_search` khi trigger
-   conditional tương ứng kích hoạt; record call với `--trigger <trigger> --reason
-   "<why>"` (support call thiếu trigger/reason bị gate từ chối).
+6. Chỉ gọi `symbolic_code_navigation` khi trigger conditional tương ứng kích hoạt;
+   record call với `--trigger <trigger> --reason "<why>"` (support call thiếu
+   trigger/reason bị gate từ chối).
 7. Verify exact material facts bằng
    `maika provider verify-source --file <path> --symbol <symbol>` — Maika tự hash,
    gate re-verify (không tự viết sha256).
@@ -207,13 +201,13 @@ providers:
       operation: get_graph_metadata
       observed: "1799 nodes / 2854 edges, graph_commit a14930e"
     freshness: FRESH
-  codebase-memory-mcp:
+  serena:
     status: unavailable
     degradation:
       probe_ran: true
-      error: "no index for this project"
+      error: "language server failed to initialize"
       fallback_used: current_source
-      missing_evidence: "semantic corroboration"
+      missing_evidence: "symbol references"
       confidence_impact: "medium"
 ```
 

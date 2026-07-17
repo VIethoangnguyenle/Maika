@@ -39,7 +39,7 @@
 
 ### R-Know-17: Graph / index refresh
 
-- Change ảnh hưởng cấu trúc code/domain → trigger **graph refresh** (UA/CBM re-index) và
+- Change ảnh hưởng cấu trúc code/domain → trigger **graph refresh** (UA re-index) và
   **regenerate knowledge index** (`knowledge-index.yaml`) khi cần.
 
 ---

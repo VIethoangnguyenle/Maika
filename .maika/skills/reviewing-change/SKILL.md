@@ -32,12 +32,6 @@ capabilities:
     impact_analysis:
       triggers:
       - blast_radius_required
-    semantic_code_search:
-      triggers:
-      - hidden_consumer_risk
-      - dynamic_wiring_risk
-      - reviewer_counter_evidence
-      - ua_unavailable
     dependency_analysis:
       triggers:
       - graph_gap
@@ -90,10 +84,12 @@ Conditional — chỉ gọi khi trigger kích hoạt, ghi trigger + reason:
   `symbolic_code_navigation` (hidden_consumer_risk, reviewer_counter_evidence,
   relevant_graph_stale); `code_diagnostics` (language_diagnostics_required);
   `call_chain_trace` (reviewer_counter_evidence); `impact_analysis`
-  (blast_radius_required); `semantic_code_search` (hidden_consumer_risk,
-  dynamic_wiring_risk, reviewer_counter_evidence, ua_unavailable);
-  `dependency_analysis` (graph_gap, ua_unavailable); `historical_context_retrieval`
-  (reviewer_counter_evidence); `database_schema_inspection` (persistence_change).
+  (blast_radius_required); `dependency_analysis` (graph_gap, ua_unavailable);
+  `historical_context_retrieval` (reviewer_counter_evidence);
+  `database_schema_inspection` (persistence_change).
+Hidden-consumer/dynamic-wiring counter-evidence route qua UA `query_nodes`
+  (corroborating) hoặc Serena `find_symbol` khi đã biết tên, không phải một
+  capability riêng.
 Đọc diff toàn change độc lập; đối chiếu với durable knowledge.
 Symbol references là **scoped LSP evidence**, không phải proof của mọi
 reflective/configured/event consumer; mọi material claim vẫn cần current source.
