@@ -26,7 +26,7 @@ DISPATCH_TYPES = {
 }
 DEFAULT_EXTERNAL_WORKFLOWS = {
     "allowed": [],
-    "request_only": ["understand", "understand-domain", "codebase-memory-index"],
+    "request_only": ["understand", "understand-domain"],
 }
 
 EXECUTION_CONTRACT_REL = "generated/ACTIVE_EXECUTION.yaml"

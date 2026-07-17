@@ -41,7 +41,7 @@ Default dispatch contract:
 ```yaml
 external_workflows:
   allowed: []
-  request_only: [understand, understand-domain, codebase-memory-index]
+  request_only: [understand, understand-domain]
 ```
 
 Worker không tự chạy request-only workflow. Khi cần, ghi request cạnh result:

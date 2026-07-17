@@ -18,7 +18,14 @@ def test_canonical_external_workflows_are_valid():
 
 def test_read_only_workflow_cannot_declare_writes():
     doc = deepcopy(_doc())
-    doc["workflows"]["codebase-memory-query"]["allowed_writes"] = ["src/**"]
+    doc["workflows"]["sample-query"] = {
+        "owner": "understand-anything",
+        "invocation_type": "provider_query",
+        "kind": "knowledge_query",
+        "task_workspace": "not_required",
+        "mutability": "read_only",
+        "allowed_writes": [".maika/reports/sample/**"],
+    }
     errors = validate_external_workflows(doc)
     assert any("read-only" in error for error in errors)
 
