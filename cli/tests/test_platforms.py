@@ -12,6 +12,31 @@ from cli.platforms.base import (
 from cli.platforms.generic import GenericPlatform
 
 
+SERENA_MAPPING = {
+    "serena_symbols_overview": "get_symbols_overview",
+    "serena_find_symbol": "find_symbol",
+    "serena_find_references": "find_referencing_symbols",
+    "serena_find_declaration": "find_declaration",
+    "serena_find_implementations": "find_implementations",
+    "serena_file_diagnostics": "get_diagnostics_for_file",
+    "serena_symbol_diagnostics": "get_diagnostics_for_symbol",
+    "serena_maintenance_restart_language_server": "restart_language_server",
+}
+
+SERENA_EDITING_NAMES = {
+    "create_text_file",
+    "delete_lines",
+    "insert_after_symbol",
+    "insert_at_line",
+    "insert_before_symbol",
+    "rename_symbol",
+    "replace_content",
+    "replace_lines",
+    "replace_symbol_body",
+    "safe_delete_symbol",
+}
+
+
 def test_platform_framework_roots():
     assert {get_platform(key).framework_root for key in PLATFORMS} == {".maika"}
 
@@ -64,6 +89,45 @@ def test_all_platforms_define_required_tool_keyset():
         assert extra_unsupported == set(), (
             f"{key} declares unknown unsupported tools: {sorted(extra_unsupported)}"
         )
+
+
+def test_serena_mapping_exists_on_all_supported_platforms():
+    for key, cls in PLATFORMS.items():
+        serena_keys = {
+            operation for operation in cls().tool_mapping if operation.startswith("serena_")
+        }
+        assert serena_keys == set(SERENA_MAPPING), (
+            f"{key} Serena mappings differ from the supported operation set"
+        )
+
+
+def test_serena_operations_are_optional_tool_keys():
+    serena_optional_keys = {
+        operation for operation in OPTIONAL_TOOL_KEYS if operation.startswith("serena_")
+    }
+    assert serena_optional_keys == set(SERENA_MAPPING)
+
+
+def test_serena_native_names_are_platform_correct():
+    platform_prefixes = {
+        "claude-code": "mcp__serena__",
+        "antigravity": "mcp_serena_",
+        "codex": "",
+        "generic": "",
+    }
+    for platform_key, prefix in platform_prefixes.items():
+        mapping = get_platform(platform_key).tool_mapping
+        for operation, native_name in SERENA_MAPPING.items():
+            assert mapping[operation] == f"{prefix}{native_name}"
+
+
+def test_serena_editing_tool_names_are_not_mapped():
+    for key, cls in PLATFORMS.items():
+        concrete_names = set(cls().tool_mapping.values())
+        for editing_name in SERENA_EDITING_NAMES:
+            assert not any(editing_name in concrete for concrete in concrete_names), (
+                f"{key} unexpectedly maps Serena editing tool {editing_name}"
+            )
 
 
 def test_build_render_context_fails_on_missing_required_tool_mapping():

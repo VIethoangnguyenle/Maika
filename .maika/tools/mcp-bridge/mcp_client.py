@@ -4,8 +4,12 @@
 import argparse
 import json
 import os
+import queue
+import signal
 import subprocess
 import sys
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -13,6 +17,8 @@ from pathlib import Path
 
 
 PROTOCOL_VERSION = "2024-11-05"
+REQUEST_TIMEOUT_SECONDS = 15
+READER_JOIN_TIMEOUT_SECONDS = 1
 
 
 def parse_sse(response_text: str):
@@ -141,7 +147,64 @@ def resolve_http_endpoint(config: dict, headers: dict) -> str:
     raise ValueError("http server has no serverUrl")
 
 
-def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: dict):
+def _close_pipe(pipe) -> None:
+    if pipe is None or not hasattr(pipe, "close"):
+        return
+    try:
+        pipe.close()
+    except (OSError, ValueError):
+        pass
+
+
+def _has_process_group(proc) -> bool:
+    return os.name == "posix" and isinstance(getattr(proc, "pid", None), int)
+
+
+def _signal_stdio_process(proc, *, force: bool) -> None:
+    if _has_process_group(proc):
+        try:
+            os.killpg(proc.pid, signal.SIGKILL if force else signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        return
+    try:
+        (proc.kill if force else proc.terminate)()
+    except ProcessLookupError:
+        pass
+
+
+def _shutdown_stdio_process(proc, reader_threads: list[threading.Thread]) -> None:
+    """Close bridge pipes, reap the child, and boundedly join response readers."""
+    _close_pipe(proc.stdin)
+    reaped = False
+    _signal_stdio_process(proc, force=False)
+    try:
+        proc.wait(timeout=1)
+        reaped = True
+    except subprocess.TimeoutExpired:
+        _signal_stdio_process(proc, force=True)
+        try:
+            proc.wait(timeout=1)
+            reaped = True
+        except subprocess.TimeoutExpired:
+            pass
+
+    # A direct child can exit while one of its descendants still owns stdout.
+    # Once the direct child is reaped, force-stop any surviving POSIX group
+    # members so the reader can observe EOF without a cross-thread close.
+    if reaped and _has_process_group(proc):
+        _signal_stdio_process(proc, force=True)
+    for reader in reader_threads:
+        reader.join(timeout=READER_JOIN_TIMEOUT_SECONDS)
+    # BufferedReader.close() can wait on a lock held by readline(). Never call
+    # it until every reader has exited; on non-POSIX a daemon reader may remain
+    # briefly if a descendant inherited stdout, but cleanup itself stays bound.
+    if all(not reader.is_alive() for reader in reader_threads):
+        _close_pipe(proc.stdout)
+
+
+def with_stdio_session(config: dict, callback):
+    """Run bounded callback operations over one initialized stdio process."""
     command = config.get("command")
     if not command:
         return None, "stdio server has no command"
@@ -155,21 +218,50 @@ def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: d
         stderr=subprocess.DEVNULL,
         text=True,
         env=env,
+        start_new_session=os.name == "posix",
     )
+    reader_threads = []
+    next_request_id = 2
 
     def send(method: str, params: dict, req_id: int):
+        deadline = time.monotonic() + REQUEST_TIMEOUT_SECONDS
         proc.stdin.write(request_payload(method, params, req_id))
         proc.stdin.flush()
-        while True:
-            line = proc.stdout.readline()
-            if not line:
-                return None
-            if "jsonrpc" not in line:
-                continue
-            try:
-                return json.loads(line)
-            except json.JSONDecodeError:
-                continue
+        responses = queue.Queue(maxsize=1)
+
+        def read_response():
+            while True:
+                try:
+                    line = proc.stdout.readline()
+                except (OSError, ValueError):
+                    responses.put(None)
+                    return
+                if not line:
+                    responses.put(None)
+                    return
+                if "jsonrpc" not in line:
+                    continue
+                try:
+                    message = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(message, dict):
+                    continue
+                if message.get("jsonrpc") != "2.0":
+                    continue
+                if message.get("id") != req_id:
+                    continue
+                responses.put(message)
+                return
+
+        reader = threading.Thread(target=read_response, daemon=True)
+        reader_threads.append(reader)
+        reader.start()
+        try:
+            remaining = max(0.0, deadline - time.monotonic())
+            return responses.get(timeout=remaining)
+        except queue.Empty as exc:
+            raise TimeoutError(f"{method} failed: timed out") from exc
 
     def notify(method: str, params: dict):
         proc.stdin.write(notification_payload(method, params))
@@ -181,19 +273,34 @@ def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: d
         if error:
             return None, error
         notify("notifications/initialized", {})
-        if operation == "tools-list":
-            result = send("tools/list", {}, 2)
-            error = validate_response("tools/list", result)
-            return (result if not error else None), error
-        result = send("tools/call", {"name": tool_name, "arguments": arguments}, 2)
-        error = validate_response("tools/call", result)
-        return (result if not error else None), error
+
+        def call(operation: str, tool_name: str | None, arguments: dict):
+            nonlocal next_request_id
+            if operation == "tools-list":
+                method, params = "tools/list", {}
+            else:
+                method = "tools/call"
+                params = {"name": tool_name, "arguments": arguments}
+            request_id = next_request_id
+            next_request_id += 1
+            result = send(method, params, request_id)
+            call_error = validate_response(method, result)
+            return (result if not call_error else None), call_error
+
+        return callback(call), ""
+    except TimeoutError as exc:
+        return None, str(exc)
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _shutdown_stdio_process(proc, reader_threads)
+
+
+def call_stdio(config: dict, operation: str, tool_name: str | None, arguments: dict):
+    outcome, session_error = with_stdio_session(
+        config, lambda call: call(operation, tool_name, arguments),
+    )
+    if session_error:
+        return None, session_error
+    return outcome
 
 
 def call_http(config: dict, operation: str, tool_name: str | None, arguments: dict):

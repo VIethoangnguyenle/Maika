@@ -12,7 +12,7 @@ modules:
 - path: .maika/tools/knowledge-index/generate_index.py
   consumed_by: file-dispatch:cli/scaffold.py; cli-entrypoint:.maika/procedures/bootstrap.md
 - path: .maika/tools/mcp-bridge/mcp_client.py
-  consumed_by: file-dispatch:cli/provider_actions.py
+  consumed_by: file-dispatch:cli/mcp/doctor.py
 - path: .maika/tools/microloop-orchestrator/adaptive_runtime.py
   consumed_by: python-import:.maika/tools/microloop-orchestrator/orchestrator.py;
     file-dispatch:.maika/tools/microloop-orchestrator/plan_compiler.py

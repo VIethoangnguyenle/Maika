@@ -79,6 +79,7 @@ def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] =
 
     staging = Path(tempfile.mkdtemp(prefix="maika-adapter-"))
     backups = Path(tempfile.mkdtemp(prefix="maika-backup-"))
+    mcp_setup_written = None
     try:
         plugins = _adapter_plugins(manifest, platform_key)
         scaffold_plugins(
@@ -100,20 +101,41 @@ def install_adapter(target: Path, platform_key: str, maika_root: Optional[str] =
         from cli.platforms.probe import probe_and_persist
         probe_and_persist(staging, platform_key, verify=False)
         if project_config is not None:
+            from cli.commands.init import (
+                emit_mcp_setup_files,
+                existing_ua_mcp_dir,
+            )
+            mcp_setup_written = emit_mcp_setup_files(
+                staging,
+                project_config["platforms"]["enabled"],
+                resolved.get("mcps", []),
+                manifest,
+                existing_ua_mcp_dir(target),
+                resolved.get("language", "other"),
+                project_root=target,
+            )
             _stage_metadata(staging, target, project_config, platform_key)
         plan = build_plan(staging, target, "init", platform.framework_root)
+        if mcp_setup_written is False and (target / ".maika/MCP_SETUP.md").is_file():
+            plan["actions"].append({
+                "kind": "delete_file",
+                "path": ".maika/MCP_SETUP.md",
+                "ownership": "framework",
+            })
         Transaction(staging, target, backups).apply(plan)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
         shutil.rmtree(backups, ignore_errors=True)
 
 
-def remove_adapter(target: Path, platform_key: str, remaining: List[str], cfg: dict) -> None:
+def remove_adapter(target: Path, platform_key: str, remaining: List[str], cfg: dict,
+                   maika_root: Optional[str] = None) -> None:
     """Remove one adapter and metadata in a single transaction."""
     descriptor = platforms_cfg.adapter_descriptor(platform_key)
     staging = Path(tempfile.mkdtemp(prefix="maika-disable-"))
     backups = Path(tempfile.mkdtemp(prefix="maika-backup-"))
     extra = []
+    mcp_setup_written = None
     try:
         entrypoint = descriptor["entrypoint"]
         shared = any(platforms_cfg.adapter_descriptor(other)["entrypoint"] == entrypoint
@@ -136,8 +158,22 @@ def remove_adapter(target: Path, platform_key: str, remaining: List[str], cfg: d
             staged.parent.mkdir(parents=True, exist_ok=True)
             staged.write_text(json.dumps(cleaned, indent=2) + "\n", encoding="utf-8")
             extra.append({"kind": "replace", "path": hook_config, "ownership": "shared-host"})
+        maika = asset_root(maika_root)
+        manifest = load_asset_manifest(maika)
+        resolved = load_resolved_config(target) or {}
+        from cli.commands.init import emit_mcp_setup_files, existing_ua_mcp_dir
+        mcp_setup_written = emit_mcp_setup_files(
+            staging, remaining, resolved.get("mcps", []), manifest,
+            existing_ua_mcp_dir(target), resolved.get("language", "other"),
+            project_root=target,
+        )
         _stage_metadata(staging, target, cfg, platform_key, remove=True)
         plan = build_plan(staging, target, "platform-disable", ".maika")
+        if mcp_setup_written is False and (target / ".maika/MCP_SETUP.md").is_file():
+            plan["actions"].append({
+                "kind": "delete_file", "path": ".maika/MCP_SETUP.md",
+                "ownership": "framework",
+            })
         # Host replacements are full desired documents, not merge inputs.
         host_paths = {action["path"] for action in extra}
         plan["actions"] = [a for a in plan["actions"] if a["path"] not in host_paths]
@@ -222,7 +258,7 @@ def run_platform(action: str, target_dir: str, platform_key: Optional[str] = Non
     elif action == "disable":
         remaining = [p for p in cfg["platforms"]["enabled"] if p != platform_key]
         cfg = project.disable(cfg, platform_key)
-        remove_adapter(target, platform_key, remaining, cfg)
+        remove_adapter(target, platform_key, remaining, cfg, maika_root)
         print(f"  ✅ Disabled {platform_key}")
     elif action == "primary":
         cfg = project.set_primary(cfg, platform_key)

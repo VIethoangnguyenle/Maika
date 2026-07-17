@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
+from cli.assets import asset_root
 from cli.mcp.doctor import apply_fix, build_doctor_status, write_report
 
 
@@ -15,7 +16,7 @@ def run_doctor_mcp(
 ) -> None:
     target = Path(target_dir).resolve()
     home_path = home or Path.home()
-    maika_root = Path(__file__).resolve().parent.parent.parent
+    maika_root = asset_root()
     try:
         status = build_doctor_status(target, home_path, maika_root=maika_root)
     except ValueError as exc:
@@ -24,7 +25,10 @@ def run_doctor_mcp(
         return
     report = write_report(target, status)
     print(f"\n  MCP doctor report: {report}")
-    print(f"  native: {status.native_state} | bridge: {status.bridge_state}")
+    print(
+        f"  native: {status.native_state} | bridge: {status.bridge_state} "
+        f"| health: {status.health_state}"
+    )
     if status.memory_daemon != "not-selected":
         print(f"  agent-memory daemon: {status.memory_daemon} ({status.memory_daemon_url})")
     if fix:
@@ -210,9 +214,10 @@ def _check_mcp_health(target: Path, home: Path, maika_root: Optional[str]) -> di
     except ValueError as exc:
         return _finding("mcp-health", "warning", False, str(exc),
                         "run `maika doctor mcp --target <target> --fix`")
-    ok = status.native_state == "configured"
+    ok = status.health_state == "ready"
     return _finding("mcp-health", "warning", ok,
-                    f"native={status.native_state}, matched={status.matched}, missing={status.missing}",
+                    f"health={status.health_state}, native={status.native_state}, "
+                    f"matched={status.matched}, missing={status.missing}",
                     "" if ok else "run `maika doctor mcp --target <target> --fix`")
 
 

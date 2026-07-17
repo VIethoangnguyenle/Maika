@@ -86,6 +86,13 @@ def run_bootstrap(target_dir: str = ".", home: Path | None = None) -> int:
             healthy = status.memory_daemon == "running"
             probe_status = "healthy" if healthy else "unavailable"
             evidence = f"daemon:{status.memory_daemon} url:{status.memory_daemon_url}"
+        elif provider_id == "serena":
+            healthy = status.health_state == "ready" and provider_id in status.matched
+            probe_status = "healthy" if healthy else "degraded"
+            evidence = (
+                f"all_enabled_platforms:{status.health_state}; "
+                f"native_config:{status.native_state}; bridge:{status.bridge_state}"
+            )
         else:
             healthy = False  # config discovery is not a native MCP tool probe
             probe_status = "configured-unprobed" if provider_id in status.matched else "unavailable"

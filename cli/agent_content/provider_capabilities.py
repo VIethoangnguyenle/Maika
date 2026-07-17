@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from cli.mcp.integration.serena import SERENA_READ_TOOLS
+
 MAPPING_REL = "profiles/provider-capabilities.yaml"
 REGISTRY_REL = "profiles/capability-registry.yaml"
 PROVIDER_REGISTRY_REL = "config/provider-registry.yaml"
@@ -27,6 +29,7 @@ AGENT_MEMORY_PROXY_TOOLS = {
     "memory_smart_search", "memory_recall", "memory_sessions", "memory_save",
     "memory_governance_delete",
 }
+SERENA_TOOLS = set(SERENA_READ_TOOLS)
 
 
 def _load(path: Path, label: str) -> dict:
@@ -66,6 +69,14 @@ def validate_canonical_provider_registry(doc: dict, capabilities: dict) -> list[
         "semantic_index_structure": {
             "preferred": "codebase-memory-mcp",
             "conflict_action": "verify_current_source",
+        },
+        "semantic_symbol_resolution": {
+            "preferred": "serena",
+            "conflict_action": "verify_current_source",
+        },
+        "operational_maintenance": {
+            "preferred": "serena",
+            "evidence_eligible": False,
         },
         "historical_context": {"conflict_action": "treat_as_candidate"},
         "canonical_project_knowledge": {
@@ -137,6 +148,37 @@ def validate_canonical_provider_registry(doc: dict, capabilities: dict) -> list[
             semantic = (tool_contract.get("capabilities") or {}).get("semantic_code_search") or {}
             if semantic != {"tool": "search_graph", "argument": "semantic_query", "argument_type": "array"}:
                 errors.append(f"{prefix}: semantic search must use search_graph.semantic_query[array]")
+        if provider_id == "serena":
+            tool_contract = spec.get("tool_contract") or {}
+            tool_entries = tool_contract.get("tools") or []
+            tools = set(tool_entries)
+            duplicates = sorted({tool for tool in tool_entries if tool_entries.count(tool) > 1})
+            if duplicates:
+                errors.append(f"{prefix}: duplicate Serena contract tools {duplicates!r}")
+            if tools != SERENA_TOOLS:
+                errors.append(f"{prefix}: tool contract differs from tested Serena tool snapshot")
+            lanes = tool_contract.get("lanes") or {}
+            if set(lanes) != {"discovery", "maintenance"}:
+                errors.append(f"{prefix}: tool contract must have exactly discovery and maintenance lanes")
+            discovery = lanes.get("discovery") or {}
+            if discovery.get("mutability") != "read_only":
+                errors.append(f"{prefix}: discovery lane must be read_only")
+            maintenance = lanes.get("maintenance") or {}
+            if maintenance.get("mutability") != "operational":
+                errors.append(f"{prefix}: maintenance lane must be operational")
+            if maintenance.get("evidence_eligible") is not False:
+                errors.append(f"{prefix}: maintenance lane must not be evidence eligible")
+            lane_entries = [
+                tool for lane in lanes.values()
+                for tool in ((lane or {}).get("tools") or [])
+            ]
+            lane_duplicates = sorted({tool for tool in lane_entries if lane_entries.count(tool) > 1})
+            if lane_duplicates:
+                errors.append(f"{prefix}: duplicate Serena lane tools {lane_duplicates!r}")
+            if set(lane_entries) != tools or len(lane_entries) != len(tools):
+                errors.append(f"{prefix}: every Serena tool must belong to exactly one lane")
+            if set(maintenance.get("tools") or []) != {"restart_language_server"}:
+                errors.append(f"{prefix}: maintenance lane must contain only restart_language_server")
         if provider_id == "agent-memory":
             if spec.get("integration_mode") != "mcp_proxy_only":
                 errors.append(f"{prefix}: integration_mode must be mcp_proxy_only")
@@ -196,6 +238,13 @@ def validate_provider_capabilities(mapping: dict, registry: dict) -> list[str]:
                     errors.append(f"{prefix}: unknown CBM tools {sorted(unknown)!r}")
                 if capability == "semantic_code_search" and tools != ["search_graph"]:
                     errors.append(f"{prefix}: semantic search must route through search_graph")
+            elif provider == "serena":
+                duplicates = sorted({tool for tool in tools if tools.count(tool) > 1})
+                if duplicates:
+                    errors.append(f"{prefix}: duplicate Serena tools {duplicates!r}")
+                unknown = set(tools) - SERENA_TOOLS
+                if unknown:
+                    errors.append(f"{prefix}: unknown Serena tools {sorted(unknown)!r}")
             declared_primary = capabilities[capability].get("primary_provider")
             if role == "primary" and declared_primary != provider:
                 errors.append(

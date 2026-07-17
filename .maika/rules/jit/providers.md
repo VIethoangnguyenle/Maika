@@ -29,8 +29,11 @@
 | `impact_analysis` | UA-MCP | structured impact và blast-radius traversal |
 | `graph_path_trace` | UA-MCP | path giữa graph nodes |
 | `inheritance_trace` | UA-MCP | class hierarchy traversal |
-| `semantic_code_search` | Codebase Memory (CBM) | semantic anchor discovery và graph-gap recovery |
-| `dependency_analysis` | CBM (compatibility aggregate) | semantic dependency/hidden consumer discovery trong lúc consumer migrate |
+| `symbolic_code_navigation` | Serena | exact symbol identity, declaration, implementation và LSP references |
+| `code_diagnostics` | Serena | LSP diagnostics cho file/symbol khi trigger yêu cầu |
+| `operational_maintenance` | Serena | bounded language-server recovery; không tạo semantic/diagnostic evidence |
+| `semantic_code_search` | Codebase Memory (CBM, conditional) | fuzzy semantic anchor discovery, graph-gap recovery và reviewer counter-evidence |
+| `dependency_analysis` | CBM (compatibility aggregate, conditional) | counter-evidence trong lúc consumer migrate; không phải structured trace authority |
 | `exact_source_inspection` | **current source** | file, symbol, signature, test, behavior, configuration hiện tại |
 | `historical_context_retrieval` | Agent Memory | incident cũ, quyết định trước, rejected approach, review pattern lặp lại |
 | `business_knowledge_retrieval` | Agent Memory + tài liệu | tri thức nghiệp vụ, domain, tài liệu |
@@ -39,18 +42,38 @@
 | `database_dependency_analysis` | DB Access constraints + current source | FK metadata và consumer SQL; capability DB không có phải degrade tường minh |
 
 - **UA-MCP là nguồn số 1** cho structured architecture/domain/call/impact/path/
-  inheritance trace khi graph áp dụng được. **CBM là nguồn số 1** cho semantic search.
+  inheritance trace khi graph áp dụng được. Serena là nguồn số 1 cho quan sát symbol/
+  diagnostics theo LSP. CBM sở hữu fuzzy semantic anchor discovery nhưng chỉ được gọi
+  có điều kiện cho graph-gap/counter-evidence, không thay structured trace.
+  `restart_language_server` thuộc operational maintenance, không thuộc diagnostics,
+  không normalize thành semantic evidence và không thỏa evidence coverage.
 
 ### [CRITICAL] R-Tool-2A: UA-MCP Primary Structured Trace
 
 Khi Understand-Anything graph healthy, đủ fresh và áp dụng được:
 
-- UA-MCP là primary cho architecture traversal, domain-flow traversal, graph
-  relationship, call chain, impact, graph path và inheritance trace.
+- UA-MCP sở hữu toàn bộ surface **18 tools**: `list_projects`, `get_graph_stats`,
+  `get_graph_metadata`, `get_tour`, `query_nodes`, `get_node_detail`,
+  `get_node_source`, `get_relationships`, `trace_call_chain`, `get_layer_info`,
+  `find_entry_points`, `find_impact`, `find_path`, `get_class_hierarchy`,
+  `search_by_file_path`, `get_domain_overview`, `get_domain_detail` và
+  `get_domain_flow_detail`. Surface này sở hữu graph/project freshness,
+  architecture/domain discovery, relationships, trace, impact, path, hierarchy,
+  entry points và node source access.
+- `get_node_source` đọc source của một UA node và chỉ là **một trong 18 tools**;
+  nó không thu hẹp UA-MCP thành source-only provider.
+- **Serena không thay thế UA-MCP**. Serena sở hữu quan sát exact symbol identity,
+  declaration, implementation, LSP reference và diagnostics; các quan sát này là
+  scoped semantic evidence, không phải architecture/trace ownership.
 - CBM không thay structured traversal bằng generic semantic search khi graph đã có
-  cấu trúc cần thiết. CBM hỗ trợ semantic anchor discovery, graph-gap recovery,
-  hidden dependency search, independent corroboration và reviewer counter-evidence.
+  cấu trúc cần thiết. CBM chỉ hỗ trợ có điều kiện cho fuzzy semantic anchor discovery,
+  graph-gap recovery, independent corroboration và reviewer counter-evidence.
 - Current source vẫn authoritative cho exact code fact.
+- AgentMemory chỉ cung cấp historical candidate context; current source và tests hiện
+  tại mới authoritative cho claim hiện hành.
+- Mọi static provider đều không bảo đảm hidden-consumer completeness ngoài semantics
+  mà nó model; đặc biệt LSP/static graph không chứng minh mọi reflective, configured
+  hoặc event-driven consumer.
 
 Canonical trace: freshness probe → graph/domain anchor → structured UA-MCP
 traversal → conditional CBM support → exact source verification → evidence manifest.

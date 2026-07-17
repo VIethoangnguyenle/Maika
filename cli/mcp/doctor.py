@@ -8,8 +8,15 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 from cli.mcp.adapters import get_mcp_adapter
 from cli.mcp.config import load_mcp_config, redact_mapping, selected_server_matches
+from cli.mcp.integration import serena
+from cli.mcp.runtime_probe import (
+    probe_serena_symbol_smoke, probe_serena_version, probe_tools_list,
+    sanitize_probe_error,
+)
 from cli.mcp import ua_setup
 from cli.scaffold import load_resolved_config, load_manifest
 
@@ -23,6 +30,19 @@ MEMORY_DAEMON_HINT = (
 
 
 @dataclass(frozen=True)
+class PlatformDoctorStatus:
+    platform: str
+    config_path: Path | None
+    native_state: str
+    matched: list[str]
+    missing: list[str]
+    bridge_state: str
+    health_state: str
+    redacted_servers: dict = field(default_factory=dict)
+    setup_reports: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class DoctorStatus:
     platform: str
     framework_root: str
@@ -32,6 +52,7 @@ class DoctorStatus:
     matched: list[str]
     missing: list[str]
     bridge_state: str
+    health_state: str
     recommendation: str
     redacted_servers: dict = field(default_factory=dict)
     setup_reports: dict = field(default_factory=dict)
@@ -39,27 +60,224 @@ class DoctorStatus:
     memory_daemon_url: str = ""
     memory_governance: str = "not-selected"  # not-selected | controlled | degraded
     governance_warnings: list[str] = field(default_factory=list)
+    platform_reports: dict[str, PlatformDoctorStatus] = field(default_factory=dict)
+
+
+def _safe_probe_error(error: str) -> str:
+    """Keep provider-controlled text and config secrets out of doctor reports."""
+    return sanitize_probe_error(error)
+
+
+def _serena_contract_line(snapshot: dict | None, error: str) -> str:
+    if error:
+        return f"contract: DEGRADED — {_safe_probe_error(error)}"
+    result = serena.validate_tools_list(
+        snapshot,
+        expected_tool_surface_hash=serena.SERENA_READONLY_V1_TOOL_SURFACE_HASH,
+    )
+    if result["status"] == "ready":
+        return f"contract: READY (8 Phase 1 tools; {result['tool_surface_hash']})"
+
+    problems = []
+    if result.get("forbidden"):
+        problems.append(f"forbidden: {', '.join(result['forbidden'])}")
+    if result.get("unexpected"):
+        problems.append(f"unexpected: {', '.join(result['unexpected'])}")
+    if result.get("missing"):
+        problems.append(f"missing: {', '.join(result['missing'])}")
+    if result.get("duplicates"):
+        problems.append(f"duplicates: {', '.join(result['duplicates'])}")
+    if result.get("prior_probe_valid") is False:
+        problems.append("schema drift from pinned Serena 1.5.3 surface")
+    if result.get("reason"):
+        problems.append(result["reason"])
+    return f"contract: DEGRADED — {'; '.join(problems) or 'invalid tools/list result'}"
+
+
+_LANGUAGE_ALIASES = {
+    "py": "python", "python": "python",
+    "ts": "typescript", "typescript": "typescript",
+    "js": "javascript", "javascript": "javascript",
+    "java": "java", "go": "go", "golang": "go",
+    "c#": "csharp", "c-sharp": "csharp", "csharp": "csharp", "cs": "csharp",
+    "rust": "rust", "ruby": "ruby", "php": "php", "kotlin": "kotlin",
+    "swift": "swift", "cpp": "cpp", "c++": "cpp", "c": "c",
+    "scala": "scala", "dart": "dart", "elixir": "elixir", "lua": "lua",
+    "bash": "bash", "shell": "bash",
+}
+_LANGUAGE_EXTENSIONS = {
+    "python": (".py",),
+    "typescript": (".ts", ".tsx"),
+    "javascript": (".js", ".jsx", ".mjs", ".cjs"),
+    "java": (".java",),
+    "go": (".go",),
+    "csharp": (".cs",),
+    "rust": (".rs",),
+    "ruby": (".rb",),
+    "php": (".php",),
+    "kotlin": (".kt", ".kts"),
+    "swift": (".swift",),
+    "cpp": (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"),
+    "c": (".c", ".h"),
+    "scala": (".scala",),
+    "dart": (".dart",),
+    "elixir": (".ex", ".exs"),
+    "lua": (".lua",),
+    "bash": (".sh",),
+}
+_SMOKE_EXCLUDED_PARTS = {
+    ".cache", ".git", ".maika", ".nox", ".pytest_cache", ".serena",
+    ".tox", ".venv", "build", "cache", "dist", "env", "node_modules",
+    "target", "vendor", "venv", "__pycache__",
+}
+
+
+def _canonical_language(value: str) -> str:
+    return _LANGUAGE_ALIASES.get(str(value or "").strip().lower(), "")
+
+
+def _smoke_source(target: Path, language: str) -> str:
+    extensions = set(_LANGUAGE_EXTENSIONS.get(language) or ())
+    candidates = []
+    for root, directories, filenames in os.walk(target, topdown=True):
+        directories[:] = sorted(
+            name for name in directories if name not in _SMOKE_EXCLUDED_PARTS
+        )
+        for filename in sorted(filenames):
+            if Path(filename).suffix.lower() not in extensions:
+                continue
+            relative = (Path(root) / filename).relative_to(target)
+            candidates.append(relative.as_posix())
+    return min(candidates) if candidates else ""
+
+
+def _serena_project_line(target: Path, server: dict,
+                         maika_language: str) -> tuple[str, bool, str]:
+    args = [str(item) for item in (server.get("args") or [])]
+    try:
+        configured_root = Path(args[args.index("--project") + 1]).resolve()
+    except (ValueError, IndexError, OSError):
+        return "project: DEGRADED — native server lacks an activated project", False, ""
+    if configured_root != target.resolve():
+        return "project: DEGRADED — native server activates a different project", False, ""
+    path = target / ".serena" / "project.yml"
+    try:
+        config = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return "project: DEGRADED — .serena/project.yml missing or invalid", False, ""
+    raw = config.get("languages") or config.get("language") or []
+    if isinstance(raw, str):
+        languages = [raw]
+    elif isinstance(raw, dict):
+        languages = [str(item) for item in raw]
+    elif isinstance(raw, list):
+        languages = [str(item) for item in raw if str(item).strip()]
+    else:
+        languages = []
+    if not languages:
+        return "project: DEGRADED — no selected language backend", False, ""
+    normalized_backends = [
+        canonical for canonical in (_canonical_language(item) for item in languages)
+        if canonical
+    ]
+    selected = _canonical_language(maika_language)
+    if str(maika_language or "").strip().lower() == "other":
+        selected = next(
+            (backend for backend in normalized_backends if backend in _LANGUAGE_EXTENSIONS),
+            "",
+        )
+    if not selected or selected not in normalized_backends:
+        return (
+            f"project: DEGRADED — Maika language {maika_language} is not enabled "
+            f"by Serena backends: {', '.join(languages)}",
+            False,
+            "",
+        )
+    smoke_path = _smoke_source(target, selected)
+    if not smoke_path:
+        return (
+            f"project: DEGRADED — no deterministic {selected} source file available "
+            "for symbol smoke",
+            False,
+            "",
+        )
+    return (
+        f"project: READY ({selected} backend; smoke file: {smoke_path})",
+        True,
+        smoke_path,
+    )
+
+
+def _serena_smoke_line(server: dict, bridge_path: Path, relative_path: str) -> str:
+    status, _error = probe_serena_symbol_smoke(server, bridge_path, relative_path)
+    if status == "ready":
+        return "symbol smoke: READY"
+    if status == "recovered":
+        return "symbol smoke: READY (recovered after one language-server restart)"
+    return "symbol smoke: DEGRADED — symbol backend unavailable after one recovery"
 
 
 def _setup_reports(target: Path, home: Path, maika_root, platform: str,
-                   selected: list, matched: list) -> dict:
+                   selected: list, matched: list,
+                   servers: dict | None = None, language: str = "other") -> tuple[dict, bool]:
     if maika_root is None:
-        return {}
+        return {}, False
     manifest = load_manifest(Path(maika_root))
     caps = manifest.get("mcp_capabilities", {})
     reports = {}
+    probed = False
+    servers = servers or {}
     for key in selected:
         capability = caps.get(key, {})
         if not ua_setup.has_setup(capability):
             continue
         setup = capability["setup"]
+        engine_ready = ua_setup.resolve_engine_check(setup, platform, home)
         wired = "wired: ✓ configured" if key in matched else "wired: ✗ see MCP_SETUP.md"
-        reports[key] = (
+        lines = (
             [ua_setup.engine_status_line(setup, platform, home)]
             + ua_setup.graph_status_lines(setup, target)
             + [wired]
         )
-    return reports
+        if key == serena.PROVIDER_ID:
+            if not engine_ready:
+                lines.append("contract: DEGRADED — engine not installed")
+            elif key not in matched:
+                lines.append("contract: DEGRADED — native server not matched")
+            else:
+                server = servers[key]
+                version, version_error = probe_serena_version(server)
+                if version_error or version != "1.5.3":
+                    lines.append("version: DEGRADED — expected Serena 1.5.3")
+                else:
+                    lines.append("version: READY (Serena 1.5.3)")
+                    project_line, project_ready, smoke_path = _serena_project_line(
+                        target, server, language,
+                    )
+                    lines.append(project_line)
+                    if project_ready:
+                        probed = True
+                        bridge_path = (
+                            Path(maika_root) / ".maika" / "tools" / "mcp-bridge"
+                            / "mcp_client.py"
+                        )
+                        try:
+                            snapshot, error = probe_tools_list(server, bridge_path)
+                        except Exception:
+                            snapshot, error = None, "MCP runtime probe failed"
+                        contract_line = _serena_contract_line(snapshot, error)
+                        lines.append(contract_line)
+                        if contract_line.startswith("contract: READY"):
+                            try:
+                                lines.append(
+                                    _serena_smoke_line(server, bridge_path, smoke_path)
+                                )
+                            except Exception:
+                                lines.append(
+                                    "symbol smoke: DEGRADED — symbol backend unavailable"
+                                )
+        reports[key] = lines
+    return reports, probed
 
 
 def _probe_memory_daemon(url: str, timeout: float = 2.0) -> bool:
@@ -110,20 +328,9 @@ def _memory_governance_state(selected: list, home: Path) -> tuple[str, list[str]
     return ("degraded" if warnings else "controlled"), warnings
 
 
-def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStatus:
-    resolved = load_resolved_config(target)
-    if resolved is None:
-        raise ValueError(f"No Maika resolved-config.yaml found under {target}")
-    platform = resolved.get("platform", "generic")
-    # Diagnostics are project-owned state. Legacy configs remain readable, but
-    # new reports must never be written back into a host-specific legacy root.
-    framework_root = get_mcp_adapter(platform).framework_root
-    selected = list(resolved.get("mcps") or [])
+def _platform_status(target: Path, home: Path, maika_root, platform: str,
+                     selected: list[str], language: str) -> PlatformDoctorStatus:
     adapter = get_mcp_adapter(platform)
-
-    memory_daemon, memory_daemon_url = _memory_daemon_state(selected)
-    memory_governance, governance_warnings = _memory_governance_state(selected, home)
-
     best_config = None
     for candidate in adapter.config_candidates(target, home):
         config = load_mcp_config(candidate)
@@ -132,21 +339,18 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
             break
 
     if best_config is None:
-        return DoctorStatus(
+        setup_reports, _ = _setup_reports(
+            target, home, maika_root, platform, selected, [], {}, language,
+        )
+        return PlatformDoctorStatus(
             platform=platform,
-            framework_root=framework_root,
-            selected_mcps=selected,
             config_path=None,
             native_state="unavailable",
             matched=[],
             missing=selected,
             bridge_state="not-probed",
-            recommendation="create or link a valid MCP config with maika doctor mcp --fix",
-            setup_reports=_setup_reports(target, home, maika_root, platform, selected, []),
-            memory_daemon=memory_daemon,
-            memory_daemon_url=memory_daemon_url,
-            memory_governance=memory_governance,
-            governance_warnings=governance_warnings,
+            health_state="degraded",
+            setup_reports=setup_reports,
         )
 
     matched, missing = selected_server_matches(best_config, selected)
@@ -157,24 +361,99 @@ def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStat
     else:
         native_state = "unavailable"
 
-    bridge_state = "not-probed"
+    setup_reports, probed = _setup_reports(
+        target, home, maika_root, platform, selected, matched, best_config.servers,
+        language,
+    )
+    bridge_state = "probed" if probed else "not-probed"
     redacted_servers = {name: redact_mapping(best_config.servers[name]) for name in matched}
-    return DoctorStatus(
+    serena_lines = setup_reports.get(serena.PROVIDER_ID) or []
+    serena_ready = (
+        serena.PROVIDER_ID not in selected
+        or (
+            any(line.startswith("version: READY") for line in serena_lines)
+            and any(line.startswith("project: READY") for line in serena_lines)
+            and any(line.startswith("contract: READY") for line in serena_lines)
+            and any(line.startswith("symbol smoke: READY") for line in serena_lines)
+        )
+    )
+    return PlatformDoctorStatus(
         platform=platform,
-        framework_root=framework_root,
-        selected_mcps=selected,
         config_path=best_config.path,
         native_state=native_state,
         matched=matched,
         missing=missing,
         bridge_state=bridge_state,
-        recommendation="run native MCP in the IDE/CLI and inspect tool availability",
+        health_state="ready" if native_state == "configured" and serena_ready else "degraded",
         redacted_servers=redacted_servers,
-        setup_reports=_setup_reports(target, home, maika_root, platform, selected, matched),
+        setup_reports=setup_reports,
+    )
+
+
+def build_doctor_status(target: Path, home: Path, maika_root=None) -> DoctorStatus:
+    resolved = load_resolved_config(target)
+    if resolved is None:
+        raise ValueError(f"No Maika resolved-config.yaml found under {target}")
+    selected = list(resolved.get("mcps") or [])
+    from cli.config import project as project_config
+    canonical = project_config.load(target)
+    enabled = list((canonical.get("platforms") or {}).get("enabled") or [])
+    if not enabled:
+        enabled = [resolved.get("platform", "generic")]
+    primary = (canonical.get("platforms") or {}).get("primary")
+    if primary not in enabled:
+        primary = resolved.get("platform") if resolved.get("platform") in enabled else enabled[0]
+    platform_reports = {
+        key: _platform_status(
+            target, home, maika_root, key, selected,
+            str(resolved.get("language") or "other"),
+        )
+        for key in enabled
+    }
+    primary_report = platform_reports[primary]
+    states = [report.native_state for report in platform_reports.values()]
+    if states and all(state == "configured" for state in states):
+        native_state = "configured"
+    elif states and all(state == "unavailable" for state in states):
+        native_state = "unavailable"
+    else:
+        native_state = "partial"
+    matched = [
+        provider for provider in selected
+        if all(provider in report.matched for report in platform_reports.values())
+    ]
+    missing = [provider for provider in selected if provider not in matched]
+    bridge_states = [report.bridge_state for report in platform_reports.values()]
+    if bridge_states and all(state == "probed" for state in bridge_states):
+        bridge_state = "probed"
+    elif any(state == "probed" for state in bridge_states):
+        bridge_state = "partial"
+    else:
+        bridge_state = "not-probed"
+    health_state = (
+        "ready" if all(report.health_state == "ready" for report in platform_reports.values())
+        else "degraded"
+    )
+    memory_daemon, memory_daemon_url = _memory_daemon_state(selected)
+    memory_governance, governance_warnings = _memory_governance_state(selected, home)
+    return DoctorStatus(
+        platform=primary,
+        framework_root=get_mcp_adapter(primary).framework_root,
+        selected_mcps=selected,
+        config_path=primary_report.config_path,
+        native_state=native_state,
+        matched=matched,
+        missing=missing,
+        bridge_state=bridge_state,
+        health_state=health_state,
+        recommendation="run native MCP in every enabled IDE/CLI and inspect tool availability",
+        redacted_servers=primary_report.redacted_servers,
+        setup_reports=primary_report.setup_reports,
         memory_daemon=memory_daemon,
         memory_daemon_url=memory_daemon_url,
         memory_governance=memory_governance,
         governance_warnings=governance_warnings,
+        platform_reports=platform_reports,
     )
 
 
@@ -191,13 +470,16 @@ def render_report(status: DoctorStatus) -> str:
         f"- Config path: {config_path}\n"
         f"- native: {status.native_state}\n"
         f"- bridge: {status.bridge_state}\n"
+        f"- health: {status.health_state}\n"
         f"- matched: {matched}\n"
         f"- missing: {missing}\n"
         + _render_memory_daemon(status)
         + _render_governance(status)
         + f"- Recommendation: {status.recommendation}\n"
-        + _render_setup_reports(status.setup_reports)
-        + _render_matched_config(status.redacted_servers)
+        + (_render_setup_reports(status.setup_reports)
+           if len(status.platform_reports) <= 1 else _render_platform_reports(status))
+        + (_render_matched_config(status.redacted_servers)
+           if len(status.platform_reports) <= 1 else "")
     )
 
 
@@ -224,6 +506,32 @@ def _render_setup_reports(setup_reports: dict) -> str:
     for key, lines in setup_reports.items():
         out.append(f"\n### {key}\n")
         out.extend(f"- {line}\n" for line in lines)
+    return "".join(out)
+
+
+def _render_platform_reports(status: DoctorStatus) -> str:
+    out = ["\n## Platform health\n"]
+    for key, report in status.platform_reports.items():
+        out.extend([
+            f"\n### Platform: {get_mcp_adapter(key).platform.replace('-', ' ').title()}\n",
+            f"- Config path: {report.config_path.as_posix() if report.config_path else 'none'}\n",
+            f"- native: {report.native_state}\n",
+            f"- bridge: {report.bridge_state}\n",
+            f"- health: {report.health_state}\n",
+            f"- matched: {', '.join(report.matched) if report.matched else 'none'}\n",
+            f"- missing: {', '.join(report.missing) if report.missing else 'none'}\n",
+        ])
+        for provider, lines in report.setup_reports.items():
+            out.append(f"\n#### {provider}\n")
+            out.extend(f"- {line}\n" for line in lines)
+        if report.redacted_servers:
+            body = json.dumps(
+                report.redacted_servers, indent=2, ensure_ascii=False, sort_keys=True,
+            )
+            out.append(
+                "\n#### Matched server config (redacted)\n\n"
+                f"```json\n{body}\n```\n"
+            )
     return "".join(out)
 
 

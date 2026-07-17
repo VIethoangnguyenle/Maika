@@ -1,8 +1,12 @@
 """Tests for the shared scaffolding core."""
 
+from pathlib import Path
+
 import pytest
 from jinja2 import TemplateSyntaxError, UndefinedError
 
+from cli.platforms import get_platform
+from cli.renderer import create_renderer
 from cli.scaffold import (
     generate_resolved_config,
     load_manifest,
@@ -18,6 +22,24 @@ from cli.scaffold import (
     merge_managed_markdown,
     stage_managed_entrypoint,
 )
+
+
+MAIKA_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _scaffold(target, selected_mcps):
+    manifest = load_manifest(MAIKA_ROOT)
+    scaffold_plugins(
+        manifest["plugins"],
+        MAIKA_ROOT,
+        target,
+        get_platform("generic").build_render_context(selected_mcps, "python"),
+        create_renderer(str(MAIKA_ROOT)),
+        manifest["mcp_capabilities"],
+        selected_mcps,
+        verbose=False,
+    )
+    return target
 
 
 def test_get_ownership_defaults_to_framework():
@@ -157,6 +179,13 @@ def test_load_manifest_has_plugins(maika_root):
     manifest = load_manifest(maika_root)
     assert len(manifest["plugins"]) > 0
     assert "mcp_capabilities" in manifest
+
+
+def test_serena_context_scaffolds_only_when_selected(tmp_path):
+    selected = _scaffold(tmp_path / "selected", ["serena"])
+    omitted = _scaffold(tmp_path / "omitted", [])
+    assert (selected / ".maika/config/serena-context.yml").is_file()
+    assert not (omitted / ".maika/config/serena-context.yml").exists()
 
 
 def test_has_capability(maika_root):

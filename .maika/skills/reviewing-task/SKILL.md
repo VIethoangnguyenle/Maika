@@ -18,6 +18,14 @@ capabilities:
   - runtime_verification
   - review_dispatch
   conditional:
+    symbolic_code_navigation:
+      triggers:
+      - hidden_consumer_risk
+      - reviewer_counter_evidence
+      - relevant_graph_stale
+    code_diagnostics:
+      triggers:
+      - language_diagnostics_required
     call_chain_trace:
       triggers:
       - reviewer_counter_evidence
@@ -74,18 +82,24 @@ Dùng sau khi một task result qua `result-contract` gate.
 ## Chính sách capability
 Required: `exact_source_inspection`, `runtime_verification`, `review_dispatch`.
 Conditional — chỉ gọi khi trigger kích hoạt, ghi trigger + reason:
+  `symbolic_code_navigation` (hidden_consumer_risk, reviewer_counter_evidence,
+  relevant_graph_stale); `code_diagnostics` (language_diagnostics_required);
   `call_chain_trace` (reviewer_counter_evidence); `impact_analysis`
   (blast_radius_required); `semantic_code_search` (hidden_consumer_risk,
   dynamic_wiring_risk, reviewer_counter_evidence, ua_unavailable);
   `dependency_analysis` (graph_gap, ua_unavailable); `historical_context_retrieval`
   (reviewer_counter_evidence); `database_schema_inspection` (persistence_change).
 Reviewer tự đọc source, không dựa claim của brief.
+Symbol references là **scoped LSP evidence**, không phải proof của mọi
+reflective/configured/event consumer; mọi material claim vẫn cần current source.
+`restart_language_server` is operational maintenance, not evidence, and may only be
+used by the bounded provider-health recovery path.
 
 ## Quy trình truy xuất
 1. Đọc brief + result + diff.
 2. Reinspect primary structured trace độc lập; không lặp lại nguyên trace của implementer.
-3. Khi có blast-radius/hidden-consumer risk, dùng `semantic_code_search` tìm
-   counter-evidence và ghi support reason.
+3. Khi có blast-radius/hidden-consumer risk, dùng conditional symbolic/semantic
+   evidence phù hợp để tìm counter-evidence và ghi trigger + support reason.
 4. Independent inspect: mở current source thật cho mỗi material behavior và finding.
 5. Recall incident liên quan để kiểm regression; ghi graph freshness trong review.
 

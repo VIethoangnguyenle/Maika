@@ -42,6 +42,18 @@ providers:
         role: primary
         tools: [query_graph]
 
+  serena:
+    capabilities:
+      symbolic_code_navigation:
+        role: primary
+        tools: [get_symbols_overview, find_symbol, find_referencing_symbols, find_implementations, find_declaration]
+      code_diagnostics:
+        role: primary
+        tools: [get_diagnostics_for_file, get_diagnostics_for_symbol]
+      operational_maintenance:
+        role: primary
+        tools: [restart_language_server]
+
   current-source:
     capabilities:
       exact_source_inspection:

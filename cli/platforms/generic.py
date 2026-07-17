@@ -44,6 +44,16 @@ class GenericPlatform(BasePlatform):
         "domain_flow":          "get_domain_flow_detail",
         "domain_relationships": "get_relationships",
 
+        # ── Serena MCP — semantic code reads/diagnostics ──
+        "serena_symbols_overview":         "get_symbols_overview",
+        "serena_find_symbol":              "find_symbol",
+        "serena_find_references":          "find_referencing_symbols",
+        "serena_find_declaration":         "find_declaration",
+        "serena_find_implementations":     "find_implementations",
+        "serena_file_diagnostics":         "get_diagnostics_for_file",
+        "serena_symbol_diagnostics":       "get_diagnostics_for_symbol",
+        "serena_maintenance_restart_language_server": "restart_language_server",
+
         "search_docs":       "search_docs",
         "get_page":          "get_page",
         "list_spaces":       "list_spaces",

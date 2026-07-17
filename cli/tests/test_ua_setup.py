@@ -1,4 +1,7 @@
 import json as _json
+import shlex
+import pytest
+import tomllib
 from pathlib import Path, PureWindowsPath
 from cli.mcp import ua_setup
 
@@ -40,6 +43,24 @@ def test_resolve_engine_check_file_contains(tmp_path):
     assert ua_setup.resolve_engine_check(setup, "claude-code", tmp_path) is False
 
 
+def test_resolve_engine_check_command_exists_uses_shutil_which(tmp_path, monkeypatch):
+    setup = {
+        "engine_check": {
+            "default": {"kind": "command_exists", "command": "serena"},
+        },
+    }
+    calls = []
+
+    monkeypatch.setattr(
+        "shutil.which", lambda command: calls.append(command) or "/usr/bin/serena"
+    )
+    assert ua_setup.resolve_engine_check(setup, "codex", tmp_path) is True
+    assert calls == ["serena"]
+
+    monkeypatch.setattr("shutil.which", lambda command: None)
+    assert ua_setup.resolve_engine_check(setup, "codex", tmp_path) is False
+
+
 def test_resolve_engine_check_falls_back_to_default(tmp_path):
     (tmp_path / ".understand-anything" / "repo").mkdir(parents=True)
     setup = {"engine_check": {"default": {"kind": "path_exists", "path": "{home}/.understand-anything/repo"}}}
@@ -57,20 +78,65 @@ def test_engine_status_line(tmp_path):
     assert ua_setup.engine_status_line(setup, "codex", tmp_path) == "engine: ✓ installed"
 
 
-def test_render_server_snippet_fills_placeholders():
+def test_codex_server_snippet_is_toml_and_fills_placeholders():
     setup = {"server": {
         "command": "uv",
         "args": ["--directory", "{ua_mcp_dir}", "run", "server.py"],
         "env": {"PROJECT_ROOTS": "{project_root}"},
     }}
-    snip = ua_setup.render_server_snippet(
+    text = ua_setup.render_server_snippet(
         setup, server_key="understand-anything",
-        ua_mcp_dir="/srv/ua-mcp", project_root="/proj",
+        platform="codex", ua_mcp_dir="/srv/ua-mcp", project_root="/proj",
     )
-    server = snip["mcpServers"]["understand-anything"]
-    assert server["command"] == "uv"
-    assert server["args"] == ["--directory", "/srv/ua-mcp", "run", "server.py"]
-    assert server["env"] == {"PROJECT_ROOTS": "/proj"}
+    assert "[mcp_servers.understand-anything]" in text
+    assert 'command = "uv"' in text
+    assert 'args = ["--directory", "/srv/ua-mcp", "run", "server.py"]' in text
+    assert '[mcp_servers.understand-anything.env]' in text
+    assert 'PROJECT_ROOTS = "/proj"' in text
+
+
+def test_json_hosts_receive_json_snippets_without_empty_env():
+    setup = {"server": {
+        "command": "serena",
+        "args": ["start-mcp-server", "--project", "{project_root}"],
+    }}
+    for platform in ("claude-code", "antigravity"):
+        text = ua_setup.render_server_snippet(
+            setup, server_key="serena", platform=platform,
+            ua_mcp_dir="", project_root="/proj",
+        )
+        server = _json.loads(text)["mcpServers"]["serena"]
+        assert server["command"] == "serena"
+        assert server["args"] == ["start-mcp-server", "--project", "/proj"]
+        assert "env" not in server
+
+
+def test_codex_server_snippet_omits_empty_env():
+    text = ua_setup.render_server_snippet(
+        {"server": {"command": "codebase-memory-mcp", "args": []}},
+        server_key="codebase-memory-mcp", platform="codex",
+        ua_mcp_dir="", project_root="/proj",
+    )
+    assert "[mcp_servers.codebase-memory-mcp]" in text
+    assert "env" not in text
+
+
+def test_codex_server_snippet_quotes_dynamic_toml_keys():
+    server_key = "server.name with spaces"
+    env_key = "ENV.key with spaces!"
+    text = ua_setup.render_server_snippet(
+        {"server": {
+            "command": "tool",
+            "args": [],
+            "env": {env_key: "value"},
+        }},
+        server_key=server_key, platform="codex",
+        ua_mcp_dir="", project_root="/proj",
+    )
+
+    parsed = tomllib.loads(text)
+    assert parsed["mcp_servers"][server_key]["command"] == "tool"
+    assert parsed["mcp_servers"][server_key]["env"] == {env_key: "value"}
 
 
 def _full_setup():
@@ -91,6 +157,61 @@ def _full_setup():
     }
 
 
+def _serena_setup():
+    return {
+        "install_hint": {"default": "uv tool install serena-agent"},
+        "prepare_hint": (
+            "serena project create {project_root} --language {language}  "
+            "# omit --language for Maika language 'other'"
+        ),
+        "server": {
+            "command": "serena",
+            "args": ["start-mcp-server", "--project", "{project_root}"],
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "project_root",
+    ["/srv/Project With Spaces", r"C:\\Work Trees\\Maika Project"],
+)
+def test_generated_prepare_and_doctor_commands_quote_project_paths(project_root):
+    text = ua_setup.render_mcp_setup_section(
+        _serena_setup(), server_key="serena", platform_keys=["codex"],
+        ua_mcp_dir="", project_root=project_root, language="python",
+    )
+    prepare = next(line for line in text.splitlines() if line.startswith("serena project create"))
+    doctor = next(line for line in text.splitlines() if line.startswith("maika doctor mcp"))
+
+    assert shlex.split(prepare) == [
+        "serena", "project", "create", project_root, "--language", "python",
+    ]
+    assert shlex.split(doctor) == ["maika", "doctor", "mcp", "--target", project_root]
+
+
+def test_render_mcp_setup_section_includes_every_enabled_host():
+    text = ua_setup.render_mcp_setup_section(
+        _serena_setup(), server_key="serena",
+        platform_keys=["codex", "claude-code", "antigravity"],
+        ua_mcp_dir="", project_root="/proj", language="python",
+    )
+    assert text.startswith("## Provider: serena")
+    assert "serena project create /proj --language python" in text
+    assert "No separate index build is required" in text
+    assert "#### Codex" in text and "```toml" in text
+    assert "#### Claude Code" in text and "#### Antigravity" in text
+    assert text.count("```json") == 2
+
+
+def test_render_mcp_setup_section_lets_serena_infer_other_language():
+    text = ua_setup.render_mcp_setup_section(
+        _serena_setup(), server_key="serena", platform_keys=["codex"],
+        ua_mcp_dir="", project_root="/proj", language="other",
+    )
+    assert "serena project create /proj\n" in text
+    assert "--language other" not in text
+
+
 def test_render_mcp_setup_md_codex():
     md = ua_setup.render_mcp_setup_md(
         _full_setup(), server_key="understand-anything", platform="codex",
@@ -98,7 +219,7 @@ def test_render_mcp_setup_md_codex():
     )
     assert "bash -s codex" in md
     assert "/understand" in md and "/understand-domain" in md
-    assert '"PROJECT_ROOTS": "/proj"' in md
+    assert 'PROJECT_ROOTS = "/proj"' in md
     assert "/srv/ua-mcp" in md
 
 

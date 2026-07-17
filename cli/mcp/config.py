@@ -156,18 +156,20 @@ def redact_mapping(value: Any) -> Any:
     return _redact_mapping(value)
 
 
-def _redact_mapping(value: Any, *, in_env: bool = False) -> Any:
+def _redact_mapping(value: Any, *, redact_values: bool = False) -> Any:
     if isinstance(value, dict):
         redacted: dict[Any, Any] = {}
         for key, item in value.items():
-            child_in_env = in_env or str(key).lower() == "env"
-            if in_env:
-                redacted[key] = _redact_mapping(item, in_env=True)
+            child_redacts_values = (
+                redact_values or str(key).lower() in {"env", "headers"}
+            )
+            if redact_values:
+                redacted[key] = _redact_mapping(item, redact_values=True)
             elif _looks_sensitive(key):
                 redacted[key] = "<redacted>"
             else:
-                redacted[key] = _redact_mapping(item, in_env=child_in_env)
+                redacted[key] = _redact_mapping(item, redact_values=child_redacts_values)
         return redacted
     if isinstance(value, list):
-        return [_redact_mapping(item, in_env=in_env) for item in value]
-    return "<redacted>" if in_env else value
+        return [_redact_mapping(item, redact_values=redact_values) for item in value]
+    return "<redacted>" if redact_values else value

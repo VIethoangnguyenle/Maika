@@ -13,7 +13,13 @@ from pathlib import Path
 
 import yaml
 
-from cli.mcp.integration import agent_memory, codebase_memory, current_source, understand_anything
+from cli.mcp.integration import (
+    agent_memory,
+    codebase_memory,
+    current_source,
+    serena,
+    understand_anything,
+)
 from cli.mcp.integration.base import (
     append_invocation,
     build_invocation_record,
@@ -152,6 +158,12 @@ def run_provider(
             print(f"{label} payload file not found: {payload_file}")
             return 1
 
+    if provider_id == serena.PROVIDER_ID and (
+        not (trigger or "").strip() or not (reason or "").strip()
+    ):
+        print("Serena conditional evidence requires nonblank --trigger and --reason")
+        return 1
+
     now = utc_now()
     record = build_invocation_record(
         change_id=change_id,
@@ -178,6 +190,8 @@ def run_provider(
         normalized = codebase_memory.normalize_response(tool, response_bytes)
     elif provider_id == agent_memory.PROVIDER_ID:
         normalized = agent_memory.normalize_response(tool, response_bytes)
+    elif provider_id == serena.PROVIDER_ID:
+        normalized = serena.normalize_response(tool, response_bytes)
     else:
         normalized = {
             "provider_id": provider_id,

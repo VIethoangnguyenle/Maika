@@ -77,7 +77,7 @@ def test_redact_mapping_hides_secrets_recursively():
     redacted = redact_mapping(value)
 
     assert redacted["headers"]["Authorization"] == "<redacted>"
-    assert redacted["headers"]["X-Plain"] == "ok"
+    assert redacted["headers"]["X-Plain"] == "<redacted>"
     assert redacted["env"]["TOKEN"] == "<redacted>"
     assert redacted["env"]["NORMAL"] == "<redacted>"
     assert redacted["nested"][0]["api_key"] == "<redacted>"

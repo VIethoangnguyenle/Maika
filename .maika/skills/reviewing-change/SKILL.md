@@ -18,6 +18,14 @@ capabilities:
   - exact_source_inspection
   - runtime_verification
   conditional:
+    symbolic_code_navigation:
+      triggers:
+      - hidden_consumer_risk
+      - reviewer_counter_evidence
+      - relevant_graph_stale
+    code_diagnostics:
+      triggers:
+      - language_diagnostics_required
     call_chain_trace:
       triggers:
       - reviewer_counter_evidence
@@ -79,19 +87,25 @@ Dùng sau khi mọi task review bắt buộc pass, trước verification/complet
 ## Chính sách capability
 Required: `exact_source_inspection`, `runtime_verification`.
 Conditional — chỉ gọi khi trigger kích hoạt, ghi trigger + reason:
+  `symbolic_code_navigation` (hidden_consumer_risk, reviewer_counter_evidence,
+  relevant_graph_stale); `code_diagnostics` (language_diagnostics_required);
   `call_chain_trace` (reviewer_counter_evidence); `impact_analysis`
   (blast_radius_required); `semantic_code_search` (hidden_consumer_risk,
   dynamic_wiring_risk, reviewer_counter_evidence, ua_unavailable);
   `dependency_analysis` (graph_gap, ua_unavailable); `historical_context_retrieval`
   (reviewer_counter_evidence); `database_schema_inspection` (persistence_change).
 Đọc diff toàn change độc lập; đối chiếu với durable knowledge.
+Symbol references là **scoped LSP evidence**, không phải proof của mọi
+reflective/configured/event consumer; mọi material claim vẫn cần current source.
+`restart_language_server` is operational maintenance, not evidence, and may only be
+used by the bounded provider-health recovery path.
 
 ## Quy trình truy xuất
 1. Đọc spec/plan/results/reviews.
 2. Verify integration boundaries bằng structured call/impact trace; ghi graph freshness,
    node IDs và relationship types.
-3. Dùng `semantic_code_search` cho alternate paths/hidden consumers khi risk áp dụng;
-   ghi reason, không gọi lặp nếu structured trace đã đủ.
+3. Dùng conditional symbolic/semantic evidence cho alternate paths/hidden consumers
+   khi risk áp dụng; ghi trigger + reason, không gọi lặp nếu structured trace đã đủ.
 4. Inspect current source cho material facts, full diff và deletion discipline.
 5. Đối chiếu change với durable knowledge để tìm entry stale/superseded.
 

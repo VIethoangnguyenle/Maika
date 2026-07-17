@@ -45,6 +45,16 @@ class ClaudeCodePlatform(BasePlatform):
         "domain_flow":          "mcp__understand-anything__get_domain_flow_detail",
         "domain_relationships": "mcp__understand-anything__get_relationships",
 
+        # ── Serena MCP — semantic code reads/diagnostics ──
+        "serena_symbols_overview":         "mcp__serena__get_symbols_overview",
+        "serena_find_symbol":              "mcp__serena__find_symbol",
+        "serena_find_references":          "mcp__serena__find_referencing_symbols",
+        "serena_find_declaration":         "mcp__serena__find_declaration",
+        "serena_find_implementations":     "mcp__serena__find_implementations",
+        "serena_file_diagnostics":         "mcp__serena__get_diagnostics_for_file",
+        "serena_symbol_diagnostics":       "mcp__serena__get_diagnostics_for_symbol",
+        "serena_maintenance_restart_language_server": "mcp__serena__restart_language_server",
+
         # ── Document Search (Confluence — if available) ──
         "search_docs":       "mcp__confluence__search",
         "get_page":          "mcp__confluence__get_page",

@@ -1,0 +1,15 @@
+description: Maika read-only semantic code intelligence
+prompt: |
+  Serena supplies semantic symbol and diagnostic observations. Maika owns workflow,
+  write authority, verification, memory, and durable knowledge. Current source and
+  observed tests override Serena observations.
+fixed_tools:
+  - get_symbols_overview
+  - find_symbol
+  - find_referencing_symbols
+  - find_implementations
+  - find_declaration
+  - get_diagnostics_for_file
+  - get_diagnostics_for_symbol
+  - restart_language_server
+single_project: true

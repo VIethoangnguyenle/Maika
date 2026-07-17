@@ -1,0 +1,7 @@
+provider: serena
+repository: oraios/serena
+revision: 2449313c0d7427275c4c66aedff7d4881782f713
+captured_at: '2026-07-16T00:00:00Z'
+tool: tools/list
+contract_version: 1
+content_sha256: sha256:9a93c0321b48aa5b4fc1e40a3e2a4f13503c5e1f30341d4ea6cb57eb9c2f6a0c

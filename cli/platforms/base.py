@@ -62,6 +62,15 @@ OPTIONAL_TOOL_KEYS = frozenset({
     "domain_overview",
     "domain_flow",
     "domain_relationships",
+    # ── Serena MCP — semantic code reads/diagnostics (runtime-optional) ──
+    "serena_symbols_overview",
+    "serena_find_symbol",
+    "serena_find_references",
+    "serena_find_declaration",
+    "serena_find_implementations",
+    "serena_file_diagnostics",
+    "serena_symbol_diagnostics",
+    "serena_maintenance_restart_language_server",
 })
 
 

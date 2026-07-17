@@ -145,3 +145,128 @@ def test_enable_rolls_back_adapter_and_metadata_together(tmp_path, monkeypatch):
         _enable(tmp_path, "claude-code")
     assert _tree_hash(tmp_path) == before
     assert not (tmp_path / "CLAUDE.md").exists()
+
+
+def test_enable_refreshes_aggregate_mcp_setup_for_all_hosts(tmp_path):
+    selected = ["understand-anything", "codebase-memory-mcp", "serena"]
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(REPO_ROOT),
+        platform_key="codex", selected_mcps=selected, language="python",
+        assume_yes=True, ua_mcp_dir="/srv/ua-mcp",
+    )
+
+    _enable(tmp_path, "claude-code")
+
+    text = (tmp_path / ".maika" / "MCP_SETUP.md").read_text(encoding="utf-8")
+    for provider in selected:
+        assert text.count(f"## Provider: {provider}") == 1
+    assert "/srv/ua-mcp" in text
+    assert "#### Codex" in text
+    assert "#### Claude Code" in text
+    assert "[mcp_servers.serena]" in text
+    assert '"mcpServers": {' in text
+
+
+def test_enable_rolls_back_when_setup_refresh_fails(tmp_path, monkeypatch):
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(REPO_ROOT),
+        platform_key="codex", selected_mcps=["serena"], language="python",
+        assume_yes=True,
+    )
+    before = _tree_hash(tmp_path)
+    from cli.install.transaction import Transaction
+    real = Transaction._execute
+
+    def fail_at_setup(self, action):
+        if action["path"] == ".maika/MCP_SETUP.md":
+            raise RuntimeError("injected setup refresh failure")
+        return real(self, action)
+
+    monkeypatch.setattr(Transaction, "_execute", fail_at_setup)
+    with pytest.raises(RuntimeError, match="setup refresh failure"):
+        _enable(tmp_path, "claude-code")
+    assert _tree_hash(tmp_path) == before
+    assert not (tmp_path / "CLAUDE.md").exists()
+
+
+def test_enable_removes_stale_mcp_setup_when_no_selected_provider_has_setup(tmp_path):
+    _init(tmp_path, "codex")
+    setup_path = tmp_path / ".maika" / "MCP_SETUP.md"
+    setup_path.write_text("stale setup\n", encoding="utf-8")
+
+    _enable(tmp_path, "claude-code")
+
+    assert not setup_path.exists()
+
+
+def test_enable_restores_stale_mcp_setup_when_delete_transaction_fails(
+    tmp_path, monkeypatch,
+):
+    _init(tmp_path, "codex")
+    setup_path = tmp_path / ".maika" / "MCP_SETUP.md"
+    setup_path.write_text("stale setup\n", encoding="utf-8")
+    before = _tree_hash(tmp_path)
+    from cli.install.transaction import Transaction
+    real = Transaction._execute
+
+    def fail_after_setup_delete(self, action):
+        result = real(self, action)
+        if action["path"] == ".maika/MCP_SETUP.md":
+            raise RuntimeError("injected stale setup delete failure")
+        return result
+
+    monkeypatch.setattr(Transaction, "_execute", fail_after_setup_delete)
+    with pytest.raises(RuntimeError, match="stale setup delete failure"):
+        _enable(tmp_path, "claude-code")
+
+    assert _tree_hash(tmp_path) == before
+    assert setup_path.read_text(encoding="utf-8") == "stale setup\n"
+
+
+def test_disable_refreshes_aggregate_setup_without_disabled_host(tmp_path):
+    selected = ["understand-anything", "codebase-memory-mcp", "serena"]
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(REPO_ROOT),
+        platform_key="codex", selected_mcps=selected, language="python",
+        assume_yes=True, ua_mcp_dir="/srv/ua-mcp",
+    )
+    _enable(tmp_path, "claude-code")
+    _enable(tmp_path, "antigravity")
+
+    run_platform(
+        action="disable", target_dir=str(tmp_path), platform_key="claude-code",
+        maika_root=str(REPO_ROOT),
+    )
+
+    text = (tmp_path / ".maika" / "MCP_SETUP.md").read_text(encoding="utf-8")
+    assert "#### Claude Code" not in text
+    assert "#### Codex" in text
+    assert "#### Antigravity" in text
+    for provider in selected:
+        assert text.count(f"## Provider: {provider}") == 1
+
+
+def test_disable_rolls_back_adapter_metadata_and_setup_together(tmp_path, monkeypatch):
+    run_init(
+        target_dir=str(tmp_path), maika_root=str(REPO_ROOT), platform_key="codex",
+        selected_mcps=["serena"], language="python", assume_yes=True,
+    )
+    _enable(tmp_path, "claude-code")
+    before = _tree_hash(tmp_path)
+    from cli.install.transaction import Transaction
+    real = Transaction._execute
+
+    def fail_after_setup_refresh(self, action):
+        result = real(self, action)
+        if action["path"] == ".maika/MCP_SETUP.md":
+            raise RuntimeError("injected disable setup refresh failure")
+        return result
+
+    monkeypatch.setattr(Transaction, "_execute", fail_after_setup_refresh)
+    with pytest.raises(RuntimeError, match="disable setup refresh failure"):
+        run_platform(
+            action="disable", target_dir=str(tmp_path), platform_key="claude-code",
+            maika_root=str(REPO_ROOT),
+        )
+
+    assert _tree_hash(tmp_path) == before

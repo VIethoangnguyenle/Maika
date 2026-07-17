@@ -11,6 +11,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+PROVIDERS_RULE = ROOT / ".maika/rules/jit/providers.md"
 
 UA_STRUCTURED_TRACE = {"architecture_discovery", "domain_flow_trace", "call_chain_trace"}
 MIGRATED = ("grounding-explorer", "reviewing-task", "reviewing-change", "database-explorer")
@@ -79,6 +80,65 @@ def test_database_explorer_conditional_consumer_mapping():
     assert caps["conditional"]["semantic_code_search"]["triggers"] == [
         "database_code_consumer_gap"
     ]
+
+
+def test_serena_capabilities_have_exact_mechanical_skill_consumers():
+    grounding, _ = _skill("grounding-explorer")
+    executing, _ = _skill("executing-task")
+    reviewing_task, _ = _skill("reviewing-task")
+    reviewing_change, _ = _skill("reviewing-change")
+
+    assert grounding["capabilities"]["conditional"]["symbolic_code_navigation"][
+        "triggers"
+    ] == ["unresolved_anchor", "graph_gap", "relevant_graph_stale"]
+    assert executing["capabilities"]["conditional"]["code_diagnostics"]["triggers"] == [
+        "language_diagnostics_required"
+    ]
+    reviewer_routes = {
+        "symbolic_code_navigation": {
+            "triggers": [
+                "hidden_consumer_risk",
+                "reviewer_counter_evidence",
+                "relevant_graph_stale",
+            ]
+        },
+        "code_diagnostics": {"triggers": ["language_diagnostics_required"]},
+    }
+    for frontmatter in (reviewing_task, reviewing_change):
+        conditional = frontmatter["capabilities"]["conditional"]
+        for capability, route in reviewer_routes.items():
+            assert conditional[capability] == route
+
+
+def test_serena_skill_bodies_scope_lsp_evidence_and_require_current_source():
+    for name in (
+        "grounding-explorer", "executing-task", "reviewing-task", "reviewing-change"
+    ):
+        _, body = _skill(name)
+        assert "scoped LSP evidence" in body, name
+        assert "reflective/configured/event consumer" in body, name
+        assert "current source" in body, name
+
+
+def test_serena_maintenance_is_not_a_skill_evidence_capability():
+    for name in (
+        "grounding-explorer", "executing-task", "reviewing-task", "reviewing-change"
+    ):
+        frontmatter, body = _skill(name)
+        caps = frontmatter["capabilities"]
+        declared = set(caps.get("required") or [])
+        declared.update((caps.get("conditional") or {}).keys())
+        assert "operational_maintenance" not in declared, name
+        assert "restart_language_server" in body, name
+        assert "not evidence" in body, name
+
+
+def test_ua_remains_trace_owner_in_provider_doctrine():
+    text = PROVIDERS_RULE.read_text(encoding="utf-8")
+    assert "UA-MCP" in text and "18 tools" in text
+    assert "Serena không thay thế UA-MCP" in text
+    assert "không bảo đảm hidden-consumer completeness" in text
+    assert "get_node_source" in text and "một trong 18 tools" in text
 
 
 def test_every_registry_trigger_has_a_consuming_skill():

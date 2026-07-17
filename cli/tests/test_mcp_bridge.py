@@ -1,6 +1,13 @@
 import importlib.util
 import json
+import os
+import signal
+import sys
+import threading
+import time
 from pathlib import Path
+
+import pytest
 
 
 BRIDGE = Path(__file__).resolve().parents[2] / ".maika" / "tools" / "mcp-bridge" / "mcp_client.py"
@@ -86,6 +93,208 @@ def test_call_stdio_sends_initialized_notification_before_tools_list(monkeypatch
     assert writes[1]["params"] == {}
 
 
+def test_stdio_session_keeps_smoke_restart_and_retry_on_one_process(monkeypatch):
+    bridge = load_bridge()
+    writes = []
+    processes = []
+    responses = iter([
+        '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}\n',
+        '{"jsonrpc":"2.0","id":2,"result":{"isError":true,"content":[]}}\n',
+        '{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"restarted"}]}}\n',
+        '{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"symbols"}]}}\n',
+    ])
+
+    class FakeStdin:
+        def write(self, value):
+            writes.append(json.loads(value))
+
+        def flush(self):
+            return None
+
+    class FakeStdout:
+        def readline(self):
+            return next(responses, "")
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdin = FakeStdin()
+            self.stdout = FakeStdout()
+
+        def terminate(self):
+            return None
+
+        def wait(self, timeout=None):
+            return 0
+
+    def popen(*args, **kwargs):
+        process = FakeProcess()
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(bridge.subprocess, "Popen", popen)
+
+    def recovery(call):
+        first, first_error = call(
+            "tools-call", "get_symbols_overview", {"relative_path": "src/app.py"}
+        )
+        assert first_error == "" and first["result"]["isError"] is True
+        restarted, restart_error = call(
+            "tools-call", "restart_language_server", {}
+        )
+        assert restart_error == "" and restarted["result"]["content"]
+        retry, retry_error = call(
+            "tools-call", "get_symbols_overview", {"relative_path": "src/app.py"}
+        )
+        assert retry_error == "" and retry["result"]["content"]
+        return "recovered"
+
+    result, error = bridge.with_stdio_session({"command": "python"}, recovery)
+
+    assert error == ""
+    assert result == "recovered"
+    assert len(processes) == 1
+    assert [entry["method"] for entry in writes] == [
+        "initialize", "notifications/initialized", "tools/call", "tools/call",
+        "tools/call",
+    ]
+    assert [entry.get("id") for entry in writes if "id" in entry] == [1, 2, 3, 4]
+
+
+def test_stdio_session_correlates_smoke_recovery_responses_by_request_id(monkeypatch):
+    from cli.mcp.runtime_probe import _tool_result_ready
+
+    bridge = load_bridge()
+    writes = []
+    processes = []
+    responses = iter([
+        '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}\n',
+        '{"jsonrpc":"2.0","id":2,"result":{"isError":true,"content":[]}}\n',
+        '{"jsonrpc":"2.0","method":"notifications/progress","params":{}}\n',
+        '{"jsonrpc":"2.0","id":99,"result":{"content":[{"type":"text","text":"stale success"}]}}\n',
+        '{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"restarted"}]}}\n',
+        '{"jsonrpc":"2.0","id":4,"result":{"isError":true,"content":[]}}\n',
+    ])
+
+    class FakeStdin:
+        def write(self, value):
+            writes.append(json.loads(value))
+
+        def flush(self):
+            return None
+
+    class FakeStdout:
+        def readline(self):
+            return next(responses, "")
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdin = FakeStdin()
+            self.stdout = FakeStdout()
+
+        def terminate(self):
+            return None
+
+        def wait(self, timeout=None):
+            return 0
+
+    def popen(*args, **kwargs):
+        process = FakeProcess()
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(bridge.subprocess, "Popen", popen)
+
+    def recovery(call):
+        first, first_error = call(
+            "tools-call", "get_symbols_overview", {"relative_path": "src/app.py"}
+        )
+        if _tool_result_ready(first, first_error):
+            return "ready"
+        call("tools-call", "restart_language_server", {})
+        retry, retry_error = call(
+            "tools-call", "get_symbols_overview", {"relative_path": "src/app.py"}
+        )
+        return "recovered" if _tool_result_ready(retry, retry_error) else "degraded"
+
+    result, error = bridge.with_stdio_session({"command": "python"}, recovery)
+
+    assert error == ""
+    assert result == "degraded"
+    assert len(processes) == 1
+    assert [entry.get("id") for entry in writes if "id" in entry] == [1, 2, 3, 4]
+
+
+def test_stdio_session_ignored_messages_do_not_reset_request_deadline(monkeypatch):
+    bridge = load_bridge()
+    stopped = threading.Event()
+
+    class FakeStdin:
+        def write(self, text):
+            return None
+
+        def flush(self):
+            return None
+
+        def close(self):
+            return None
+
+    class FakeStdout:
+        def readline(self):
+            if stopped.is_set():
+                return ""
+            return '{"jsonrpc":"2.0","method":"notifications/progress","params":{}}\n'
+
+        def close(self):
+            stopped.set()
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdin = FakeStdin()
+            self.stdout = FakeStdout()
+
+        def terminate(self):
+            stopped.set()
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr(bridge, "REQUEST_TIMEOUT_SECONDS", 0.02)
+    monkeypatch.setattr(bridge, "READER_JOIN_TIMEOUT_SECONDS", 0.02)
+    monkeypatch.setattr(bridge.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+
+    started = time.monotonic()
+    result, error = bridge.call_stdio({"command": "python"}, "tools-list", None, {})
+    elapsed = time.monotonic() - started
+
+    assert result is None
+    assert error == "initialize failed: timed out"
+    assert elapsed < 0.5
+
+
+def test_runtime_serena_smoke_recovery_uses_bridge_session_callback(tmp_path):
+    from cli.mcp.runtime_probe import probe_serena_symbol_smoke
+
+    bridge = tmp_path / "fake_bridge.py"
+    bridge.write_text(
+        "calls = []\n"
+        "def with_stdio_session(server, callback):\n"
+        "    def call(operation, tool_name, arguments):\n"
+        "        calls.append((operation, tool_name, arguments))\n"
+        "        if len(calls) == 1:\n"
+        "            return ({'result': {'isError': True, 'content': []}}, '')\n"
+        "        return ({'result': {'content': [{'type': 'text', 'text': tool_name}]}}, '')\n"
+        "    return callback(call), ''\n",
+        encoding="utf-8",
+    )
+
+    status, error = probe_serena_symbol_smoke(
+        {"command": "serena"}, bridge, "src/app.py"
+    )
+
+    assert error == ""
+    assert status == "recovered"
+
+
 def test_call_stdio_returns_error_when_tools_list_response_missing(monkeypatch):
     bridge = load_bridge()
     responses = iter(['{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}\n'])
@@ -118,6 +327,193 @@ def test_call_stdio_returns_error_when_tools_list_response_missing(monkeypatch):
 
     assert result is None
     assert error == "tools/list failed: no valid JSON-RPC response"
+
+
+def test_call_stdio_times_out_and_terminates_unresponsive_server(monkeypatch):
+    bridge = load_bridge()
+    terminated = []
+    reader_exited = threading.Event()
+    reader_threads = []
+    lifecycle = []
+    real_thread = bridge.threading.Thread
+
+    def tracking_thread(*args, **kwargs):
+        reader = real_thread(*args, **kwargs)
+        reader_threads.append(reader)
+        return reader
+
+    class FakeStdin:
+        closed = False
+
+        def write(self, text):
+            return None
+
+        def flush(self):
+            return None
+
+        def close(self):
+            self.closed = True
+
+    class FakeStdout:
+        def __init__(self):
+            self.eof = threading.Event()
+            self.close_called = False
+
+        def readline(self):
+            self.eof.wait(timeout=1)
+            lifecycle.append("reader-exit")
+            reader_exited.set()
+            return ""
+
+        def close(self):
+            lifecycle.append("stdout-close")
+            self.close_called = True
+            self.eof.set()
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdin = FakeStdin()
+            self.stdout = FakeStdout()
+
+        def terminate(self):
+            terminated.append(True)
+            self.stdout.eof.set()
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr(bridge, "REQUEST_TIMEOUT_SECONDS", 0.01, raising=False)
+    monkeypatch.setattr(bridge.threading, "Thread", tracking_thread)
+    process = FakeProcess()
+    monkeypatch.setattr(bridge.subprocess, "Popen", lambda *args, **kwargs: process)
+
+    result, error = bridge.call_stdio({"command": "python"}, "tools-list", None, {})
+
+    assert result is None
+    assert error == "initialize failed: timed out"
+    assert terminated == [True]
+    assert reader_exited.is_set()
+    assert len(reader_threads) == 1
+    assert reader_threads[0].is_alive() is False
+    assert process.stdin.closed is True
+    assert process.stdout.close_called is True
+    assert lifecycle.index("reader-exit") < lifecycle.index("stdout-close")
+
+
+def test_call_stdio_reaps_process_after_terminate_timeout_and_kill(monkeypatch):
+    bridge = load_bridge()
+    events = []
+
+    class FakePipe:
+        def write(self, text):
+            return None
+
+        def flush(self):
+            return None
+
+        def readline(self):
+            return ""
+
+        def close(self):
+            events.append("close")
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdin = FakePipe()
+            self.stdout = FakePipe()
+            self.wait_calls = 0
+
+        def terminate(self):
+            events.append("terminate")
+
+        def wait(self, timeout=None):
+            self.wait_calls += 1
+            events.append(f"wait-{self.wait_calls}")
+            if self.wait_calls == 1:
+                raise bridge.subprocess.TimeoutExpired("serena", timeout)
+            return 0
+
+        def kill(self):
+            events.append("kill")
+
+    process = FakeProcess()
+    monkeypatch.setattr(bridge.subprocess, "Popen", lambda *args, **kwargs: process)
+
+    bridge.call_stdio({"command": "python"}, "tools-list", None, {})
+
+    assert process.wait_calls == 2
+    assert events.index("terminate") < events.index("kill") < events.index("wait-2")
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires POSIX process groups")
+def test_call_stdio_timeout_does_not_block_on_descendant_inheriting_stdout(
+    tmp_path, monkeypatch
+):
+    bridge = load_bridge()
+    descendant_pid_path = tmp_path / "descendant.pid"
+    descendant_code = "import time; time.sleep(3)"
+    parent_code = (
+        "import pathlib, subprocess, time\n"
+        f"child = subprocess.Popen([{sys.executable!r}, '-c', {descendant_code!r}])\n"
+        f"pathlib.Path({str(descendant_pid_path)!r}).write_text(str(child.pid))\n"
+        "time.sleep(3)\n"
+    )
+    direct_processes = []
+    real_popen = bridge.subprocess.Popen
+
+    def tracking_popen(*args, **kwargs):
+        process = real_popen(*args, **kwargs)
+        direct_processes.append(process)
+        return process
+
+    monkeypatch.setattr(bridge, "REQUEST_TIMEOUT_SECONDS", 0.2)
+    monkeypatch.setattr(bridge, "READER_JOIN_TIMEOUT_SECONDS", 0.2)
+    monkeypatch.setattr(bridge.subprocess, "Popen", tracking_popen)
+
+    started = time.monotonic()
+    descendant_started = False
+    try:
+        result, error = bridge.call_stdio(
+            {"command": sys.executable, "args": ["-c", parent_code]},
+            "tools-list", None, {},
+        )
+        elapsed = time.monotonic() - started
+    finally:
+        descendant_started = descendant_pid_path.exists()
+        if descendant_started:
+            descendant_pid = int(descendant_pid_path.read_text(encoding="utf-8"))
+            try:
+                os.kill(descendant_pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        for process in direct_processes:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=1)
+
+    assert result is None
+    assert error == "initialize failed: timed out"
+    assert elapsed < 1.0
+    assert descendant_started is True
+    assert len(direct_processes) == 1
+    assert direct_processes[0].returncode is not None
+
+
+def test_runtime_probe_reuses_loaded_bridge_for_tools_list(tmp_path):
+    from cli.mcp.runtime_probe import probe_tools_list
+
+    bridge = tmp_path / "fake_bridge.py"
+    bridge.write_text(
+        "def call_stdio(server, operation, tool_name, arguments):\n"
+        "    assert operation == 'tools-list'\n"
+        "    return ({'result': {'tools': [{'name': 'find_symbol'}]}}, '')\n",
+        encoding="utf-8",
+    )
+
+    result, error = probe_tools_list({"command": "serena"}, bridge)
+
+    assert error == ""
+    assert result == {"tools": [{"name": "find_symbol"}]}
 
 
 def test_discover_sse_message_endpoint_reads_endpoint_event(monkeypatch):

@@ -27,6 +27,31 @@ mcp_capabilities:
         command: "codebase-memory-mcp"
         args: []
 
+  serena:
+    provides: semantic_code_intelligence
+    display: "Serena — read-only semantic symbols, references and diagnostics"
+    setup:
+      version: "1.5.3"
+      engine_check:
+        default: {kind: command_exists, command: serena}
+      install_hint:
+        default: "uv tool install --python 3.13 'serena-agent==1.5.3'"
+      prepare_hint: "serena project create {project_root} --language {language}  # omit --language for Maika language 'other' and let Serena infer"
+      server:
+        command: serena
+        args:
+          - start-mcp-server
+          - --project
+          - "{project_root}"
+          - --context
+          - "{project_root}/.maika/config/serena-context.yml"
+          - --mode
+          - no-memories
+          - --enable-web-dashboard
+          - "false"
+          - --open-web-dashboard
+          - "false"
+
   confluence:
     provides: document_search
     display: "Confluence — Wiki/document search"
@@ -175,6 +200,13 @@ plugins:
     source: config/artifact-registry.yaml
     template: false
     output: "{{ platform.framework_root }}/config/artifact-registry.yaml"
+
+  - name: serena-context
+    type: profile
+    source: config/serena-context.yml
+    template: false
+    requires_capability: semantic_code_intelligence
+    output: "{{ platform.framework_root }}/config/serena-context.yml"
 
   - name: provider-registry
     type: profile

@@ -77,6 +77,7 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
     print(f"\n  Updating Maika ({platform.display_name})...\n")
     staging = Path(tempfile.mkdtemp(prefix="maika-update-"))
     backups = Path(tempfile.mkdtemp(prefix="maika-backup-"))
+    mcp_setup_written = None
     try:
         scaffold_plugins(
             manifest.get("plugins", []), maika, staging, context, jinja_env,
@@ -124,8 +125,17 @@ def run_update(target_dir: str, maika_root: Optional[str] = None, reconfigure: b
         if reconfigure:
             from cli.commands.init import resolve_ua_mcp_dir, emit_mcp_setup_files
             ua_dir = resolve_ua_mcp_dir(selected_mcps, None, assume_yes=False)
-            emit_mcp_setup_files(staging, platform, platform_key, selected_mcps, manifest, ua_dir)
+            mcp_setup_written = emit_mcp_setup_files(
+                staging, enabled, selected_mcps, manifest, ua_dir, language,
+                project_root=target,
+            )
         plan = build_plan(staging, target, "update", framework_root)
+        if mcp_setup_written is False and (target / ".maika/MCP_SETUP.md").is_file():
+            plan["actions"].append({
+                "kind": "delete_file",
+                "path": ".maika/MCP_SETUP.md",
+                "ownership": "framework",
+            })
         if not plan["actions"]:
             from cli.runtime.result import OperationResult
             return OperationResult("no-op", False, message="already up to date")

@@ -7,6 +7,24 @@ capabilities:
     supporting_providers: [codebase-memory-mcp]
     freshness: [code_index]
     preferred_evidence: [architecture_node, domain_node, domain_flow, relationship_edge, document_node]
+  symbolic_code_navigation:
+    description: Resolve exact symbol identity, declarations, implementations and LSP references.
+    tools: [serena_symbols_overview, serena_find_symbol, serena_find_references, serena_find_declaration, serena_find_implementations]
+    health: [serena]
+    primary_provider: serena
+    preferred_evidence: [symbol_identity, declaration, implementation, semantic_reference]
+  code_diagnostics:
+    description: Read current language-server diagnostics without editing source.
+    tools: [serena_file_diagnostics, serena_symbol_diagnostics]
+    health: [serena]
+    primary_provider: serena
+    preferred_evidence: [language_diagnostic]
+  operational_maintenance:
+    description: Recover an unhealthy semantic language backend without producing evidence.
+    tools: [serena_maintenance_restart_language_server]
+    health: [serena]
+    primary_provider: serena
+    preferred_evidence: []
   exact_source_inspection:
     description: Đọc source/symbol hiện tại với thẩm quyền tối cao (authoritative).
     tools: [get_symbol, read_file]
@@ -132,3 +150,5 @@ triggers:
     description: Rủi ro dependency DB (FK/routine/package) cần constraint metadata.
   blast_radius_required:
     description: Câu hỏi scope/risk yêu cầu blast radius/impact tường minh.
+  language_diagnostics_required:
+    description: Implementation or review needs current LSP diagnostics for supported changed source.

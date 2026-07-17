@@ -1,5 +1,7 @@
 """maika init — Scaffold Maika framework into a target project."""
 
+import json
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -171,28 +173,48 @@ def resolve_ua_mcp_dir(selected_mcps, ua_mcp_dir, assume_yes: bool) -> str:
     return raw or UA_MCP_PLACEHOLDER
 
 
-def emit_mcp_setup_files(target, platform, platform_key, selected_mcps, manifest, ua_dir) -> bool:
-    """Write <framework_root>/MCP_SETUP.md for selected MCPs that declare a `setup`
-    block; remove a stale file when none apply. Returns True if a file was written.
-    Shared by init and update --reconfigure."""
+def emit_mcp_setup_files(target, platform_keys, selected_mcps, manifest, ua_dir,
+                         language="other", *, project_root=None) -> bool:
+    """Write one aggregate .maika/MCP_SETUP.md for all providers and hosts."""
+    project_root = str(Path(project_root or target).resolve())
     mcp_caps = manifest.get("mcp_capabilities", {})
-    setup_path = target / platform.framework_root / "MCP_SETUP.md"
+    setup_path = target / ".maika" / "MCP_SETUP.md"
     setup_path.parent.mkdir(parents=True, exist_ok=True)
-    wrote = False
+    sections = []
     for mcp_key in selected_mcps:
         capability = mcp_caps.get(mcp_key, {})
         if not ua_setup.has_setup(capability):
             continue
-        dir_value = ua_dir if mcp_key == UA_MCP_KEY else UA_MCP_PLACEHOLDER
-        setup_md = ua_setup.render_mcp_setup_md(
-            capability["setup"], server_key=mcp_key, platform=platform_key,
-            ua_mcp_dir=dir_value, project_root=str(target),
+        dir_value = ua_dir if mcp_key == UA_MCP_KEY else ""
+        sections.append(ua_setup.render_mcp_setup_section(
+            capability["setup"], server_key=mcp_key, platform_keys=platform_keys,
+            ua_mcp_dir=dir_value, project_root=project_root, language=language,
+        ))
+    if sections:
+        setup_path.write_text(
+            "# Maika MCP Setup\n\n" + "\n\n".join(sections) + "\n",
+            encoding="utf-8",
         )
-        setup_path.write_text(setup_md, encoding="utf-8")
-        wrote = True
-    if not wrote and setup_path.exists():
+        return True
+    if setup_path.exists():
         setup_path.unlink()
-    return wrote
+    return False
+
+
+def existing_ua_mcp_dir(target: Path) -> str:
+    """Recover the configured UA clone path when regenerating the setup guide."""
+    setup_path = target / ".maika" / "MCP_SETUP.md"
+    try:
+        text = setup_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return UA_MCP_PLACEHOLDER
+    match = re.search(r'"--directory"\s*,\s*"((?:\\.|[^"\\])*)"', text)
+    if not match:
+        return UA_MCP_PLACEHOLDER
+    try:
+        return json.loads(f'"{match.group(1)}"')
+    except json.JSONDecodeError:
+        return UA_MCP_PLACEHOLDER
 
 
 def run_init(
@@ -267,7 +289,10 @@ def run_init(
             destination = staging / ".maika" / logical
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
-        emit_mcp_setup_files(staging, platform, platform_key, selected_mcps, manifest, ua_dir)
+        emit_mcp_setup_files(
+            staging, [platform_key], selected_mcps, manifest, ua_dir, language,
+            project_root=target,
+        )
         # Canonical metadata is part of the same transaction as core/adapter
         # files; no post-commit writes may leave a partial installation.
         from cli.config import platforms as platforms_cfg

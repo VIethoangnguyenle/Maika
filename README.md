@@ -80,6 +80,15 @@ Maika giữ nguyên các file user-owned trong `knowledge/long-term/` và `knowl
 Ranh giới project/framework/host ownership được chốt tại
 [Project core and host adapters](docs/architecture/project-core-and-host-adapters.md).
 
+### Serena semantic provider (optional)
+
+| Codex | Claude Code | Antigravity | Phase 1 surface | Full guide |
+|---|---|---|---|---|
+| Supported | Supported | Supported | read-only symbols/references/diagnostics | [Serena provider guide](docs/providers/serena.md) |
+
+Serena is pinned and opt-in. Maika renders its read-only context and setup guide;
+you explicitly apply the workspace MCP entry for each host.
+
 ### 2. Tuỳ chỉnh persona
 
 Chọn đúng framework root theo platform:
