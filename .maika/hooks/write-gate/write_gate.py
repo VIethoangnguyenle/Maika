@@ -7,6 +7,7 @@ Command-hook contract:
 - Antigravity: stdout JSON with decision allow|deny.
 """
 import argparse
+import fnmatch
 import hashlib
 import importlib.util
 import json
@@ -58,6 +59,74 @@ _SESSION_GATE_MESSAGE = (
 class Decision:
     ok: bool
     reason: str = ""
+
+
+# --- Secret scanner (inlined so this hook stays a single self-contained file
+#     the host copies as one unit). High-precision, no PII/entropy. ------------
+
+
+@dataclass(frozen=True)
+class SecretRule:
+    id: str
+    label: str
+    pattern: re.Pattern
+    secret_group: int = 0
+
+
+@dataclass(frozen=True)
+class SecretMatch:
+    rule_id: str
+    label: str
+    line: int
+    masked_preview: str
+
+
+_SECRET_RULES = [
+    SecretRule("private-key", "PEM private key",
+               re.compile(r"-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----")),
+    SecretRule("aws-access-key", "AWS access key id",
+               re.compile(r"AKIA[0-9A-Z]{16}")),
+    SecretRule("gcp-sa-key", "GCP service-account private key",
+               re.compile(r'"private_key"\s*:\s*"-----BEGIN')),
+    SecretRule("jwt", "JSON Web Token",
+               re.compile(r"eyJ[A-Za-z0-9_-]{6,}\.eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}")),
+    SecretRule("github-token", "GitHub token",
+               re.compile(r"gh[pousr]_[A-Za-z0-9]{36,}")),
+    SecretRule("slack-token", "Slack token",
+               re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}")),
+    SecretRule("stripe-live", "Stripe live secret key",
+               re.compile(r"sk_live_[A-Za-z0-9]{16,}")),
+    SecretRule("generic-assignment", "Secret-like quoted assignment",
+               re.compile(r"(?i)(?:api[_-]?key|secret|token|password)\s*[:=]\s*['\"]([^'\"]{16,})['\"]"),
+               secret_group=1),
+]
+
+
+def _mask_secret(value: str) -> str:
+    """Reveal only first-4 + last-2; hide the middle. Short values fully hidden."""
+    if not value or len(value) <= 6:
+        return "****"
+    return f"{value[:4]}****{value[-2:]}"
+
+
+def _secret_scan(content: str, rules=None):
+    """Side-effect-free scan. Returns SecretMatch list whose masked_preview
+    never contains the raw secret."""
+    if not content:
+        return []
+    rules = _SECRET_RULES if rules is None else rules
+    matches = []
+    for rule in rules:
+        for m in rule.pattern.finditer(content):
+            try:
+                secret, start = m.group(rule.secret_group), m.start(rule.secret_group)
+            except IndexError:
+                secret, start = m.group(0), m.start(0)
+            if not secret:
+                continue
+            line = content.count("\n", 0, start) + 1
+            matches.append(SecretMatch(rule.id, rule.label, line, _mask_secret(secret)))
+    return matches
 
 
 def _load_gate_check(project_root: Path, framework_root: str):
@@ -720,6 +789,141 @@ def evaluate_write(project_root: Path, target_path: Path, framework_root: str = 
     return Decision(False, f"vNext brief-scope: {rel} ngoài files khai báo của {task['id']}")
 
 
+# --- Secret-gate (P0): mechanical secret protection for Maika-owned artifacts ---
+# High-precision, write-side only. Scans content headed for a framework artifact;
+# blocks on a hit and records a masked degradation entry (never the raw secret).
+# Design: docs/superpowers/specs/2026-07-20-secret-gate-design.md
+
+
+def _content_text(payload: dict) -> str:
+    """Text being introduced by this write (Write content / Edit new_string /
+    shell command). Non-string fields are ignored."""
+    tool_input = payload.get("tool_input") or {}
+    tool_args = (payload.get("toolCall") or {}).get("args") or {}
+    fields = (
+        tool_input.get("content"), tool_input.get("new_string"),
+        tool_input.get("new_str"), tool_input.get("CodeEdit"),
+        tool_input.get("command"),
+        tool_args.get("content"), tool_args.get("new_string"),
+        tool_args.get("CodeEdit"), tool_args.get("CommandLine"),
+        tool_args.get("command"),
+    )
+    return "\n".join(v for v in fields if isinstance(v, str) and v)
+
+
+def load_secret_config(framework_path: Path) -> dict:
+    """Load profiles/secret-gate.yaml (local override wins). Missing → enabled
+    defaults; malformed → enabled defaults (fail toward protection)."""
+    profiles = framework_path / "profiles"
+    for name in ("secret-gate.local.yaml", "secret-gate.yaml"):
+        path = profiles / name
+        if not path.exists():
+            continue
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            return {"enabled": True, "on_error": "block", "_malformed": True}
+        if isinstance(data, dict):
+            return data
+    return {"enabled": True, "on_error": "block"}
+
+
+def _secret_rules_from_config(config: dict):
+    """Filter DEFAULT_RULES by config['rules'][id].enabled; None → all defaults."""
+    rule_cfg = config.get("rules") or {}
+    if not rule_cfg:
+        return None
+    return [r for r in _SECRET_RULES
+            if (rule_cfg.get(r.id) or {}).get("enabled", True)]
+
+
+def _secret_allowlisted(rel: str, match, allowlist) -> bool:
+    for entry in allowlist or []:
+        glob = entry.get("path_glob")
+        rule_ids = entry.get("rule_ids")
+        if not glob and not rule_ids:
+            continue  # an empty entry must not allowlist everything
+        if glob and not fnmatch.fnmatch(rel, glob):
+            continue
+        if rule_ids and match.rule_id not in rule_ids:
+            continue
+        return True
+    return False
+
+
+def _write_secret_record(project_root: Path, framework_root: str, rel: str,
+                         matches, runtime: str) -> Path:
+    """Append masked degradation entries. Best-effort; never persists raw secret."""
+    record_path = project_root / framework_root / "logs" / "secret-gate.jsonl"
+    ts = datetime.now(timezone.utc).isoformat()
+    try:
+        record_path.parent.mkdir(parents=True, exist_ok=True)
+        with record_path.open("a", encoding="utf-8") as f:
+            for m in matches:
+                f.write(json.dumps({
+                    "ts": ts, "gate": "secret-gate", "severity": "high",
+                    "action": "blocked", "runtime": runtime,
+                    "rule_id": m.rule_id, "label": m.label,
+                    "artifact": rel, "line": m.line,
+                    "masked_preview": m.masked_preview,
+                }, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+    return record_path
+
+
+def evaluate_secret_gate(project_root: Path, targets, payload: dict,
+                         framework_root: str = ".maika", config=None,
+                         runtime: str = "claude"):
+    """Return a blocking Decision if the write introduces a secret into a
+    Maika-owned artifact; otherwise None (allow)."""
+    framework_path = project_root / framework_root
+    if config is None:
+        config = load_secret_config(framework_path)
+    if not config.get("enabled", True):
+        return None
+
+    scoped = []
+    for target in targets or []:
+        policy = _policy_path(project_root, target)
+        if _is_framework_artifact(policy, framework_root):
+            scoped.append(policy.as_posix())
+    if not scoped:
+        return None
+
+    content = _content_text(payload)
+    if not content:
+        return None
+
+    try:
+        matches = _secret_scan(content, _secret_rules_from_config(config))
+    except Exception:  # a scanner bug must never silently leak a secret
+        if (config.get("on_error") or "block") == "allow":
+            _warn("write-gate: secret-gate scanner error — on_error=allow, permitting write")
+            return None
+        return Decision(False, "[R-Guard-3] secret-gate: scanner error (fail-closed); write blocked")
+    if not matches:
+        return None
+
+    allowlist = config.get("allowlist") or []
+    for rel in scoped:
+        live = [m for m in matches if not _secret_allowlisted(rel, m, allowlist)]
+        if not live:
+            continue
+        record_path = _write_secret_record(project_root, framework_root, rel, live, runtime)
+        try:
+            record_rel = record_path.relative_to(project_root).as_posix()
+        except ValueError:
+            record_rel = record_path.as_posix()
+        detail = ", ".join(f"{m.rule_id}@L{m.line} (masked: {m.masked_preview})" for m in live)
+        return Decision(
+            False,
+            f"[R-Guard-3] secret-gate: blocked write to {rel} — "
+            f"{len(live)} match(es): {detail}; record: {record_rel}",
+        )
+    return None
+
+
 def _print_runtime_decision(runtime: str, decision: Decision) -> int:
     if decision.ok:
         if runtime == "codex":
@@ -797,6 +1001,14 @@ def main(argv=None, stdin_text=None):
                 for target in targets
             ]
             decision = next((item for item in decisions if not item.ok), Decision(True))
+
+    if decision.ok:
+        secret_decision = evaluate_secret_gate(
+            root, targets, payload, framework_root=args.framework_root,
+            runtime=args.runtime,
+        )
+        if secret_decision is not None:
+            decision = secret_decision
 
     return _print_runtime_decision(args.runtime, decision)
 
