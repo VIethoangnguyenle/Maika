@@ -1,0 +1,7 @@
+# Keep implemented design history out of repomix codebase summaries — same globs
+# as docs/archive/implemented/index.yaml (runtime_authority: false / exclude).
+# Mirrors .ignore; keep all three in sync.
+docs/superpowers/plans/*.md
+docs/superpowers/specs/*.md
+docs/refactor/maika-vnext/*.md
+docs/refactor/upgrade-2026-07/*.md

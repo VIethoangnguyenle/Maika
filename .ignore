@@ -1,0 +1,13 @@
+# ripgrep / Grep-tool ignore (git does NOT read this file — history stays tracked).
+#
+# Keeps IMPLEMENTED design history out of the default agent grep sweep, so a raw
+# `rg` / Grep call cannot pull stale, superseded specs & plans into context and
+# distract the model (context-rot / distractor-interference). This mirrors the
+# `runtime_authority: false` + `default_retrieval: exclude` globs in
+# docs/archive/implemented/index.yaml — keep the two in sync.
+#
+# History is still reachable on purpose with `rg -u` / `rg --no-ignore`.
+docs/superpowers/plans/*.md
+docs/superpowers/specs/*.md
+docs/refactor/maika-vnext/*.md
+docs/refactor/upgrade-2026-07/*.md
