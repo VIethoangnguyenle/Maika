@@ -182,6 +182,12 @@ plugins:
     template: false
     output: "{{ platform.framework_root }}/profiles/execution-mode.yaml"
 
+  - name: secret-gate
+    type: profile
+    source: profiles/secret-gate.yaml
+    template: false
+    output: "{{ platform.framework_root }}/profiles/secret-gate.yaml"
+
   - name: artifact-registry
     type: profile
     source: config/artifact-registry.yaml

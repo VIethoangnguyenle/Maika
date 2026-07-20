@@ -60,6 +60,7 @@
 .maika/profiles/capability-registry.yaml
 .maika/profiles/execution-mode.yaml
 .maika/profiles/provider-capabilities.yaml
+.maika/profiles/secret-gate.yaml
 .maika/reports/
 .maika/reports/.gitignore
 .maika/resolved-config.yaml

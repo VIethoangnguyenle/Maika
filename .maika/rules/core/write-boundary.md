@@ -31,4 +31,4 @@ workspace vNext ở trạng thái `EXECUTING`:
 
 Write-gate chỉ cho phép file nằm trong `files.create`, `files.modify`,
 `files.delete`, hoặc `files.test` của task `in_progress` hiện tại. Gate FAIL →
-**ABORT**, không được viết code. Chi tiết: `procedures/decision-gate.md`. Explicit preference ngoài task chỉ ghi qua `maika remember` vào preference store, không tạo change hay sửa rule/skill/durable knowledge; lesson trong task vẫn candidate-first.
+**ABORT**, không được viết code. Chi tiết: `procedures/decision-gate.md`. Explicit preference ngoài task chỉ ghi qua `maika remember` vào preference store, không tạo change hay sửa rule/skill/durable knowledge; lesson trong task vẫn candidate-first. Write-gate cũng quét secret high-precision trong nội dung ghi vào artifact-Maika (R-Guard-3, cơ học) → DENY + record đã mask; policy `profiles/secret-gate.yaml`.
